@@ -1,0 +1,20 @@
+<section class="card study-dashboard" aria-labelledby="tm">
+  <header class="study-dashboard-head"><div><span class="focus-eyebrow">VISÃO DE HOJE</span><h2 id="tm">Seu ritmo de estudo<i>.</i></h2><p>Registre sessões quando terminar e acompanhe a consistência ao longo da semana.</p></div></header>
+  <div class="studies-snapshot" aria-label="Resumo de estudos"><div><span>Hoje</span><b>{{today-study-time}}</b></div><div><span>Semana</span><b>{{week-study-time}}</b></div><div><span>Matérias ativas</span><b>{{active-subjects}}</b></div></div>
+  <div class="study-week-progress"><span>Meta semanal</span><div class="bar" role="progressbar" aria-valuenow="{{week-study-progress}}" aria-valuemin="0" aria-valuemax="100" aria-label="Meta semanal de estudos"><span style="width:{{week-study-progress}}%"></span></div><b>{{week-study-copy}}</b></div>
+  <div class="study-dashboard-actions">{{study-primary-action}}<a class="btn" href="#pomodoro">Usar Pomodoro</a></div>
+</section>
+<form class="card study-goal-card" data-form="settings-save" novalidate><div class="head"><div><h2>Meta de hoje<i>.</i></h2><p class="small muted">Ajuste o tempo que quer dedicar aos estudos.</p></div><span class="small muted">{{goal-label}}</span></div>
+  <label class="f study-goal-control">Meta diária de estudo (min)<input type="number" id="sg" data-change="goal-study" min="10" max="1440" value="{{goal-value}}"></label>
+  <div class="bar" role="progressbar" aria-valuenow="{{goal-progress}}" aria-valuemin="0" aria-valuemax="100" aria-label="Meta diária de estudo"><span style="width:{{goal-progress}}%"></span></div>
+  {{study-chart}}
+  <div class="row settings-save-actions"><button class="btn back" type="button" data-action="discard-settings" data-settings-discard-button {{settings-discard-disabled}}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button {{settings-save-disabled}}>Salvar</button></div>
+</form>
+<details class="card" id="d-subj" {{subjects-open}}><summary>{{subjects-icon}}<span class="grow">Matérias ({{subjects-count}})</span>{{chevron-icon}}</summary>
+  <form class="form inline" data-form="subject"><label class="f">Nova matéria<input type="text" name="name" id="sn" data-keep maxlength="60" placeholder="Ex.: Biologia" autocomplete="off"></label><button class="btn primary" type="submit">{{add-icon}}Adicionar</button></form>
+  {{subjects-list}}
+</details>
+<details class="card" id="d-man" {{manual-open}}><summary>{{manual-icon}}<span class="grow">Registrar sessão</span>{{chevron-icon}}</summary>
+  <form class="form" data-form="manual-session"><label class="f">Matéria<select name="subjectId">{{manual-subject-options}}</select></label><label class="f">Minutos<input type="number" name="min" min="1" max="1440" inputmode="numeric" required></label><label class="f">Data<input type="date" name="date" value="{{today}}" max="{{today}}"></label><button class="btn primary" type="submit" {{manual-submit-disabled}}>Registrar</button></form>
+</details>
+<section class="card study-history"><div class="head"><div><h2>Histórico<i>.</i></h2><p class="small muted">Suas sessões mais recentes.</p></div></div>{{session-history}}</section>
