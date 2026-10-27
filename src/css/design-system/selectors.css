@@ -1,0 +1,111 @@
+/*
+ * Seletores — abas, chips e controles segmentados
+ *
+ * .chip (filtro/opção, 44 px) · .seg (grupo segmentado; .seg.sm menor) · .tab/.areanav a (navegação).
+ * Estado selecionado: aria-pressed / aria-selected / aria-current + contraste + peso, nunca só cor.
+ */
+.tab, .areanav a, .seg button, .chip {
+  min-height: var(--target-size);
+  border-radius: var(--r-control);
+  transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.tab:hover, .areanav a:hover, .seg button:hover, .chip:hover {
+  background: var(--soft);
+  color: var(--accent);
+}
+.tab:active, .areanav a:active, .seg button:active, .chip:active { transform: translateY(1px); }
+.tab[aria-selected="true"],
+.areanav a[aria-current="page"],
+.seg button[aria-pressed="true"],
+.chip[aria-pressed="true"],
+.chip.on {
+  background: var(--soft2);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex;
+  min-height: var(--control-md);
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.chip[aria-pressed="true"], .chip.on {
+  border-color: var(--accent);
+}
+
+
+.seg { min-width: 0; }
+.appearance-settings-option .seg button { min-width: 0; padding-inline: 8px; }
+.appearance-settings-option .appearance-segment-label { min-width: 0; text-align: center; }
+.appearance-font-sample { font-weight: 750; line-height: 1; }
+.appearance-font-sample-s { font-size: var(--text-meta); }
+.appearance-font-sample-m { font-size: var(--text-base); }
+.appearance-font-sample-l { font-size: var(--text-xl); }
+.appearance-settings .swatch[aria-pressed="true"],
+.appearance-settings .appearance-custom-color.is-selected {
+  border-color: var(--accent);
+  background: var(--soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.appearance-settings .appearance-custom-color:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (max-width: 899px) {
+  .appearance-settings-controls { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .menu-order-item { align-items: flex-start; padding-left: 10px; }
+  .menu-order-label { flex-wrap: wrap; gap: 6px; padding-block: 8px; }
+  .menu-order-controls { gap: 0; }
+  .menu-visibility { gap: 4px; padding-inline: 2px; }
+  .menu-always-visible { padding-inline: 4px; }
+  .areas-navigation-item { grid-template-columns: 24px minmax(0, 1fr); gap: 6px 8px; padding: 8px; }
+  .areas-navigation-controls { grid-column: 2; justify-content: space-between; gap: 4px; }
+  .areas-navigation-controls .menu-visibility { white-space: normal; }
+  .settings-storage-notice { align-items: flex-start; flex-direction: column; }
+  .appearance-settings-controls { grid-template-columns: minmax(0, 1fr); }
+  .appearance-settings-heading { grid-template-columns: minmax(0, 1fr); }
+}
+
+.f > .lbl { color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
+.seg {
+  display: flex;
+  gap: 3px;
+  overflow: visible;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--surface-soft);
+}
+.seg button {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg button:focus-visible { z-index: 1; }
+.seg.sm button { padding-inline: 12px; font-size: var(--text-meta); }

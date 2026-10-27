@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design system do Aurora</title>
+  <link rel="stylesheet" href="../src/css/main.css">
+  <style>
+    /* Só a moldura desta página de referência; os componentes usam o CSS real do app. */
+    .ds-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .ds-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .ds-swatch { display: grid; gap: 4px; font-size: var(--text-xs); color: var(--muted); }
+    .ds-swatch i { display: block; height: 44px; border: 1px solid var(--line); border-radius: var(--r-sm); }
+    .ds-type { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; gap: var(--space-3); padding-block: 6px; border-bottom: 1px solid var(--line); }
+    .ds-type code, .ds-note code { color: var(--muted); font-size: var(--text-xs); }
+    .ds-box { display: grid; place-items: center; height: 64px; border: 1px solid var(--line-strong); background: var(--surface); font-size: var(--text-xs); color: var(--muted); }
+    .ds-note { color: var(--muted); font-size: var(--text-sm); margin: 0; }
+    .ds-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .card h2 { margin: 0 0 var(--space-2); }
+  </style>
+</head>
+<body>
+<div id="app">
+<main class="main" id="main">
+  <header class="ds-top">
+    <div class="page-title"><h1>design system.</h1><p class="ds-note">Referência viva: usa o CSS real do app. Tokens em <code>src/css/design-system/tokens.css</code>.</p></div>
+    <div class="seg" role="group" aria-label="Tema"><button type="button" data-theme-set="light" aria-pressed="true">claro</button><button type="button" data-theme-set="dark" aria-pressed="false">escuro</button></div>
+  </header>
+
+  <section class="card" aria-labelledby="ds-type"><h2 id="ds-type">Tipografia</h2>
+    <p class="ds-note">DM Sans. Use sempre <code>var(--text-*)</code>; títulos fluidos usam <code>--text-page-title</code>, <code>--text-display</code>, <code>--text-section</code> e <code>--text-heading</code>.</p>
+    <div class="ds-type"><code>--text-3xl · 28</code><span style="font-size:var(--text-3xl);font-weight:750">Planeje o seu dia</span></div>
+    <div class="ds-type"><code>--text-2xl · 24</code><span style="font-size:var(--text-2xl);font-weight:750">Planeje o seu dia</span></div>
+    <div class="ds-type"><code>--text-title · 22</code><span style="font-size:var(--text-title);font-weight:750">Planeje o seu dia</span></div>
+    <div class="ds-type"><code>--text-xl · 20</code><span style="font-size:var(--text-xl);font-weight:700">Planeje o seu dia</span></div>
+    <div class="ds-type"><code>--text-lg · 18</code><span style="font-size:var(--text-lg);font-weight:700">Planeje o seu dia</span></div>
+    <div class="ds-type"><code>--text-base · 16</code><span style="font-size:var(--text-base)">Corpo de texto e campos de formulário</span></div>
+    <div class="ds-type"><code>--text-md · 15</code><span style="font-size:var(--text-md)">Texto de apoio em listas</span></div>
+    <div class="ds-type"><code>--text-sm · 14</code><span style="font-size:var(--text-sm)">Texto secundário e rótulos</span></div>
+    <div class="ds-type"><code>--text-meta · 13</code><span style="font-size:var(--text-meta)">Metadados e datas</span></div>
+    <div class="ds-type"><code>--text-xs · 12</code><span style="font-size:var(--text-xs)">Legendas e contadores</span></div>
+    <div class="ds-type"><code>--text-2xs · 11</code><span style="font-size:var(--text-2xs);letter-spacing:.08em;text-transform:uppercase">Sobretítulo</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="ds-color"><h2 id="ds-color">Cores</h2>
+    <div class="ds-grid">
+      <div class="ds-swatch"><i style="background:var(--bg)"></i>--bg</div>
+      <div class="ds-swatch"><i style="background:var(--surface)"></i>--surface</div>
+      <div class="ds-swatch"><i style="background:var(--surface-soft)"></i>--surface-soft</div>
+      <div class="ds-swatch"><i style="background:var(--soft2)"></i>--soft2</div>
+      <div class="ds-swatch"><i style="background:var(--ink)"></i>--ink</div>
+      <div class="ds-swatch"><i style="background:var(--muted)"></i>--muted</div>
+      <div class="ds-swatch"><i style="background:var(--accent)"></i>--accent</div>
+      <div class="ds-swatch"><i style="background:var(--btn)"></i>--btn</div>
+      <div class="ds-swatch"><i style="background:var(--ok)"></i>--ok</div>
+      <div class="ds-swatch"><i style="background:var(--warn)"></i>--warn</div>
+      <div class="ds-swatch"><i style="background:var(--bad)"></i>--bad</div>
+      <div class="ds-swatch"><i style="background:var(--area-water)"></i>--area-water</div>
+      <div class="ds-swatch"><i style="background:var(--area-finances)"></i>--area-finances</div>
+      <div class="ds-swatch"><i style="background:var(--area-cycle)"></i>--area-cycle</div>
+      <div class="ds-swatch"><i style="background:var(--area-studies)"></i>--area-studies</div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="ds-btn"><h2 id="ds-btn">Botões</h2>
+    <p class="ds-note">Hierarquia: primário avança, padrão é alternativa, fantasma navega, perigo remove. Tamanhos: <code>.sm</code> 40 · padrão 44 · <code>.large</code> 52.</p>
+    <div class="ds-row"><button class="btn primary">Primário</button><button class="btn">Padrão</button><button class="btn back">Voltar</button><button class="btn ghost">Fantasma</button><button class="btn danger">Excluir</button></div>
+    <div class="ds-row"><button class="btn primary sm">Pequeno</button><button class="btn sm">Pequeno</button><button class="btn primary">Médio</button><button class="btn primary large">Grande</button></div>
+    <div class="ds-row"><button class="btn primary" disabled>Desabilitado</button><button class="btn" disabled>Desabilitado</button></div>
+    <div class="ds-row"><button class="ibtn" aria-label="Mais"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg></button><button class="iconbtn" aria-label="Adicionar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="ds-note">.ibtn e .iconbtn (44 px)</span></div>
+    <button class="btn primary block">Largura total (.block)</button>
+  </section>
+
+  <section class="card" aria-labelledby="ds-field"><h2 id="ds-field">Campos</h2>
+    <p class="ds-note">Altura mínima 48 px, borda visível, foco evidente e fonte mínima de 16 px.</p>
+    <form class="form" onsubmit="return false">
+      <label class="f">Texto<input type="text" placeholder="Ex.: ler por 10 minutos"></label>
+      <label class="f">Data<input type="date" value="2026-10-24"></label>
+      <label class="f">Seleção<select><option>Uma vez por semana</option><option>Todos os dias</option></select></label>
+      <label class="f">Número<input type="number" value="2000"></label>
+      <label class="f full">Observação<textarea placeholder="Escreva aqui"></textarea></label>
+      <label class="row" style="gap:12px"><input type="checkbox" checked><span class="small">Caixa de seleção</span></label>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="ds-sel"><h2 id="ds-sel">Chips, segmentado e selos</h2>
+    <div class="chips"><button class="chip" aria-pressed="true">Todas</button><button class="chip" aria-pressed="false">Pendentes</button><button class="chip" aria-pressed="false">Atrasadas</button></div>
+    <div class="seg" role="group" aria-label="Exemplo"><button aria-pressed="true">Lista</button><button aria-pressed="false">Calendário</button><button aria-pressed="false">Semana</button></div>
+    <div class="ds-row"><span class="badge">Padrão</span><span class="badge ok">Concluído</span><span class="badge warn">Atenção</span><span class="badge bad">Atrasado</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="ds-hab"><h2 id="ds-hab">Linha de hábito</h2>
+    <ul class="habit-list">
+      <li class="habit-row is-done" style="--hc:#7c8fd4"><button class="habit-circle" aria-pressed="true" aria-label="Desmarcar: Ler por 10 minutos"><span class="habit-circle-icon"></span><span class="habit-circle-check"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Ler por 10 minutos</span><span class="habit-sub">3 dias seguidos</span></div></li>
+      <li class="habit-row" style="--hc:#5fa68a"><button class="habit-circle" aria-pressed="false" aria-label="Marcar como feito: Caminhar"><span class="habit-circle-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-9 5-14 14-14 0 9-5 14-14 14Z"/></svg></span><span class="habit-circle-check"></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Caminhar ao ar livre</span><span class="habit-sub">Comece hoje</span></div></li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="ds-notice"><h2 id="ds-notice">Aviso e estado vazio</h2>
+    <div class="notice warn" role="note"><div class="grow">Você está vendo dados de exemplo.</div><button class="btn sm">Limpar exemplos</button></div>
+    <div class="empty"><span class="eic"></span><div class="empty-copy"><b>Nada por aqui</b><span>Explique o que falta e ofereça uma única ação.</span></div><div class="empty-action"><button class="btn primary">Criar o primeiro</button></div></div>
+  </section>
+
+  <section class="card" aria-labelledby="ds-shape"><h2 id="ds-shape">Raios e elevação</h2>
+    <div class="ds-grid">
+      <div class="ds-box" style="border-radius:var(--r-xs)">--r-xs · 8</div><div class="ds-box" style="border-radius:var(--r-sm)">--r-sm · 12</div>
+      <div class="ds-box" style="border-radius:var(--r-control)">--r-control · 14</div><div class="ds-box" style="border-radius:var(--r-group)">--r-group · 18</div>
+      <div class="ds-box" style="border-radius:var(--r)">--r · 24</div><div class="ds-box" style="border-radius:var(--r-large)">--r-large · 32</div>
+      <div class="ds-box" style="border-radius:var(--r-pill)">--r-pill</div>
+      <div class="ds-box" style="border-radius:var(--r-group);box-shadow:var(--card-shadow)">--card-shadow</div>
+      <div class="ds-box" style="border-radius:var(--r-group);box-shadow:var(--shadow)">--shadow</div>
+    </div>
+  </section>
+</main>
+</div>
+<script>
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-theme-set]');
+    if (!button) return;
+    document.documentElement.setAttribute('data-theme', button.dataset.themeSet);
+    document.querySelectorAll('[data-theme-set]').forEach(function (item) { item.setAttribute('aria-pressed', String(item === button)); });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+/* Finanças: filtros e utilitários responsivos */
+.fin-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .fin-tools { flex-direction: row; align-items: center; justify-content: space-between; }
+  .fin-tools .seg { min-width: 240px; }
+}
+
+.fin-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 145px 145px;
+  align-items: center;
+  gap: 8px;
+}
+.fin-filter-row .search,
+.fin-filter-row > label { min-width: 0; }
+
+@media (max-width: 640px) {
+  .fin-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fin-filter-row .search { grid-column: 1 / -1; }
+}
+
+@media (max-width: 899px) {
+  .fab-clearance { height: calc(160px + env(safe-area-inset-bottom, 0px)); }
+}
+
+.imp > li { flex-direction: column; align-items: stretch; gap: 6px; }
+.impcat { min-height: var(--control-sm); padding: 6px 10px; font-size: var(--text-sm); }
+.ellip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

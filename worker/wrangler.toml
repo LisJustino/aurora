@@ -1,0 +1,38 @@
+name = "aurora-pomodoro-push"
+main = "src/index.js"
+compatibility_date = "2026-10-27"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ALLOWED_ORIGINS = "https://lisjustino.github.io"
+ENVIRONMENT = "production"
+VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw"
+VAPID_SUBJECT = "mailto:REPLACE_WITH_YOUR_CONTACT_EMAIL"
+
+[[durable_objects.bindings]]
+name = "POMODORO_ALARMS"
+class_name = "PomodoroAlarm"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PomodoroAlarm"]
+
+[[unsafe.bindings]]
+name = "REGISTER_RATE_LIMIT"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }
+
+[[unsafe.bindings]]
+name = "API_RATE_LIMIT"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }
+
+[env.development]
+name = "aurora-pomodoro-push-development"
+vars = { ALLOWED_ORIGINS = "http://localhost:8765", ENVIRONMENT = "development", VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw", VAPID_SUBJECT = "mailto:dev@example.invalid" }
+
+[[env.development.durable_objects.bindings]]
+name = "POMODORO_ALARMS"
+class_name = "PomodoroAlarm"

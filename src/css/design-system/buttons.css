@@ -1,0 +1,129 @@
+/*
+ * Botões — design system do Aurora
+ *
+ * Variantes:  .btn (padrão) · .primary · .danger · .ghost · .back
+ * Tamanhos:   .sm (40 px) · padrão (44 px) · .large (52 px) · .block (largura total)
+ * Só ícone:   .ibtn (44 px) · .iconbtn (44 px, redondo e com fundo)
+ * Hierarquia: primária para avançar, padrão para alternativas, ghost para navegação
+ * e perigo para remoções. Use sempre os tokens --control-*, --r-control e --text-*.
+ */
+.btn {
+  display: inline-flex;
+  min-height: var(--control-md);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  background: var(--surface-raised);
+}
+.btn:active { transform: translateY(1px); }
+
+/* Tamanhos */
+.btn.sm { min-height: var(--control-sm); padding-inline: 12px; font-size: var(--text-sm); }
+.btn.large { min-height: var(--control-lg); padding-inline: 24px; font-size: var(--text-base); }
+.btn.block { width: 100%; }
+
+/* Primário */
+.btn.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 92%, white), var(--btn));
+  color: var(--on-btn);
+  box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 90%, transparent);
+}
+.btn.primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 26px -15px color-mix(in srgb, var(--btn) 96%, transparent);
+}
+
+/* Padrão (secundário) */
+.btn:not(.primary):not(.danger):not(.ghost) {
+  border-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+}
+.btn:not(.primary):not(.danger):not(.ghost):hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  background: var(--surface-strong);
+  transform: translateY(-1px);
+}
+.btn.back {
+  border-color: color-mix(in srgb, var(--line-strong) 62%, transparent);
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+/* Fantasma */
+.btn.ghost {
+  min-height: var(--control-sm);
+  padding-inline: 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 750;
+}
+.btn.ghost:hover { background: var(--soft); }
+
+/* Perigo */
+.btn.danger {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+  background: color-mix(in srgb, var(--bad-soft) 58%, var(--surface));
+  color: var(--bad);
+}
+.btn.danger:hover {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+  transform: translateY(-1px);
+}
+
+/* Desabilitado */
+.btn:disabled,
+.btn[aria-disabled="true"] { opacity: .58; cursor: not-allowed; box-shadow: none; transform: none !important; }
+
+/* Botão só de ícone */
+.ibtn, .iconbtn {
+  display: inline-grid;
+  width: var(--control-md);
+  height: var(--control-md);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.ibtn:hover, .iconbtn:hover { background: var(--soft2); color: var(--accent); transform: translateY(-1px); }
+.iconbtn { border-radius: var(--r-pill); background: var(--soft); color: var(--accent); }
+
+/* Fechar (diálogos e painéis): um único botão em todo o app.
+   40 px, fundo suave, canto arredondado, ícone de 20 px, sempre no canto superior direito do cabeçalho.
+   Os seletores mais longos vencem as regras antigas de `.dlg .head .ibtn`. */
+.ibtn.dlg-close, .dlg .head .ibtn.dlg-close, .dlg-body .ibtn.dlg-close {
+  position: relative;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-width: var(--control-sm);
+  min-height: var(--control-sm);
+  margin: 0;
+  align-self: flex-start;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--soft);
+  color: var(--ink);
+}
+.ibtn.dlg-close::after { content: ""; position: absolute; inset: -2px; }
+.ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
+.ibtn.dlg-close:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }

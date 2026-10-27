@@ -1,0 +1,16 @@
+{
+  "name": "aurora-pomodoro-push",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env development",
+    "deploy": "wrangler deploy --env=",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.0"
+  }
+}
