@@ -1,0 +1,37 @@
+/* Task entry and grouping */
+.list > li { padding: var(--space-4) 0; }
+.task .ttl { font-size: var(--text-base); font-weight: 600; line-height: 1.35; }
+.task .meta { margin-top: 2px; gap: 4px 10px; }
+.task .tt { padding: 2px 0; }
+.task .task-focus-button:hover, .task .task-focus-button:focus-visible { background: var(--soft2); color: var(--accent); }
+.grp {
+  gap: 4px;
+  padding: var(--space-4) var(--space-4) 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.grp .list > li:first-child { border-top: 0; }
+.grp .list > li {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.grp .list > li + li { border-top: 1px solid var(--line); }
+.grp .list > li:hover { background: var(--surface-soft); }
+.grp .gh { margin-top: 0; }
+.card.plain > .list, .card.plain #task-results > .list {
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.qa-card { gap: 12px; padding: 16px; }
+.qa-card .qa-main input { border-color: var(--line); background: var(--soft); }
+.qa-card .qa-main input:focus { background: var(--surface); }
+
+@media (max-width: 480px) {
+  .grp { padding-inline: var(--space-3); }
+  .card.plain > .list, .card.plain #task-results > .list { padding-inline: 12px; }
+}
