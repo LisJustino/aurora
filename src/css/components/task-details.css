@@ -1,0 +1,14 @@
+/* Task calendar and secondary task controls */
+.tcal-wrap { display: flex; width: min(100%, 420px); flex-direction: column; gap: 10px; }
+.mi { display: inline-flex; align-items: center; gap: 3px; }
+.subl .grow { padding: 8px 0; }
+.st-done { color: var(--muted); text-decoration: line-through; }
+.tgx { color: var(--accent); font-weight: 600; }
+.tgchip { display: inline-flex; align-items: center; gap: 2px; padding-right: 4px; }
+.tgchip .ibtn { width: 44px; height: 44px; min-width: 44px; min-height: var(--control-md); }
+.task[draggable="true"] { cursor: grab; }
+.mvc { display: flex; flex: none; flex-direction: column; margin-left: -6px; }
+.mvc .mv { width: 40px; height: 40px; min-width: 40px; min-height: var(--control-sm); padding: 0; color: var(--muted); }
+.sgl.sub { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding-left: var(--space-4); letter-spacing: 0; text-transform: none; }
+.wp li { padding: 12px 0; }
+textarea[data-dlg="notes"], textarea[data-dlg="note"] { min-height: 84px; resize: vertical; }

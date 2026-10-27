@@ -1,0 +1,18 @@
+<p class="water-note">{{water-explanation}}</p>
+<form class="card water-goal-settings" data-form="settings-save" aria-labelledby="water-goal-title" novalidate>
+  <div class="water-entry-heading"><h2 id="water-goal-title">Meta diária<i>.</i></h2><p class="small muted">Ajuste o volume que você quer acompanhar por dia.</p></div>
+  <label class="f">Meta de água (ml)<input type="number" id="wg" data-change="goal-water" min="500" max="10000" step="50" value="{{water-goal}}"></label>
+  <div class="row settings-save-actions"><button class="btn back" type="button" data-action="discard-settings" data-settings-discard-button {{settings-discard-disabled}}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button {{settings-save-disabled}}>Salvar</button></div>
+</form>
+<section class="card water-entry" aria-labelledby="water-entry-title">
+  <div class="water-entry-heading">
+    <h2 id="water-entry-title">Outro volume<i>.</i></h2>
+    <p class="small muted">Registre uma quantidade diferente das opções rápidas.</p>
+  </div>
+  <form class="form inline water-custom" data-form="water">
+    <label class="f">Quantidade em ml<input type="number" name="ml" min="10" max="3000" inputmode="numeric" placeholder="Ex.: 250"></label>
+    <button class="btn" type="submit">Registrar</button>
+  </form>
+</section>
+<section class="card"><h2>Últimos 7 dias<i>.</i></h2>{{weekly-chart}}</section>
+<section class="card"><h2>Hoje<i>.</i></h2>{{water-history}}</section>
