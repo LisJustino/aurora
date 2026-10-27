@@ -1,0 +1,27 @@
+/* Shared compound controls and content that adapts within narrow panels */
+.aibar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+.aibar .aib-ic { display: grid; color: var(--accent); }
+.aibar input {
+  min-width: 0;
+  min-height: var(--control-sm);
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.aibar input:focus-visible { outline-offset: 0; }
+@media (max-width: 360px) {
+  :root {
+    --gut-l: max(12px, env(safe-area-inset-left, 0px));
+    --gut-r: max(12px, env(safe-area-inset-right, 0px));
+  }
+}
