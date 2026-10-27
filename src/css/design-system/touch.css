@@ -1,0 +1,124 @@
+/* Toque, hierarquia e retorno visual.
+   Camada final do design system: ajusta alvos de toque (mínimo de 44 px de área clicável),
+   a hierarquia do Início, a conclusão de itens e a separação dos cartões no tema escuro.
+   Nada aqui muda dados; só apresentação. */
+
+/* ---- Áreas de toque: o desenho continua pequeno, a área clicável cresce ---- */
+.pk, button.habit-dot, button.habit-month-day { position: relative; }
+.pk::after, button.habit-dot::after { content: ""; position: absolute; inset: -5px; }
+a.inline-link { position: relative; }
+a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
+.planning-shortcuts button { min-height: var(--control-md); }
+.btn.sm.water-habit-add { min-height: var(--control-sm); }
+.ibtn, .iconbtn { min-width: var(--control-sm); min-height: var(--control-sm); }
+
+/* ---- Início: o plano de hoje é o foco; o resto fica mais leve ---- */
+.home-today-card {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
+  box-shadow: var(--card-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+@media (max-width: 640px) {
+  .home-quick-copy p { display: none; }
+  .home-quick-card { gap: 12px; padding-block: 16px; }
+}
+
+/* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
+@keyframes check-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: check-pop .42s var(--ease-standard); }
+@media (prefers-reduced-motion: reduce) {
+  .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: none; }
+}
+:root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
+
+/* ---- Calendário anual: células maiores e fim da fileira sempre à vista ---- */
+.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; }
+.habit-year-cell { width: 14px; height: 14px; }
+
+/* ---- Finanças: valores alinhados à direita, tabulares ---- */
+.fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
+
+/* ---- Tema escuro: cartões se destacam do fundo ---- */
+:root[data-theme="dark"] .card {
+  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 7%, transparent), var(--card-shadow);
+}
+
+/* ---- Erro ao lado do campo ---- */
+.field-err { display: block; margin-top: 2px; }
+.f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
+.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--bad); }
+
+/* ---- Finanças no celular: seções em uma única fileira rolável (antes quebrava em três linhas) ---- */
+@media (max-width: 700px) {
+  .main[data-route="financas"] .fin-section-menu { flex-wrap: nowrap; border-radius: var(--r-pill); }
+  .main[data-route="financas"] .fin-section-option { white-space: nowrap; }
+}
+
+/* ---- Menu "Mais": fundo escurecido e painel opaco (antes dava para ler o conteúdo atrás) ---- */
+.nav-scrim { display: none; }
+@media (max-width: 899px) {
+  .nav-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-nav) - 1);
+    display: block;
+    background: color-mix(in srgb, var(--ink) 52%, transparent);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  :root[data-theme="dark"] .nav-scrim { background: color-mix(in srgb, #000 62%, transparent); }
+  .nav-more-menu {
+    background: var(--surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 24px 48px -12px color-mix(in srgb, #000 55%, transparent);
+  }
+  .nav-more-menu .nav-create {
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+    background: var(--soft);
+    color: var(--accent);
+  }
+}
+
+/* ---- Diálogos com campos no celular: ficam presos ao topo, então o teclado não faz o painel pular ---- */
+.dlg:focus { outline: none; }
+@media (pointer: coarse), (max-width: 640px) {
+  .dlg-back:has(.dlg-body :is(textarea, select, input:not([type="checkbox"], [type="radio"], [type="button"], [type="range"]))) {
+    align-items: start;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+  }
+}
+
+/* ---- Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas ---- */
+/* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
+.dlg-body { padding-inline: 20px; padding-bottom: 24px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent; }
+.dlg-foot { position: relative; padding-inline: 20px; padding-bottom: 14px; }
+.dlg-foot::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 100% 0;
+  height: 26px;
+  background: linear-gradient(to top, var(--surface-strong), transparent);
+  pointer-events: none;
+}
+.dlg-body::-webkit-scrollbar { width: 6px; }
+.dlg-body::-webkit-scrollbar-thumb { border-radius: var(--r-pill); background: color-mix(in srgb, var(--ink) 22%, transparent); }
+@media (max-width: 640px) {
+  .dlg-body { padding-inline: 16px; padding-bottom: 24px; }
+  .dlg-foot { padding-inline: 16px; }
+}
+
+/* ---- Diálogos nunca andam para os lados ----
+   `overflow-x: clip` impede até a rolagem feita pelo navegador ao focar um campo (o iOS desloca o conteúdo
+   para mostrar o campo); `touch-action: pan-y` impede arrastar de lado com o dedo. Os seletores escondidos
+   (ícone, cor, dias) agora cobrem o próprio rótulo, então focar um deles não desloca nada. */
+.dlg-body { overflow-x: hidden; overflow-x: clip; overscroll-behavior: contain; }
+.dlg-back:not(:has(.scroll-x)) { touch-action: pan-y; }
+.habit-icon-picker input, .habit-color-picker input, .habit-weekday-picker input {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.habit-weekday-picker label, .habit-icon-picker label, .habit-color-picker label { position: relative; }
