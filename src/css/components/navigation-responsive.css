@@ -1,0 +1,91 @@
+.fab {
+  position: fixed;
+  z-index: var(--z-fab);
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  min-height: var(--control-field);
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--btn);
+  color: var(--on-btn);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.main > .fab {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+}
+
+@media (max-width: 899px) {
+  .nav {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+  .nav .nav-area { display: flex; }
+  .nav a {
+    min-width: 0;
+    font-size: clamp(.6rem, 2.7vw, .75rem);
+  }
+  .nav a .ni {
+    width: min(100%, 42px);
+  }
+}
+
+@media (min-width: 900px) {
+  .fab { right: max(28px, calc((100vw - var(--content-width)) / 2)); bottom: 28px; }
+  .topbar { gap: 24px; }
+  .topbar .nav {
+    position: static;
+    width: auto;
+    min-width: 0;
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    overflow-x: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    scrollbar-width: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .topbar .nav::-webkit-scrollbar { display: none; }
+  .topbar .nav a {
+    min-height: var(--control-sm);
+    flex-direction: row;
+    gap: 6px;
+    padding-inline: 9px;
+    border-radius: var(--r-pill);
+    font-size: var(--text-meta);
+    white-space: nowrap;
+  }
+  .topbar .nav a:hover { background: var(--soft); }
+  .topbar .nav a[aria-current="page"] { background: var(--soft2); }
+  .topbar .nav .ni { width: 24px; height: 24px; background: transparent; }
+  .topbar .nav .nav-area { display: flex; }
+  .topbar .header-actions { gap: 4px; margin-left: auto; }
+  .topbar .header-actions .iconbtn {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .topbar .header-actions .iconbtn:hover { background: var(--soft); color: var(--accent); }
+  .topbar .profile-link {
+    width: 40px;
+    height: 40px;
+    min-height: var(--control-sm);
+    padding: 0;
+    border-radius: var(--r-pill);
+  }
+}
