@@ -33,3 +33,5 @@ Desktop.ini
 
 # Arquivos locais de desenvolvimento
 .local/
+.vite/
+worker/.wrangler/
