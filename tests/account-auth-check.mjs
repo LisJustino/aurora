@@ -7,7 +7,34 @@ import {
   LEGAL_DOCUMENT_VERSION,
   meetsPasswordRequirements,
 } from '../src/js/services/account-auth.js';
+import { resolveSupabaseConfig } from '../src/js/data/supabase-client.js';
 import { isLegalDocumentAtEnd } from '../src/js/features/footer/legal-dialog.js';
+
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: true,
+  localUrl: 'https://test-project.supabase.co',
+  localAnonKey: 'test-public-key',
+  productionUrl: 'https://production-project.supabase.co',
+  productionAnonKey: 'production-public-key',
+}), {
+  url: 'https://test-project.supabase.co',
+  anonKey: 'test-public-key',
+});
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: false,
+  localUrl: 'https://test-project.supabase.co',
+  localAnonKey: 'test-public-key',
+  productionUrl: 'https://production-project.supabase.co',
+  productionAnonKey: 'production-public-key',
+}), {
+  url: 'https://production-project.supabase.co',
+  anonKey: 'production-public-key',
+});
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: true,
+  productionUrl: 'https://legacy-project.supabase.co',
+  productionAnonKey: 'legacy-public-key',
+}), { url: '', anonKey: '' });
 
 assert.equal(isPasswordRecoveryCallback({ search: '?type=recovery', hash: '' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }), true);
