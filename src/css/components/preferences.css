@@ -102,11 +102,92 @@
 .appearance-settings-heading > div > p { max-width: 68ch; color: var(--muted); line-height: 1.5; }
 .settings-section-heading { display: grid; gap: var(--space-2); }
 .settings-section-heading > p { max-width: 68ch; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+.settings-section-intro {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
 .settings-section-card { gap: var(--space-4); }
+.settings-section-card .trash-list > li { padding-inline: var(--space-3); }
 .backup-preview { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .backup-preview li { display: flex; justify-content: space-between; gap: var(--space-3); padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface); }
 .backup-preview li span { color: var(--muted); }
 .backup-preview li b { flex: none; font-variant-numeric: tabular-nums; }
+.legacy-import-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.legacy-import-step {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--muted);
+}
+.legacy-import-step.is-current {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.legacy-import-step.is-complete .legacy-import-step-number { background: var(--accent); color: var(--on-btn); }
+.legacy-import-step-number {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-soft);
+  color: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.legacy-import-step > span:last-child { display: grid; min-width: 0; gap: 3px; }
+.legacy-import-step b { font-size: var(--text-xs); }
+.legacy-import-step small { color: var(--muted); font-size: var(--text-2xs); line-height: 1.35; }
+.legacy-import-stage,
+.legacy-import-summary,
+.legacy-import-cleanup { display: grid; min-width: 0; gap: var(--space-3); }
+.legacy-import-stage > p,
+.legacy-import-cleanup > p { max-width: 68ch; margin: 0; line-height: 1.5; }
+.legacy-import-stage > h3,
+.legacy-import-cleanup > h3 { margin: 0; font-size: var(--text-base); }
+.legacy-import-preview li { align-items: flex-start; }
+.legacy-import-preview li b { min-width: 0; }
+.legacy-import-preview li span { text-align: right; font-variant-numeric: tabular-nums; }
+.legacy-import-cleanup {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.legacy-import-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  cursor: pointer;
+  line-height: 1.45;
+}
+.legacy-import-confirm input { flex: none; margin-top: 3px; accent-color: var(--accent); }
+.legacy-import-confirm:focus-within { border-color: var(--accent); }
+@media (max-width: 620px) {
+  .legacy-import-steps { grid-template-columns: minmax(0, 1fr); }
+  .legacy-import-step { align-items: center; }
+  .legacy-import-step small { font-size: var(--text-xs); }
+  .legacy-import-preview li { flex-direction: column; gap: 2px; }
+  .legacy-import-preview li span { text-align: left; }
+}
 .appearance-settings-group {
   display: grid;
   min-width: 0;
@@ -121,17 +202,40 @@
 .appearance-settings-group > .seg,
 .appearance-settings-group > .swatches,
 .appearance-settings-controls { width: 100%; max-width: 760px; }
-.appearance-settings .appearance-swatches { min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 104px), 1fr)); }
-.appearance-settings .appearance-swatches .swatch { min-height: var(--control-md); flex-direction: row; justify-content: flex-start; gap: 7px; padding: 6px 8px; font-size: var(--text-xs); }
-.appearance-settings .appearance-swatches .swatch i { width: 20px; height: 20px; flex: none; }
-.appearance-settings .appearance-custom-color { grid-column: span 2; white-space: nowrap; }
+.appearance-settings .appearance-swatches {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.appearance-settings .appearance-swatches .swatch {
+  min-width: 0;
+  min-height: var(--control-md);
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 6px;
+  overflow: hidden;
+  padding: 6px;
+  font-size: var(--text-xs);
+}
+.appearance-settings .appearance-swatches .swatch span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.appearance-settings .appearance-swatches .swatch i { width: 18px; height: 18px; flex: none; }
+.appearance-custom-preview {
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-pill);
+}
+@media (max-width: 520px) {
+  .appearance-settings .appearance-swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .appearance-settings .appearance-swatches .swatch { min-height: var(--control-field); flex-direction: column; justify-content: center; gap: 4px; padding: 5px 3px; text-align: center; }
+  .appearance-settings .appearance-swatches .swatch span { width: 100%; font-size: var(--text-2xs); }
+}
 .appearance-settings-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .appearance-settings-option { display: grid; min-width: 0; align-content: start; gap: var(--space-2); }
 .appearance-settings-label { color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
 .appearance-settings-option :root[data-density="compact"] .main { gap: var(--space-3); }
 :root[data-density="compact"] .card { gap: var(--space-3); padding: var(--space-3); }
 :root[data-density="compact"] .setting-toggle { min-height: var(--control-field); padding-block: 8px; }
-:root[data-density="compact"] .list > li { padding-block: 7px; }
+:root[data-density="compact"] .list > li { padding-block: var(--space-2); }
 :root[data-density="compact"] .task .tt { padding-block: 1px; }
 
 .adot { display: inline-block; width: 9px; height: 9px; flex: none; border-radius: 50%; vertical-align: baseline; }

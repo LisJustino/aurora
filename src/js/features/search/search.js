@@ -10,8 +10,6 @@ export function searchRecords({
   accounts = [],
   habits = [],
   water = [],
-  subjects = [],
-  sessions = [],
   cycleLogs = {},
 }, query, limit = 30) {
   const term = normalize(query);
@@ -68,31 +66,6 @@ export function searchRecords({
         area: 'Hábitos · Água',
         title: 'Registro de hidratação',
         detail: [entry.ml ? `${entry.ml} ml` : '', date].filter(Boolean).join(' · '),
-      });
-    }
-  }
-
-  for (const subject of subjects) {
-    if (normalize(subject.name).includes(term)) {
-      results.push({
-        kind: 'subject',
-        id: subject.id,
-        area: 'Estudos',
-        title: subject.name,
-        detail: subject.archived ? 'Matéria arquivada' : 'Matéria',
-      });
-    }
-  }
-
-  for (const session of sessions) {
-    const fields = [session.subjectName, session.completedAt, session.durationSeconds];
-    if (fields.some((field) => normalize(field).includes(term))) {
-      results.push({
-        kind: 'session',
-        id: session.id,
-        area: 'Estudos',
-        title: `Sessão de ${session.subjectName || 'estudo'}`,
-        detail: typeof session.completedAt === 'string' ? session.completedAt.slice(0, 10) : '',
       });
     }
   }

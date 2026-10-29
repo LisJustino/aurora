@@ -9,12 +9,15 @@
   <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
   <link rel="manifest" href="../manifest.webmanifest">
   <meta name="aurora-route" content="habitos">
-  <title>hábitos | Aurora</title>
+  <title>Hábitos | Aurora</title>
   <link rel="stylesheet" href="../src/css/main.css">
 </head>
 <body>
-  <div id="app"></div>
-  <noscript>o Aurora precisa de JavaScript para exibir e salvar suas informações locais.</noscript>
+  <div id="app"><main class="account-loading" role="status" aria-busy="true" aria-label="Carregando o Aurora">
+    <span class="account-loading-brand" aria-hidden="true"></span>
+    <section class="account-loading-card" aria-hidden="true"><span class="account-loading-line is-title"></span><span class="account-loading-line"></span><span class="account-loading-line is-field"></span><span class="account-loading-line is-field"></span><span class="account-loading-line is-button"></span></section>
+  </main></div>
+  <noscript>O Aurora precisa de JavaScript para autenticar sua conta e salvar seus dados com segurança.</noscript>
   <script type="module" src="../src/js/main.js"></script>
 </body>
 </html>

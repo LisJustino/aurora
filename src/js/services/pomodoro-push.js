@@ -1,8 +1,10 @@
-import { phaseDurationSeconds, phaseElapsedSeconds } from '../features/studies/pomodoro.js';
+import { phaseDurationSeconds, phaseElapsedSeconds } from '../features/pomodoro/pomodoro.js';
 import { POMODORO_PUSH_API_URL } from './pomodoro-push-config.js';
 
-const STORAGE_KEY = 'aurora.push.pomodoro';
+const LEGACY_STORAGE_KEY = 'aurora.push.pomodoro';
 let mutationQueue = Promise.resolve();
+let credentialStore = null;
+let activeCredentials = null;
 
 function serializeMutation(operation) {
   const pending = mutationQueue.catch(() => {}).then(operation);
@@ -10,30 +12,86 @@ function serializeMutation(operation) {
   return pending;
 }
 
-function readCredentials() {
+function readLegacyCredentials() {
   let value;
   try {
-    value = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    throw new Error('storage');
+    value = localStorage.getItem(LEGACY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Aurora: não foi possível ler a autorização Push antiga.', error);
+    throw new Error('legacy-storage');
   }
+  if (!value) return null;
   try {
-    const stored = JSON.parse(value || 'null');
+    const stored = JSON.parse(value);
     if (
       stored
       && typeof stored.clientId === 'string'
+      && /^[A-Za-z0-9_-]{20,64}$/.test(stored.clientId)
       && typeof stored.capability === 'string'
-      && stored.clientId.length <= 64
-      && stored.capability.length <= 128
-    ) return stored;
-  } catch {
-    return null;
+      && /^[A-Za-z0-9_-]{32,64}$/.test(stored.capability)
+    ) return { clientId: stored.clientId, capability: stored.capability };
+  } catch (error) {
+    console.error('Aurora: a autorização Push antiga está inválida.', error);
+    throw new Error('legacy-invalid');
   }
-  return null;
+  throw new Error('legacy-invalid');
 }
 
-function saveCredentials(credentials) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
+function removeLegacyCredentials() {
+  try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Aurora: não foi possível remover a autorização Push antiga após a migração.', error);
+    throw new Error('legacy-cleanup');
+  }
+}
+
+export function configurePomodoroPushStore(store) {
+  credentialStore = store;
+  activeCredentials = null;
+}
+
+export async function initializePomodoroPush() {
+  activeCredentials = null;
+  if (!credentialStore) return;
+  const legacyCredentials = readLegacyCredentials();
+  const registration = 'serviceWorker' in navigator
+    ? await navigator.serviceWorker.getRegistration()
+    : null;
+  const subscription = registration?.pushManager
+    ? await registration.pushManager.getSubscription()
+    : null;
+  if (!subscription) {
+    if (legacyCredentials) {
+      await request('/api/subscription', { method: 'DELETE', credentials: legacyCredentials });
+      removeLegacyCredentials();
+    }
+    return;
+  }
+  activeCredentials = await credentialStore.findPushSubscription(subscription.endpoint);
+  if (activeCredentials && legacyCredentials) {
+    if (activeCredentials.clientId !== legacyCredentials.clientId) {
+      await request('/api/subscription', { method: 'DELETE', credentials: legacyCredentials });
+    }
+    removeLegacyCredentials();
+  }
+  if (!activeCredentials && legacyCredentials) {
+    const serializedSubscription = subscription.toJSON();
+    await serializeMutation(async () => {
+      await request('/api/subscription', {
+        method: 'POST',
+        credentials: legacyCredentials,
+        body: { subscription: serializedSubscription },
+      });
+      activeCredentials = await credentialStore.savePushSubscription(legacyCredentials, serializedSubscription);
+      removeLegacyCredentials();
+    });
+  }
+}
+
+export function clearPomodoroPushState() {
+  activeCredentials = null;
+  credentialStore = null;
 }
 
 function apiUrl(path) {
@@ -53,7 +111,7 @@ function apiUrl(path) {
   return new URL(path, `${base.origin}/`).href;
 }
 
-async function request(path, { method = 'GET', body, credentials = readCredentials() } = {}) {
+async function request(path, { method = 'GET', body, credentials = activeCredentials } = {}) {
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (credentials) {
@@ -105,13 +163,7 @@ export function getPomodoroPushStatus() {
     && 'serviceWorker' in navigator
     && 'PushManager' in window
     && 'Notification' in window;
-  let enabled = false;
-  let storageFailed = false;
-  try {
-    enabled = readCredentials()?.enabled === true;
-  } catch {
-    storageFailed = true;
-  }
+  const enabled = activeCredentials?.enabled === true;
   const permission = supported ? Notification.permission : 'unsupported';
   let message = '';
   if (!POMODORO_PUSH_API_URL) {
@@ -120,8 +172,8 @@ export function getPomodoroPushStatus() {
     message = 'Avisos Push exigem um navegador compatível e uma origem HTTPS.';
   } else if (permission === 'denied') {
     message = 'As notificações estão bloqueadas nas permissões do navegador.';
-  } else if (storageFailed) {
-    message = 'Não foi possível acessar o armazenamento local desta instalação.';
+  } else if (!credentialStore) {
+    message = 'Entre na sua conta para configurar avisos neste dispositivo.';
   } else if (enabled) {
     message = 'Avisos fora do app estão ativados para este dispositivo.';
   } else {
@@ -145,6 +197,7 @@ export function createPomodoroSchedule(timer, pomodoro, now = Date.now()) {
 }
 
 export async function enablePomodoroPush() {
+  if (!credentialStore) throw new Error('account-storage');
   assertPushSupport();
   const permissionRequest = Notification.permission === 'default'
     ? Notification.requestPermission()
@@ -165,23 +218,42 @@ export async function enablePomodoroPush() {
       applicationServerKey: decodeBase64Url(config.publicKey),
     });
   }
-  let credentials = readCredentials();
+  const legacyCredentials = readLegacyCredentials();
+  let credentials = await credentialStore.findPushSubscription(subscription.endpoint);
+  if (!credentials && legacyCredentials) credentials = legacyCredentials;
   if (!credentials?.clientId || !credentials?.capability) {
     const created = await request('/api/clients', { method: 'POST', body: {} });
     credentials = { clientId: created.clientId, capability: created.capability, enabled: false };
-    saveCredentials(credentials);
   }
-  await serializeMutation(() => request('/api/subscription', {
-    method: 'POST',
-    credentials,
-    body: { subscription: subscription.toJSON() },
-  }));
-  credentials = { ...credentials, enabled: true };
-  saveCredentials(credentials);
+  const serializedSubscription = subscription.toJSON();
+  await serializeMutation(async () => {
+    await request('/api/subscription', {
+      method: 'POST',
+      credentials,
+      body: { subscription: serializedSubscription },
+    });
+    try {
+      activeCredentials = await credentialStore.savePushSubscription(credentials, serializedSubscription);
+    } catch (error) {
+      try {
+        await request('/api/subscription', { method: 'DELETE', credentials });
+      } catch (cleanupError) {
+        console.error('Aurora: a inscrição Push não pôde ser revertida no serviço após falha do banco.', cleanupError);
+      }
+      try {
+        await subscription.unsubscribe();
+      } catch (cleanupError) {
+        console.error('Aurora: não foi possível remover a inscrição local após falha do banco.', cleanupError);
+      }
+      activeCredentials = null;
+      throw error;
+    }
+    if (legacyCredentials) removeLegacyCredentials();
+  });
 }
 
 export async function disablePomodoroPush() {
-  const credentials = readCredentials();
+  const credentials = activeCredentials;
   const registration = 'serviceWorker' in navigator
     ? await navigator.serviceWorker.getRegistration()
     : null;
@@ -191,17 +263,14 @@ export async function disablePomodoroPush() {
   await serializeMutation(async () => {
     if (credentials) await request('/api/subscription', { method: 'DELETE', credentials });
     if (subscription && !(await subscription.unsubscribe())) throw new Error('unsubscribe-failed');
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      throw new Error('storage');
-    }
+    if (credentials) await credentialStore.deletePushSubscription(credentials.clientId);
+    activeCredentials = null;
   });
 }
 
 export async function schedulePomodoroPush(timer, pomodoro) {
   return serializeMutation(async () => {
-    const credentials = readCredentials();
+    const credentials = activeCredentials;
     if (!credentials?.enabled) return false;
     const schedule = createPomodoroSchedule(timer, pomodoro);
     if (!schedule) {
@@ -215,7 +284,7 @@ export async function schedulePomodoroPush(timer, pomodoro) {
 
 export async function cancelPomodoroPushSchedule() {
   return serializeMutation(async () => {
-    const credentials = readCredentials();
+    const credentials = activeCredentials;
     if (!credentials?.enabled) return false;
     await request('/api/schedule', { method: 'DELETE', credentials });
     return true;
@@ -225,6 +294,10 @@ export async function cancelPomodoroPushSchedule() {
 export function pomodoroPushErrorMessage(error) {
   const messages = {
     'not-configured': 'O serviço de avisos não está configurado para esta instalação.',
+    'account-storage': 'Entre na sua conta para guardar a inscrição Push com segurança.',
+    'legacy-storage': 'Não foi possível ler a inscrição Push antiga. Ela foi preservada; tente novamente.',
+    'legacy-invalid': 'A inscrição Push antiga está inválida e foi preservada. Desative-a manualmente no navegador antes de configurar outra.',
+    'legacy-cleanup': 'A inscrição foi salva na conta, mas não foi possível remover a autorização antiga deste navegador.',
     unsupported: 'Este navegador ou contexto não permite notificações Push. Use HTTPS e um navegador compatível.',
     network: 'Não foi possível conectar ao serviço de avisos. Confira a conexão e tente novamente.',
     'invalid-response': 'O serviço de avisos respondeu em um formato inválido.',
