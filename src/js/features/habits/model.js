@@ -19,17 +19,19 @@ export const DEFAULT_HABIT_ICON = 'sparkles';
 export const DEFAULT_HABIT_COLOR = HABIT_COLORS[0];
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const normalizeHabitName = (name) => String(name || '').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const isWaterHabit = (habit) => (
+  habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitName(habit?.name))
+);
 export const habitIconKey = (habit) => (
-  habit?.tracking === 'water' ? 'droplet'
-    : HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
+  HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
 );
 export const habitColor = (habit) => (
-  habit?.tracking === 'water' ? HABIT_COLORS[5]
-    : HEX_COLOR.test(habit?.color || '') ? habit.color : DEFAULT_HABIT_COLOR
+  HEX_COLOR.test(habit?.color || '') ? habit.color : DEFAULT_HABIT_COLOR
 );
 
 export const SUGGESTED_HABITS = [
-  { id: 'water', name: 'Beber água', description: 'Acompanhe o volume registrado em Hábitos.', tracking: 'water', icon: 'droplet', color: HABIT_COLORS[5] },
+  { id: 'water', name: 'Beber água', description: 'Registre os mL consumidos e acompanhe a meta diária.', icon: 'droplet', color: HABIT_COLORS[5] },
   { id: 'reading', name: 'Ler por 10 minutos', description: 'Reserve alguns minutos para a leitura.', icon: 'book', color: HABIT_COLORS[6] },
   { id: 'movement', name: 'Movimentar o corpo', description: 'Inclua um momento de movimento na rotina.', icon: 'activity', color: HABIT_COLORS[4] },
   { id: 'pause', name: 'Fazer uma pausa', description: 'Faça uma pausa consciente durante o dia.', icon: 'coffee', color: HABIT_COLORS[2] },
@@ -101,15 +103,13 @@ export function habitIsSkipped(habit, day, today = day) {
 
 export function createSuggestedHabits(selectedIds, existingHabits, createId) {
   const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
-  const existingNames = new Set(existingHabits.map((habit) => (
-    habit.name.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  )));
-  const existingWaterHabit = existingHabits.some((habit) => habit.tracking === 'water');
+  const existingNames = new Set(existingHabits.map((habit) => normalizeHabitName(habit.name)));
+  const existingWaterHabit = existingHabits.some(isWaterHabit);
   return SUGGESTED_HABITS
     .filter((suggestion) => selected.has(suggestion.id))
     .filter((suggestion) => (
-      !existingNames.has(suggestion.name.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-      && (suggestion.tracking !== 'water' || !existingWaterHabit)
+      !existingNames.has(normalizeHabitName(suggestion.name))
+      && (suggestion.id !== 'water' || !existingWaterHabit)
     ))
     .map((suggestion) => ({
       id: createId(),
@@ -117,16 +117,14 @@ export function createSuggestedHabits(selectedIds, existingHabits, createId) {
       days: [0, 1, 2, 3, 4, 5, 6],
       completions: [],
       status: 'active',
+      ...(suggestion.id === 'water' ? { tracking: 'water' } : {}),
       icon: suggestion.icon,
       color: suggestion.color,
-      ...(suggestion.tracking ? { tracking: suggestion.tracking } : {}),
     }));
 }
 
-export function habitIsComplete(habit, day, waterTotal, waterGoal) {
-  return habit.tracking === 'water'
-    ? waterTotal >= waterGoal
-    : habit.completions.includes(day);
+export function habitIsComplete(habit, day) {
+  return habit.completions.includes(day);
 }
 
 export function normalizeHabits(value) {

@@ -4,9 +4,9 @@ A raiz `src/` concentra os ativos do frontend Aurora e deve continuar sendo a á
 
 ## Pastas principais
 
+- `assets/`: imagens da landing e logos de bancos.
 - `css/`: tokens, base, layout, componentes e estilos por área.
 - `fonts/`: fontes variáveis auto-hospedadas e suas licenças.
-- `data/`: dados estáticos e referências de conhecimento da aplicação.
 - `js/`: lógica principal, rotas, acesso, serviços e módulos de feature.
 
 ## Regras

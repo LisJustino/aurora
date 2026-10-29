@@ -5,7 +5,7 @@ export const MIN_LONG_BREAK_MIN = 5;
 export const MAX_LONG_BREAK_MIN = 60;
 export const HISTORY_DAYS = 30;
 export const POMODORO_PRESETS = Object.freeze({
-  classic: Object.freeze({ focusMin: 25, breakMin: 5, longBreakMin: DEFAULT_LONG_BREAK_MIN }),
+  classic: Object.freeze({ focusMin: 25, breakMin: 5, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK, autoAdvance: true }),
 });
 
 export function longBreakMinutes(pomodoro) {
@@ -13,6 +13,13 @@ export function longBreakMinutes(pomodoro) {
   return Number.isInteger(value) && value >= MIN_LONG_BREAK_MIN && value <= MAX_LONG_BREAK_MIN
     ? value
     : DEFAULT_LONG_BREAK_MIN;
+}
+
+export function cyclesPerLongBreak(pomodoro) {
+  const value = Number(pomodoro?.cyclesPerLongBreak);
+  return Number.isInteger(value) && value >= 2 && value <= 8
+    ? value
+    : POMODOROS_PER_LONG_BREAK;
 }
 
 const localDay = (timestamp) => {
@@ -61,11 +68,6 @@ export function phaseElapsedSeconds(timer, now = Date.now()) {
   return timer.phaseElapsedSeconds + runningSeconds;
 }
 
-export function studyElapsedSeconds(timer, now = Date.now()) {
-  const currentFocus = timer.phase === 'focus' ? phaseElapsedSeconds(timer, now) : 0;
-  return timer.elapsedSeconds + currentFocus;
-}
-
 export function advancePomodoro(timer, pomodoro, now = Date.now()) {
   if (timer.startedAt === null) return { timer, transitions: [] };
 
@@ -95,7 +97,7 @@ export function advancePomodoro(timer, pomodoro, now = Date.now()) {
         : 1;
       dailyCompletedOn = completionDay;
       history[completionDay] = (history[completionDay] || 0) + 1;
-      phase = completedPomodoros % POMODOROS_PER_LONG_BREAK === 0
+      phase = pomodoro.longBreakEnabled !== false && completedPomodoros % cyclesPerLongBreak(pomodoro) === 0
         ? 'long-break'
         : 'short-break';
     } else {

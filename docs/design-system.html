@@ -16,7 +16,7 @@
     .ds-box { display: grid; place-items: center; height: 64px; border: 1px solid var(--line-strong); background: var(--surface); font-size: var(--text-xs); color: var(--muted); }
     .ds-note { color: var(--muted); font-size: var(--text-sm); margin: 0; }
     .ds-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
-    .card h2 { margin: 0 0 var(--space-2); }
+    .card h2 { margin: 0; }
   </style>
 </head>
 <body>
@@ -28,7 +28,8 @@
   </header>
 
   <section class="card" aria-labelledby="ds-type"><h2 id="ds-type">Tipografia</h2>
-    <p class="ds-note">DM Sans. Use sempre <code>var(--text-*)</code>; títulos fluidos usam <code>--text-page-title</code>, <code>--text-display</code>, <code>--text-section</code> e <code>--text-heading</code>.</p>
+    <p class="ds-note">DM Sans. Use sempre <code>var(--text-*)</code>; títulos fluidos usam <code>--text-page-title</code>, <code>--text-hero</code>, <code>--text-display</code>, <code>--text-section</code> e <code>--text-heading</code>.</p>
+    <div class="ds-type"><code>--text-hero · saudação</code><span style="font-size:var(--text-hero);font-weight:750">Bom dia, Ana.</span></div>
     <div class="ds-type"><code>--text-3xl · 28</code><span style="font-size:var(--text-3xl);font-weight:750">Planeje o seu dia</span></div>
     <div class="ds-type"><code>--text-2xl · 24</code><span style="font-size:var(--text-2xl);font-weight:750">Planeje o seu dia</span></div>
     <div class="ds-type"><code>--text-title · 22</code><span style="font-size:var(--text-title);font-weight:750">Planeje o seu dia</span></div>
@@ -47,6 +48,8 @@
       <div class="ds-swatch"><i style="background:var(--bg)"></i>--bg</div>
       <div class="ds-swatch"><i style="background:var(--surface)"></i>--surface</div>
       <div class="ds-swatch"><i style="background:var(--surface-soft)"></i>--surface-soft</div>
+      <div class="ds-swatch"><i style="background:var(--hero-home)"></i>--hero-home</div>
+      <div class="ds-swatch"><i style="background:radial-gradient(ellipse at 12% 0%,var(--canvas-glow),transparent 80%),var(--bg)"></i>--canvas-glow</div>
       <div class="ds-swatch"><i style="background:var(--soft2)"></i>--soft2</div>
       <div class="ds-swatch"><i style="background:var(--ink)"></i>--ink</div>
       <div class="ds-swatch"><i style="background:var(--muted)"></i>--muted</div>
@@ -58,12 +61,11 @@
       <div class="ds-swatch"><i style="background:var(--area-water)"></i>--area-water</div>
       <div class="ds-swatch"><i style="background:var(--area-finances)"></i>--area-finances</div>
       <div class="ds-swatch"><i style="background:var(--area-cycle)"></i>--area-cycle</div>
-      <div class="ds-swatch"><i style="background:var(--area-studies)"></i>--area-studies</div>
     </div>
   </section>
 
   <section class="card" aria-labelledby="ds-btn"><h2 id="ds-btn">Botões</h2>
-    <p class="ds-note">Hierarquia: primário avança, padrão é alternativa, fantasma navega, perigo remove. Tamanhos: <code>.sm</code> 40 · padrão 44 · <code>.large</code> 52.</p>
+    <p class="ds-note">Hierarquia: primário avança, padrão é alternativa, fantasma navega, perigo remove. Altura, raio e recuos são compartilhados; foco e estados desabilitados permanecem distintos. Tamanhos: <code>.sm</code> 40 · padrão 44 · <code>.large</code> 52.</p>
     <div class="ds-row"><button class="btn primary">Primário</button><button class="btn">Padrão</button><button class="btn back">Voltar</button><button class="btn ghost">Fantasma</button><button class="btn danger">Excluir</button></div>
     <div class="ds-row"><button class="btn primary sm">Pequeno</button><button class="btn sm">Pequeno</button><button class="btn primary">Médio</button><button class="btn primary large">Grande</button></div>
     <div class="ds-row"><button class="btn primary" disabled>Desabilitado</button><button class="btn" disabled>Desabilitado</button></div>
@@ -71,19 +73,77 @@
     <button class="btn primary block">Largura total (.block)</button>
   </section>
 
+  <section class="card" aria-labelledby="ds-shortcuts"><h2 id="ds-shortcuts">Atalhos compactos</h2>
+    <p class="ds-note">Use <code>.shortcut-grid</code> com links <code>.shortcut-card</code> para destinos relacionados com título e descrição. Cada cartão é um único link; <code>.shortcut-card--wide</code> ocupa a linha inteira em grades largas. A grade vira uma coluna em telas estreitas.</p>
+    <nav class="shortcut-grid" aria-label="Exemplo de atalhos">
+      <a class="shortcut-card" href="../pages/planejar.html">
+        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18M8 16l2 2 4-4"/></svg></span>
+        <span class="shortcut-card-copy"><span class="shortcut-card-title">Planejar</span><span class="shortcut-card-description">Tarefas, prazos, calendário e planos por etapas.</span></span>
+        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </a>
+      <a class="shortcut-card" href="../pages/pomodoro.html">
+        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M12 3v2m-3-2h6"/></svg></span>
+        <span class="shortcut-card-copy"><span class="shortcut-card-title">Pomodoro</span><span class="shortcut-card-description">Ciclos de foco e pausa para organizar seu tempo.</span></span>
+        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </a>
+      <a class="shortcut-card" href="../pages/financas.html">
+        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="15" rx="3"/><path d="M3 9V6a2 2 0 0 1 2-2h13m-1 9h.01"/></svg></span>
+        <span class="shortcut-card-copy"><span class="shortcut-card-title">Finanças</span><span class="shortcut-card-description">Contas, entradas e saídas.</span></span>
+        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </a>
+      <a class="shortcut-card shortcut-card--wide" href="../pages/ciclo.html">
+        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></span>
+        <span class="shortcut-card-copy"><span class="shortcut-card-title">Ciclo</span><span class="shortcut-card-description">Registro e estimativas.</span></span>
+        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+      </a>
+    </nav>
+  </section>
+
+  <section class="card" aria-labelledby="ds-list"><h2 id="ds-list">Listas</h2>
+    <p class="ds-note">Use <code>&lt;ul class="list"&gt;</code> para itens independentes: cada linha tem superfície e respiro próprios. Para itens relacionados, envolva a lista em <code>.grp</code> e mantenha divisórias internas. O espaçamento usa <code>--list-gap</code>, <code>--list-row-gap</code> e <code>--list-row-padding-*</code>.</p>
+    <ul class="list" aria-label="Exemplo de lista espaçada">
+      <li><span class="grow"><b>Revisar tarefas</b><small class="muted" style="display:block">Organização · hoje</small></span><span class="badge">Hoje</span></li>
+      <li><span class="grow"><b>Planejar a semana</b><small class="muted" style="display:block">Rotina · próxima etapa</small></span><span class="badge">Pendente</span></li>
+    </ul>
+    <div class="grp"><ul class="list" aria-label="Itens de uma mesma categoria">
+      <li><span class="grow">Conta principal</span><b>R$ 1.240,00</b></li>
+      <li><span class="grow">Reserva mensal</span><b>R$ 320,00</b></li>
+    </ul></div>
+  </section>
+
   <section class="card" aria-labelledby="ds-field"><h2 id="ds-field">Campos</h2>
-    <p class="ds-note">Altura mínima 48 px, borda visível, foco evidente e fonte mínima de 16 px.</p>
+    <p class="ds-note">Altura mínima 48 px, borda visível, foco evidente e fonte mínima de 16 px. Para uma escolha única em formulário, use o <code>&lt;select&gt;</code> nativo com rótulo persistente; teclado e menu aberto seguem o navegador.</p>
     <form class="form" onsubmit="return false">
       <label class="f">Texto<input type="text" placeholder="Ex.: ler por 10 minutos"></label>
-      <label class="f">Data<input type="date" value="2026-10-24"></label>
-      <label class="f">Seleção<select><option>Uma vez por semana</option><option>Todos os dias</option></select></label>
+      <label class="f">Data<input type="date"></label>
+      <label class="f">Frequência
+        <select name="frequency" required>
+          <option value="" selected disabled>Selecione uma frequência</option>
+          <option value="weekly">Uma vez por semana</option>
+          <option value="daily">Todos os dias</option>
+        </select>
+      </label>
       <label class="f">Número<input type="number" value="2000"></label>
+      <label class="f">Seleção indisponível
+        <select disabled>
+          <option selected>Disponível após escolher uma rotina</option>
+        </select>
+      </label>
+      <label class="f">Seleção com erro
+        <select aria-invalid="true" aria-describedby="ds-select-error" required>
+          <option value="" selected disabled>Selecione uma frequência</option>
+          <option value="weekly">Uma vez por semana</option>
+          <option value="daily">Todos os dias</option>
+        </select>
+        <small class="err field-err" id="ds-select-error">Escolha uma frequência para continuar.</small>
+      </label>
       <label class="f full">Observação<textarea placeholder="Escreva aqui"></textarea></label>
       <label class="row" style="gap:12px"><input type="checkbox" checked><span class="small">Caixa de seleção</span></label>
     </form>
   </section>
 
   <section class="card" aria-labelledby="ds-sel"><h2 id="ds-sel">Chips, segmentado e selos</h2>
+    <p class="ds-note">Chips e controles segmentados servem para filtros e alternâncias rápidas, não substituem o <code>&lt;select&gt;</code> em formulários. Indique a escolha com <code>aria-pressed</code> ou <code>aria-selected</code>, além da aparência.</p>
     <div class="chips"><button class="chip" aria-pressed="true">Todas</button><button class="chip" aria-pressed="false">Pendentes</button><button class="chip" aria-pressed="false">Atrasadas</button></div>
     <div class="seg" role="group" aria-label="Exemplo"><button aria-pressed="true">Lista</button><button aria-pressed="false">Calendário</button><button aria-pressed="false">Semana</button></div>
     <div class="ds-row"><span class="badge">Padrão</span><span class="badge ok">Concluído</span><span class="badge warn">Atenção</span><span class="badge bad">Atrasado</span></div>
@@ -104,8 +164,8 @@
   <section class="card" aria-labelledby="ds-shape"><h2 id="ds-shape">Raios e elevação</h2>
     <div class="ds-grid">
       <div class="ds-box" style="border-radius:var(--r-xs)">--r-xs · 8</div><div class="ds-box" style="border-radius:var(--r-sm)">--r-sm · 12</div>
-      <div class="ds-box" style="border-radius:var(--r-control)">--r-control · 14</div><div class="ds-box" style="border-radius:var(--r-group)">--r-group · 18</div>
-      <div class="ds-box" style="border-radius:var(--r)">--r · 24</div><div class="ds-box" style="border-radius:var(--r-large)">--r-large · 32</div>
+      <div class="ds-box" style="border-radius:var(--r-control)">--r-control · 16</div><div class="ds-box" style="border-radius:var(--r-group)">--r-group · 20</div>
+      <div class="ds-box" style="border-radius:var(--r)">--r · 28</div><div class="ds-box" style="border-radius:var(--r-large)">--r-large · 36</div>
       <div class="ds-box" style="border-radius:var(--r-pill)">--r-pill</div>
       <div class="ds-box" style="border-radius:var(--r-group);box-shadow:var(--card-shadow)">--card-shadow</div>
       <div class="ds-box" style="border-radius:var(--r-group);box-shadow:var(--shadow)">--shadow</div>

@@ -8,9 +8,19 @@
 .pk::after, button.habit-dot::after { content: ""; position: absolute; inset: -5px; }
 a.inline-link { position: relative; }
 a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
-.planning-shortcuts button { min-height: var(--control-md); }
-.btn.sm.water-habit-add { min-height: var(--control-sm); }
+.planning-shortcuts button, .planning-shortcuts a { min-height: var(--control-md); }
 .ibtn, .iconbtn { min-width: var(--control-sm); min-height: var(--control-sm); }
+
+/* Destaques das rotas compartilham superfície e elevação; a área continua identificada pelos detalhes. */
+.fin-hero,
+.cycle-overview,
+.weekly-review-hero,
+.profile-intro {
+  border-radius: var(--r-large);
+  background: var(--hero);
+  box-shadow: var(--card-shadow);
+}
+.fin-hero { border-inline-start-width: 1px; }
 
 /* ---- Início: o plano de hoje é o foco; o resto fica mais leve ---- */
 .home-today-card {
@@ -72,11 +82,6 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     box-shadow: 0 24px 48px -12px color-mix(in srgb, #000 55%, transparent);
-  }
-  .nav-more-menu .nav-create {
-    border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
-    background: var(--soft);
-    color: var(--accent);
   }
 }
 

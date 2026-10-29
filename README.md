@@ -1,38 +1,56 @@
 # Aurora
 
-Aurora é uma aplicação web responsiva de organização pessoal. A interface veio do artefato preservado em [aurora-legacy.html](./aurora-legacy.html); a aplicação executável usa HTML, CSS e JavaScript em arquivos separados, sem framework ou processo de build.
+Aurora é uma aplicação web responsiva de organização pessoal. A interface usa HTML, CSS próprio e JavaScript em módulos ES; Vite é usado apenas para empacotar a SPA, sem React ou TypeScript.
 
 ## Executar
 
-Use um servidor HTTP estático a partir da raiz do projeto. Com Python:
+No PowerShell, na raiz do repositório, instale as dependências e crie o arquivo local de ambiente:
 
 ```powershell
-python -m http.server 8765
+npm install
+Copy-Item .env.example .env.local
 ```
 
-Abra `http://localhost:8765/`. O projeto também pode ser servido pelo Live Server do VS Code. Não abra os módulos ES diretamente por `file://`, pois os navegadores restringem imports nesse modo.
+Abra `.env.local` e substitua os valores vazios pelos dados públicos em Supabase → Project Settings → API / API Keys:
 
-A aplicação principal continua sem framework, build, conta ou backend para os dados pessoais. O serviço de avisos Push é opcional e separado: o site permanece estático no GitHub Pages; um Cloudflare Worker com Durable Object recebe apenas a inscrição Push e os horários/fases necessários ao Pomodoro.
+```dotenv
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE
+```
+
+Use somente a Project URL e a chave pública anon/publishable. Não use `service_role` ou chaves secretas. O `.gitignore` exclui `.env.local`; nunca compartilhe seu conteúdo.
+
+Depois, ainda na raiz do projeto, inicie o servidor de desenvolvimento:
+
+```powershell
+npm run dev
+```
+
+Deixe esse terminal aberto e acesse a URL que o Vite mostrar, normalmente **`http://localhost:5173/`**, sem acrescentar `#landing` ao endereço. Se reiniciar o servidor ou alterar arquivos do frontend, atualize também o navegador com `Ctrl+Shift+R` para descarregar uma cópia antiga em cache. Se a porta 5173 estiver ocupada, o Vite escolhe outra livre, como 5174; use a URL exibida no terminal. Não inicie outro servidor se já houver um Vite ativo: use a URL dele ou pare-o no terminal original com `Ctrl+C` antes de iniciar novamente. Reinicie o Vite depois de editar `.env.local`, pois as variáveis são lidas ao iniciar. Hashes como `#planejar` são rotas internas protegidas. Não use `python -m http.server`, Live Server ou abra o `index.html` diretamente: eles não resolvem os módulos do app. `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` são necessárias para entrar ou criar conta; a landing e a demonstração fictícia funcionam sem elas.
+
+`npm run build` gera o site em `dist/`; `npm run preview` serve esse build localmente.
+
+A aplicação apresenta a landing e uma demonstração somente de leitura com dados fictícios. É necessário entrar ou criar conta para acessar dados pessoais. A conta usa Supabase Auth e Postgres relacional, com RLS por usuário. O Worker de avisos Push é opcional e separado. Consulte [docs/cloudflare-pages.md](./docs/cloudflare-pages.md) para instruções de publicação.
 
 ### Testar no Android pela rede Wi-Fi
 
-Com o celular e o computador na mesma rede Wi-Fi, inicie o servidor na raiz do projeto:
+Com o celular e o computador na mesma rede Wi-Fi, inicie o Vite na raiz do projeto. Ele é necessário para resolver os módulos npm usados pelo app:
 
 ```powershell
-python -m http.server 8765 --bind 0.0.0.0
+npm run dev -- --host 0.0.0.0 --port 8765
 ```
 
-No Windows, execute `ipconfig` e anote o endereço IPv4 da conexão Wi-Fi (por exemplo, `192.168.1.10`). No Chrome do celular, abra `http://ENDERECO-IP:8765/`, substituindo pelo endereço encontrado. Se o Windows perguntar, permita o acesso do Python em redes privadas. Se a página não abrir, confira se os dois aparelhos continuam na mesma rede e se o firewall permite a conexão.
+No Windows, execute `ipconfig` e anote o endereço IPv4 da conexão Wi-Fi (por exemplo, `192.168.1.10`). No Chrome do celular, abra `http://ENDERECO-IP:8765/`, substituindo pelo endereço encontrado. Se o Windows perguntar, permita o acesso do Node.js em redes privadas. Se a página não abrir, confira se os dois aparelhos continuam na mesma rede e se o firewall permite a conexão. Um servidor estático como `python -m http.server` não serve o código-fonte do app corretamente.
 
-Os dados ficam no armazenamento local do navegador do celular e são independentes dos dados no computador ou em outro navegador. Esse acesso HTTP pela rede funciona para testar enquanto o servidor e o computador estiverem ligados, mas não permite instalar o Aurora como PWA offline; para isso, a origem precisa usar HTTPS. Não use uma rede Wi-Fi pública para esse teste.
+Os dados da conta são carregados e gravados no Supabase; fora da sessão gerenciada pelo supabase-js, o app não mantém cópia persistente dos dados no navegador. A importação dos dados legados é uma ação explícita em Ajustes → Dados e backup. A sessão de autenticação usa `sessionStorage`. Para testar conta em celular, use HTTPS e URLs de retorno permitidas no painel.
 
 ## Páginas e navegação
 
 - `index.html` é a entrada canônica.
 - `pages/` contém entradas HTML leves com metadados específicos para abrir cada rota da SPA, sem cópias da navegação ou da lógica.
-- As páginas compartilham o mesmo aplicativo e o mesmo armazenamento local. A navegação interna continua usando hashes (`#planejar`, `#financas` etc.).
-- Foco é uma área opcional dentro de Planejar, com cronômetro, matérias e histórico. `pages/foco.html` e `pages/estudos.html` são atalhos de entrada para essa visualização; Estudos não é uma lista de tarefas.
-- O conteúdo interativo das telas ainda é renderizado por `src/js/main.js`. As entradas em `pages/` não são páginas HTML estáticas independentes; a extração dos templates de tela é uma etapa futura.
+- As páginas compartilham o mesmo aplicativo e a mesma conta online. A navegação interna continua usando hashes (`#planejar`, `#financas` etc.).
+- Pomodoro é a única ferramenta de foco e pode ser usada para qualquer atividade. Não há área de Estudos, cadastro de matérias ou registro de sessões. Backups que contenham os dados removidos não são aceitos; as exclusões locais e do Supabase são efetivadas, respectivamente, ao entrar na aplicação e ao aplicar a migration `20261029050000_remove_studies.sql`.
+- O conteúdo interativo das telas é composto em `src/js/main.js`. As entradas em `pages/` não são páginas HTML estáticas independentes.
 
 ## Organização do código
 
@@ -43,36 +61,44 @@ Os dados ficam no armazenamento local do navegador do celular e são independent
 - `src/js/main.js`: composição atual da aplicação, estado da interface, templates dinâmicos, eventos e inicialização.
 - `src/js/core/`: resolução de rotas e regras de acesso ao perfil.
 - `src/js/features/finance/calculations.js`: cálculos financeiros sem manipulação de DOM.
-- `src/js/services/`: armazenamento local e busca determinística; `pomodoro-push.js` integra, de forma opcional, o timer independente ao Worker externo sem acessar as fatias locais.
+- `src/js/data/`: cliente Supabase singleton e camada de acesso relacional; `src/js/services/` contém autenticação, Push e busca determinística.
+- `supabase/migrations/`: migrations versionadas do schema relacional e políticas RLS por usuário; aplique conforme [supabase/README.md](./supabase/README.md).
 - `src/js/utils/`: templates HTML escapados, moeda, datas e IDs.
 - `docs/`: arquitetura, estrutura, modelo de dados, testes e decisões.
-- As skills pessoais do Aurora para o VS Code ficam em `~/.copilot/skills/`, fora deste repositório; um workspace multi-root local permite visualizá-las junto com o projeto.
-- `CLAUDE.md`: instruções gerais para agentes que trabalham neste repositório.
 
 Consulte [docs/project-structure.md](./docs/project-structure.md) antes de adicionar uma rota ou feature, [docs/architecture.md](./docs/architecture.md) para os contratos atuais e [docs/design-system.md](./docs/design-system.md) para os tokens e regras visuais.
 
 ## Funcionalidades
 
-Início, tarefas, Planejar/Foco, revisão semanal com reflexão opcional, perfil e ajustes; lixeira local de 30 dias; áreas opcionais de Finanças, Hábitos, Água, Academia e Ciclo; pausas e dias pulados neutros nos hábitos; assistente com busca local; backup/restauração; tema claro/escuro e layout responsivo. Consulte [docs/data-model.md](./docs/data-model.md) para os dados que de fato são persistidos.
+Início, tarefas, Planejar, Pomodoro independente, revisão semanal com reflexão opcional, perfil e ajustes; lixeira com retenção de 30 dias; áreas opcionais de Finanças, Hábitos, Academia e Ciclo; sugestão de água como hábito comum, pausas e dias pulados neutros; busca local; backup/restauração; tema claro/escuro e layout responsivo. Consulte [docs/data-model.md](./docs/data-model.md) para os dados persistidos.
 
 ## Dados e privacidade
 
-O estado principal fica no `localStorage` deste navegador, sob chaves `aurora.app.*`. O backup e a restauração são manuais. A aplicação não sincroniza tarefas, finanças, perfil ou outros dados pessoais com servidor nem conecta contas bancárias. A configuração local do perfil não é autenticação.
+O app exige e-mail confirmado e login antes de exibir ou alterar dados. O banco aplica políticas RLS por usuário, sem exigir MFA/AAL2. Os dados relacionais ficam legíveis pelo Postgres. O leitor antigo do cofre permanece somente para a importação explícita; dados e tabelas legados não são apagados automaticamente.
+
+RLS restringe as linhas ao `auth.uid()` da sessão autenticada. Apenas URL do projeto e chave pública Supabase podem estar no build cliente; `service_role`/secret nunca deve ser usada no navegador. Os dados ficam somente em memória durante o uso e no banco, sem cache local de dados. Exceções de persistência no navegador: sessão gerenciada pelo supabase-js; cache do service worker de recursos estáticos; inscrição mantida pelo PushManager do navegador. A credencial do Worker Push é movida para `push_subscriptions`; qualquer chave antiga do Push é migrada quando possível.
+
+Backups exportados e cópias de recuperação são JSON sem criptografia e podem conter dados financeiros e de saúde; proteja os arquivos e confirme antes de exportar.
+
+### Configurar contas Supabase
+
+1. Configure confirmação de e-mail, senha mínima de 12 caracteres, nível mínimo de garantia AAL1 e URLs permitidas para desenvolvimento e produção. O Aurora não exige MFA.
+2. Aplique as migrations versionadas na ordem descrita em [supabase/README.md](./supabase/README.md), incluindo a migration que remove a exigência de MFA, depois execute os testes SQL de isolamento.
+3. Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente local e nos ambientes Production e Preview do Cloudflare Pages. São variáveis públicas embutidas no build; nunca adicione valores reais ao Git. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
+4. Em Ajustes → Dados e backup, analise os dados antigos e importe na conta correta. Confira os registros antes de marcar a confirmação para apagar as chaves antigas lidas deste navegador. A importação não apaga `user_data` nem `user_keys`; a remoção do código e das tabelas exige revisão e uma migration separada aprovada.
+
+Antes de publicar, revise a configuração de autenticação, as migrations e as URLs de redirecionamento. Teste o isolamento com contas distintas em um ambiente apropriado.
 
 ### Avisos Push opcionais do Pomodoro
 
-Os avisos de mudança de fase podem ser ativados explicitamente na tela do Pomodoro. A função é exclusiva do timer independente; não altera o cronômetro de Estudos. Sem ativação, o timer continua local e nenhuma permissão é solicitada.
+Os avisos de mudança de fase podem ser ativados explicitamente na tela do Pomodoro. A função é exclusiva do timer independente e não cria nem altera registros legados de Estudos. Sem ativação, o timer continua local e nenhuma permissão é solicitada.
 
-Para publicar o backend separado no Cloudflare e conectar o site estático do GitHub Pages, siga [docs/pomodoro-push.md](./docs/pomodoro-push.md). O deploy requer uma conta Cloudflare, Node.js/npm e configuração manual do endereço da API, da origem CORS e de uma chave VAPID privada. Nenhuma credencial é incluída no repositório.
+Para publicar o backend separado no Cloudflare e conectar o front do Cloudflare Pages, siga [docs/pomodoro-push.md](./docs/pomodoro-push.md). O deploy requer uma conta Cloudflare, Node.js/npm e configuração manual do endereço da API, da origem CORS e de secrets VAPID. Nenhum segredo deve ser incluído no repositório. As configurações do front estão em [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 
-Quando ativado, o Cloudflare armazena a inscrição Push, um hash da credencial exclusiva desta instalação e a fase/horário da próxima mudança; a Durable Object agenda os próximos alarmes enquanto o timer estiver rodando. Nenhum nome de tarefa, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado. O temporizador e os registros originais permanecem locais. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
+Quando ativado, o Supabase guarda a inscrição Push e a credencial exclusiva desta instalação sob RLS por usuário; o Worker armazena a programação mínima da fase/horário da próxima mudança. Nenhum nome de tarefa, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado ao Worker. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
 
 Em iPhone, Push requer iOS/iPadOS 16.4 ou posterior e o Aurora instalado na Tela de Início, aberto como PWA independente. A origem precisa ser HTTPS e a permissão deve ser concedida após tocar em **Ativar avisos**. O iOS pode suspender páginas e áudio; Push é uma notificação do sistema, mas a execução/entrega não é um alarme garantido. O som existente do Pomodoro não é garantido com o app em segundo plano ou a tela bloqueada.
 
 ## Testes e limitações
 
-A aplicação web não usa bundler ou dependências npm. A suíte principal roda no navegador em `/tests/`; a implantação opcional do Worker tem dependências Node/npm próprias em `worker/` e testes com `npm test`. Não há lint configurado. Consulte [docs/testing.md](./docs/testing.md) para comandos, resultados reproduzíveis e limitações conhecidas.
-
-## Referência do produto
-
-A experiência financeira segue princípios gerais de clareza e hierarquia. Não foi possível confirmar as telas atuais do aplicativo Minhas Finanças no ambiente utilizado; nenhuma tela ou marca foi copiada.
+Execute `npm test` para a suíte da aplicação e `npm run build` para validar o bundle. O Worker de Push tem testes próprios. Os testes locais não comprovam login, RLS ou gravações no Supabase remoto. Consulte [docs/testing.md](./docs/testing.md) para os comandos e limites de validação.

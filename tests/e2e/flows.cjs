@@ -2,6 +2,7 @@
 // Uso: sirva a pasta do projeto (python3 -m http.server 8765), tenha o Playwright instalado
 // no seu computador e rode: node tests/e2e/flows.cjs [http://localhost:8765]
 const { chromium } = require('playwright');
+const { completeProfile, enableAreas } = require('./setup.cjs');
 const BASE = process.argv[2] || 'http://localhost:8765';
 const results = [];
 const check = (passed, name, detail = '') => { results.push(passed); console.log(`${passed ? 'OK   ' : 'FALHA'} — ${name}${detail ? ` (${detail})` : ''}`); };
@@ -9,6 +10,22 @@ const check = (passed, name, detail = '') => { results.push(passed); console.log
 (async () => {
   const browser = await chromium.launch();
   const errors = [];
+  const firstVisitContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const firstVisitPage = await firstVisitContext.newPage();
+  await firstVisitPage.goto(BASE); await firstVisitPage.waitForTimeout(500);
+  check(await firstVisitPage.locator('.welcome-card').isVisible(), 'primeira visita mostra orientação inicial');
+  await firstVisitPage.getByRole('button', { name: 'Adicionar primeira tarefa' }).click();
+  check(await firstVisitPage.locator('#home-quick-title-input').evaluate((input) => document.activeElement === input),
+    'atalho inicial leva direto ao campo de tarefa');
+  await firstVisitPage.locator('#home-quick-title-input').fill('Organizar a semana');
+  await firstVisitPage.locator('#home-quick-title-input').press('Enter');
+  await firstVisitPage.waitForTimeout(300);
+  check(await firstVisitPage.evaluate(() => JSON.parse(localStorage.getItem('aurora.app.tasks')).v.length === 1),
+    'primeira tarefa é salva sem configurar perfil');
+  check(!(await firstVisitPage.locator('.welcome-card').count()),
+    'orientação inicial some depois da primeira tarefa');
+  await firstVisitContext.close();
+
   for (const [label, viewport] of [['celular', { width: 390, height: 844 }], ['desktop', { width: 1280, height: 900 }]]) {
     const context = await browser.newContext({ viewport, serviceWorkers: 'allow' });
     const page = await context.newPage();
@@ -16,8 +33,23 @@ const check = (passed, name, detail = '') => { results.push(passed); console.log
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`${label}: ${m.text()}`); });
     const go = async (route) => { await page.evaluate((r) => { location.hash = r; }, route); await page.waitForTimeout(400); };
     await page.goto(BASE); await page.waitForTimeout(500);
-    await page.getByText('ver um exemplo').first().click().catch(() => {});
+    await completeProfile(page);
     await page.waitForTimeout(600);
+
+    if (label === 'celular') {
+      for (const [route, name] of [
+        ['habitos', 'Hábitos'],
+        ['pomodoro', 'Pomodoro'],
+        ['financas', 'Finanças'],
+        ['ciclo', 'Ciclo'],
+      ]) {
+        await go(route);
+        const empty = page.locator('.empty').filter({ hasText: `${name} está desligado` }).first();
+        check(await empty.evaluate((element) => getComputedStyle(element).flexDirection === 'column'),
+          `${label}: estado desligado de ${name} empilha conteúdo`);
+      }
+    }
+    await enableAreas(page, ['habits', 'pomodoro', 'finances', 'cycle']);
 
     // Hábitos: marcar dia passado, desfazer, reordenar
     await page.evaluate(() => {
@@ -108,11 +140,10 @@ const check = (passed, name, detail = '') => { results.push(passed); console.log
     check(await page.evaluate(() => !!document.querySelector('#dlg .field-err') && document.activeElement?.getAttribute('aria-invalid') === 'true'), `${label}: erro do formulário fica no campo`);
     await page.reload(); await page.waitForTimeout(500);
 
-    // Atalho N abre criação rápida, mas não dentro de campos
+    // A tecla N não deve abrir a criação rápida.
     await go('inicio');
     await page.keyboard.press('n'); await page.waitForTimeout(300);
-    check(await page.evaluate(() => !!document.querySelector('dialog[open], [role="dialog"]')), `${label}: atalho N abre criação rápida`);
-    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+    check(!(await page.evaluate(() => !!document.querySelector('dialog[open], [role="dialog"]'))), `${label}: tecla N não abre criação rápida`);
     await context.close();
   }
 

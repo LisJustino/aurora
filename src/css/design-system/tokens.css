@@ -21,16 +21,17 @@
   --p: #c8a19e;
   --pd: #78504c;
   --plum: #634742;
-  --bg: #f5f4f1;
+  --bg: #e8e6e0;
   --bg-strong: #eeece7;
   --surface: #ffffff;
-  --surface-strong: #ffffff;
-  --surface-raised: #fffefd;
+  --surface-strong: #faf9f7;
+  --surface-raised: #ffffff;
   --surface-soft: #faf9f7;
+  --surface-qr: #fff; /* QR codes keep a white field in both themes. */
   --ink: #252321;
   --muted: #625f5b;
   --line: rgba(91, 81, 73, .14);
-  --line-strong: rgba(91, 81, 73, .3);
+  --line-strong: #817970;
   --line2: var(--line-strong);
   --accent: var(--pd);
   --btn: var(--pd);
@@ -39,6 +40,7 @@
   --soft: color-mix(in srgb, var(--p) 7%, var(--surface));
   --soft2: color-mix(in srgb, var(--p) 14%, var(--surface));
   --ring: color-mix(in srgb, var(--p) 62%, #fff);
+  --focus-soft: color-mix(in srgb, var(--p) 18%, transparent);
   --focus: #68423e;
   --ok: #276b4d;
   --ok-soft: #eaf4ee;
@@ -49,12 +51,16 @@
   --area-water: #216f86;
   --area-finances: #397650;
   --area-cycle: #8b4e78;
-  --area-studies: #62559a;
   --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 54%, #2d2a28), color-mix(in srgb, var(--btn) 30%, #48423d));
+  --on-hero-home: var(--on-btn);
   --on-hero: var(--ink);
   --shadow: 0 28px 64px -34px rgb(44 38 33 / 26%);
   --card-shadow: 0 16px 38px -28px rgb(44 38 33 / 20%);
   --shadow-hover: 0 20px 40px -30px color-mix(in srgb, var(--ink) 55%, transparent);
+  --focus-ring-shadow: 0 0 0 4px var(--focus-soft);
+  --status-halo-shadow: 0 0 0 4px var(--ok-soft);
+  --current-control-shadow: inset 0 0 0 1px var(--accent);
   --font: "DM Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-h: "DM Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --space-1: 4px;
@@ -65,11 +71,29 @@
   --space-6: 32px;
   --space-7: 40px;
   --space-8: 48px;
+  --space-9: 56px;
+  --space-10: 64px;
+  --space-11: 72px;
+  --space-12: 80px;
+  --space-half: 2px;
+  --card-padding: var(--space-5);
+  --card-padding-compact: clamp(var(--space-4), 5vw, var(--space-5));
+  --card-content-gap: var(--space-4);
+  --button-gap: var(--space-2);
+  --button-padding-inline: var(--space-4);
+  --button-padding-inline-sm: var(--space-3);
+  --button-padding-inline-lg: var(--space-5);
+  --button-radius: var(--r-control);
+  --preview-caption-clearance: 120px;
   --list-row-border: var(--line);
   --list-row-radius: var(--r-group);
   --list-row-surface: var(--surface);
   --list-row-hover: var(--surface-soft);
   --list-row-hover-border: color-mix(in srgb, var(--accent) 18%, var(--line));
+  --list-gap: var(--space-2);
+  --list-row-gap: var(--space-3);
+  --list-row-padding-block: var(--space-4);
+  --list-row-padding-inline: var(--space-3);
   --dialog-padding: 20px;
   --dialog-padding-compact: 16px;
   --text-xs: .75rem;
@@ -81,6 +105,7 @@
   --text-heading: clamp(1.35rem, 3vw, 1.7rem);
   --text-section: clamp(1.45rem, 3vw, 1.9rem);
   --text-display: clamp(1.9rem, 4vw, 2.5rem);
+  --text-hero: clamp(2.1rem, 4vw, 3.3rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
   --weight-regular: 400;
   --weight-medium: 500;
@@ -90,12 +115,14 @@
   --leading-tight: 1.2;
   --leading-body: 1.5;
   --leading-relaxed: 1.6;
-  --content-width: 1160px;
+  --content-width: 1120px;
   --reading-width: 880px;
   --control-height: 48px;
   --target-size: 44px;
   --duration-fast: 150ms;
   --duration-base: 180ms;
+  --topbar-height: 68px;
+  --header-blur: 16px;
   --ease-standard: cubic-bezier(.2, .8, .2, 1);
   --z-fab: 15;
   --z-nav: 20;
@@ -104,10 +131,10 @@
   --z-dialog: 50;
   --z-toast: 60;
   --z-skip: 100;
-  --r-control: 14px;
-  --r-group: 18px;
-  --r: 24px;
-  --r-large: 32px;
+  --r-control: 16px;
+  --r-group: 20px;
+  --r: 28px;
+  --r-large: 36px;
   --r-pill: 999px;
   /* ---- Escalas do design system (use sempre tokens; nunca valores soltos) ---- */
   /* Tipografia: 2xs 11 · xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
@@ -122,11 +149,12 @@
   --control-md: var(--target-size);
   --control-field: var(--control-height);
   --control-lg: 52px;
-  /* Raios: xs 8 · sm 12 · control 14 · group 18 · card 24 · large 32 · pill */
+  /* Raios: xs 8 · sm 12 · control 16 · group 20 · card 28 · large 36 · pill */
   --r-xs: 8px;
   --r-sm: 12px;
   /* Elevação e canvas */
   --canvas-glow: color-mix(in srgb, var(--p) 16%, transparent);
+  --public-glow: color-mix(in srgb, var(--p) 14%, transparent);
   --canvas-grid: color-mix(in srgb, var(--ink) 2.2%, transparent);
   --nav-h: 72px;
   --gut-l: max(16px, env(safe-area-inset-left, 0px));
@@ -144,11 +172,12 @@
   --ink: #f2efeb;
   --muted: #c8c2bb;
   --line: rgba(205, 196, 186, 0.17);
-  --line-strong: rgba(205, 196, 186, 0.32);
+  --line-strong: #938b82;
   --accent: color-mix(in srgb, var(--p) 72%, #fff);
   --soft: color-mix(in srgb, var(--p) 12%, var(--surface));
   --soft2: color-mix(in srgb, var(--p) 20%, var(--surface));
   --ring: color-mix(in srgb, var(--p) 72%, #fff);
+  --focus-soft: color-mix(in srgb, var(--p) 24%, transparent);
   --focus: #edc6bc;
   --ok: #8bd0a6;
   --ok-soft: #203329;
@@ -159,8 +188,8 @@
   --area-water: #72c7d8;
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
-  --area-studies: #b1a3f0;
   --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 70%, #241f1d), color-mix(in srgb, var(--btn) 52%, #302b27));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
 }

@@ -1,0 +1,29 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--list-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--list-row-gap);
+  padding: var(--list-row-padding-block) var(--list-row-padding-inline);
+  border: 1px solid var(--list-row-border);
+  border-radius: var(--list-row-radius);
+  background: var(--list-row-surface);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.list > li:first-child { border-top: 1px solid var(--line); }
+
+.list > li:hover {
+  border-color: var(--list-row-hover-border);
+  background: var(--list-row-hover);
+}

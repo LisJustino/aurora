@@ -27,10 +27,24 @@ export function accountBalance(account, transactions) {
     .reduce((sum, transaction) => sum + signedAmount(transaction, account.id), 0);
 }
 
+export function accountBalanceOn(account, transactions, date) {
+  return account.initialCents + transactions
+    .filter((transaction) => isPaid(transaction)
+      && (transaction.settledDate || transaction.date) <= date
+      && (transaction.accountId === account.id || transaction.toAccountId === account.id))
+    .reduce((sum, transaction) => sum + signedAmount(transaction, account.id), 0);
+}
+
 export function netAccountBalance(accounts, transactions) {
   return accounts
     .filter((account) => !isCreditAccount(account))
     .reduce((sum, account) => sum + accountBalance(account, transactions), 0);
+}
+
+export function netAccountBalanceOn(accounts, transactions, date) {
+  return accounts
+    .filter((account) => !isCreditAccount(account))
+    .reduce((sum, account) => sum + accountBalanceOn(account, transactions, date), 0);
 }
 
 export function monthStats(transactions, month, accountForId) {
@@ -52,6 +66,40 @@ export function monthStats(transactions, month, accountForId) {
     cardOut: sum((transaction) => transaction.type === 'out'
       && isCreditAccount(accountForId(transaction.accountId))),
   };
+}
+
+export function reportTransactions(transactions, month, accountForId, basis = 'competence') {
+  if (basis === 'competence') {
+    return transactions.filter((transaction) => transaction.date.startsWith(month)
+      && transaction.type !== 'tr');
+  }
+  if (basis !== 'cash') return [];
+
+  return transactions.flatMap((transaction) => {
+    if (!isPaid(transaction)) return [];
+    const date = transaction.settledDate || transaction.date;
+    if (!date.startsWith(month)) return [];
+
+    if (transaction.type === 'in' || transaction.type === 'out') {
+      if (isCreditAccount(accountForId(transaction.accountId))) return [];
+      return [{ ...transaction, date }];
+    }
+
+    const source = accountForId(transaction.accountId);
+    const destination = accountForId(transaction.toAccountId);
+    if (isCreditAccount(source) || !isCreditAccount(destination)) return [];
+    return [{
+      ...transaction,
+      type: 'out',
+      category: 'Pagamento de fatura',
+      desc: transaction.desc || 'Pagamento de fatura',
+      date,
+    }];
+  });
+}
+
+export function reportMonthStats(transactions, month, accountForId, basis = 'competence') {
+  return monthStats(reportTransactions(transactions, month, accountForId, basis), month, accountForId);
 }
 
 export function byCategory(transactions, kind) {

@@ -1,9 +1,10 @@
 // Novo hábito no celular: toques reais em ícone, cor e dia, e foco no horário, sem deslocar o conteúdo para o lado.
 // Não é dependência do projeto. Uso: node tests/e2e/habit-dialog-touch.cjs [http://localhost:8765]
 const { chromium, devices } = require('playwright');
+const { completeProfile, enableAreas } = require('./setup.cjs');
 (async()=>{const b=await chromium.launch();
 const p=await (await b.newContext({...devices['iPhone 14']})).newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
-await p.goto((process.argv[2] || 'http://localhost:8765') + '/'); await p.waitForTimeout(300); await p.getByText('ver um exemplo').first().click().catch(()=>{}); await p.waitForTimeout(400);
+await p.goto((process.argv[2] || 'http://localhost:8765') + '/'); await p.waitForTimeout(300); await completeProfile(p); await enableAreas(p,['habits']); await p.waitForTimeout(400);
 await p.evaluate(()=>location.hash='habitos'); await p.waitForTimeout(300);
 await p.evaluate(()=>document.querySelector('[data-action="habit-new"]').click()); await p.waitForTimeout(500);
 // toca em ícone, cor e dia reais
