@@ -1,49 +1,60 @@
-# Decisões técnicas
+# Princípios do produto
 
-## D-001 — Manter SPA e compartilhar a casca
+- As rotas compartilham a mesma aplicação e navegação. `pages/*.html` são
+  entradas da SPA, não cópias independentes das telas.
+- A demonstração pública usa dados fictícios e somente leitura. Dados pessoais
+  exigem autenticação e permanecem isolados por usuário no banco.
+- A aplicação preserva a compatibilidade de dados e backups existentes.
+  Importações e exclusões de dados legados exigem ação e confirmação explícitas.
+- Backups exportados são arquivos JSON sem criptografia; a interface deve
+  informar isso antes da exportação.
+- A área do Ciclo oferece informação geral, não diagnóstico nem método
+  contraceptivo. Datas e dados de saúde são tratados como informação pessoal.
+- O hábito “Beber água” permite registrar cada volume em mL e acompanhar a meta
+  diária; os registros usam a fatia de água compatível com os backups existentes.
+- Notificações Push do Pomodoro são opcionais, ativadas por ação da pessoa e
+  limitadas aos dados necessários ao agendamento do timer.
+- A interface mantém suporte a teclado, leitores de tela, layouts responsivos
+  e temas claro e escuro.
+- O cadastro e cada atualização de documentos exigem aceite explícito dos
+  Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
+  autenticada oferece exclusão permanente da conta, com confirmação digitada;
+  a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
+- Os documentos legais ficam acessíveis no footer em um diálogo modal, com
+  páginas estáticas de fallback. O conteúdo ainda exige revisão jurídica e
+  confirmação das configurações operacionais antes de publicação definitiva.
 
-As rotas existentes são telas dentro de um shell compartilhado; recriar navegação, estado e modais em vários documentos criaria duplicação. `pages/*.html` são entradas de rota leves que configuram a primeira tela via `meta[name="aurora-route"]`; a aplicação continua com navegação por hash.
+## Persistência e compatibilidade
 
-## D-002 — Foco é visualização de Planejar
+- Dados de conta são associados ao usuário autenticado e protegidos por RLS.
+- Falhas de leitura ou gravação devem ser informadas; a interface não deve
+  apresentar uma operação malsucedida como concluída.
+- Não remover chaves, registros, tabelas ou formatos de backup legados sem
+  revisão de compatibilidade e confirmação explícita.
 
-Foco e o cronômetro são uma ferramenta, não uma nova seção de planejamento. O alias legado `#estudos` e a entrada `pages/estudos.html` preservam acessibilidade sem migrar dados.
+## Data de liquidação financeira
 
-## D-003 — CSS particionado na ordem anterior
+`date` permanece a data de competência do lançamento. O campo opcional
+`settledDate` registra o dia em que uma receita/despesa de conta foi paga ou
+recebida, permitindo relatórios por competência ou caixa. Registros existentes
+sem a nova data não são regravados nem migrados em massa: quando necessário,
+usam `date` como aproximação, com aviso na interface. Compras no cartão
+continuam na competência da compra; pagamentos de fatura são transferências e
+aparecem como saída no caixa. O saldo histórico considera apenas movimentos
+liquidados e não inclui cartões no saldo disponível. Contribuições de objetivos
+seguem como acompanhamento, sem movimentar contas ou criar lançamentos.
 
-Os estilos foram separados por grupos contíguos e responsabilidade. `src/css/main.css` importa a ordem anterior dos blocos, pois a cascata existente tem overrides posteriores. Uma reorganização semântica mais agressiva deve ser medida e testada separadamente.
+## Foco e registros antigos de Estudos
 
-## D-004 — Extração gradual de JavaScript
-
-Datas, moeda, DOM seguro, IDs, roteamento, acesso ao perfil e cálculos financeiros têm módulos próprios. `main.js` ainda é o ponto de composição e concentra templates/eventos; a extração completa será feita feature por feature para preservar a ordem de inicialização e o acesso ao estado.
-
-## D-005 — Persistência local compatível
-
-Preservam-se os nomes de chaves `aurora.app.*`, o envelope `{v,t}` e as versões de backup 1 e 2. Os dados pessoais continuam locais; não há autenticação de conta, sincronização de dados ou conexão bancária. A exceção limitada de Push está descrita em D-011.
-
-## D-006 — Design system em `src/css/design-system/`
-
-Tokens e componentes-base (botões, campos, seletores, selos, estado vazio) saíram de `controls.css`, `preferences.css`, `visual-refresh.css` e dos blocos `:root` duplicados para uma pasta própria. Valores soltos de fonte, raio e altura foram trocados por tokens. A reorganização foi medida (pelo padrão de D-003) comparando capturas de todas as telas, nos temas claro e escuro e em 390 e 1280 px, antes e depois. `tests/design-system-check.html` impede a volta dos valores soltos.
-
-## D-007 — Pausas e pulos de hábitos são neutros
-
-Um dia explicitamente pulado, ou um dia programado durante uma pausa, não conta como check-in nem como falha para metas, relatórios e sequências. A pausa registra as datas e os dias da semana originalmente programados; os dados de conclusão existentes permanecem intactos. Reflexões semanais são opcionais, locais e compatíveis com o envelope e as versões atuais de backup.
-
-## D-008 — Lixeira local com retenção de 30 dias
-
-Exclusões de registros recuperáveis movem o valor original e sua posição para `settings.prefs.trash`, junto com as alterações na fatia de origem em uma transação de armazenamento com rollback. A restauração não sobrescreve registros criados depois da exclusão; relações financeiras exigem que as contas vinculadas existam. A expiração é automática após 30 dias. A lixeira segue nos backups atuais sem trocar chaves nem versões; “Apagar todos os dados” continua sendo uma ação explicitamente permanente.
-
-## D-007 — Aplicação local, sem sincronização de dados
-
-O Aurora não oferece conta, sincronização remota de dados ou integração com Google Calendar. Os registros pessoais permanecem no navegador; exportação, restauração e recuperação são recursos locais e continuam disponíveis em Ajustes. O backend opcional de D-011 recebe somente os dados mínimos para notificações Push do Pomodoro.
-
-## D-009 — Perfil mínimo antes do uso
-
-Antes de usar a plataforma, a pessoa deve informar um nome e selecionar uma opção de identidade de gênero. “Prefiro não informar” é uma escolha válida; idade e peso continuam opcionais. A interface chama o campo de identidade de gênero, não solicita orientação sexual e mantém o campo/códigos legados para compatibilidade dos dados e backups.
-
-## D-010 — Informação educativa na área do ciclo
-
-A área do Ciclo pode apresentar orientação geral sobre variações menstruais, saúde sexual e sinais para buscar atendimento, com links para fontes de saúde. O conteúdo não diagnostica, não substitui avaliação profissional e não transforma estimativas do ciclo em método contraceptivo. A pessoa pode optar por registrar atividade sexual e métodos contraceptivos no diário do ciclo. Esses dados sensíveis permanecem locais, podem entrar nos backups escolhidos pela pessoa e não são enviados a serviços externos.
-
-## D-011 — Push opcional e mínimo para o Pomodoro independente
-
-O site continua estático no GitHub Pages e os dados da aplicação permanecem locais. A exceção explicitamente aprovada para notificações fora do app usa um Cloudflare Worker com Durable Object e Web Push compatível com Web Crypto. A inscrição exige gesto/permissão explícitos; o backend recebe somente a inscrição necessária, credencial-capacidade por instalação e fase/horário/durações do Pomodoro independente. Não transmite tarefa, perfil, histórico ou outras fatias. Alarmes avançam as fases enquanto o timer estiver rodando e são cancelados ao pausar, concluir, descartar ou desativar. CORS permite apenas origens HTTPS configuradas, e entradas, horizonte e frequência são limitados.
+O Pomodoro é a única ferramenta de foco e pode ser usado para qualquer
+atividade. Não há área de Estudos, cadastro de matérias ou registro de sessões.
+As fatias locais antigas são removidas após autenticação, os dados relacionais
+e as fatias cifradas exclusivas de Estudos são removidos pela migration
+`20261029050000_remove_studies.sql`, e backups que ainda contenham esses dados
+são rejeitados. Preferências relacionais são limpas sem apagar as demais
+configurações. Uma preferência dentro do antigo envelope cifrado misto só
+pode ser identificada depois de descriptografar a cópia; a normalização não a
+reintroduz na conta atual, mas a cópia cifrada original permanece até ser
+apagada como parte da limpeza legada. Migrations históricas permanecem no
+repositório como registro do schema anterior; elas não representam o schema
+ativo após a migration de remoção.

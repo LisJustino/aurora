@@ -75,7 +75,7 @@ async function vapidKeys() {
 async function environment(overrides = {}) {
   const keys = await vapidKeys();
   const env = {
-    ALLOWED_ORIGINS: 'https://lisjustino.github.io',
+    ALLOWED_ORIGINS: 'https://aurora-9ze.pages.dev',
     ENVIRONMENT: 'production',
     VAPID_PUBLIC_KEY: keys.publicKey,
     VAPID_PRIVATE_KEY: keys.privateKey,
@@ -88,7 +88,7 @@ async function environment(overrides = {}) {
   return env;
 }
 
-function request(path, { method = 'GET', body, headers = {}, origin = 'https://lisjustino.github.io' } = {}) {
+function request(path, { method = 'GET', body, headers = {}, origin = 'https://aurora-9ze.pages.dev' } = {}) {
   const requestHeaders = new Headers({ Origin: origin, ...headers });
   if (body !== undefined && !requestHeaders.has('Content-Type')) requestHeaders.set('Content-Type', 'application/json');
   return new Request(`https://push.example${path}`, {
@@ -144,7 +144,7 @@ test('CORS é exato, e a configuração pública expõe somente a chave VAPID p�
   assert.equal(config.response.status, 200);
   assert.equal(config.body.publicKey, env.VAPID_PUBLIC_KEY);
   assert.equal(Object.hasOwn(config.body, 'privateKey'), false);
-  assert.equal(config.response.headers.get('Access-Control-Allow-Origin'), 'https://lisjustino.github.io');
+  assert.equal(config.response.headers.get('Access-Control-Allow-Origin'), 'https://aurora-9ze.pages.dev');
   assert.equal(config.response.headers.get('Cache-Control'), 'no-store');
 });
 
@@ -196,7 +196,7 @@ test('a inscrição rejeita destinos de rede arbitrários e estruturas inesperad
   assert.equal(result.body.error, 'invalid-subscription');
 });
 
-test('credencial autoriza a inscrição; o alarme avança fase e agenda a próxima sem dados pessoais', async () => {
+test('credencial autoriza a inscrição; o alarme avança a pausa mesmo após quatro blocos', async () => {
   const env = await environment();
   const client = await register(env);
   const pushSubscription = await createSubscription();
@@ -221,7 +221,7 @@ test('credencial autoriza a inscrição; o alarme avança fase e agenda a próxi
     focusMin: 25,
     breakMin: 5,
     longBreakMin: 15,
-    completedPomodoros: 0,
+    completedPomodoros: 3,
   };
   const scheduled = await call(env, '/api/schedule', {
     method: 'POST',
@@ -250,7 +250,7 @@ test('credencial autoriza a inscrição; o alarme avança fase e agenda a próxi
 
   const next = await object.state.storage.get('schedule');
   assert.equal(next.phase, 'short-break');
-  assert.equal(next.completedPomodoros, 1);
+  assert.equal(next.completedPomodoros, 4);
   assert.equal(next.phaseEndsAt, schedule.phaseEndsAt + 5 * 60_000);
   assert.equal(object.state.storage.alarm, next.phaseEndsAt);
   assert.equal(pushCount, 1);

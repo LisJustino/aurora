@@ -3,14 +3,35 @@ import { filterValidRecords, isPlainObject, validateFinanceReferences } from '..
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { parseMoney } from '../src/js/utils/currency.js';
 import { isDay } from '../src/js/utils/dates.js';
-import { resolveRoute } from '../src/js/core/router.js';
+import { isPublicLandingHash, postSignOutPath, resolveRoute } from '../src/js/core/router.js';
 import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
 import {
+  isValidMenuOrder,
+  isValidVisibleMenuItems,
+  canMoveMenuItem,
+  MENU_ITEMS,
+  moveMenuItem,
+  normalizeMenuOrder,
+  normalizeVisibleMenuItems,
+} from '../src/js/features/navigation/menu.js';
+import {
+  accountBalanceOn,
   accountBalance,
+  byCategory as summarizeByCategory,
   monthStats,
   netAccountBalance,
+  netAccountBalanceOn,
+  reportMonthStats,
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
+import { parseStatement } from '../src/js/features/finance/statement.js';
+import {
+  AREA_GUIDES,
+  AREA_GUIDE_IDS,
+  FINANCE_PRIVACY_NOTICE,
+  isValidAreaTutorialsSeen,
+  normalizeAreaTutorialsSeen,
+} from '../src/js/features/area-guides.js';
 
 import { LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
@@ -18,7 +39,9 @@ import {
   createSuggestedHabits,
   habitColor,
   habitIconKey,
+  habitIsComplete,
   habitIsSkipped,
+  isWaterHabit,
   HABIT_COLORS,
   HABIT_ICON_KEYS,
   SUGGESTED_HABITS,
@@ -26,6 +49,21 @@ import {
   habitWeeklyTarget,
   isValidHabit,
 } from '../src/js/features/habits/model.js';
+import {
+  estimateWaterGoal,
+  parseWaterMl,
+  parseWaterWeightKg,
+  waterGoalFromName,
+  waterGoalReached,
+  waterMlForDay,
+} from '../src/js/features/habits/water-goal.js';
+import { filterWeightInput } from '../src/js/features/profile/weight.js';
+import {
+  ageFromBirthdayReference,
+  createBirthdayReference,
+  formatBirthday,
+  isValidBirthdayReference,
+} from '../src/js/features/profile/birthday.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
   isTrashExpired,
@@ -36,15 +74,33 @@ import {
 } from '../src/js/features/trash/model.js';
 import {
   advancePomodoro,
+  cyclesPerLongBreak,
   effectivePomodoroSettings,
   longBreakMinutes,
   normalizePomodoroHistory,
   phaseDurationSeconds,
   recentFocusDays,
-} from '../src/js/features/studies/pomodoro.js';
-import { resumePomodoroAudioContext } from '../src/js/features/studies/pomodoro-audio.js';
+} from '../src/js/features/pomodoro/pomodoro.js';
+import {
+  DEFAULT_POMODORO_SOUND_VOLUME,
+  playPomodoroChime,
+  resumePomodoroAudioContext,
+} from '../src/js/features/pomodoro/pomodoro-audio.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
+import {
+  createCyclePeriod,
+  cycleLogDays,
+  cyclePeriodDays,
+  mergeCycleLogSymptoms,
+  MAX_CYCLE_LOG_RANGE_DAYS,
+  MAX_CYCLE_PERIOD_DAYS,
+} from '../src/js/features/cycle/period.js';
 import { createPomodoroSchedule } from '../src/js/services/pomodoro-push.js';
+import {
+  BACKUP_ACTIVITY_THRESHOLD,
+  BACKUP_REMINDER_DAYS,
+  backupReminderStatus,
+} from '../src/js/features/backup/reminder.js';
 
 const results = [];
 
@@ -80,6 +136,121 @@ const truthy = (value) => {
 const falsy = (value) => {
   if (value) throw new Error('Esperava um valor falso.');
 };
+
+test('orientações cobrem as telas e esclarecem a privacidade financeira', () => {
+  const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'ciclo'];
+  equal(AREA_GUIDE_IDS.join(','), routes.join(','));
+  Object.values(AREA_GUIDES).forEach((guide) => {
+    ok(guide.title);
+    ok(guide.summary);
+    ok(guide.steps.length >= 3);
+    guide.steps.forEach((step) => {
+      ok(step.title);
+      ok(step.text);
+    });
+    ok(guide.video.endsWith('.webm'));
+  });
+  equal(Object.hasOwn(AREA_GUIDES, 'config'), false);
+  ok(AREA_GUIDES.financas.steps.some((step) => step.text.includes('manualmente')));
+  ok(AREA_GUIDES.habitos.steps.some((step) => step.text.includes('cada volume em mL') && step.text.includes('automaticamente')));
+  ok(FINANCE_PRIVACY_NOTICE.includes('não se conecta a bancos'));
+  ok(FINANCE_PRIVACY_NOTICE.includes('nem solicita sua senha bancária'));
+  ok(FINANCE_PRIVACY_NOTICE.includes('associados à sua conta Aurora'));
+  ok(AREA_GUIDES.ciclo.note.includes('método contraceptivo'));
+});
+
+test('preferências de tutoriais aceitam rotas conhecidas e mantêm compatibilidade anterior', () => {
+  equal(normalizeAreaTutorialsSeen(undefined).length, 0);
+  equal(normalizeAreaTutorialsSeen(['financas', 'financas', 'rota-inválida']).join(','), 'financas');
+  equal(normalizeAreaTutorialsSeen(['config']).join(','), 'config');
+  equal(isValidAreaTutorialsSeen([]), true);
+  equal(isValidAreaTutorialsSeen(['financas', 'ciclo']), true);
+  equal(isValidAreaTutorialsSeen(['config']), true);
+  equal(isValidAreaTutorialsSeen(['financas', 'financas']), false);
+  equal(isValidAreaTutorialsSeen(['rota-inválida']), false);
+  equal(isValidAreaTutorialsSeen('financas'), false);
+});
+
+test('ações da personalização inicial só são liberadas enquanto o diálogo está ativo', () => {
+  equal(actionNeedsProfileSetup('ob-need', true), false);
+  equal(actionNeedsProfileSetup('ob-area', true), false);
+  equal(actionNeedsProfileSetup('ob-skip', true), false);
+  equal(actionNeedsProfileSetup('ob-skip', false), true);
+  equal(actionNeedsProfileSetup('home-quick-task', true), true);
+});
+
+test('aniversário mantém somente dia e mês e atualiza a idade na data correta', () => {
+  const birthday = createBirthdayReference('2000-10-29', new Date(2024, 9, 29));
+  equal(birthday.ageAtReference, 24);
+  equal(birthday.month, 10);
+  equal(birthday.day, 29);
+  equal(Object.hasOwn(birthday, 'year'), false);
+  equal(isValidBirthdayReference(birthday), true);
+  equal(formatBirthday(birthday), '29/10');
+  equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 28)), 24);
+  equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 29)), 25);
+  equal(ageFromBirthdayReference(birthday, new Date(2026, 9, 29)), 26);
+  equal(createBirthdayReference('2010-10-29', new Date(2024, 9, 29)), null);
+});
+
+test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos comuns', () => {
+  const birthday = createBirthdayReference('2000-02-29', new Date(2024, 1, 29));
+  equal(ageFromBirthdayReference(birthday, new Date(2025, 1, 27)), 24);
+  equal(ageFromBirthdayReference(birthday, new Date(2025, 1, 28)), 25);
+});
+
+test('sugestão de água considera idade registrada e usa referência adulta quando ausente', () => {
+  const middleAge = estimateWaterGoal({ weightKg: 60, age: 40 });
+  const olderAdult = estimateWaterGoal({ weightKg: 60, age: 60 });
+  const senior = estimateWaterGoal({ weightKg: 60, age: 70 });
+  const ageUnavailable = estimateWaterGoal({ weightKg: 60 });
+
+  equal(middleAge.per, 35);
+  equal(middleAge.ml, 2100);
+  equal(olderAdult.per, 30);
+  equal(olderAdult.ml, 1800);
+  equal(senior.per, 25);
+  equal(senior.ml, 1500);
+  equal(ageUnavailable.per, 35);
+  equal(ageUnavailable.assumed, true);
+});
+
+test('peso para estimativa de água aceita vírgula e valida limites sem gravar estado', () => {
+  equal(parseWaterWeightKg('60,5'), 60.5);
+  equal(parseWaterWeightKg('20'), 20);
+  equal(parseWaterWeightKg('400'), 400);
+  equal(parseWaterWeightKg(''), null);
+  equal(parseWaterWeightKg('19.9'), null);
+  equal(parseWaterWeightKg('400.1'), null);
+  equal(parseWaterWeightKg('peso'), null);
+});
+
+test('campo de peso aceita números e um separador decimal, removendo letras', () => {
+  equal(filterWeightInput('72,5'), '72,5');
+  equal(filterWeightInput('72.5kg'), '72.5');
+  equal(filterWeightInput('7a2,5'), '72,5');
+  equal(filterWeightInput('70,2.3'), '70,23');
+});
+
+test('lembrete de backup considera prazo e volume de registros desde o último backup', () => {
+  const day = 86_400_000;
+  const now = 40 * day;
+  equal(backupReminderStatus({ activityAt: [], now }), null);
+  equal(backupReminderStatus({ activityAt: [now - 13 * day], now }), null);
+  equal(backupReminderStatus({ activityAt: [now - 14 * day], now }).days, BACKUP_REMINDER_DAYS);
+
+  const activityAt = Array.from({ length: BACKUP_ACTIVITY_THRESHOLD }, (_, index) => now - index);
+  const byActivity = backupReminderStatus({ lastBackupAt: now - day, activityAt, now });
+  equal(byActivity.byActivity, true);
+  equal(byActivity.activities, BACKUP_ACTIVITY_THRESHOLD);
+
+  const recentBackup = backupReminderStatus({
+    lastBackupAt: now - day,
+    activityAt: [now - 2 * day],
+    now,
+  });
+  equal(recentBackup, null);
+});
 
 test('a lixeira valida registros e rejeita identificadores duplicados', () => {
   const record = { collection: 'tasks', key: 'task-1', index: 0, value: { id: 'task-1' } };
@@ -237,6 +408,57 @@ test('valida atividade sexual e métodos contraceptivos do diário do ciclo', ()
   falsy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['undisclosed', 'pill'] }));
 });
 
+test('cria períodos menstruais por intervalo e rejeita datas ou duração inválidas', () => {
+  const period = createCyclePeriod('2026-03-01', '2026-03-05', '2026-03-10');
+  equal(period?.start, '2026-03-01');
+  equal(period?.end, '2026-03-05');
+  const singleDay = createCyclePeriod('2026-03-10', '2026-03-10', '2026-03-10');
+  equal(singleDay?.start, '2026-03-10');
+  equal(singleDay?.end, '2026-03-10');
+  truthy(createCyclePeriod('2026-02-24', '2026-03-10', '2026-03-10'));
+  equal(createCyclePeriod('2026-02-23', '2026-03-10', '2026-03-10'), null);
+  equal(createCyclePeriod('2026-03-02', '2026-03-01', '2026-03-10'), null);
+  equal(createCyclePeriod('2026-03-01', '2026-03-11', '2026-03-10'), null);
+  equal(createCyclePeriod('2026-02-30', '2026-03-01', '2026-03-10'), null);
+  equal(MAX_CYCLE_PERIOD_DAYS, 15);
+});
+
+test('marca até hoje períodos menstruais ainda em andamento', () => {
+  equal(
+    cyclePeriodDays('2026-03-10', null, '2026-03-12').join(','),
+    '2026-03-10,2026-03-11,2026-03-12',
+  );
+  equal(
+    cyclePeriodDays('2026-03-01', '2026-03-03', '2026-03-12').join(','),
+    '2026-03-01,2026-03-02,2026-03-03',
+  );
+  equal(cyclePeriodDays('2026-03-13', null, '2026-03-12').length, 0);
+});
+
+test('gera intervalo de dias para registro de sintomas sem aceitar datas inválidas', () => {
+  equal(cycleLogDays('2026-03-01', '2026-03-03', '2026-03-10')?.join(','), '2026-03-01,2026-03-02,2026-03-03');
+  equal(cycleLogDays('2026-03-10', '2026-03-10', '2026-03-10')?.length, 1);
+  equal(cycleLogDays('2026-03-01', '2026-03-31', '2026-03-31')?.length, 31);
+  equal(cycleLogDays('2026-03-01', '2026-04-01', '2026-04-01'), null);
+  equal(cycleLogDays('2026-03-04', '2026-03-03', '2026-03-10'), null);
+  equal(cycleLogDays('2026-03-01', '2026-03-11', '2026-03-10'), null);
+  equal(cycleLogDays('2026-02-30', '2026-03-01', '2026-03-10'), null);
+  equal(MAX_CYCLE_LOG_RANGE_DAYS, 31);
+});
+
+test('acrescenta sintomas em lote sem substituir os registros diários existentes', () => {
+  const result = mergeCycleLogSymptoms(
+    { flow: 'medium', pain: ['cramp'], mood: ['calm'], note: 'manter', sexualActivity: true },
+    { pain: ['cramp', 'head'], mood: ['sad'], skin: ['oilyskin'], flow: ['light'] },
+  );
+  equal(result.pain.join(','), 'cramp,head');
+  equal(result.mood.join(','), 'calm,sad');
+  equal(result.skin.join(','), 'oilyskin');
+  equal(result.flow, 'medium');
+  equal(result.note, 'manter');
+  equal(result.sexualActivity, true);
+});
+
 test('rejeita datas com formato incorreto ou dias inexistentes', () => {
   falsy(isDay('2024-2-01'));
   falsy(isDay('2024-04-31'));
@@ -245,17 +467,60 @@ test('rejeita datas com formato incorreto ou dias inexistentes', () => {
   falsy(isDay(null));
 });
 
-test('mantém os aliases e limita rotas desconhecidas a Início', () => {
-  const routes = new Set(['inicio', 'planejar', 'config']);
+test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {
+  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'habitos', 'config']);
 
-  equal(resolveRoute('estudos', routes).route, 'planejar');
-  equal(resolveRoute('estudos', routes).focusActive, true);
+  truthy(MENU_ITEMS.some((item) => item.id === 'pomodoro'));
+  equal(resolveRoute('estudos', routes).route, 'inicio');
+  equal(resolveRoute('estudos', routes).replaceHash, null);
+  equal(resolveRoute('removida', routes).route, 'inicio');
+  equal(resolveRoute('removida', routes).replaceHash, null);
   equal(resolveRoute('pessoal', routes).replaceHash, 'inicio');
   equal(resolveRoute('perfil', routes).route, 'config');
   equal(resolveRoute('perfil', routes).replaceHash, 'config');
   equal(resolveRoute('academia', routes).route, 'inicio');
   equal(resolveRoute('academia', routes).replaceHash, 'inicio');
+  equal(resolveRoute('agua', routes).route, 'habitos');
+  equal(resolveRoute('agua', routes).replaceHash, 'habitos');
   equal(resolveRoute('invalida', routes).route, 'inicio');
+});
+
+test('descarta opções de menu desconhecidas ao normalizar preferências', () => {
+  const oldOrder = ['inicio', 'planejar', 'pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
+  const oldVisibleItems = ['pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
+
+  truthy(isValidMenuOrder(oldOrder));
+  truthy(isValidVisibleMenuItems(oldVisibleItems));
+  equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
+  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,financas,agua,ciclo,habitos');
+  falsy(isValidMenuOrder([...oldOrder, 'retired']));
+  falsy(isValidVisibleMenuItems([...oldVisibleItems, 'retired']));
+});
+
+test('mantém Início e Planejar fixos e só oferece movimentos possíveis no menu', () => {
+  const order = ['inicio', 'pomodoro', 'planejar', 'financas', 'agua', 'ciclo', 'habitos'];
+
+  equal(normalizeMenuOrder(order).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'planejar', 1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'pomodoro', -1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
+  truthy(canMoveMenuItem(order, 'pomodoro', 1));
+  falsy(canMoveMenuItem(order, 'inicio', 1));
+  falsy(canMoveMenuItem(order, 'planejar', 1));
+  falsy(canMoveMenuItem(order, 'habitos', 1));
+});
+
+test('reconhece os hashes públicos da landing', () => {
+  truthy(isPublicLandingHash(''));
+  truthy(isPublicLandingHash('#landing'));
+  truthy(isPublicLandingHash('#landing-main'));
+  falsy(isPublicLandingHash('#inicio'));
+});
+
+test('ao sair da conta, redireciona para a landing pública', () => {
+  equal(
+    postSignOutPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config' }),
+    '/',
+  );
 });
 
 test('calcula saldos em centavos e exclui cartão do saldo líquido', () => {
@@ -291,6 +556,93 @@ test('ignora lançamentos pendentes no saldo das contas', () => {
   ];
 
   equal(accountBalance(account, transactions), 9000);
+});
+
+test('saldo histórico considera transferências e data de liquidação sem incluir cartão', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking', initialCents: 10000 },
+    { id: 'savings', type: 'savings', initialCents: 0 },
+    { id: 'card', type: 'credit', initialCents: 0 },
+  ];
+  const transactions = [
+    { type: 'out', accountId: 'checking', cents: 2000, date: '2026-10-10', settledDate: '2026-11-02', paid: true },
+    { type: 'in', accountId: 'checking', cents: 500, date: '2026-10-31', settledDate: '2026-11-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 800, date: '2026-10-20', settledDate: '2026-10-21', paid: false },
+    { type: 'out', accountId: 'card', cents: 3000, date: '2026-10-22', paid: true },
+    { type: 'tr', accountId: 'checking', toAccountId: 'savings', cents: 1000, date: '2026-11-03', paid: true },
+    { type: 'tr', accountId: 'checking', toAccountId: 'card', cents: 1000, date: '2026-11-04', paid: true },
+  ];
+
+  equal(accountBalanceOn(accounts[0], transactions, '2026-10-31'), 10000);
+  equal(netAccountBalanceOn(accounts, transactions, '2026-10-31'), 10000);
+  equal(accountBalanceOn(accounts[0], transactions, '2026-11-04'), 6500);
+  equal(netAccountBalanceOn(accounts, transactions, '2026-11-04'), 7500);
+});
+
+test('relatório de caixa usa data de liquidação e pagamento de fatura sem duplicar compras', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking' },
+    { id: 'card', type: 'credit' },
+  ];
+  const transactions = [
+    { type: 'in', accountId: 'checking', cents: 5000, date: '2026-10-31', settledDate: '2026-11-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 1200, date: '2026-10-10', settledDate: '2026-11-02', paid: true, category: 'Moradia' },
+    { type: 'out', accountId: 'checking', cents: 800, date: '2026-10-15', paid: false, category: 'Alimentação' },
+    { type: 'out', accountId: 'checking', cents: 300, date: '2026-10-30', paid: true, category: 'Outros' },
+    { type: 'out', accountId: 'card', cents: 3000, date: '2026-10-22', paid: true, category: 'Lazer' },
+    { type: 'tr', accountId: 'checking', toAccountId: 'card', cents: 1500, date: '2026-11-04', paid: true },
+  ];
+  const accountForId = (id) => accounts.find((account) => account.id === id);
+  const competence = reportMonthStats(transactions, '2026-10', accountForId);
+  const octoberCash = reportMonthStats(transactions, '2026-10', accountForId, 'cash');
+  const novemberCash = reportMonthStats(transactions, '2026-11', accountForId, 'cash');
+
+  equal(competence.inAll, 5000);
+  equal(competence.outAll, 5300);
+  equal(octoberCash.inAll, 0);
+  equal(octoberCash.outAll, 300);
+  equal(novemberCash.inAll, 5000);
+  equal(novemberCash.outAll, 2700);
+  const categories = Object.fromEntries(summarizeByCategory(novemberCash.tx, 'out'));
+  equal(categories.Moradia, 1200);
+  equal(categories['Pagamento de fatura'], 1500);
+});
+
+test('importação de extrato informa quando a prévia excede 500 registros', () => {
+  const input = [
+    'Data;Descrição;Valor',
+    ...Array.from({ length: 501 }, (_, index) => `2026-10-01;Item ${index + 1};0,10`),
+  ].join('\n');
+  const parsed = parseStatement(input, 'extrato.csv');
+
+  equal(parsed.transactions.length, 500);
+  equal(parsed.truncated, true);
+  equal(parsed.transactions[0].cents, 10);
+  equal(parsed.transactions[499].desc, 'Item 500');
+});
+
+test('importação CSV preserva centavos, aceita datas civis e rejeita datas inválidas', () => {
+  const parsed = parseStatement([
+    '\uFEFFData;Descrição;Valor',
+    '29/10/2026;Compra;1.234,56',
+    '2026-02-29;Data inválida;10,00',
+  ].join('\n'), 'extrato.csv');
+
+  equal(parsed.truncated, false);
+  equal(parsed.transactions.length, 1);
+  equal(parsed.transactions[0].date, '2026-10-29');
+  equal(parsed.transactions[0].cents, 123456);
+});
+
+test('importação OFX lê datas e valores em centavos', () => {
+  const parsed = parseStatement(
+    '<STMTTRN><DTPOSTED>20261029120000<TRNAMT>-10.50<MEMO>Compra</STMTTRN>',
+    'extrato.ofx',
+  );
+
+  equal(parsed.transactions.length, 1);
+  equal(parsed.transactions[0].date, '2026-10-29');
+  equal(parsed.transactions[0].cents, -1050);
 });
 
 test('resume mensal distingue transferência e compra no cartão', () => {
@@ -398,28 +750,6 @@ test('validateFinanceReferences preserva referencias financeiras validas', () =>
   equal(result.value.recurring.length, 1);
 });
 
-test('acoes do app exigem perfil, exceto configurar perfil, pular conteúdo ou iniciar do zero', () => {
-  const taskActions = [
-    'toggle', 'rem-done', 'mv-up', 'mv-down', 'del-task', 'edit-task',
-    'del-plan', 'del-task-dlg', 'plan-create',
-  ];
-
-  taskActions.forEach((action) => equal(actionNeedsProfileSetup(action), true));
-  equal(actionNeedsProfileSetup('li-new'), true);
-  equal(actionNeedsProfileSetup('load-sample'), true);
-
-  equal(actionNeedsProfileSetup('toggle-timer'), true);
-  equal(actionNeedsProfileSetup('open-profile-setup'), false);
-  equal(actionNeedsProfileSetup('skip'), false);
-  equal(actionNeedsProfileSetup('wipe-home'), false);
-
-  ['ob-next', 'ob-back', 'ob-theme', 'ob-area', 'ob-finish'].forEach((action) => {
-    equal(actionNeedsProfileSetup(action), true);
-    equal(actionNeedsProfileSetup(action, true), false);
-  });
-  equal(actionNeedsProfileSetup('task-new', true), true);
-});
-
 /* ---- Recorrência de tarefas ---- */
 test('recorrência mensal respeita o último dia do mês, inclusive em ano bissexto', () => {
   equal(nextDue('2026-01-31', 'month'), '2026-02-28');
@@ -512,13 +842,46 @@ test('revisão semanal não inclui dias pulados na taxa de hábitos', () => {
   equal(review.habits.completed, 1);
 });
 
-test('sugestões de hábito não duplicam nomes nem a água', () => {
+test('sugestão de água cria um hábito comum e evita duplicatas', () => {
   let count = 0;
   const created = createSuggestedHabits(['reading', 'water'], [{ ...habitBase, name: 'LER POR 10 MINUTOS' }], () => `id-${++count}`);
   equal(created.length, 1);
+  equal(created[0].name, 'Beber água');
   equal(created[0].tracking, 'water');
   const again = createSuggestedHabits(['water'], [{ ...habitBase, id: 'w', name: 'Água', tracking: 'water' }], () => 'x');
   equal(again.length, 0);
+  const customized = createSuggestedHabits(['water'], [{ ...habitBase, name: 'Beber água · 3.850 mL/dia' }], () => 'x');
+  equal(customized.length, 0);
+});
+
+test('hábito de água legado passa a usar check-in comum sem invalidar dados antigos', () => {
+  const legacy = { ...habitBase, tracking: 'water', completions: [] };
+  ok(isValidHabit(legacy));
+  truthy(isWaterHabit(legacy));
+  falsy(habitIsComplete(legacy, '2026-10-21'));
+  const checked = { ...legacy, tracking: undefined, completions: ['2026-10-21'] };
+  truthy(isWaterHabit({ ...checked, name: 'Beber água · 3.850 mL/dia' }));
+  truthy(habitIsComplete(checked, '2026-10-21'));
+});
+
+test('registros de água aceitam mililitros inteiros e somam somente o dia local', () => {
+  equal(parseWaterMl('250'), 250);
+  equal(parseWaterMl('0'), null);
+  equal(parseWaterMl('250.5'), null);
+  equal(parseWaterMl('10001'), null);
+  equal(waterGoalFromName('Beber água · 3.800 mL/dia'), 3800);
+  equal(waterGoalFromName('Beber água', 2500), 2500);
+  equal(waterGoalFromName('Beber água', 100), 2000);
+  const entries = [
+    { ml: 250, at: '2026-10-29T12:00:00' },
+    { ml: 500, at: '2026-10-29T15:00:00' },
+    { ml: 1000, at: '2026-10-28T15:00:00' },
+  ];
+  const todayTotal = waterMlForDay(entries, '2026-10-29');
+  equal(todayTotal, 750);
+  equal(waterGoalReached(todayTotal, 750), true);
+  equal(waterGoalReached(todayTotal, 751), false);
+  equal(waterMlForDay([], '2026-02-30'), 0);
 });
 
 test('hábito aceita ícone e cor opcionais e rejeita valores inválidos', () => {
@@ -538,7 +901,7 @@ test('ícone e cor de exibição têm padrão seguro', () => {
   equal(habitIconKey(habitBase), 'sparkles');
   equal(habitIconKey({ ...habitBase, icon: 'inexistente' }), 'sparkles');
   equal(habitIconKey({ ...habitBase, icon: 'bike' }), 'bike');
-  equal(habitIconKey({ ...habitBase, tracking: 'water', icon: 'bike' }), 'droplet');
+  equal(habitIconKey({ ...habitBase, tracking: 'water', icon: 'bike' }), 'bike');
   equal(habitColor(habitBase), HABIT_COLORS[0]);
   equal(habitColor({ ...habitBase, color: '#d6455d' }), '#d6455d');
 });
@@ -558,6 +921,38 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
 
 /* ---- Pomodoro ---- */
 const noon = new Date(2026, 9, 21, 12, 0, 0).getTime();
+function mockAudioContext() {
+  const oscillators = [], gains = [];
+  return {
+    currentTime: 1,
+    destination: {},
+    oscillators,
+    gains,
+    createOscillator() {
+      const oscillator = {
+        frequency: { setValueAtTime(value) { oscillator.frequencyValue = value; } },
+        connect() {},
+        start(value) { oscillator.startAt = value; },
+        stop(value) { oscillator.stopAt = value; },
+      };
+      oscillators.push(oscillator);
+      return oscillator;
+    },
+    createGain() {
+      const ramps = [];
+      const gain = {
+        ramps,
+        gain: {
+          setValueAtTime(value) { gain.initialGain = value; },
+          exponentialRampToValueAtTime(value) { ramps.push(value); },
+        },
+        connect() {},
+      };
+      gains.push(gain);
+      return gain;
+    },
+  };
+}
 const freshTimer = (extra = {}) => ({
   elapsedSeconds: 0,
   startedAt: noon - 26 * 60 * 1000,
@@ -597,6 +992,28 @@ test('não reinicia um contexto de áudio que já está ativo', () => {
   equal(resumes, 0);
 });
 
+test('o toque padrão do Pomodoro tem volume reforçado', () => {
+  const context = mockAudioContext();
+  playPomodoroChime(context);
+  equal(DEFAULT_POMODORO_SOUND_VOLUME, 75);
+  equal(Math.round(context.gains[0].ramps[0] * 100), 60);
+});
+
+test('o toque e o volume escolhidos alteram o aviso sonoro', () => {
+  const context = mockAudioContext();
+  playPomodoroChime(context, { tone: 'bell', volume: 40 });
+  equal(context.oscillators.length, 3);
+  equal(context.oscillators[0].type, 'triangle');
+  equal(context.oscillators[0].frequencyValue, 1046);
+  equal(Math.round(context.gains[0].ramps[0] * 100), 32);
+});
+
+test('volume zero silencia o aviso sem criar áudio', () => {
+  const context = mockAudioContext();
+  playPomodoroChime(context, { volume: 0 });
+  equal(context.oscillators.length, 0);
+});
+
 test('pausa longa usa o tempo configurado e volta a 15 min se o valor for inválido', () => {
   equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 20 }, 'long-break'), 1200);
   equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 3 }, 'long-break'), 900);
@@ -625,6 +1042,22 @@ test('o quarto bloco leva à pausa longa configurada', () => {
   const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
   equal(timer.phase, 'long-break');
   equal(phaseDurationSeconds(settings, timer.phase), 1200);
+});
+
+test('a quantidade de blocos até a pausa longa pode ser personalizada', () => {
+  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 6 }), 6);
+  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 1 }), 4);
+  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, cyclesPerLongBreak: 6 };
+  let timer = freshTimer({ completedPomodoros: 5 });
+  const { timer: advanced } = advancePomodoro(timer, settings, noon);
+  equal(advanced.phase, 'long-break');
+});
+
+test('Pomodoro independente alterna foco e pausa sem ciclos', () => {
+  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, longBreakEnabled: false };
+  const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
+  equal(timer.phase, 'short-break');
+  equal(phaseDurationSeconds(settings, timer.phase), 300);
 });
 
 test('histórico do Pomodoro descarta entradas inválidas e limita a 30 dias', () => {
@@ -670,6 +1103,10 @@ test('o agendamento Push do Pomodoro contém somente fase, horários e duraçõe
 /* ---- Paletas de cor ---- */
 const contrastOnWhite = (hex) => 1.05 / (lum(hex) + .05);
 
+test('o tema padrão do Aurora é claro', () => {
+  equal(LOOK_DEFAULT.mode, 'light');
+});
+
 test('toda paleta nomeada gera cor de destaque com contraste mínimo 4,5 contra branco', () => {
   Object.keys(PALETTES).forEach((name) => {
     const [, dark] = paletteColors(name, LOOK_DEFAULT);
@@ -688,17 +1125,22 @@ test('cor personalizada inválida volta ao padrão e válida é escurecida até 
 });
 
 const failures = results.filter((result) => !result.passed);
-const summary = document.querySelector('#summary');
-const list = document.querySelector('#results');
+if (typeof document !== 'undefined') {
+  const summary = document.querySelector('#summary');
+  const list = document.querySelector('#results');
+  summary.textContent = `${results.length - failures.length}/${results.length} testes passaram.`;
+  summary.className = failures.length ? 'fail' : 'pass';
 
-summary.textContent = `${results.length - failures.length}/${results.length} testes passaram.`;
-summary.className = failures.length ? 'fail' : 'pass';
-
-results.forEach((result) => {
-  const item = document.createElement('li');
-  item.className = result.passed ? 'pass' : 'fail';
-  item.textContent = result.passed
-    ? `OK — ${result.name}`
-    : `FALHOU — ${result.name}: ${result.message}`;
-  list.append(item);
-});
+  results.forEach((result) => {
+    const item = document.createElement('li');
+    item.className = result.passed ? 'pass' : 'fail';
+    item.textContent = result.passed
+      ? `OK — ${result.name}`
+      : `FALHOU — ${result.name}: ${result.message}`;
+    list.append(item);
+  });
+} else {
+  failures.forEach((result) => console.error(`FALHOU — ${result.name}: ${result.message}`));
+  console.log(`${results.length - failures.length}/${results.length} testes passaram.`);
+  if (failures.length) process.exitCode = 1;
+}

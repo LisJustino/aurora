@@ -1,22 +1,22 @@
 # Aurora: inventário do projeto (repo LisJustino/aurora, commit 80fdca2)
 
-SPA em JavaScript puro (módulos ES), sem bundler e sem dependências. Dados em `localStorage` (`aurora.app.*`, envelope `{v,t}`), backup JSON v1 e v2.
+SPA em JavaScript puro (módulos ES), empacotada pelo Vite. Dados de conta no Supabase relacional; backups JSON v1 e v2.
 
 ## Telas (rotas por hash)
 - `#inicio`: cartão "boa noite" com progresso do dia, campo rápido de tarefa, hábitos de hoje, tarefas agrupadas (atrasadas, hoje, concluídas), áreas opcionais.
-- `#planejar`: lista, calendário e semana; filtros, busca, ordenação, plano por etapas, revisão semanal, subtarefas, etiquetas, repetição e lembretes. Foco/Estudos é uma visão de Planejar (`#estudos`).
-- `#habitos`: check-ins diários, sugestões, histórico mensal, lembretes e hidratação (água é um hábito).
-- `#pomodoro`: ciclos de foco/pausa, 4 blocos até a pausa longa, presets e tempos personalizados, aviso sonoro.
+- `#planejar`: lista, calendário e semana; filtros, busca, ordenação, plano por etapas, revisão semanal, subtarefas, etiquetas, repetição e lembretes. O Pomodoro é uma ferramenta independente para qualquer atividade.
+- `#habitos`: check-ins diários, sugestões, histórico mensal, lembretes; beber água é um hábito comum.
+- `#pomodoro`: timer que alterna blocos de foco e pausa, histórico, tempos personalizados e aviso sonoro; não há registro de matérias ou sessões.
 - `#financas`: contas, cartões, lançamentos, fixas, orçamentos, metas, comparação de meses, importação CSV e exportação.
 - `#ciclo`: registro do dia por modal, calendário com fases estimadas, sintomas mais frequentes.
 - `#config`: perfil, aparência (tema, cor, fonte, densidade), áreas e menus, dados e backup, acessibilidade.
-- Recursos globais: busca (Ctrl+K), notificações, criação rápida (+), onboarding, dados de exemplo.
+- Recursos globais: busca (Ctrl+K), notificações, onboarding, dados de exemplo.
 
 ## Arquivos
 - `index.html`, `service-worker.js`, `manifest.webmanifest`, `pages/*.html` (entradas de rota), `icons/`.
-- `src/js/main.js` (~4.570 linhas: templates, estado, ações, formulários, diálogos).
-- `src/js/core/`: router, access-control, data-integrity, backup-transaction.
-- `src/js/features/`: finance/calculations, habits (model, water-goal), studies (pomodoro, pomodoro-audio, template), water/template, planning (week, recurrence), navigation/menu, search, cycle/phases.
+- `src/js/main.js` (~5.090 linhas: templates, estado, ações, formulários, diálogos).
+- `src/js/core/`: router, data-integrity, backup-transaction.
+- `src/js/features/`: finance/calculations, habits (model, water-goal, template), pomodoro, water/template, backup reminder, planning (week, recurrence), navigation/menu, search, cycle/phases.
 - `src/js/services/`: storage e busca local. `src/js/utils/`: dom, dates, currency, ids, html-template.
 - `src/css/`: tokens, base, layout, components/*, pages/* (home, habits, areas, finance, layouts), importados por `main.css`.
 - `docs/`: architecture, data-model, decisions, design-system, pwa, project-structure, testing. `tests/`: index.html, integrity-check.html, run.js.
@@ -33,15 +33,15 @@ SPA em JavaScript puro (módulos ES), sem bundler e sem dependências. Dados em 
 9. Pomodoro: pausa longa configurável (5 a 60 min, padrão 15, só no preset Personalizado) e histórico dos últimos 7 dias. O histórico fica em `S.pomodoro.history` (mapa `AAAA-MM-DD: blocos`, no máximo 30 dias), validado ao carregar; dados antigos funcionam sem migração.
 10. Hábitos: meta semanal opcional (`weeklyGoal`, 1 a 7, limitada aos dias escolhidos). Com meta, o cartão mostra "x de N nesta semana", "meta cumprida" e sequência em semanas. Hábitos sem meta não mudam.
 11. Código: paletas e cálculo de contraste saíram de `main.js` para `src/js/features/appearance/palettes.js`. Novos testes em `tests/run.js` (de 19 para 34).
-12. Hábitos redesenhados como lista simples de hoje (`viewHabits`, `habitRow` em `src/js/main.js`; `src/css/pages/habits.css`): cada hábito de hoje é uma linha com um círculo grande para marcar com um toque, ícone e cor próprios e a sequência ao lado ("3 dias seguidos"). Histórico mensal, dias da semana, editar, pausar e arquivar ficam dentro da linha (toque no nome para abrir). A água é uma linha igual às outras: o círculo soma 200 ml e o histórico e +300/+500 ml ficam dentro dela. Hábitos pausados ou fora de hoje ficam em "Fora de hoje"; "Ideias de hábitos" é uma grade com 11 sugestões (14 no catálogo, contando a água e as três antigas) que abre o formulário já preenchido. O formulário de hábito ganhou seletor de 23 ícones e 12 cores. Dados: `icon` e `color` são campos opcionais do hábito (`src/js/features/habits/model.js`), então hábitos antigos continuam válidos, sem migração. Os ícones novos estão no mapa `icon()` de `main.js`. Os cartões de "Hábitos de hoje" na Home também mostram o ícone e a cor.
+12. Hábitos redesenhados como lista simples de hoje (`viewHabits`, `habitRow` em `src/js/main.js`; `src/css/pages/habits.css`): cada hábito de hoje é uma linha com um círculo grande para marcar com um toque, ícone e cor próprios e a sequência ao lado ("3 dias seguidos"). Histórico mensal, dias da semana, editar, pausar e arquivar ficam dentro da linha (toque no nome para abrir). “Beber água” estima a meta com o peso informado e idade dos Ajustes, não salva o peso, registra os volumes em mL na fatia `water` e conclui o hábito ao atingir a meta. Hábitos pausados ou fora de hoje ficam em "Fora de hoje"; "Ideias de hábitos" abre o formulário com ícone e cor escolhidos. O formulário de hábito ganhou seletor de 23 ícones e 12 cores. Dados: `icon` e `color` são campos opcionais do hábito (`src/js/features/habits/model.js`), então hábitos antigos continuam válidos, sem migração. Os ícones novos estão no mapa `icon()` de `main.js`. Os cartões de "Hábitos de hoje" na Home também mostram o ícone e a cor.
 13. Design system em `src/css/design-system/` (`tokens.css`, `buttons.css`, `fields.css`, `fields-skin.css`, `selectors.css`, `feedback.css`): tokens únicos (antes havia dois blocos `:root` que se sobrescreviam), escala de 11 tamanhos de fonte, raios `--r-xs` a `--r-pill`, alturas `--control-sm/md/field/lg` e `--on-solid`. Botões, campos, chips, segmentados, selos e estado vazio têm uma definição só. Foram trocados 243 tamanhos de fonte, 39 raios e 50 alturas soltos por tokens; o token indefinido `--text-body` foi corrigido. Novo modificador `.btn.large`. Novos: `docs/design-system.html` (referência visual com troca de tema) e `tests/design-system-check.html` (19 verificações). `docs/design-system.md` e `docs/decisions.md` (D-006) foram atualizados.
 14. Tema: o seletor Automático/Claro/Escuro agora aparece também no topo de Ajustes > Personalização (antes só existia no menu do cabeçalho, difícil de achar no celular). Os avisos (toasts) ficam no topo, ampliados, e descem ao rodapé quando um painel do cabeçalho está aberto.
-15. Cabeçalho: o botão "+" (criar novo) saiu e deu lugar a um botão de tema de um toque (Automático → Claro → Escuro). A ação `quick-create-open` continua no código, sem botão que a chame.
+15. Cabeçalho: o botão "+" (criar novo) saiu e deu lugar a um botão de tema de um toque (Automático → Claro → Escuro).
 16. Hábitos (segunda rodada): os pontinhos da semana e as células do histórico mensal agora são botões que marcam ou desmarcam dias passados (com "Desfazer"); setas subir/descer reordenam; "ano em calendário" mostra 53 semanas. Tudo usa os campos que já existem (`completions`, ordem do array); nada foi migrado.
 17. Início: o texto de abertura diz também quantos hábitos faltam hoje.
-18. Pomodoro: campo opcional "Em que você vai focar?" (`focusLabel` em `S.pomodoro`, até 40 caracteres). É só um rótulo: não grava em `S.sessions` nem mexe no histórico de Estudos (D-002).
+18. Pomodoro: campo opcional "Em que você vai focar?" (`focusLabel` em `S.pomodoro`, até 40 caracteres). É só um rótulo e não cria registros de matérias ou sessões.
 19. Finanças: card "Lançamentos fixos" no Resumo (quantidade e total mensal). Exportar CSV e comparar meses já existiam.
-20. Atalho de criação rápida: botão "Criar" no menu Mais e tecla N (não dispara dentro de campos).
+20. Criação rápida pela tecla N removida; o menu Mais contém apenas links de navegação.
 21. Testes novos: `tests/contrast-check.html` (contraste AA de 14 paletas × claro/escuro × alto contraste) e `tests/e2e/flows.cjs` (fluxos no navegador; exige Playwright no seu computador e não é dependência do projeto).
 22. Código: ícones foram para `src/js/utils/icons.js` (`main.js` perdeu ~75 linhas); `cards.css` passou para `design-system/`; `--shadow-hover` virou token.
 23. PWA/offline validado com Chromium: o service worker guarda no cache cada arquivo visitado, então os arquivos novos entram sozinhos; o app abriu sem rede.
@@ -64,6 +64,10 @@ SPA em JavaScript puro (módulos ES), sem bundler e sem dependências. Dados em 
 32. Notificações (`src/js/main.js`, `src/css/components/navigation.css`): cada aviso mostra o tipo e há quanto tempo chegou; hábitos usam o próprio ícone e cor; "dispensar" fica no canto de cada cartão e há "Dispensar todas"; tarefas podem ser adiadas em 10 min ou 1 h; nova seção "Próximos hoje" com os lembretes que ainda vão tocar; lembretes de hábito têm janela de 15 minutos. Os avisos continuam só em memória (recarregar apaga).
 
 33. Toasts compactos (`src/css/components/modals.css`, `src/js/main.js`): pílula de uma linha embaixo, cores invertidas, "Desfazer" em texto, sem faixa lateral; sobe para o topo só com diálogo ou menu "Mais" aberto. Mensagem de hábito encurtada. Teste `flows.cjs` não depende mais do dia da semana.
+
+34. 2026-10-27: estados vazios empilham no celular; primeira visita oferece planejamento, personalização opcional e dados de exemplo; resumo da Home identifica tarefas de hoje, atrasadas e sem data. A navegação móvel sem áreas tem atalho para Ajustes > Áreas e navegação. O card de ações aparece só com duas ou mais áreas ativas.
+35. 2026-10-27: extraído o fragmento visual de Hábitos para `src/js/features/habits/template.html`; estado, cálculos e handlers seguem em `main.js`. Lembrete de backup também considera 20 registros desde a última exportação e explica onde guardar o JSON no celular.
+36. 2026-10-27: CSS, fontes e imagens usam stale-while-revalidate no service worker; HTML e JavaScript permanecem network-first. GitHub Actions executa `node tests/run.js` e `npm test` em `worker/`. Runner nativo: 47/47; Worker: 8/8. A suíte Playwright completa não foi executada porque Playwright não está instalado.
 
 ## Arquivos estranhos na raiz do repo
 `h origin main` e `trutura e documentação do Aurora` parecem restos de comandos digitados no terminal. Não mexi neles, mas vale apagar.

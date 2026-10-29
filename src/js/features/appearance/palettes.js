@@ -5,7 +5,7 @@ export const PALETTES = {
   teal: ['Turquesa', '#2fa3b0', '#12707c'], mint: ['Menta', '#4fb59a', '#1f7a63'], sage: ['Sálvia', '#829a89', '#5f7967'], amber: ['Âmbar', '#d99a2b', '#8a5a00'],
   earth: ['Terra', '#ad8c76', '#795b47'], graphite: ['Grafite', '#7b8794', '#46505b']
 };
-export const LOOK_DEFAULT = { mode: 'auto', custom: '#7c6cf0', density: 'comfy', font: 'm', contrast: false, readable: false, highlightLinks: false, reduceMotion: false, weekStart: 1, start: 'inicio' };
+export const LOOK_DEFAULT = { mode: 'light', custom: '#7c6cf0', density: 'comfy', font: 'm', contrast: false, readable: false, highlightLinks: false, reduceMotion: false, weekStart: 1, start: 'inicio' };
 export const hexOk = (v) => /^#[0-9a-f]{6}$/i.test(String(v));
 export function lum(hex) { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; }
 export function darkenFor(hex) { let c = hex; for (let i = 0; i < 40 && 1.05 / (lum(c) + .05) < 5; i++) { const n = [1, 3, 5].map((j) => Math.round(parseInt(c.slice(j, j + 2), 16) * .93).toString(16).padStart(2, '0')); c = '#' + n.join(''); } return c; }

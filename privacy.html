@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Política de Privacidade do Aurora e informações sobre o tratamento de dados pessoais.">
+  <meta name="aurora-legal-version" content="1.2">
+  <meta name="theme-color" content="#f3f0f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+  <link rel="stylesheet" href="/src/css/main.css">
+  <title>Política de Privacidade | Aurora</title>
+</head>
+<body class="legal-page">
+  <a class="legal-skip-link" href="#conteudo">Pular para o conteúdo</a>
+  <header class="legal-header">
+    <a class="legal-brand" href="/" aria-label="Aurora, página inicial">aurora<span>.</span></a>
+    <nav aria-label="Documentos legais">
+      <a href="/terms.html">Termos de Uso</a>
+    </nav>
+  </header>
+  <main class="legal-document" id="conteudo">
+    <p class="legal-eyebrow">Aurora · versão 1.2 · 29 de outubro de 2026</p>
+    <h1>Política de Privacidade</h1>
+    <section>
+      <h2>1. Quem responde pelos dados</h2>
+      <p>A responsável pelo Aurora e contato para assuntos de privacidade é Elisa da Silva Justino, pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>. Esta política descreve o funcionamento atual do aplicativo, mas não substitui a validação das configurações de produção.</p>
+    </section>
+
+    <section>
+      <h2>2. Dados tratados</h2>
+      <ul>
+        <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para verificar a maioridade; o Aurora registra a idade calculada, a data de referência da idade e o mês/dia do aniversário, não a data completa de nascimento.</li>
+        <li><strong>Conteúdo que você adiciona:</strong> tarefas, preferências e registros das áreas disponíveis, que podem incluir informações sobre saúde e ciclo menstrual, além de dados financeiros e de rotina.</li>
+        <li><strong>Aceite dos documentos:</strong> versão dos Termos de Uso e da Política de Privacidade, além do instante do aceite, associados aos metadados da conta.</li>
+        <li><strong>Avisos Push opcionais:</strong> se ativados, o navegador mantém uma inscrição Push e o serviço recebe a fase, o horário previsto, as durações de foco/pausa e a quantidade de blocos concluídos necessários para programar o Pomodoro. O nome da tarefa e os demais registros não são enviados para essa programação.</li>
+        <li><strong>Sugestões por e-mail:</strong> o formulário do FAQ apenas prepara uma mensagem no aplicativo de e-mail do seu dispositivo. O Aurora não recebe nem armazena o rascunho; se você enviar, o conteúdo e os dados da sua conta de e-mail serão tratados pelos provedores de e-mail envolvidos.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Para que usamos os dados</h2>
+      <p>Usamos os dados para criar e proteger a conta, oferecer os recursos solicitados, carregar e salvar seus registros na conta autenticada e cumprir obrigações legais aplicáveis. A demonstração pública usa dados fictícios, é somente de leitura e não acessa sua conta.</p>
+    </section>
+
+    <section>
+      <h2>4. Onde e como são tratados</h2>
+      <p>A autenticação e os dados da conta são processados pelo Supabase configurado para o serviço. As regras de acesso do banco restringem os registros à conta autenticada, mas os dados relacionais não são criptografados de ponta a ponta pelo Aurora. A região de hospedagem precisa ser confirmada nas configurações de produção.</p>
+      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. A permissão não é solicitada automaticamente. A sessão de autenticação também pode ser mantida pelo navegador em armazenamento de sessão; o service worker armazena recursos estáticos do aplicativo.</p>
+      <p>Backups exportados são arquivos JSON sem criptografia e ficam sob seu controle depois do download. O Aurora não os envia automaticamente como parte da exportação.</p>
+    </section>
+
+    <section>
+      <h2>5. Compartilhamento</h2>
+      <p>Os provedores de autenticação, banco de dados e, quando ativado, notificações Push participam da operação dos recursos que você utiliza. Se enviar uma sugestão, os provedores de e-mail escolhidos por você também a processam para entregá-la à responsável. Dados podem ainda ser tratados quando necessário para cumprir uma obrigação legal ou proteger direitos e segurança, nos limites aplicáveis. A responsável deve confirmar os contratos e configurações dos provedores antes da publicação.</p>
+    </section>
+
+    <section>
+      <h2>6. Retenção e exclusão</h2>
+      <p>Os dados ficam associados à conta para permitir o uso do Aurora. Quando uma pessoa autenticada recusa uma versão atualizada destes documentos, o aplicativo apresenta um aviso e exige uma confirmação final digitando <strong>EXCLUIR</strong>. Confirmada a ação, a função segura do Supabase exclui a conta de autenticação e os registros associados no banco. Se houver inscrição Push, a remoção no serviço externo é tentada antes; se essa etapa ou a exclusão falhar, o aplicativo informa que a conta não foi excluída e permite tentar novamente ou voltar para aceitar.</p>
+      <p>A exclusão da conta não apaga arquivos JSON que você já baixou nem cópias que você tenha guardado fora do Aurora. Backups baixados devem ser removidos separadamente dos dispositivos e locais onde foram guardados. Obrigações legais e prazos de retenção aplicáveis devem ser confirmados pela responsável e pelos provedores antes da publicação.</p>
+    </section>
+
+    <section>
+      <h2>7. Seus direitos e solicitações</h2>
+      <p>Você pode solicitar confirmação de tratamento, acesso, correção, portabilidade, informações sobre compartilhamento, anonimização ou eliminação, observadas as hipóteses legais de retenção. Para exercer esses direitos, entre em contato com Elisa da Silva Justino pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
+    </section>
+
+    <section>
+      <h2>8. Segurança e atualizações</h2>
+      <p>O Aurora aplica autenticação e regras de acesso por conta, mas nenhum serviço conectado à internet pode prometer segurança absoluta. Proteja seu dispositivo, sua senha e os arquivos de backup. A versão e a data de atualização desta política aparecem neste documento; a forma de comunicar mudanças deve ser definida pelo responsável antes da publicação.</p>
+    </section>
+
+    <footer class="legal-document-footer">
+      <a href="/">Voltar ao Aurora</a>
+      <span>Versão 1.2 · última atualização: 29 de outubro de 2026</span>
+    </footer>
+  </main>
+</body>
+</html>

@@ -136,6 +136,7 @@
   background: var(--soft2);
   transform: translateY(-1px);
 }
+.nav-enable-areas .ni { background: var(--soft2); color: var(--accent); }
 
 @media (min-width: 900px) {
   .main { padding: 0 clamp(20px, 4vw, 52px) 80px; }

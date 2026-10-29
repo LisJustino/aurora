@@ -2,12 +2,21 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: 24px;
+  gap: var(--card-content-gap);
+  padding: var(--card-padding);
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface-strong);
   box-shadow: var(--card-shadow);
+  transition: border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
 }
 
 .card.flat {
@@ -29,6 +38,81 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: var(--space-4);
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.shortcut-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: var(--r-group);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+}
+
+.shortcut-card-icon {
+  display: grid;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--soft2);
+  color: var(--accent);
+}
+
+.shortcut-card-icon svg,
+.shortcut-card-arrow svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.shortcut-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.shortcut-card-title {
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.shortcut-card-description {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.shortcut-card-arrow {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--muted);
+}
+
+.shortcut-card--wide {
+  grid-column: 1 / -1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shortcut-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+    background: var(--surface-soft);
+    box-shadow: var(--card-shadow);
+    transform: translateY(-1px);
+  }
 }
 
 .strip {
@@ -118,8 +202,12 @@
 .ring-fg { stroke: var(--accent); }
 
 @media (max-width: 480px) {
-  .card { padding: var(--space-4); }
+  .card { padding: var(--card-padding-compact); }
   .hero { padding: var(--space-5); }
   .strip > * { padding: 16px; }
   .stat { padding: 16px; }
+}
+
+@media (max-width: 600px) {
+  .shortcut-grid { grid-template-columns: minmax(0, 1fr); }
 }

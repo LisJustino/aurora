@@ -1,13 +1,13 @@
 {
   "name": "Aurora | Organização pessoal",
   "short_name": "Aurora",
-  "description": "Organize tarefas, estudos, rotina e finanças em um só lugar.",
+  "description": "Organize tarefas, foco, rotina e finanças em um só lugar.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f3f0f2",
-  "theme_color": "#f3f0f2",
+  "background_color": "#1c1b19",
+  "theme_color": "#1c1b19",
   "icons": [
     {
       "src": "./icons/aurora-192.png",
