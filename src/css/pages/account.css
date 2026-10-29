@@ -217,8 +217,22 @@
 }
 
 .account-field {
+  min-width: 0;
   display: grid;
   gap: var(--space-2);
+}
+
+.account-birth-field,
+.account-birth-field .account-input-control,
+.account-birth-field input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.account-birth-field {
+  justify-self: stretch;
 }
 
 .account-field label {

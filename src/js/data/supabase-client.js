@@ -1,7 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+export function resolveSupabaseConfig({
+  isDevelopment,
+  localUrl,
+  localAnonKey,
+  productionUrl,
+  productionAnonKey,
+}) {
+  return isDevelopment
+    ? { url: localUrl || '', anonKey: localAnonKey || '' }
+    : { url: productionUrl || '', anonKey: productionAnonKey || '' };
+}
+
+const isDevelopment = import.meta.env?.DEV === true;
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabaseConfig({
+  isDevelopment,
+  localUrl: isDevelopment ? import.meta.env?.VITE_SUPABASE_LOCAL_URL : '',
+  localAnonKey: isDevelopment ? import.meta.env?.VITE_SUPABASE_LOCAL_ANON_KEY : '',
+  productionUrl: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_URL,
+  productionAnonKey: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_ANON_KEY,
+});
 const isSafeSupabaseConfig = () => {
   if (!supabaseUrl || !supabaseAnonKey || /service[_-]?role/i.test(supabaseAnonKey)) return false;
   try {
@@ -16,7 +34,10 @@ let client;
 
 export function getSupabaseClient() {
   if (!isSafeSupabaseConfig()) {
-    throw new Error('Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY com os valores públicos do projeto.');
+    const variables = import.meta.env?.DEV
+      ? 'VITE_SUPABASE_LOCAL_URL e VITE_SUPABASE_LOCAL_ANON_KEY'
+      : 'VITE_SUPABASE_PRODUCTION_URL e VITE_SUPABASE_PRODUCTION_ANON_KEY';
+    throw new Error(`Configure ${variables} com os valores públicos do projeto Supabase correspondente.`);
   }
   if (!client) {
     client = createClient(supabaseUrl, supabaseAnonKey, {

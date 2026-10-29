@@ -69,7 +69,7 @@ export function renderLanding(root) {
         <section class="public-hero" aria-labelledby="landing-title">
           <div class="public-copy">
             <h1 id="landing-title">Tarefas, hábitos e finanças em um só lugar<span>.</span></h1>
-            <p class="public-lead">Planeje a semana, use o Pomodoro e acompanhe seus hábitos e ciclo.</p>
+            <p class="public-lead">Organize tarefas e finanças, acompanhe seus hábitos e use o Pomodoro no seu ritmo.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="demo">Ver demonstração</button>
               <button class="btn large" type="button" data-public-action="signup">Criar minha conta</button>
@@ -108,11 +108,11 @@ export function renderLanding(root) {
             <div><h3>Hábitos</h3><p>Marque os dias em que concluiu cada hábito e consulte a frequência.</p></div>
           </article>
           </div>
-          <p class="public-features-more">Também há áreas para finanças e registro do ciclo; hidratação pode ser acompanhada como hábito.</p>
+          <p class="public-features-more">Também organize seu ciclo e registre a hidratação como hábito.</p>
         </section>
         <section class="public-account-access" aria-labelledby="public-account-access-title">
           <h2 id="public-account-access-title">Acesso à conta</h2>
-          <p>Confirme o endereço de e-mail cadastrado para acessar seus registros.</p>
+          <p>Crie sua conta e comece na hora. Use um e-mail ao qual tenha acesso para poder recuperar sua senha.</p>
         </section>
       </main>
       ${publicFooter({ demoAvailable: true })}

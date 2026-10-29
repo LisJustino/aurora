@@ -235,32 +235,26 @@ function createAccountPageLayout() {
 
 function appendLegalConsent(form, mode) {
   form.dataset.legalConsent = '';
-  const consent = create('label', 'account-terms-consent');
   const accepted = create('input');
   accepted.type = 'checkbox';
   accepted.name = 'termsAccepted';
-  accepted.required = true;
-  accepted.disabled = true;
-  consent.append(
-    accepted,
-    create('span', '', mode === 'signup' || mode.startsWith('signup-')
-      ? 'Li e aceito os Termos de Uso e a Política de Privacidade.'
-      : 'Li e aceito a versão atualizada dos Termos de Uso e da Política de Privacidade.'),
-  );
-  form.append(consent);
+  accepted.hidden = true;
+  form.append(accepted);
 
-  const links = create('div', 'account-terms-links');
-  [['terms', 'Ler Termos de Uso'], ['privacy', 'Ler Política de Privacidade']].forEach(([document, label]) => {
-    const button = create('button', 'btn ghost account-legal-link', label);
-    button.type = 'button';
-    button.dataset.legalDocument = document;
-    links.append(button);
-  });
-  form.append(links);
+  const openDocuments = create(
+    'button',
+    'btn ghost account-legal-open',
+    mode === 'signup' || mode.startsWith('signup-')
+      ? 'Ler Termos de Uso e Política de Privacidade'
+      : 'Ler documentos atualizados e aceitar',
+  );
+  openDocuments.type = 'button';
+  openDocuments.dataset.legalConsentOpen = '';
+  form.append(openDocuments);
   const readingStatus = create(
     'p',
     'account-legal-reading-status',
-    'Leia os Termos de Uso e a Política de Privacidade até o final para liberar o aceite.',
+    'Os dois documentos serão exibidos juntos; a confirmação fica no final da leitura.',
   );
   readingStatus.dataset.legalReadingStatus = '';
   readingStatus.setAttribute('role', 'status');
@@ -309,7 +303,10 @@ function createAccountForm(root, {
   if (activeStage) {
     const steps = create('ol', 'account-steps');
     steps.setAttribute('aria-label', 'Etapas para criar uma conta');
-    [['seus dados', 1], ['acesso', 2], ['e-mail', 3]].forEach(([label, index]) => {
+    const signupSteps = mode === 'verify-email'
+      ? [['seus dados', 1], ['acesso', 2], ['e-mail', 3]]
+      : [['seus dados', 1], ['acesso', 2]];
+    signupSteps.forEach(([label, index]) => {
       const item = create('li', `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`);
       item.dataset.step = String(index);
       if (index === activeStage) item.setAttribute('aria-current', 'step');
@@ -341,6 +338,7 @@ function createAccountForm(root, {
       signupProfile?.birthDate || '',
       'Usamos a data para verificar a idade; guardamos somente a idade calculada.',
     );
+    birthDate.closest('.account-field')?.classList.add('account-birth-field');
     birthDate.max = localDateValue(new Date());
     ageStatus = create('p', 'account-age-status', 'Informe sua data de nascimento para verificar a maioridade.');
     ageStatus.id = 'account-age-status';
@@ -351,7 +349,15 @@ function createAccountForm(root, {
     createGenderSelect(form, signupProfile?.sex || '');
   }
   if (mode === 'login' || mode === 'signup-access' || mode === 'recovery' || mode === 'verify-email') {
-    createField(form, 'E-mail', 'email', 'email', 'email', email);
+    createField(
+      form,
+      'E-mail',
+      'email',
+      'email',
+      'email',
+      email,
+      mode === 'signup-access' ? 'Use um e-mail ao qual você tenha acesso para recuperar sua senha.' : '',
+    );
   }
   if (mode === 'signup-access') {
     const securityGroup = createFormGroup('account-form-group account-password-group', 'acesso seguro');
@@ -565,12 +571,36 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   retry.addEventListener('click', () => location.reload());
   if (configGuide) {
     const guide = create('div', 'account-config-guide');
-    const intro = create('p', '', 'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores:');
-    const example = create('pre', 'account-config-code', 'VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co\nVITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE');
+    const isLocalEnvironment = import.meta.env?.DEV === true;
+    const intro = create(
+      'p',
+      '',
+      isLocalEnvironment
+        ? 'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores do projeto de teste local:'
+        : 'Configure estas variáveis no ambiente de produção do Cloudflare Pages com os valores do projeto Supabase de produção:',
+    );
+    const example = create(
+      'pre',
+      'account-config-code',
+      isLocalEnvironment
+        ? 'VITE_SUPABASE_LOCAL_URL=https://SEU-PROJETO-DE-TESTE.supabase.co\nVITE_SUPABASE_LOCAL_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE'
+        : 'VITE_SUPABASE_PRODUCTION_URL=https://SEU-PROJETO-DE-PRODUCAO.supabase.co\nVITE_SUPABASE_PRODUCTION_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE',
+    );
     const source = create('p', '', 'Busque a Project URL e a chave publicável (anon) em Supabase → Project Settings → API / API Keys.');
-    const restart = create('p', '', 'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.');
+    const restart = create(
+      'p',
+      '',
+      isLocalEnvironment
+        ? 'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.'
+        : 'Depois de salvar as variáveis, faça um novo deploy para incluí-las no build.',
+    );
     const warning = create('p', 'account-config-warning', 'Use somente a chave pública anon/publishable. Nunca use service_role/secret e não envie esses valores pelo chat.');
-    guide.append(intro, example, source, restart, warning);
+    const separation = create(
+      'p',
+      'account-config-warning',
+      'Desenvolvimento e produção devem usar projetos Supabase diferentes. Contas e e-mails são independentes entre projetos.',
+    );
+    guide.append(intro, example, source, restart, warning, separation);
     card.append(brand, heading, detail, guide, security);
   } else {
     card.append(brand, heading, detail, security, retry);
@@ -587,14 +617,6 @@ export function showAccountError(root, message, includePublicHeader = false) {
 
 function genericAuthError() {
   return 'Não foi possível concluir a solicitação. Confira os dados e tente novamente.';
-}
-
-async function requireVerifiedEmail(client, user) {
-  if (!user?.email_confirmed_at) {
-    const { error } = await client.auth.signOut({ scope: 'local' });
-    if (error) throw new Error(genericAuthError());
-    throw new Error('Confirme o endereço de e-mail antes de entrar.');
-  }
 }
 
 async function loadVaultRecord(client, userId) {
@@ -766,9 +788,9 @@ export async function requireAccount(root, initialMode = 'login', {
     const copy = {
       login: ['Entrar na sua conta', 'Seus dados pessoais são carregados após a autenticação.', [{ label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
       'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para verificar a idade e não será salva.', [{ label: 'Já tenho uma conta', target: 'login' }]],
-      'signup-access': ['Crie seu acesso', 'Informe seu e-mail, escolha uma senha e aceite os documentos para continuar.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { label: 'Já tenho uma conta', target: 'login' }]],
+      'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { label: 'Já tenho uma conta', target: 'login' }]],
       recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
-      'verify-email': ['Confirme seu e-mail', 'Verifique sua caixa de entrada e confirme seu endereço antes de entrar. Você pode solicitar outro link abaixo.', [{ label: 'Voltar para entrar', target: 'login' }]],
+      'verify-email': ['Confirme seu e-mail pendente', 'Esta conta foi criada enquanto o projeto ainda exigia confirmação. Verifique sua caixa de entrada para liberar o acesso; você pode solicitar outro link abaixo.', [{ label: 'Voltar para entrar', target: 'login' }]],
       'update-password': ['Atualizar senha', 'Escolha uma senha longa e exclusiva para sua conta. A redefinição não altera a senha do cofre legado; para importar dados cifrados, use a senha original dele.', []],
       'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos Termos de Uso e da Política de Privacidade. Se recusar, você poderá confirmar a exclusão permanente da conta e dos dados associados.', []],
       'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; esta ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
@@ -900,7 +922,6 @@ export async function requireAccount(root, initialMode = 'login', {
     if (session?.user) {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError || !user) throw new Error(genericAuthError());
-      await requireVerifiedEmail(client, user);
       if (passwordRecoveryRequested) {
         for (;;) {
           const result = await authPage('update-password');
@@ -1019,8 +1040,8 @@ export async function requireAccount(root, initialMode = 'login', {
           message = genericAuthError();
           continue;
         }
-        if (!data.user?.email_confirmed_at) {
-          message = 'Se este endereço puder criar uma conta, enviaremos um link para confirmá-lo. Seu perfil já ficará preenchido quando você acessar o Aurora.';
+        if (!data.session || !data.user) {
+          message = 'Este projeto Supabase ainda exige confirmação de e-mail. A conta pode já ter sido criada; desative “Confirm email” em Authentication → Providers → Email para liberar o acesso imediato. Enquanto isso, você pode confirmar o link enviado ou pedir outro abaixo.';
           const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
           if (signOutError) throw new Error(genericAuthError());
           mode = 'verify-email';
@@ -1034,6 +1055,11 @@ export async function requireAccount(root, initialMode = 'login', {
         });
         if (loginError || !data.user) {
           setSubmitPending(result.submit, false);
+          if (loginError?.code === 'email_not_confirmed') {
+            message = 'Esta conta ainda aguarda confirmação de e-mail. Confirme o link enviado ou peça outro para liberar o acesso.';
+            mode = 'verify-email';
+            continue;
+          }
           message = genericAuthError();
           continue;
         }
@@ -1044,7 +1070,6 @@ export async function requireAccount(root, initialMode = 'login', {
         message = genericAuthError();
         continue;
       }
-      await requireVerifiedEmail(client, user);
       const currentUser = await requireCurrentLegalConsent(user);
       if (!currentUser) return null;
       return {

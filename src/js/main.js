@@ -74,7 +74,11 @@ import {
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { renderFooterContent } from './features/footer/view.js';
-import { isLegalDocumentAtEnd, showLegalDocument } from './features/footer/legal-dialog.js';
+import {
+  isLegalDocumentAtEnd,
+  showLegalConsentDocuments,
+  showLegalDocument,
+} from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, initializePublicAppearance } from './features/appearance/public-controls.js';
 import {
@@ -5894,6 +5898,28 @@ document.addEventListener('click', async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
 
+  const consentConfirm = target.closest('[data-legal-consent-confirm]');
+  if (consentConfirm) {
+    const dialog = consentConfirm.closest('dialog[data-legal-modal]');
+    const consentForm = document.querySelector('form[data-legal-consent]');
+    const accepted = consentForm?.elements.termsAccepted;
+    const checkbox = dialog?.querySelector('[data-legal-consent-checkbox]');
+    if (
+      !(dialog instanceof HTMLDialogElement)
+      || !(accepted instanceof HTMLInputElement)
+      || !(checkbox instanceof HTMLInputElement)
+      || checkbox.disabled
+      || !checkbox.checked
+    ) return;
+
+    accepted.checked = true;
+    accepted.dispatchEvent(new Event('change', { bubbles: true }));
+    consentForm.querySelector('[data-legal-reading-status]').textContent =
+      'Aceite confirmado. Você pode concluir o cadastro.';
+    dialog.close();
+    return;
+  }
+
   const closeButton = target.closest('[data-legal-modal-close]');
   if (closeButton) {
     closeButton.closest('dialog[data-legal-modal]')?.close();
@@ -5903,6 +5929,18 @@ document.addEventListener('click', async (event) => {
   const dialog = target.closest('dialog[data-legal-modal]');
   if (dialog && target === dialog) {
     dialog.close();
+    return;
+  }
+
+  const consentTrigger = target.closest('[data-legal-consent-open]');
+  if (consentTrigger) {
+    const modal = document.querySelector('dialog[data-legal-modal]');
+    if (!(modal instanceof HTMLDialogElement)) {
+      console.error('Aurora: o diálogo de documentos legais não está disponível.');
+      return;
+    }
+    event.preventDefault();
+    if (await showLegalConsentDocuments(modal)) updateLegalConsentReading(modal);
     return;
   }
 
@@ -5925,34 +5963,29 @@ document.addEventListener('click', async (event) => {
 });
 
 function updateLegalConsentReading(dialog) {
-  const documentName = dialog.dataset.legalDocument;
+  if (dialog.dataset.legalConsent !== 'true') return;
   const content = dialog.querySelector('[data-legal-dialog-content]');
-  const consentForm = document.querySelector('form[data-legal-consent]');
-  if (
-    !['terms', 'privacy'].includes(documentName)
-    || !content
-    || !consentForm
-    || !isLegalDocumentAtEnd(content)
-  ) return;
+  const checkbox = dialog.querySelector('[data-legal-consent-checkbox]');
+  const confirm = dialog.querySelector('[data-legal-consent-confirm]');
+  const status = dialog.querySelector('[data-legal-dialog-status]');
+  if (!content || !(checkbox instanceof HTMLInputElement) || !confirm || !status) return;
 
-  consentForm.dataset[`${documentName}Read`] = 'true';
-  const termsRead = consentForm.dataset.termsRead === 'true';
-  const privacyRead = consentForm.dataset.privacyRead === 'true';
-  const checkbox = consentForm.elements.termsAccepted;
-  checkbox.disabled = !(termsRead && privacyRead);
-  const status = consentForm.querySelector('[data-legal-reading-status]');
-  if (termsRead && privacyRead) {
-    status.textContent = 'Você percorreu os dois documentos até o final. O aceite está disponível.';
-  } else {
-    const readDocuments = [
-      termsRead ? 'Termos de Uso' : '',
-      privacyRead ? 'Política de Privacidade' : '',
-    ].filter(Boolean);
-    status.textContent = readDocuments.length
-      ? `Documento percorrido até o final: ${readDocuments.join(', ')}. Leia o outro documento até o final para liberar o aceite.`
-      : 'Leia os Termos de Uso e a Política de Privacidade até o final para liberar o aceite.';
-  }
+  checkbox.disabled = !isLegalDocumentAtEnd(content);
+  confirm.disabled = checkbox.disabled || !checkbox.checked;
+  if (!checkbox.disabled) status.hidden = true;
 }
+
+document.addEventListener('change', (event) => {
+  const checkbox = event.target instanceof Element
+    ? event.target.closest('[data-legal-consent-checkbox]')
+    : null;
+  if (!checkbox) return;
+  const dialog = checkbox.closest('dialog[data-legal-modal]');
+  const content = dialog?.querySelector('[data-legal-dialog-content]');
+  const confirm = dialog?.querySelector('[data-legal-consent-confirm]');
+  if (!dialog || !content || !confirm) return;
+  confirm.disabled = !isLegalDocumentAtEnd(content) || !checkbox.checked;
+});
 
 document.addEventListener('scroll', (event) => {
   if (!(event.target instanceof Element) || !event.target.matches('[data-legal-dialog-content]')) return;
