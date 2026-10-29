@@ -83,7 +83,12 @@ export function renderFooterContent({
         <p class="legal-modal-status" data-legal-dialog-status role="status" aria-live="polite" hidden></p>
         <div class="dlg-body legal-modal-content" data-legal-dialog-content role="region" aria-busy="false" tabindex="0"></div>
         <footer class="dlg-foot legal-modal-footer">
-          <button class="btn back" type="button" data-legal-modal-close>Fechar</button>
+          <label class="legal-modal-consent" data-legal-consent-choice hidden>
+            <input type="checkbox" data-legal-consent-checkbox disabled>
+            <span>Li e aceito os Termos de Uso e a Política de Privacidade.</span>
+          </label>
+          <button class="btn primary" type="button" data-legal-consent-confirm hidden disabled>Confirmar aceite</button>
+          <button class="btn back" type="button" data-legal-modal-close data-legal-close-only>Fechar</button>
         </footer>
       </dialog>
     </div>`;

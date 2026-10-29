@@ -4,6 +4,10 @@
 
 As migrations SQL ficam em `supabase/migrations/`. Elas criam e atualizam as tabelas relacionais, compatibilidade de IDs, lixeira, RPCs e políticas RLS. A migration de remoção de Estudos apaga as fatias cifradas e os registros relacionais dedicados à função; `user_keys` e as demais fatias são preservadas.
 
+Use projetos Supabase separados para desenvolvimento/teste e produção. O app local usa `VITE_SUPABASE_LOCAL_URL` e `VITE_SUPABASE_LOCAL_ANON_KEY`; o build publicado usa `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY`. A unicidade de e-mail vale dentro de cada projeto, permitindo o mesmo e-mail nos dois ambientes. Aplique e valide as migrations separadamente em cada projeto, confirmando o destino antes de executar qualquer operação.
+
+Para permitir acesso imediato após o cadastro, em cada projeto abra **Authentication → Providers → Email** e desative **Confirm email**. Com essa opção ativa, o Supabase cria a conta sem emitir uma sessão e a pessoa não consegue entrar até confirmar o endereço; o app informa essa configuração e mantém reenvio para cadastros pendentes. Sem confirmação obrigatória, um e-mail digitado incorretamente pode impedir a recuperação da conta.
+
 Antes de aplicar em produção:
 
 1. Confirme que há backup do projeto e que a migration foi revisada.

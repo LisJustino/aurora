@@ -20,6 +20,10 @@
   Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
   autenticada oferece exclusão permanente da conta, com confirmação digitada;
   a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
+- O cadastro não exige confirmação do e-mail para liberar acesso. Projetos
+  Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
+  impedir recuperação da conta. Contas antigas ainda pendentes podem confirmar
+  o endereço como compatibilidade.
 - Os documentos legais ficam acessíveis no footer em um diálogo modal, com
   páginas estáticas de fallback. O conteúdo ainda exige revisão jurídica e
   confirmação das configurações operacionais antes de publicação definitiva.

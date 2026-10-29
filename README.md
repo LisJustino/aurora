@@ -14,11 +14,11 @@ Copy-Item .env.example .env.local
 Abra `.env.local` e substitua os valores vazios pelos dados públicos em Supabase → Project Settings → API / API Keys:
 
 ```dotenv
-VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-VITE_SUPABASE_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE
+VITE_SUPABASE_LOCAL_URL=https://SEU-PROJETO-DE-TESTE.supabase.co
+VITE_SUPABASE_LOCAL_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE
 ```
 
-Use somente a Project URL e a chave pública anon/publishable. Não use `service_role` ou chaves secretas. O `.gitignore` exclui `.env.local`; nunca compartilhe seu conteúdo.
+Use um projeto Supabase de desenvolvimento/teste separado do projeto de produção. Assim, o mesmo e-mail pode ter uma conta em cada projeto. Use somente a Project URL e a chave pública anon/publishable; não use `service_role` ou chaves secretas. O `.gitignore` exclui `.env.local`; nunca compartilhe seu conteúdo.
 
 Depois, ainda na raiz do projeto, inicie o servidor de desenvolvimento:
 
@@ -26,7 +26,7 @@ Depois, ainda na raiz do projeto, inicie o servidor de desenvolvimento:
 npm run dev
 ```
 
-Deixe esse terminal aberto e acesse a URL que o Vite mostrar, normalmente **`http://localhost:5173/`**, sem acrescentar `#landing` ao endereço. Se reiniciar o servidor ou alterar arquivos do frontend, atualize também o navegador com `Ctrl+Shift+R` para descarregar uma cópia antiga em cache. Se a porta 5173 estiver ocupada, o Vite escolhe outra livre, como 5174; use a URL exibida no terminal. Não inicie outro servidor se já houver um Vite ativo: use a URL dele ou pare-o no terminal original com `Ctrl+C` antes de iniciar novamente. Reinicie o Vite depois de editar `.env.local`, pois as variáveis são lidas ao iniciar. Hashes como `#planejar` são rotas internas protegidas. Não use `python -m http.server`, Live Server ou abra o `index.html` diretamente: eles não resolvem os módulos do app. `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` são necessárias para entrar ou criar conta; a landing e a demonstração fictícia funcionam sem elas.
+Deixe esse terminal aberto e acesse a URL que o Vite mostrar, normalmente **`http://localhost:5173/`**, sem acrescentar `#landing` ao endereço. Se reiniciar o servidor ou alterar arquivos do frontend, atualize também o navegador com `Ctrl+Shift+R` para descarregar uma cópia antiga em cache. Se a porta 5173 estiver ocupada, o Vite escolhe outra livre, como 5174; use a URL exibida no terminal. Não inicie outro servidor se já houver um Vite ativo: use a URL dele ou pare-o no terminal original com `Ctrl+C` antes de iniciar novamente. Reinicie o Vite depois de editar `.env.local`, pois as variáveis são lidas ao iniciar. Hashes como `#planejar` são rotas internas protegidas. Não use `python -m http.server`, Live Server ou abra o `index.html` diretamente: eles não resolvem os módulos do app. `VITE_SUPABASE_LOCAL_URL` e `VITE_SUPABASE_LOCAL_ANON_KEY` são necessárias para entrar ou criar conta localmente; a landing e a demonstração fictícia funcionam sem elas.
 
 `npm run build` gera o site em `dist/`; `npm run preview` serve esse build localmente.
 
@@ -74,7 +74,7 @@ Início, tarefas, Planejar, Pomodoro independente, revisão semanal com reflexã
 
 ## Dados e privacidade
 
-O app exige e-mail confirmado e login antes de exibir ou alterar dados. O banco aplica políticas RLS por usuário, sem exigir MFA/AAL2. Os dados relacionais ficam legíveis pelo Postgres. O leitor antigo do cofre permanece somente para a importação explícita; dados e tabelas legados não são apagados automaticamente.
+O app exige login antes de exibir ou alterar dados, mas novos cadastros não precisam confirmar o e-mail para entrar. Desative **Confirm email** no provedor Email de cada projeto Supabase. Sem essa confirmação, um endereço digitado incorretamente pode impedir a recuperação da conta. O banco aplica políticas RLS por usuário, sem exigir MFA/AAL2. Os dados relacionais ficam legíveis pelo Postgres. O leitor antigo do cofre permanece somente para a importação explícita; dados e tabelas legados não são apagados automaticamente.
 
 RLS restringe as linhas ao `auth.uid()` da sessão autenticada. Apenas URL do projeto e chave pública Supabase podem estar no build cliente; `service_role`/secret nunca deve ser usada no navegador. Os dados ficam somente em memória durante o uso e no banco, sem cache local de dados. Exceções de persistência no navegador: sessão gerenciada pelo supabase-js; cache do service worker de recursos estáticos; inscrição mantida pelo PushManager do navegador. A credencial do Worker Push é movida para `push_subscriptions`; qualquer chave antiga do Push é migrada quando possível.
 
@@ -82,9 +82,9 @@ Backups exportados e cópias de recuperação são JSON sem criptografia e podem
 
 ### Configurar contas Supabase
 
-1. Configure confirmação de e-mail, senha mínima de 12 caracteres, nível mínimo de garantia AAL1 e URLs permitidas para desenvolvimento e produção. O Aurora não exige MFA.
+1. Em cada projeto Supabase, desative **Authentication → Providers → Email → Confirm email** para liberar o acesso imediatamente após o cadastro. Configure também senha mínima de 12 caracteres, nível mínimo de garantia AAL1 e as URLs de redirecionamento desse ambiente. O Aurora não exige MFA. Sem confirmação, um e-mail digitado incorretamente pode impedir a recuperação da conta.
 2. Aplique as migrations versionadas na ordem descrita em [supabase/README.md](./supabase/README.md), incluindo a migration que remove a exigência de MFA, depois execute os testes SQL de isolamento.
-3. Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente local e nos ambientes Production e Preview do Cloudflare Pages. São variáveis públicas embutidas no build; nunca adicione valores reais ao Git. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
+3. Configure `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY` no Cloudflare Pages: Preview aponta para `aurora-dev` e Production para `aurora-prod`. O app local usa as variáveis `VITE_SUPABASE_LOCAL_*` em `.env.local`. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 4. Em Ajustes → Dados e backup, analise os dados antigos e importe na conta correta. Confira os registros antes de marcar a confirmação para apagar as chaves antigas lidas deste navegador. A importação não apaga `user_data` nem `user_keys`; a remoção do código e das tabelas exige revisão e uma migration separada aprovada.
 
 Antes de publicar, revise a configuração de autenticação, as migrations e as URLs de redirecionamento. Teste o isolamento com contas distintas em um ambiente apropriado.

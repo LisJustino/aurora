@@ -72,11 +72,13 @@ npm --prefix worker test
 
 - **Aprovado:** `npm test` — 71/71 testes base e verificações de conta, consentimento e limite de rolagem, Edge Function/Push, sugestões, cofre, persistência relacional e importação legada.
 - **Aprovado:** `npm run build`, `node --check` nos módulos alterados e `git diff --check`.
-- **Aprovado:** navegador local em 390 px — percorrer somente os Termos manteve o aceite bloqueado; percorrer também a Política liberou a caixa e o botão após marcar o aceite; sem overflow horizontal nem erros JavaScript.
+- **Aprovado (2026-10-29):** Chromium local — landing atualizada e cadastro em duas etapas a 390 px; em 320 px o campo de e-mail permaneceu dentro do cartão, com texto de recuperação associado ao campo e sem overflow horizontal.
+- **Aprovado (2026-10-29):** Chromium em 390 px — campo de nascimento alinhado à área interna do cartão, sem overflow; os dois documentos aparecem juntos no diálogo, a confirmação fica bloqueada até o final da leitura e o aceite retorna ao formulário; sem erros JavaScript.
+- **Aprovado (2026-10-29):** Chromium em 390 px com Supabase simulado — cadastro recebeu uma sessão com `email_confirmed_at` vazio e avançou sem a etapa de confirmação; nenhuma conta ou requisição foi enviada a um projeto remoto e não houve erros JavaScript.
 - **Aprovado:** navegador local — etapas de perfil/acesso navegáveis, campos do perfil preservados ao voltar e e-mail mantido ao alternar entre acesso e recuperação; sem overflow horizontal em 390 px e 1366 px.
 - **Aprovado:** formulário de cadastro — links dos documentos legais usam os botões do design system e, em viewports móveis estreitos/baixos, o cartão cresce com a página em vez de cortar o formulário com uma rolagem interna; sem overflow horizontal em 390 px e 565 px.
 - **Não executado automaticamente:** implantação da Edge Function, exclusão real de conta, limpeza em Worker publicado, CORS/configuração de secrets ou exclusão em cascata no Supabase. Esses cenários exigem projeto isolado e conta/inscrição fictícias; nunca testar em conta real.
-- Login real e envio do cadastro, aceite e reenvio de confirmação não foram testados; a validação do fluxo foi feita localmente sem enviar dados ao Supabase.
+- O cadastro/login real e a configuração **Confirm email** nos projetos Supabase não foram testados. O acesso imediato depende de desativar essa opção em cada projeto; não foi criada nem alterada nenhuma conta remota.
 
 ## Limites
 
@@ -93,7 +95,7 @@ capturas de tela ou logs.
 - O footer compartilhado aparece na landing, na demonstração, nos formulários de conta, nos erros de configuração e no shell autenticado. No tema escuro, mantém o fundo da página; no fluxo de conta, fica fora do elemento `<main>`.
 - Na landing, o footer permite abrir a demonstração fictícia; em todos os contextos, “Voltar ao topo” respeita a preferência por movimento reduzido e não altera a rota.
 - **Aprovado:** `npm test` — 56/56 testes base e verificações de conta, cofre, persistência relacional e importação; `npx vite build`; verificações de sintaxe e `git diff --check`. No navegador local, o formulário de login mostrou o footer sem overflow em 375 px e 1366 px, inclusive no tema escuro.
-- `.env.local` contém os dois valores públicos em formato preenchido; `localhost:5173` voltou a mostrar o formulário de login. Login real e migrations remotas não foram validados. Se o aviso de configuração reaparecer, reinicie o Vite para reler o arquivo; não compartilhe seus valores.
+- `.env.local` contém os valores públicos do projeto Supabase local nas variáveis `VITE_SUPABASE_LOCAL_*`; `localhost:5173` voltou a mostrar o formulário de login. O build publicado usa variáveis `VITE_SUPABASE_PRODUCTION_*` e deve apontar para outro projeto. Login real e migrations remotas não foram validados. Se o aviso de configuração reaparecer, reinicie o Vite para reler o arquivo; não compartilhe seus valores.
 
 ## Finanças — liquidação, relatórios e importação
 
