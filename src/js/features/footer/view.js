@@ -87,6 +87,8 @@ export function renderFooterContent({
             <input type="checkbox" data-legal-consent-checkbox disabled>
             <span>Li e aceito os Termos de Uso e a Política de Privacidade.</span>
           </label>
+          <span class="legal-modal-progress" data-legal-reading-progress role="status" aria-live="polite" hidden></span>
+          <button class="btn back" type="button" data-legal-jump-to-end aria-label="Ir ao fim do próximo documento não lido" hidden>Ir ao fim</button>
           <button class="btn primary" type="button" data-legal-consent-confirm hidden disabled>Confirmar aceite</button>
           <button class="btn back" type="button" data-legal-modal-close data-legal-close-only>Fechar</button>
         </footer>
