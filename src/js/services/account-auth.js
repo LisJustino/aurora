@@ -1,4 +1,8 @@
-import { getSupabaseClient, hasSupabaseConfig } from '../data/supabase-client.js';
+import {
+  getSupabaseClient,
+  hasSupabaseConfig,
+  setRememberSession,
+} from '../data/supabase-client.js';
 import {
   createVault,
   decryptAccountSlice,
@@ -378,6 +382,14 @@ function createAccountForm(root, {
       '',
       'mínimo 6 caracteres.',
     );
+    const rememberSession = create('input');
+    rememberSession.type = 'checkbox';
+    rememberSession.name = 'rememberSession';
+    const rememberSessionLabel = create('label', 'account-remember-session');
+    const rememberSessionCopy = create('span', '', 'Manter conectado');
+    const rememberSessionHelp = create('small', 'account-field-help', 'Salva somente a sessão do Supabase neste dispositivo.');
+    rememberSessionLabel.append(rememberSession, rememberSessionCopy, rememberSessionHelp);
+    form.append(rememberSessionLabel);
   }
   if (mode === 'setup-vault') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
   if (mode === 'unlock-password') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
@@ -804,6 +816,7 @@ export async function requireAccount(root, initialMode = 'login', {
         resolve({
           email: form.elements.email?.value.trim() || email,
           password: form.elements.password?.value || '',
+          rememberSession: form.elements.rememberSession?.checked === true,
           signupProfile: profile,
           termsAccepted: mode === 'signup-access' || mode === 'legal-consent'
             ? form.elements.termsAccepted.checked
@@ -1020,6 +1033,7 @@ export async function requireAccount(root, initialMode = 'login', {
         }
       } else {
         setSubmitPending(result.submit, true);
+        if (mode === 'login') setRememberSession(result.rememberSession);
         const { data, error: loginError } = await client.auth.signInWithPassword({
           email,
           password: result.password,

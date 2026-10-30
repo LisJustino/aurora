@@ -42,7 +42,7 @@ npm run dev -- --host 0.0.0.0 --port 8765
 
 No Windows, execute `ipconfig` e anote o endereço IPv4 da conexão Wi-Fi (por exemplo, `192.168.1.10`). No Chrome do celular, abra `http://ENDERECO-IP:8765/`, substituindo pelo endereço encontrado. Se o Windows perguntar, permita o acesso do Node.js em redes privadas. Se a página não abrir, confira se os dois aparelhos continuam na mesma rede e se o firewall permite a conexão. Um servidor estático como `python -m http.server` não serve o código-fonte do app corretamente.
 
-Os dados da conta são carregados e gravados no Supabase; fora da sessão gerenciada pelo supabase-js, o app não mantém cópia persistente dos dados no navegador. A importação dos dados legados é uma ação explícita em Ajustes → Dados e backup. A sessão de autenticação usa `sessionStorage`. Para testar conta em celular, use HTTPS e URLs de retorno permitidas no painel.
+Os dados da conta são carregados e gravados no Supabase; fora da sessão gerenciada pelo supabase-js, o app não mantém cópia persistente dos dados no navegador. A importação dos dados legados é uma ação explícita em Ajustes → Dados e backup. Por padrão, a sessão de autenticação usa `sessionStorage`; se você marcar **Manter conectado**, somente a sessão do Supabase fica em `localStorage` neste dispositivo. Dados do app nunca são gravados no armazenamento local do navegador. Para testar conta em celular, use HTTPS e URLs de retorno permitidas no painel.
 
 ## Páginas e navegação
 

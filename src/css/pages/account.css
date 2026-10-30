@@ -141,6 +141,33 @@
   gap: var(--space-3);
 }
 
+.account-remember-session {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--space-half) var(--space-2);
+  align-items: start;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.account-remember-session input {
+  grid-row: span 2;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--btn);
+}
+
+.account-remember-session .account-field-help {
+  grid-column: 2;
+}
+
+.account-remember-session input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: var(--space-half);
+}
+
 .account-terms-consent {
   display: flex;
   align-items: flex-start;

@@ -46,7 +46,7 @@
     <section>
       <h2>4. Onde e como são tratados</h2>
       <p>A autenticação e os dados da conta são processados pelo Supabase configurado para o serviço. As regras de acesso do banco restringem os registros à conta autenticada, mas os dados relacionais não são criptografados de ponta a ponta pelo Aurora. A região de hospedagem precisa ser confirmada nas configurações de produção.</p>
-      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. A permissão não é solicitada automaticamente. A sessão de autenticação também pode ser mantida pelo navegador em armazenamento de sessão; o service worker armazena recursos estáticos do aplicativo.</p>
+      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. A permissão não é solicitada automaticamente. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo; dados do aplicativo não são gravados ali. O service worker armazena recursos estáticos do aplicativo.</p>
       <p>Backups exportados são arquivos JSON sem criptografia e ficam sob seu controle depois do download. O Aurora não os envia automaticamente como parte da exportação.</p>
     </section>
 
