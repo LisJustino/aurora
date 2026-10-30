@@ -5790,6 +5790,7 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
   window.addEventListener('hashchange', onRoute);
   onRoute();
   if (!profileSetupComplete()) openProfileSetup();
+  setInterval(tick, 1000);
   if ('serviceWorker' in navigator) {
     try {
       await navigator.serviceWorker.register('/service-worker.js');
@@ -5803,7 +5804,6 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
   }
   if (S.pomodoro.startedAt !== null && getPomodoroPushStatus().enabled) syncPomodoroPushSchedule(S.pomodoro);
   Persist.retryPending();
-  setInterval(tick, 1000);
 }
 
 function showAccountStartupError(root, message) {
