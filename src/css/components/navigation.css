@@ -207,3 +207,42 @@ button.nav-more-link { width: 100%; border: 0; background: transparent; color: i
 .notification-panel .notification-list { overflow: visible; }
 .notification-meta .notification-x { width: var(--control-sm); height: var(--control-sm); min-width: var(--control-sm); min-height: var(--control-sm); margin: -8px -8px -8px 0; }
 .notification-ago { margin-left: auto; }
+
+/* O cabeçalho usa transparência e blur; o estado compacto acompanha a rolagem. */
+.topbar {
+  min-height: 78px;
+  padding-block: 10px;
+  border-bottom-color: color-mix(in srgb, var(--accent) 13%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 84%, transparent);
+  box-shadow: 0 10px 28px -25px var(--ink);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  transition:
+    min-height var(--duration-base) var(--ease-standard),
+    padding var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+:root[data-scrolled="true"] .topbar {
+  min-height: 60px;
+  padding-block: 4px;
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  box-shadow: 0 10px 30px -22px var(--ink);
+}
+
+.wordmark { font-size: var(--text-title); }
+.brand .wordmark i { color: var(--accent); }
+.topbar .brand,
+.topbar .wordmark { transition: min-height var(--duration-base) var(--ease-standard), font-size var(--duration-base) var(--ease-standard); }
+:root[data-scrolled="true"] .topbar .brand { min-height: var(--control-sm); }
+:root[data-scrolled="true"] .topbar .wordmark { font-size: var(--text-xl); }
+
+.topbar .nav a {
+  transition: color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+}
+
+.topbar .nav a[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 750;
+}

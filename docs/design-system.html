@@ -24,7 +24,7 @@
 <main class="main" id="main">
   <header class="ds-top">
     <div class="page-title"><h1>design system.</h1><p class="ds-note">Referência viva: usa o CSS real do app. Tokens em <code>src/css/design-system/tokens.css</code>.</p></div>
-    <div class="seg" role="group" aria-label="Tema"><button type="button" data-theme-set="light" aria-pressed="true">claro</button><button type="button" data-theme-set="dark" aria-pressed="false">escuro</button></div>
+    <div class="seg" role="group" aria-label="Tema"><button type="button" data-theme-set="light" aria-pressed="true">claro</button><button type="button" data-theme-set="dark" aria-pressed="false">escuro</button><button type="button" data-theme-set="auto" aria-pressed="false">automático</button></div>
   </header>
 
   <section class="card" aria-labelledby="ds-type"><h2 id="ds-type">Tipografia</h2>
@@ -149,6 +149,15 @@
     <div class="ds-row"><span class="badge">Padrão</span><span class="badge ok">Concluído</span><span class="badge warn">Atenção</span><span class="badge bad">Atrasado</span></div>
   </section>
 
+  <section class="card" aria-labelledby="ds-public"><h2 id="ds-public">Landing pública</h2>
+    <p class="ds-note">O hero usa <code>--hero-home</code>, captura real com moldura simples e CTA principal de cadastro. Recursos usam <code>.card</code>; perguntas frequentes podem usar <code>&lt;details&gt;</code> para manter as respostas acessíveis.</p>
+    <div class="public-hero">
+      <div><h1>Planeje sua rotina<span>.</span></h1><p class="public-lead">Tarefas, hábitos e finanças em um só lugar.</p><div class="public-actions"><button class="btn primary">Criar minha conta</button><button class="btn">Ver demonstração</button></div></div>
+      <img class="preview-capture" src="../src/assets/landing-desktop.png" alt="Captura da tela inicial do Aurora" width="1440" height="900" loading="lazy">
+    </div>
+    <details class="card public-faq-item"><summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary><p>As respostas do FAQ devem refletir as decisões atuais do produto e as informações de privacidade publicadas.</p></details>
+  </section>
+
   <section class="card" aria-labelledby="ds-hab"><h2 id="ds-hab">Linha de hábito</h2>
     <ul class="habit-list">
       <li class="habit-row is-done" style="--hc:#7c8fd4"><button class="habit-circle" aria-pressed="true" aria-label="Desmarcar: Ler por 10 minutos"><span class="habit-circle-icon"></span><span class="habit-circle-check"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Ler por 10 minutos</span><span class="habit-sub">3 dias seguidos</span></div></li>
@@ -174,11 +183,21 @@
 </main>
 </div>
 <script>
+  var themeMode = 'light';
+  var systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+  function applyDesignTheme(mode) {
+    themeMode = mode;
+    var effectiveTheme = mode === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : mode;
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+    document.querySelectorAll('[data-theme-set]').forEach(function (item) { item.setAttribute('aria-pressed', String(item.dataset.themeSet === mode)); });
+  }
   document.addEventListener('click', function (event) {
     var button = event.target.closest('[data-theme-set]');
     if (!button) return;
-    document.documentElement.setAttribute('data-theme', button.dataset.themeSet);
-    document.querySelectorAll('[data-theme-set]').forEach(function (item) { item.setAttribute('aria-pressed', String(item === button)); });
+    applyDesignTheme(button.dataset.themeSet);
+  });
+  if (systemTheme.addEventListener) systemTheme.addEventListener('change', function () {
+    if (themeMode === 'auto') applyDesignTheme('auto');
   });
 </script>
 </body>

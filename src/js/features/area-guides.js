@@ -5,6 +5,7 @@ export const AREA_GUIDES = {
     title: 'Início',
     summary: 'Acompanhe o dia e encontre atalhos para suas áreas.',
     video: new URL('../../assets/tutorials/inicio.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/inicio.mp4', import.meta.url).href,
     steps: [
       { title: 'Comece pelo que importa', text: 'Confira as tarefas de hoje e os avisos que pedem sua atenção. Abra uma tarefa para ver detalhes ou atualizar o andamento.' },
       { title: 'Use os atalhos do painel', text: 'Crie uma tarefa ou inicie um foco sem sair de Início. Os atalhos levam você direto à ação.' },
@@ -15,6 +16,7 @@ export const AREA_GUIDES = {
     title: 'Planejar',
     summary: 'Organize tarefas por prazo e escolha a visualização que ajuda você.',
     video: new URL('../../assets/tutorials/planejar.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/planejar.mp4', import.meta.url).href,
     steps: [
       { title: 'Transforme planos em tarefas', text: 'Adicione um título e, se ajudar, escolha prazo, prioridade e lista. Você pode começar sem preencher tudo.' },
       { title: 'Escolha como visualizar', text: 'Use a lista para acompanhar itens, o calendário ou a semana para ver datas e a revisão para retomar o que ficou pendente.' },
@@ -26,6 +28,7 @@ export const AREA_GUIDES = {
     title: 'Pomodoro',
     summary: 'Alterne períodos de foco e pausa no seu próprio ritmo.',
     video: new URL('../../assets/tutorials/pomodoro.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/pomodoro.mp4', import.meta.url).href,
     steps: [
       { title: 'Escolha um foco', text: 'Escreva no que quer trabalhar ou associe uma tarefa. Você também pode iniciar sem escolher nenhum dos dois.' },
       { title: 'Inicie e acompanhe', text: 'Comece o timer para alternar foco e pausa. Se precisar interromper, pause e retome no seu tempo.' },
@@ -37,6 +40,7 @@ export const AREA_GUIDES = {
     title: 'Finanças',
     summary: 'Monte um retrato financeiro manual: você decide quais contas e lançamentos registrar.',
     video: new URL('../../assets/tutorials/financas.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/financas.mp4', import.meta.url).href,
     steps: [
       { title: 'Comece pelas contas', text: 'Cadastre manualmente uma conta ou carteira e informe o saldo inicial que deseja acompanhar. O Aurora não importa saldos do banco por conta própria.' },
       { title: 'Registre cada movimentação', text: 'Adicione receitas e despesas com valor, data, categoria e conta. Os valores são aqueles que você informar.' },
@@ -49,6 +53,7 @@ export const AREA_GUIDES = {
     title: 'Hábitos',
     summary: 'Monte rotinas possíveis e acompanhe os registros dia a dia.',
     video: new URL('../../assets/tutorials/habitos.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/habitos.mp4', import.meta.url).href,
     steps: [
       { title: 'Escolha algo possível', text: 'Crie um hábito com um nome claro e selecione os dias em que pretende praticá-lo. Você pode ajustar a rotina depois.' },
       { title: 'Registre sem cobrança', text: 'Marque os dias em que concluiu. Se não aconteceu, registre como pulado quando quiser manter esse contexto no histórico.' },
@@ -60,6 +65,7 @@ export const AREA_GUIDES = {
     title: 'Ciclo',
     summary: 'Registre períodos e, se quiser, sintomas e outras observações.',
     video: new URL('../../assets/tutorials/ciclo.webm', import.meta.url).href,
+    fallbackVideo: new URL('../../assets/tutorials/ciclo.mp4', import.meta.url).href,
     steps: [
       { title: 'Registre o que aconteceu', text: 'Adicione o início e o fim do período conforme seus registros. Você pode corrigir datas quando precisar.' },
       { title: 'Use o calendário', text: 'Selecione um dia para consultar ou adicionar sintomas e observações. Compartilhe apenas o que se sentir confortável em registrar.' },

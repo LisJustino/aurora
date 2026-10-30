@@ -90,3 +90,216 @@
     border-radius: var(--r-pill);
   }
 }
+
+/* A navega\u00e7\u00e3o ganha peso de produto em desktop, sem perder o dock t\u00e1til no celular. */
+@media (min-width: 900px) {
+  .topbar .nav {
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--surface) 76%, transparent);
+    box-shadow: 0 10px 24px -22px var(--ink);
+  }
+  .topbar .nav a {
+    min-height: var(--control-sm);
+    flex-direction: row;
+    gap: 6px;
+    padding: 0 11px;
+    border-radius: var(--r-pill);
+    font-size: var(--text-meta);
+  }
+  .topbar .nav a .ni { width: auto; height: auto; }
+  .topbar .nav a[aria-current="page"] {
+    background: var(--surface-strong);
+    box-shadow: 0 3px 9px -7px var(--ink);
+  }
+}
+
+@media (max-width: 899px) {
+  .nav {
+    border-color: color-mix(in srgb, var(--line-strong) 55%, transparent);
+    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 -4px 28px -20px color-mix(in srgb, var(--ink) 45%, transparent);
+  }
+  .nav a[aria-current="page"] .ni {
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+@media (max-width: 899px) {
+  .topbar { min-height: 72px; }
+  .app > .topbar { padding-inline: var(--gut-l) var(--gut-r); }
+  :root[data-scrolled="true"] .topbar { min-height: 58px; }
+}
+
+/* Mantém os alvos de toque do cabeçalho enquanto reduz o espaçamento em telas estreitas. */
+@media (max-width: 480px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 4px;
+  }
+  .topbar .brand { min-width: 0; }
+  .topbar .header-actions { gap: 2px; }
+  .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
+}
+
+@media (max-width: 360px) {
+  .topbar { gap: 0; }
+  .topbar .brand { gap: 2px; }
+  .topbar .brand > svg { width: 20px; height: 20px; flex: none; }
+  .topbar .wordmark { font-size: var(--text-base); }
+  .topbar .header-actions { gap: 0; }
+  .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
+}
+
+/* Navegação compacta: atalhos essenciais permanecem visíveis e as áreas extras ficam em “mais”. */
+.nav-more-trigger {
+  display: none;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.nav-more-trigger .ni { position: relative; }
+.nav-more-trigger[aria-current="page"],
+.nav-more-trigger[aria-expanded="true"] { color: var(--accent); }
+.nav-more-menu { z-index: calc(var(--z-nav) + 1); }
+
+@media (min-width: 1440px) {
+  .topbar .nav .nav-secondary { display: flex !important; }
+  .topbar .nav .nav-more-trigger,
+  .topbar .nav .nav-more-menu { display: none !important; }
+}
+
+@media (min-width: 900px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+  .topbar .brand { grid-column: 1; justify-self: start; }
+  .topbar .nav {
+    grid-column: 2;
+    margin-left: 0;
+  }
+  .topbar .header-actions {
+    grid-column: 3;
+    justify-self: end;
+    margin-left: 0;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1439px) {
+  .topbar .nav { position: relative; overflow: visible; }
+  .topbar .nav .nav-secondary { display: none !important; }
+  .topbar .nav .nav-more-trigger {
+    display: inline-flex;
+    min-height: var(--control-sm);
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    font-size: var(--text-meta);
+  }
+  .topbar .nav .nav-more-trigger .ni { display: grid; width: 24px; height: 24px; place-items: center; }
+  .topbar .nav .nav-more-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    display: grid;
+    min-width: 188px;
+    gap: 3px;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-group);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .topbar .nav .nav-more-menu[hidden] { display: none; }
+  .topbar .nav .nav-more-link { min-height: var(--control-sm); justify-content: flex-start; padding-inline: 10px; border-radius: var(--r-sm); }
+}
+
+@media (max-width: 899px) {
+  .nav {
+    display: flex;
+    width: min(520px, calc(100% - 24px));
+    max-width: calc(100% - 24px);
+    justify-content: center;
+    margin-inline: auto;
+  }
+  .nav > .nav-primary,
+  .nav > .nav-more-trigger {
+    min-width: 0;
+    max-width: 88px;
+    flex: 1 1 72px;
+  }
+  .nav .nav-secondary { display: none !important; }
+  .nav .nav-more-trigger {
+    display: flex;
+    min-height: 56px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: clamp(.6rem, 2.7vw, .75rem);
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+  .nav .nav-more-trigger .ni {
+    display: grid;
+    width: min(100%, 42px);
+    height: 34px;
+    place-items: center;
+    border-radius: var(--r-pill);
+  }
+  .nav .nav-more-trigger[aria-current="page"] .ni,
+  .nav .nav-more-trigger[aria-expanded="true"] .ni { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+  .nav-more-menu {
+    position: fixed;
+    right: 12px;
+    bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid color-mix(in srgb, var(--line-strong) 52%, transparent);
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    backdrop-filter: blur(18px) saturate(1.15);
+  }
+  .nav-more-menu[hidden] { display: none; }
+  .nav-more-menu .nav-more-link {
+    display: flex;
+    min-height: var(--control-field);
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    font-size: var(--text-meta);
+  }
+  .nav-more-menu .nav-more-link .ni { display: grid; width: 26px; height: 26px; place-items: center; border-radius: var(--r-xs); background: var(--soft); }
+}
+
+/* Em telas móveis, o ícone mantém o nome acessível sem disputar espaço. */
+@media (max-width: 899px) {
+  .topbar .wordmark { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar .nav a { transition: none; }
+}

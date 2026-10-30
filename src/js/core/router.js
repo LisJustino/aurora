@@ -24,3 +24,14 @@ export function postSignOutPath(locationLike) {
   url.hash = '';
   return url.pathname;
 }
+
+export function settingsRootPath(locationLike) {
+  const url = new URL(locationLike.href);
+  if (!url.hash.startsWith('#config?')) return null;
+  url.hash = 'config';
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function redirectToPublicLanding(locationLike) {
+  locationLike.replace(postSignOutPath(locationLike));
+}

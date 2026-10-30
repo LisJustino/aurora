@@ -242,6 +242,23 @@ begin
 end;
 $$;
 
+do $$
+declare
+  function_source text;
+begin
+  select pg_get_functiondef(p.oid)
+  into function_source
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'apply_relational_changes';
+
+  if function_source is null or function_source !~* 'version_conflict|updated_at.*target\.updated_at' then
+    raise exception 'The relational apply function must reject stale rows with a version-conflict error';
+  end if;
+end;
+$$;
+
 select set_config(
   'request.jwt.claims',
   '{"sub":"d7c0d0e7-fb7a-4a3f-9f72-151d6768a101","role":"authenticated","aal":"aal1","amr":[{"method":"password"}]}',

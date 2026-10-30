@@ -327,3 +327,7 @@
     grid-column: auto;
   }
 }
+
+@media (max-width: 700px) {
+  .app-footer { flex-direction: column; gap: 4px; padding-bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px)); }
+}

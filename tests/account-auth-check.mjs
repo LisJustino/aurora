@@ -4,9 +4,13 @@ import {
   calculateAge,
   createLegalConsentMetadata,
   hasCurrentLegalConsent,
+  isAccountDeletionConfirmed,
+  isExistingAccountSignup,
   isPasswordRecoveryCallback,
   LEGAL_DOCUMENT_VERSION,
   meetsPasswordRequirements,
+  getEmailDomainSuggestions,
+  signupErrorMessage,
 } from '../src/js/services/account-auth.js';
 import {
   createAuthSessionStorage,
@@ -73,6 +77,48 @@ assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }),
 assert.equal(isPasswordRecoveryCallback({ search: '?code=', hash: '' }), false);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=signup' }), false);
 assert.equal(isPasswordRecoveryCallback(null), false);
+assert.deepEqual(getEmailDomainSuggestions('ana@gma'), ['ana@gmail.com']);
+assert.deepEqual(getEmailDomainSuggestions('ana@out'), ['ana@outlook.com', 'ana@outlook.com.br']);
+assert.deepEqual(getEmailDomainSuggestions('ana@GMA'), ['ana@gmail.com']);
+assert.deepEqual(getEmailDomainSuggestions('ana@empresa.example'), []);
+assert.deepEqual(getEmailDomainSuggestions('ana@'), [
+  'ana@gmail.com',
+  'ana@outlook.com',
+  'ana@hotmail.com',
+  'ana@yahoo.com',
+  'ana@icloud.com',
+  'ana@live.com',
+  'ana@proton.me',
+  'ana@protonmail.com',
+  'ana@outlook.com.br',
+  'ana@hotmail.com.br',
+  'ana@yahoo.com.br',
+  'ana@uol.com.br',
+  'ana@bol.com.br',
+]);
+assert.deepEqual(getEmailDomainSuggestions('ana'), []);
+assert.equal(isExistingAccountSignup({ code: 'user_already_exists' }), true);
+assert.equal(isExistingAccountSignup({ message: 'User already registered' }), true);
+assert.equal(isExistingAccountSignup(null, {
+  session: null,
+  user: { identities: [] },
+}), true);
+assert.equal(isExistingAccountSignup({ code: 'weak_password' }), false);
+assert.equal(isAccountDeletionConfirmed(null, { deleted: true }), true);
+assert.equal(isAccountDeletionConfirmed(null, { deleted: false }), false);
+assert.equal(isAccountDeletionConfirmed({ message: 'failed' }, { deleted: true }), false);
+assert.match(signupErrorMessage({ code: 'user_already_exists' }), /ainda está associado a uma conta/);
+assert.match(signupErrorMessage(null, {
+  session: null,
+  user: { identities: [] },
+}), /criar uma conta nova, sem recuperar os dados anteriores/);
+assert.match(signupErrorMessage({ code: 'weak_password' }), /requisitos de segurança/);
+assert.match(signupErrorMessage({ code: 'invalid_email' }), /e-mail foi digitado corretamente/);
+assert.match(signupErrorMessage({ status: 429 }), /Muitas tentativas/);
+assert.equal(
+  signupErrorMessage({ code: 'unexpected_error' }),
+  'Não foi possível concluir a solicitação. Confira os dados e tente novamente.',
+);
 
 assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')), {
   terms_accepted_at: '2026-10-29T12:00:00.000Z',

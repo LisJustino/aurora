@@ -2,8 +2,9 @@
 
 - As rotas compartilham a mesma aplicação e navegação. `pages/*.html` são
   entradas da SPA, não cópias independentes das telas.
-- A demonstração pública usa dados fictícios e somente leitura. Dados pessoais
-  exigem autenticação e permanecem isolados por usuário no banco.
+- A demonstração pública usa dados fictícios e interações somente em memória;
+  não autentica, não faz requisições nem persiste dados. Dados pessoais exigem
+  autenticação e permanecem isolados por usuário no banco.
 - A aplicação preserva a compatibilidade de dados e backups existentes.
   Importações e exclusões de dados legados exigem ação e confirmação explícitas.
 - Backups exportados são arquivos JSON sem criptografia; a interface deve
@@ -24,6 +25,14 @@
   Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
   impedir recuperação da conta. Contas antigas ainda pendentes podem confirmar
   o endereço como compatibilidade.
+- No cadastro, um e-mail que o Supabase identifica como já associado recebe
+  orientação de que uma exclusão confirmada libera novo cadastro sem os dados
+  anteriores; erros não reconhecidos continuam sem detalhes técnicos do
+  provedor.
+- A exclusão confirmada da conta é definitiva. O mesmo e-mail pode ser usado
+  para um novo cadastro, que recebe um novo ID e não restaura os dados da conta
+  anterior; falha ou ausência de confirmação não deve ser apresentada como
+  exclusão concluída.
 - Os documentos legais ficam acessíveis no footer em um diálogo modal, com
   páginas estáticas de fallback. O conteúdo ainda exige revisão jurídica e
   confirmação das configurações operacionais antes de publicação definitiva.

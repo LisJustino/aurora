@@ -12,6 +12,19 @@ for (const migrationName of [
   assert.match(migration, /on conflict \(%I\) do update set %s/i);
   assert.doesNotMatch(migration, /on conflict\s+do update/i);
 }
+const versionConflictMigration = await readFile(
+  new URL('../supabase/migrations/20261030100000_relational_version_conflict.sql', import.meta.url),
+  'utf8',
+);
+assert.match(versionConflictMigration, /returns jsonb/i);
+assert.match(versionConflictMigration, /for update/i);
+assert.match(versionConflictMigration, /version_conflict:/i);
+assert.match(versionConflictMigration, /on conflict \(%I\) do update set %s/i);
+assert.match(versionConflictMigration, /returning id, user_id, updated_at/i);
+assert.match(versionConflictMigration, /replace_missing/i);
+assert.match(versionConflictMigration, /greatest\(clock_timestamp\(\), old\.updated_at \+ interval '1 microsecond'\)/i);
+assert.doesNotMatch(versionConflictMigration, /study_subjects|study_sessions/i);
+assert.doesNotMatch(versionConflictMigration, /''raise exception/i);
 const settledDateMigration = await readFile(
   new URL('../supabase/migrations/20261029030000_finance_settled_date.sql', import.meta.url),
   'utf8',
@@ -58,10 +71,21 @@ assert.match(rlsIsolationTest, /User A inserted trash for User B/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];
+const versionStamp = '2026-10-30T12:00:00.000Z';
 const client = {
   async rpc(name, args) {
     writes.push({ name, args });
-    return { error: null };
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: table === 'profiles' || table === 'user_settings' ? `stored-${table}` : row.id,
+          user_id: row.user_id,
+          updated_at: versionStamp,
+        })),
+      })),
+      error: null,
+    };
   },
 };
 const state = {
@@ -84,6 +108,7 @@ const state = {
       }],
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
+      firstStepsDismissed: true,
     },
     onboardingComplete: true,
     introSeen: true,
@@ -113,6 +138,7 @@ await store.save(state);
 assert.equal(writes.length, 1);
 assert.equal(writes[0].name, 'apply_relational_changes');
 const changeByTable = new Map(writes[0].args.p_changes.map((change) => [change.table, change.rows]));
+const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
@@ -134,12 +160,42 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
   month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29',
 });
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
+assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
 assert.equal(changeByTable.has('study_sessions'), false);
 assert.equal(changeByTable.get('timer_state')[0].timer_kind, 'pomodoro');
 assert.equal(Object.hasOwn(changeByTable.get('timer_state')[0], 'subject_id'), false);
+assert.equal(writes[0].args.p_changes[0].replace_missing, true);
+assert.ok(changeByTable.get('tasks').every((row) => row.expected_updated_at === null));
+
+await store.save(state);
+const replaceChanges = new Map(writes[1].args.p_changes.map((change) => [change.table, change]));
+assert.equal(replaceChanges.get('tasks').replace_missing, true);
+assert.ok(replaceChanges.get('tasks').expected_versions.some((row) => row.id === taskDatabaseId && row.expected_updated_at === versionStamp));
+
+await store.save(state, state);
+assert.ok(writes[2].args.p_changes.every(({ rows, replace_missing }) => rows.length === 0 && !replace_missing));
+
+const changedState = structuredClone(state);
+changedState.tasks[0].title = 'Tarefa atualizada';
+changedState.settings.profile.preferredName = 'Nome atualizado';
+await store.save(changedState, state);
+const changedRows = new Map(writes[3].args.p_changes.map(({ table, rows }) => [table, rows]));
+assert.equal(changedRows.get('tasks').length, 1);
+assert.equal(changedRows.get('tasks')[0].title, 'Tarefa atualizada');
+assert.equal(changedRows.get('tasks')[0].expected_updated_at, versionStamp);
+assert.equal(changedRows.get('profiles').length, 1);
+assert.equal(changedRows.get('profiles')[0].expected_updated_at, versionStamp);
+assert.ok(writes[3].args.p_changes.every(({ rows, replace_missing }) => rows.length === 0 || !replace_missing));
+
+const deletedState = structuredClone(changedState);
+deletedState.tasks = [];
+await store.save(deletedState, changedState);
+const deletedTask = writes[4].args.p_changes.find(({ table }) => table === 'tasks').rows[0];
+assert.ok(deletedTask.deleted_at);
+assert.equal(deletedTask.expected_updated_at, versionStamp);
 
 const loadClient = {
   from(table) {
@@ -154,6 +210,7 @@ const loadClient = {
   },
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
+assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);
@@ -193,6 +250,31 @@ try {
       assert.match(error.message, /Código 23514/);
       assert.match(error.message, /A alteração não atende a uma regra do banco/);
       assert.doesNotMatch(error.message, /valor privado|dica interna/);
+      return true;
+    },
+  );
+} finally {
+  console.error = originalConsoleError;
+}
+
+const versionConflictClient = {
+  async rpc() {
+    return {
+      error: {
+        code: 'version_conflict',
+        message: 'A linha foi atualizada em outro dispositivo. Recarregue os dados da conta e tente novamente.',
+        details: 'conflict',
+      },
+    };
+  },
+};
+console.error = () => {};
+try {
+  await assert.rejects(
+    () => new RelationalAccountStore(versionConflictClient, userId).save(state),
+    (error) => {
+      assert.equal(error.code, 'version_conflict');
+      assert.match(error.message, /Recarregue os dados da conta/i);
       return true;
     },
   );
