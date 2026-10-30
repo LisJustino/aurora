@@ -4,6 +4,10 @@ import {
   calculateAge,
   createLegalConsentMetadata,
   hasCurrentLegalConsent,
+  hasCompleteAdultProfile,
+  hasSocialIdentity,
+  authCallbackErrorMessage,
+  getOAuthRedirectUrl,
   isAccountDeletionConfirmed,
   isExistingAccountSignup,
   isPasswordRecoveryCallback,
@@ -17,32 +21,59 @@ import {
   resolveSupabaseConfig,
   setRememberSession,
 } from '../src/js/data/supabase-client.js';
-import { isLegalDocumentAtEnd } from '../src/js/features/footer/legal-dialog.js';
 
 assert.deepEqual(resolveSupabaseConfig({
   isDevelopment: true,
-  localUrl: 'https://test-project.supabase.co',
+  localUrl: 'https://cltymialatksylhzsitz.supabase.co',
   localAnonKey: 'test-public-key',
-  productionUrl: 'https://production-project.supabase.co',
+  previewUrl: 'https://cltymialatksylhzsitz.supabase.co',
+  previewAnonKey: 'preview-public-key',
+  productionUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
   productionAnonKey: 'production-public-key',
 }), {
-  url: 'https://test-project.supabase.co',
+  url: 'https://cltymialatksylhzsitz.supabase.co',
   anonKey: 'test-public-key',
 });
 assert.deepEqual(resolveSupabaseConfig({
   isDevelopment: false,
-  localUrl: 'https://test-project.supabase.co',
+  targetEnvironment: 'development',
+  localUrl: 'https://cltymialatksylhzsitz.supabase.co',
   localAnonKey: 'test-public-key',
-  productionUrl: 'https://production-project.supabase.co',
+  previewUrl: 'https://cltymialatksylhzsitz.supabase.co',
+  previewAnonKey: 'preview-public-key',
+  productionUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
   productionAnonKey: 'production-public-key',
 }), {
-  url: 'https://production-project.supabase.co',
-  anonKey: 'production-public-key',
+  url: 'https://cltymialatksylhzsitz.supabase.co',
+  anonKey: 'preview-public-key',
 });
 assert.deepEqual(resolveSupabaseConfig({
   isDevelopment: true,
-  productionUrl: 'https://legacy-project.supabase.co',
+  targetEnvironment: 'production',
+  productionUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
   productionAnonKey: 'legacy-public-key',
+}), { url: '', anonKey: '' });
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: false,
+  targetEnvironment: 'production',
+  previewUrl: 'https://cltymialatksylhzsitz.supabase.co',
+  previewAnonKey: 'preview-public-key',
+  productionUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
+  productionAnonKey: 'production-public-key',
+}), {
+  url: 'https://xeneztudcqdumfhwotry.supabase.co',
+  anonKey: 'production-public-key',
+});
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: false,
+  targetEnvironment: 'development',
+  previewUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
+  previewAnonKey: 'production-key-must-not-be-accepted-for-preview',
+}), { url: '', anonKey: '' });
+assert.deepEqual(resolveSupabaseConfig({
+  isDevelopment: false,
+  productionUrl: 'https://xeneztudcqdumfhwotry.supabase.co',
+  productionAnonKey: 'production-public-key',
 }), { url: '', anonKey: '' });
 const createStorage = () => {
   const entries = new Map();
@@ -77,6 +108,19 @@ assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }),
 assert.equal(isPasswordRecoveryCallback({ search: '?code=', hash: '' }), false);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=signup' }), false);
 assert.equal(isPasswordRecoveryCallback(null), false);
+assert.match(
+  authCallbackErrorMessage({
+    search: '?error=access_denied&error_code=otp_expired&error_description=private+provider+details',
+  }),
+  /link expirou ou já foi usado/i,
+);
+assert.doesNotMatch(
+  authCallbackErrorMessage({
+    search: '?error=access_denied&error_code=otp_expired&error_description=private+provider+details',
+  }),
+  /private provider details/i,
+);
+assert.equal(authCallbackErrorMessage({ search: '' }), '');
 assert.deepEqual(getEmailDomainSuggestions('ana@gma'), ['ana@gmail.com']);
 assert.deepEqual(getEmailDomainSuggestions('ana@out'), ['ana@outlook.com', 'ana@outlook.com.br']);
 assert.deepEqual(getEmailDomainSuggestions('ana@GMA'), ['ana@gmail.com']);
@@ -125,33 +169,67 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: LEGAL_DOCUMENT_VERSION,
   privacy_policy_version: LEGAL_DOCUMENT_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.2');
+assert.equal(LEGAL_DOCUMENT_VERSION, '1.4');
+const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
+const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.4">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.4">/);
+assert.match(termsDocument, /provedor deve permitir o acesso sem confirmação do e-mail/);
+assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
-    terms_version: '1.2',
-    privacy_policy_version: '1.2',
+    terms_version: '1.4',
+    privacy_policy_version: '1.4',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.1',
-    privacy_policy_version: '1.2',
+    privacy_policy_version: '1.3',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), false);
 assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
-assert.equal(isLegalDocumentAtEnd({ scrollTop: 0, clientHeight: 500, scrollHeight: 500 }), true);
-assert.equal(isLegalDocumentAtEnd({ scrollTop: 400, clientHeight: 500, scrollHeight: 1000 }), false);
-assert.equal(isLegalDocumentAtEnd({ scrollTop: 500, clientHeight: 500, scrollHeight: 1000 }), true);
-assert.equal(isLegalDocumentAtEnd({ scrollTop: 498, clientHeight: 500, scrollHeight: 1000 }), true);
-assert.equal(isLegalDocumentAtEnd({ scrollTop: Number.NaN, clientHeight: 500, scrollHeight: 1000 }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
+assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/#inicio');
+assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/#inicio');
+assert.equal(hasCompleteAdultProfile({
+  user_metadata: {
+    name: 'Ana',
+    preferred_name: 'Ana',
+    age: 18,
+    birthday_month: 10,
+    birthday_day: 30,
+    birthday_reference_date: '2020-10-30',
+  },
+}), true);
+assert.equal(hasCompleteAdultProfile({
+  user_metadata: {
+    name: 'Ana',
+    preferred_name: 'Ana',
+    age: 17,
+    birthday_month: 10,
+    birthday_day: 30,
+    birthday_reference_date: '2020-10-30',
+  },
+}), false);
+assert.equal(hasSocialIdentity({ app_metadata: { provider: 'google' } }), true);
+assert.equal(hasSocialIdentity({ identities: [{ provider: 'apple' }] }), true);
+assert.equal(hasSocialIdentity({ app_metadata: { provider: 'email' } }), false);
 
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 assert.doesNotMatch(accountAuthSource, /createGenderSelect\(form/);
 assert.doesNotMatch(accountAuthSource, /form\.elements\.sex\.checkValidity\(\)/);
 assert.doesNotMatch(accountAuthSource, /sex:\s*profileDraft\.sex/);
+assert.doesNotMatch(accountAuthSource, /auth\.resend\(/);
+assert.doesNotMatch(accountAuthSource, /verify-email/);
+assert.match(accountAuthSource, /confirme-a manualmente em Authentication → Users/);
+assert.match(accountAuthSource, /provider: result\.oauthProvider/);
+assert.match(accountAuthSource, /Continuar com Google \(Gmail\)/);
+assert.doesNotMatch(accountAuthSource, /Continuar com Apple \(iCloud\)/);
+assert.match(accountAuthSource, /result\.oauthProvider !== 'google'/);
+assert.match(accountAuthSource, /oauth-profile/);
 
 assert.equal(meetsPasswordRequirements('Abc12!'), true);
 assert.equal(meetsPasswordRequirements('Abc1!'), false);

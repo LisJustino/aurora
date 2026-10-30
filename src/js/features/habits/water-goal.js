@@ -32,6 +32,31 @@ export function waterGoalFromName(name, fallback = 2000) {
   return Number.isInteger(fallback) && fallback >= 500 && fallback <= 10000 ? fallback : 2000;
 }
 
+export function isValidWaterGoalMl(value) {
+  return Number.isInteger(value) && value >= 500 && value <= 10000;
+}
+
+export function waterGoalForHabit(habit, fallback = 2000) {
+  return isValidWaterGoalMl(habit?.waterGoalMl)
+    ? habit.waterGoalMl
+    : waterGoalFromName(habit?.name, fallback);
+}
+
+export function normalizeWaterHabit(habit) {
+  const legacyGoal = String(habit.name).match(/(?:\s*[·-]\s*)?(\d[\d. ]*)\s*mL\/dia\s*$/i);
+  const parsedGoal = legacyGoal
+    ? Number(legacyGoal[1].replace(/\D/g, ''))
+    : null;
+  const normalized = {
+    ...habit,
+    name: legacyGoal ? habit.name.replace(legacyGoal[0], '').trim() : habit.name,
+  };
+  if (isValidWaterGoalMl(habit.waterGoalMl)) normalized.waterGoalMl = habit.waterGoalMl;
+  else if (isValidWaterGoalMl(parsedGoal)) normalized.waterGoalMl = parsedGoal;
+  else delete normalized.waterGoalMl;
+  return normalized;
+}
+
 export function waterMlForDay(entries, day) {
   if (!Array.isArray(entries) || !isDay(day)) return 0;
   return entries.reduce((total, entry) => {

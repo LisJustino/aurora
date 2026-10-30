@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Política de Privacidade do Aurora e informações sobre o tratamento de dados pessoais.">
-  <meta name="aurora-legal-version" content="1.2">
+  <meta name="aurora-legal-version" content="1.4">
   <meta name="theme-color" content="#f3f0f2" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
@@ -20,7 +20,7 @@
     </nav>
   </header>
   <main class="legal-document" id="conteudo">
-    <p class="legal-eyebrow">Aurora · versão 1.2 · 29 de outubro de 2026</p>
+    <p class="legal-eyebrow">Aurora · versão 1.4 · 30 de outubro de 2026</p>
     <h1>Política de Privacidade</h1>
     <section>
       <h2>1. Quem responde pelos dados</h2>
@@ -33,7 +33,7 @@
         <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para verificar a maioridade; o Aurora registra a idade calculada, a data de referência da idade e o mês/dia do aniversário, não a data completa de nascimento.</li>
         <li><strong>Conteúdo que você adiciona:</strong> tarefas, preferências e registros das áreas disponíveis, que podem incluir informações sobre saúde e ciclo menstrual, além de dados financeiros e de rotina.</li>
         <li><strong>Aceite dos documentos:</strong> versão dos Termos de Uso e da Política de Privacidade, além do instante do aceite, associados aos metadados da conta.</li>
-        <li><strong>Avisos Push opcionais:</strong> se ativados, o navegador mantém uma inscrição Push e o serviço recebe a fase, o horário previsto, as durações de foco/pausa e a quantidade de blocos concluídos necessários para programar o Pomodoro. O nome da tarefa e os demais registros não são enviados para essa programação.</li>
+        <li><strong>Avisos Push opcionais:</strong> se ativados, o navegador mantém uma inscrição Push. Para o Pomodoro, o serviço recebe fase, horário previsto e durações necessárias ao timer. Para lembretes de Hábitos, recebe somente dias da semana, horário local, fuso e, quando aplicável, a data do check-in para não repetir o aviso naquele dia. Os avisos de hábitos são genéricos; nomes, conteúdos e histórico não são enviados ao serviço.</li>
         <li><strong>Sugestões por e-mail:</strong> o formulário do FAQ apenas prepara uma mensagem no aplicativo de e-mail do seu dispositivo. O Aurora não recebe nem armazena o rascunho; se você enviar, o conteúdo e os dados da sua conta de e-mail serão tratados pelos provedores de e-mail envolvidos.</li>
       </ul>
     </section>
@@ -46,7 +46,7 @@
     <section>
       <h2>4. Onde e como são tratados</h2>
       <p>A autenticação e os dados da conta são processados pelo Supabase configurado para o serviço. As regras de acesso do banco restringem os registros à conta autenticada, mas os dados relacionais não são criptografados de ponta a ponta pelo Aurora. A região de hospedagem precisa ser confirmada nas configurações de produção.</p>
-      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. A permissão não é solicitada automaticamente. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo; dados do aplicativo não são gravados ali. O service worker armazena recursos estáticos do aplicativo.</p>
+      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. Os lembretes de Hábitos podem se repetir semanalmente até que você os edite ou desative os avisos; a inscrição Push é compartilhada com o Pomodoro neste dispositivo. A permissão não é solicitada automaticamente, e a entrega pode atrasar ou não ocorrer por limitações de rede, navegador, sistema operacional ou serviço Push. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo; dados do aplicativo não são gravados ali. O service worker armazena recursos estáticos do aplicativo.</p>
       <p>Backups exportados são arquivos JSON sem criptografia e ficam sob seu controle depois do download. O Aurora não os envia automaticamente como parte da exportação.</p>
     </section>
 
@@ -73,7 +73,7 @@
 
     <footer class="legal-document-footer">
       <a href="/">Voltar ao Aurora</a>
-      <span>Versão 1.2 · última atualização: 29 de outubro de 2026</span>
+      <span>Versão 1.4 · última atualização: 30 de outubro de 2026</span>
     </footer>
   </main>
 </body>

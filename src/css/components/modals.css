@@ -477,9 +477,12 @@
 .onboard-intro { display: flex; align-items: flex-start; gap: var(--space-4); }
 .onboard-brand { display: grid; flex: none; place-items: center; }
 .eyebrow { color: var(--accent); font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em;  }
+.dlg:has(.onboard-needs-dialog) { width: min(100%, 720px); }
+.dlg:not(.intro-dialog) .dlg-body.onboard-needs-dialog { gap: 12px; padding-top: 18px; }
 .onboard-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .onboard-fieldset legend { margin-bottom: 12px; font-size: var(--text-md); font-weight: 700; }
 .onboard-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.onboard-needs-dialog .onboard-options { gap: 10px; }
 .onboard-options .opt { min-height: 82px; padding: 12px; border-radius: var(--r-group); }
 .onboard-options .opt .mk { width: 42px; height: 42px; }
 .onboard-options .opt .tx { line-height: 1.4; }
@@ -636,6 +639,9 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
   .onboard-solution-list { grid-template-columns: minmax(0, 1fr); }
   .onboard-solution-note { align-items: flex-start; }
   .onboard-always-on { margin-left: auto; }
+}
+@media (min-width: 760px) {
+  .onboard-needs-dialog .onboard-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 380px) {
   .trio { grid-template-columns: minmax(0, 1fr); }
