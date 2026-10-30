@@ -1,4 +1,4 @@
-# Deployar avisos Push do Pomodoro
+# Deployar avisos Push de Pomodoro e Hábitos
 
 O front do Aurora será hospedado no Cloudflare Pages em `https://aurora-9ze.pages.dev`; um domínio personalizado pode ser conectado depois. Este recurso opcional usa um Cloudflare Worker com Durable Objects e Web Push; não exige nem cria um backend para tarefas, perfil, finanças ou backups. Registros legados de Estudos não participam deste fluxo.
 
@@ -60,22 +60,22 @@ Com `worker/.dev.vars` configurado, inicie o Worker em `worker/` com `npm run de
 ## Ativar no app
 
 1. Abra o Aurora publicado no Safari do iPhone/iPad e use **Compartilhar → Adicionar à Tela de Início**. Abra o Aurora pelo ícone instalado, no modo de app independente; uma aba comum do Safari não atende ao requisito de Push no iOS.
-2. Abra Pomodoro e toque em **Ativar avisos**. A permissão só é solicitada por esse gesto explícito. Aceite as notificações do sistema.
-3. Inicie o timer independente. Cada fase seguinte é programada no Durable Object; pausas, conclusão e descarte cancelam o agendamento. Pular uma pausa atualiza o horário no serviço.
-4. Use **Desativar avisos** para remover a inscrição deste dispositivo e cancelar alarmes no backend.
+2. Em Pomodoro ou Hábitos, toque em **Ativar avisos**. A permissão só é solicitada por esse gesto explícito. Aceite as notificações do sistema.
+3. O timer independente agenda suas próximas mudanças de fase. Para Hábitos, configure um horário e dias da semana no hábito; o Worker agenda os avisos recorrentes no fuso do dispositivo. Ao concluir ou pular o hábito, o aviso desse dia é omitido.
+4. Use **Desativar avisos** para remover a inscrição deste dispositivo e cancelar os agendamentos de Pomodoro e Hábitos.
 
 ## Privacidade e limites
 
-- A API recebe a inscrição Push, uma credencial aleatória por instalação e somente a fase, a hora prevista da transição, as durações do Pomodoro e a contagem necessária para a pausa longa. O servidor guarda apenas o hash da credencial.
-- Tarefas, rótulos, perfil, histórico, dados financeiros, demais fatias e backups não são transmitidos ao Worker. A credencial do cliente fica em `push_subscriptions`, protegida por RLS por usuário. A antiga chave `aurora.push.pomodoro` só é lida para migrar uma inscrição existente e removida após a confirmação da gravação no banco.
-- A Durable Object conserva uma inscrição e um alarme por instalação; cada transição agenda a seguinte apenas enquanto o timer estiver rodando. O horizonte de cada solicitação é limitado a quatro horas. Os bindings Cloudflare Rate Limiting limitam registro e solicitações autenticadas sem armazenar dados extras no objeto.
+- A API recebe a inscrição Push, uma credencial aleatória por instalação e, conforme o recurso, os parâmetros do Pomodoro ou apenas dias da semana, horário local, fuso e um identificador opaco para os lembretes. Os avisos de Hábitos usam texto genérico. O servidor guarda apenas o hash da credencial.
+- Tarefas, nomes/rótulos de hábitos, perfil, histórico, dados financeiros, demais fatias e backups não são transmitidos ao Worker. A credencial do cliente fica em `push_subscriptions`, protegida por RLS por usuário. A antiga chave `aurora.push.pomodoro` só é lida para migrar uma inscrição existente e removida após a confirmação da gravação no banco.
+- A Durable Object conserva uma inscrição e um alarme compartilhado por instalação; o alarme atende ao timer e aos lembretes recorrentes. O horizonte de quatro horas se aplica ao agendamento do Pomodoro. Os bindings Cloudflare Rate Limiting limitam registro e solicitações autenticadas sem armazenar dados extras no objeto.
 - CORS exige uma origem configurada exatamente; a API não aceita credenciais de cookies. O endpoint de Push precisa usar HTTPS e um domínio de serviço conhecido. As entradas JSON têm tamanho e formato limitados.
-- O service worker mostra notificação do sistema somente se nenhuma janela do Aurora estiver visível. O app visível mantém seus próprios avisos e não recebe uma notificação de sistema duplicada.
+- O service worker mostra notificação do sistema somente se nenhuma janela do Aurora estiver visível. O app visível mantém seus próprios avisos e não recebe uma notificação de sistema duplicada; clicar no Push de Hábitos abre essa área.
 - O aceite da API significa que uma fase foi agendada, não que o sistema operacional entregará a notificação. Rede, navegador, permissão, políticas do Push Service e economia de energia podem atrasar ou impedir a entrega. Se uma chamada de cancelamento falhar, a interface avisa que um aviso previamente agendado ainda pode chegar.
 - Notificações Push não garantem som nem permitem que o Aurora imponha o volume, o som ou o comportamento de foco. O som de Pomodoro já existente depende de áudio no navegador e não é confiável com o app em segundo plano/tela bloqueada.
 
 ## Testes
 
-- `npm test` em `worker/` valida CORS, limite de registro, credencial, entradas, horizonte e avanço/cancelamento dos alarmes sem acessar uma conta Cloudflare.
+- `npm test` em `worker/` valida CORS, limite de registro, credencial, entradas, horizonte, horários recorrentes/fuso e avanço/cancelamento dos alarmes sem acessar uma conta Cloudflare.
 - A aplicação local é iniciada por `npm run dev` (Vite). Consulte [testing.md](./testing.md) para os comandos e limites de validação.
 - A integração real de entrega, instalação na Tela de Início, permissão e som precisam ser verificadas depois do deploy, em dispositivo próprio; os testes de unidade não simulam um Push Service ou iPhone real.

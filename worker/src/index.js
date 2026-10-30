@@ -3,6 +3,8 @@ import { buildPushPayload } from '@block65/webcrypto-web-push';
 const API_PREFIX = '/api';
 const MAX_BODY_BYTES = 16_384;
 const MAX_SCHEDULE_HORIZON_MS = 4 * 60 * 60 * 1000;
+const MAX_HABIT_REMINDERS = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,64}$/;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -110,6 +112,114 @@ function validSchedule(value, now = Date.now()) {
     && value.completedPomodoros <= 1_000_000;
 }
 
+function validCivilDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+}
+
+const timeZoneFormatters = new Map();
+function timeZoneFormatter(timeZone) {
+  if (!timeZoneFormatters.has(timeZone)) {
+    timeZoneFormatters.set(timeZone, new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }));
+  }
+  return timeZoneFormatters.get(timeZone);
+}
+
+function validHabitReminders(value) {
+  if (!hasExactKeys(value, ['reminders'])
+    || !Array.isArray(value.reminders)
+    || value.reminders.length > MAX_HABIT_REMINDERS) return false;
+  const ids = new Set();
+  return value.reminders.every((reminder) => {
+    if (!hasExactKeys(reminder, ['id', 'days', 'time', 'timeZone', 'skipDate'])
+      || typeof reminder.id !== 'string'
+      || !/^[A-Za-z0-9_-]{1,48}$/.test(reminder.id)
+      || ids.has(reminder.id)
+      || !Array.isArray(reminder.days)
+      || reminder.days.length < 1
+      || reminder.days.length > 7
+      || !reminder.days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+      || new Set(reminder.days).size !== reminder.days.length
+      || typeof reminder.time !== 'string'
+      || !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.time)
+      || typeof reminder.timeZone !== 'string'
+      || reminder.timeZone.length > 100
+      || !(reminder.skipDate === null || validCivilDate(reminder.skipDate))) return false;
+    try {
+      timeZoneFormatter(reminder.timeZone);
+    } catch {
+      return false;
+    }
+    ids.add(reminder.id);
+    return true;
+  });
+}
+
+function validStoredHabitReminders(value) {
+  return validHabitReminders({ reminders: value });
+}
+
+function timeZoneParts(timestamp, timeZone) {
+  return Object.fromEntries(timeZoneFormatter(timeZone).formatToParts(new Date(timestamp))
+    .map(({ type, value }) => [type, value]));
+}
+
+function localDateTimeToEpoch(day, time, timeZone) {
+  const [year, month, date] = day.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const wanted = Date.UTC(year, month - 1, date, hour, minute);
+  let candidate = wanted;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = timeZoneParts(candidate, timeZone);
+    const actual = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const adjustment = wanted - actual;
+    if (!adjustment) break;
+    candidate += adjustment;
+  }
+  const parts = timeZoneParts(candidate, timeZone);
+  return Number(parts.year) === year
+    && Number(parts.month) === month
+    && Number(parts.day) === date
+    && Number(parts.hour) === hour
+    && Number(parts.minute) === minute
+    ? candidate
+    : null;
+}
+
+function nextHabitReminderAt(reminders, now = Date.now()) {
+  let next = null;
+  for (const reminder of reminders) {
+    const localNow = timeZoneParts(now, reminder.timeZone);
+    const localMidnight = Date.UTC(Number(localNow.year), Number(localNow.month) - 1, Number(localNow.day));
+    for (let offset = 0; offset <= 7; offset += 1) {
+      const date = new Date(localMidnight + offset * DAY_MS);
+      if (!reminder.days.includes(date.getUTCDay())) continue;
+      const localDate = date.toISOString().slice(0, 10);
+      if (reminder.skipDate === localDate) continue;
+      const candidate = localDateTimeToEpoch(localDate, reminder.time, reminder.timeZone);
+      if (candidate !== null && candidate > now && (next === null || candidate < next)) next = candidate;
+    }
+  }
+  return next;
+}
+
 function validSubscription(value) {
   if (!hasExactKeys(value, ['subscription']) || !isPlainObject(value.subscription)) return false;
   const subscription = value.subscription;
@@ -195,7 +305,10 @@ async function dispatchClientOperation(env, request, headers, operation, body) {
   if (operation === 'schedule' && request.method === 'POST' && !validSchedule(body)) {
     return json({ error: 'schedule-horizon' }, 400, headers);
   }
-  if (!['subscribe', 'unsubscribe', 'schedule', 'cancel'].includes(operation)) {
+  if (operation === 'habits' && request.method === 'POST' && !validHabitReminders(body)) {
+    return json({ error: 'invalid-habit-reminders' }, 400, headers);
+  }
+  if (!['subscribe', 'unsubscribe', 'schedule', 'cancel', 'habits', 'clear-habits'].includes(operation)) {
     return json({ error: 'not-found' }, 404, headers);
   }
   if (env.API_RATE_LIMIT) {
@@ -276,6 +389,17 @@ export default {
         return dispatchClientOperation(env, request, headers, 'cancel', {});
       }
     }
+    if (path === `${API_PREFIX}/habits`) {
+      if (request.method === 'POST') {
+        const body = await readJson(request);
+        if (!body) return json({ error: 'invalid-request' }, 400, headers);
+        return dispatchClientOperation(env, request, headers, 'habits', body);
+      }
+      if (request.method === 'DELETE') {
+        if (request.body) return json({ error: 'invalid-request' }, 400, headers);
+        return dispatchClientOperation(env, request, headers, 'clear-habits', {});
+      }
+    }
     return json({ error: 'not-found' }, 404, headers);
   },
 };
@@ -326,6 +450,10 @@ function notificationFor(phase) {
   return { title: 'Aurora · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa.' };
 }
 
+function habitReminderNotification() {
+  return { kind: 'habit-reminder' };
+}
+
 function constantTimeEqual(left, right) {
   if (left.length !== right.length) return false;
   let difference = 0;
@@ -370,7 +498,7 @@ export class PomodoroAlarm {
       return json({ ok: true });
     }
     if (path === '/unsubscribe' && request.method === 'POST') {
-      await this.storage.delete(['subscription', 'schedule']);
+      await this.storage.delete(['subscription', 'schedule', 'habitReminders', 'habitReminderAt']);
       await this.state.storage.deleteAlarm();
       return json({ ok: true });
     }
@@ -379,41 +507,53 @@ export class PomodoroAlarm {
       if (!validSchedule(body)) return json({ error: 'schedule-horizon' }, 400);
       if (!(await this.storage.get('subscription'))) return json({ error: 'subscription-required' }, 409);
       await this.storage.put('schedule', body);
-      await this.state.storage.setAlarm(body.phaseEndsAt);
+      await this.refreshAlarm();
       return json({ ok: true, scheduledAt: body.phaseEndsAt });
     }
     if (path === '/cancel' && request.method === 'POST') {
       await this.storage.delete('schedule');
-      await this.state.storage.deleteAlarm();
+      await this.refreshAlarm();
+      return json({ ok: true });
+    }
+    if (path === '/habits' && request.method === 'POST') {
+      const body = await readJson(request);
+      if (!validHabitReminders(body)) return json({ error: 'invalid-habit-reminders' }, 400);
+      if (!(await this.storage.get('subscription'))) return json({ error: 'subscription-required' }, 409);
+      await this.storage.put('habitReminders', body.reminders);
+      const scheduledAt = await this.refreshAlarm();
+      return json({ ok: true, scheduledAt });
+    }
+    if (path === '/clear-habits' && request.method === 'POST') {
+      await this.storage.delete(['habitReminders', 'habitReminderAt']);
+      await this.refreshAlarm();
       return json({ ok: true });
     }
     return json({ error: 'not-found' }, 404);
   }
 
-  async alarm() {
-    let schedule = await this.storage.get('schedule');
-    const subscription = await this.storage.get('subscription');
-    if (!validStoredSchedule(schedule) || !subscription) {
-      await this.storage.delete('schedule');
+  async refreshAlarm(now = Date.now()) {
+    const schedule = await this.storage.get('schedule');
+    let reminderAt = null;
+    const reminders = await this.storage.get('habitReminders');
+    if (validStoredHabitReminders(reminders) && reminders.length) {
+      reminderAt = nextHabitReminderAt(reminders, now);
+    }
+    if (reminderAt === null) await this.storage.delete('habitReminderAt');
+    else await this.storage.put('habitReminderAt', reminderAt);
+    const candidates = [
+      validStoredSchedule(schedule) ? schedule.phaseEndsAt : null,
+      reminderAt,
+    ].filter(Number.isSafeInteger);
+    if (!candidates.length) {
       await this.state.storage.deleteAlarm();
-      return;
+      return null;
     }
-    let transitions = 0;
-    const now = Date.now();
-    while (schedule.phaseEndsAt <= now && transitions < 512) {
-      schedule = transition(schedule);
-      transitions += 1;
-    }
-    if (transitions >= 512) {
-      await this.storage.delete('schedule');
-      await this.state.storage.deleteAlarm();
-      return;
-    }
-    await this.storage.put('schedule', schedule);
-    await this.state.storage.setAlarm(schedule.phaseEndsAt);
-    if (!transitions) return;
+    const scheduledAt = Math.min(...candidates);
+    await this.state.storage.setAlarm(scheduledAt);
+    return scheduledAt;
+  }
 
-    const notification = notificationFor(schedule.phase);
+  async sendNotification(notification, subscription) {
     try {
       const payload = await buildPushPayload({
         data: JSON.stringify(notification),
@@ -425,13 +565,52 @@ export class PomodoroAlarm {
       });
       const response = await fetch(subscription.endpoint, payload);
       if (response.status === 404 || response.status === 410 || response.status === 400) {
-        await this.storage.delete(['subscription', 'schedule']);
+        await this.storage.delete(['subscription', 'schedule', 'habitReminders', 'habitReminderAt']);
         await this.state.storage.deleteAlarm();
+        return false;
       } else if (!response.ok) {
-        console.warn(`Push do Pomodoro rejeitado pelo serviço (${response.status}).`);
+        console.warn(`Push do Aurora rejeitado pelo serviço (${response.status}).`);
       }
     } catch {
-      console.warn('Não foi possível enviar um aviso Push do Pomodoro.');
+      console.warn('Não foi possível enviar um aviso Push do Aurora.');
     }
+    return true;
+  }
+
+  async alarm() {
+    let schedule = await this.storage.get('schedule');
+    const subscription = await this.storage.get('subscription');
+    if (!subscription) {
+      await this.storage.delete(['schedule', 'habitReminders', 'habitReminderAt']);
+      await this.state.storage.deleteAlarm();
+      return;
+    }
+    if (!validStoredSchedule(schedule)) {
+      await this.storage.delete('schedule');
+      schedule = null;
+    }
+    let reminders = await this.storage.get('habitReminders');
+    if (!validStoredHabitReminders(reminders)) {
+      await this.storage.delete(['habitReminders', 'habitReminderAt']);
+      reminders = [];
+    }
+    let transitions = 0;
+    const now = Date.now();
+    if (schedule) {
+      while (schedule.phaseEndsAt <= now && transitions < 512) {
+        schedule = transition(schedule);
+        transitions += 1;
+      }
+    }
+    if (transitions >= 512) {
+      await this.storage.delete('schedule');
+      schedule = null;
+    }
+    if (schedule) await this.storage.put('schedule', schedule);
+    const reminderAt = await this.storage.get('habitReminderAt');
+    const reminderDue = reminders.length > 0 && Number.isSafeInteger(reminderAt) && reminderAt <= now;
+    await this.refreshAlarm(now);
+    if (transitions && schedule && !(await this.sendNotification(notificationFor(schedule.phase), subscription))) return;
+    if (reminderDue) await this.sendNotification(habitReminderNotification(), subscription);
   }
 }

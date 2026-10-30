@@ -84,18 +84,18 @@ Backups exportados e cópias de recuperação são JSON sem criptografia e podem
 
 1. Em cada projeto Supabase, desative **Authentication → Providers → Email → Confirm email** para liberar o acesso imediatamente após o cadastro. Configure também senha mínima de 6 caracteres (igual à regra do formulário do Aurora), nível mínimo de garantia AAL1 e as URLs de redirecionamento desse ambiente. O Aurora não exige MFA. Sem confirmação, um e-mail digitado incorretamente pode impedir a recuperação da conta.
 2. Aplique as migrations versionadas na ordem descrita em [supabase/README.md](./supabase/README.md), incluindo a migration que remove a exigência de MFA, depois execute os testes SQL de isolamento.
-3. Configure `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY` no Cloudflare Pages: Preview aponta para `aurora-dev` e Production para `aurora-prod`. O app local usa as variáveis `VITE_SUPABASE_LOCAL_*` em `.env.local`. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
+3. Configure variáveis distintas no Cloudflare Pages: Preview usa `VITE_SUPABASE_TARGET=development` e `VITE_SUPABASE_PREVIEW_*` para `aurora-dev`; Production usa `VITE_SUPABASE_TARGET=production` e `VITE_SUPABASE_PRODUCTION_*` para `aurora-prod`. O app local usa `VITE_SUPABASE_LOCAL_*` em `.env.local`. O app confere o project ref e bloqueia a autenticação se um build apontar ao projeto errado. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 4. Em Ajustes → Dados e backup, analise os dados antigos e importe na conta correta. Confira os registros antes de marcar a confirmação para apagar as chaves antigas lidas deste navegador. A importação não apaga `user_data` nem `user_keys`; a remoção do código e das tabelas exige revisão e uma migration separada aprovada.
 
 Antes de publicar, revise a configuração de autenticação, as migrations e as URLs de redirecionamento. Teste o isolamento com contas distintas em um ambiente apropriado.
 
-### Avisos Push opcionais do Pomodoro
+### Avisos Push opcionais de Pomodoro e Hábitos
 
-Os avisos de mudança de fase podem ser ativados explicitamente na tela do Pomodoro. A função é exclusiva do timer independente e não cria nem altera registros legados de Estudos. Sem ativação, o timer continua local e nenhuma permissão é solicitada.
+Os avisos de mudança de fase e os lembretes de hábitos podem ser ativados explicitamente nas respectivas áreas. Sem ativação, nenhuma permissão é solicitada; o horário de um hábito continua sendo apenas uma preferência para avisos enquanto o app está aberto.
 
 Para publicar o backend separado no Cloudflare e conectar o front do Cloudflare Pages, siga [docs/pomodoro-push.md](./docs/pomodoro-push.md). O deploy requer uma conta Cloudflare, Node.js/npm e configuração manual do endereço da API, da origem CORS e de secrets VAPID. Nenhum segredo deve ser incluído no repositório. As configurações do front estão em [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 
-Quando ativado, o Supabase guarda a inscrição Push e a credencial exclusiva desta instalação sob RLS por usuário; o Worker armazena a programação mínima da fase/horário da próxima mudança. Nenhum nome de tarefa, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado ao Worker. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
+Quando ativado, o Supabase guarda a inscrição Push e a credencial exclusiva desta instalação sob RLS por usuário; o Worker armazena a programação mínima da próxima fase ou os dias, horários e fuso dos lembretes de Hábitos. Nenhum nome de tarefa/hábito, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado ao Worker. A inscrição é compartilhada neste dispositivo; desativá-la interrompe os avisos de ambos. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
 
 Em iPhone, Push requer iOS/iPadOS 16.4 ou posterior e o Aurora instalado na Tela de Início, aberto como PWA independente. A origem precisa ser HTTPS e a permissão deve ser concedida após tocar em **Ativar avisos**. O iOS pode suspender páginas e áudio; Push é uma notificação do sistema, mas a execução/entrega não é um alarme garantido. O som existente do Pomodoro não é garantido com o app em segundo plano ou a tela bloqueada.
 

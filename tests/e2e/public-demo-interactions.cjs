@@ -23,8 +23,9 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(BASE);
-  await page.getByRole('button', { name: 'Ver demonstração' }).click();
+  await page.getByRole('button', { name: 'Explorar a demonstração' }).click();
   await page.getByRole('button', { name: 'Iniciar foco de exemplo' }).waitFor();
+  check(await page.getByText('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.').count() === 1, 'a demonstração informa os limites antes do CTA de cadastro');
   await page.waitForTimeout(500);
   const storageBefore = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),

@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
-import { parseMoney } from '../src/js/utils/currency.js';
+import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
 import { isDay } from '../src/js/utils/dates.js';
 import {
   isPublicLandingHash,
@@ -31,6 +31,11 @@ import {
   reportMonthStats,
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
+import {
+  ACCOUNT_TYPES,
+  isValidAccountType,
+  normalizeAccountType,
+} from '../src/js/features/finance/accounts.js';
 import { parseStatement } from '../src/js/features/finance/statement.js';
 import { parseQuickTaskText } from '../src/js/features/planning/quick-entry.js';
 import {
@@ -54,14 +59,19 @@ import {
   HABIT_ICON_KEYS,
   SUGGESTED_HABITS,
   habitStats,
+  habitWeekOverview,
   habitWeeklyTarget,
   isValidHabit,
+  normalizeHabits,
 } from '../src/js/features/habits/model.js';
 import {
   estimateWaterGoal,
+  isValidWaterGoalMl,
+  normalizeWaterHabit,
   parseWaterMl,
   parseWaterWeightKg,
   waterGoalFromName,
+  waterGoalForHabit,
   waterGoalReached,
   waterMlForDay,
 } from '../src/js/features/habits/water-goal.js';
@@ -109,6 +119,7 @@ import {
   BACKUP_REMINDER_DAYS,
   backupReminderStatus,
 } from '../src/js/features/backup/reminder.js';
+import { renderLanding } from '../src/js/features/landing/view.js';
 
 const results = [];
 
@@ -155,6 +166,34 @@ test('confirmações nativas foram substituídas e o feedback de persistência i
   if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
   if (!source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
     throw new Error('O shell precisa exibir o horário salvo e o aviso offline persistente.');
+  }
+});
+
+test('landing comunica valor, demonstração e privacidade financeira com precisão', () => {
+  const root = { innerHTML: '' };
+  renderLanding(root);
+  const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const expectedContent = [
+    'Mais clareza para a sua rotina',
+    'Criar conta e começar',
+    'Explorar a demonstração',
+    'não acessa sua conta nem salva alterações',
+    'sem conexão com bancos',
+    'usuário autenticado',
+    'Um passo de cada vez',
+    'Reserve um tempo de foco',
+  ];
+  expectedContent.forEach((text) => {
+    if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
+  });
+  if (!entryHtml.includes('<title>Aurora — mais clareza para a sua rotina</title>')
+    || !entryHtml.includes('property="og:title" content="Aurora — mais clareza para a sua rotina"')
+    || !entryHtml.includes('name="twitter:title" content="Aurora — mais clareza para a sua rotina"')) {
+    throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
+  }
+  const landingView = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
+  if (!landingView.includes('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.')) {
+    throw new Error('A demonstração precisa informar quais recursos não são interativos.');
   }
 });
 
@@ -416,6 +455,17 @@ test('converte valores monetários brasileiros para centavos exatos', () => {
   equal(parseMoney('10.000,00'), 1000000);
 });
 
+test('formata valores monetários enquanto os dígitos são digitados', () => {
+  equal(formatMoneyInput(''), '00,00');
+  equal(formatMoneyInput('0'), '00,00');
+  equal(formatMoneyInput('1'), '0,01');
+  equal(formatMoneyInput('12'), '0,12');
+  equal(formatMoneyInput('123'), '1,23');
+  equal(formatMoneyInput('123456'), '1.234,56');
+  equal(formatMoneyInput('-123'), '-1,23');
+  equal(parseMoney(formatMoneyInput('123456')), 123456);
+});
+
 test('rejeita valores monetários inválidos ou fora do intervalo seguro', () => {
   truthy(Number.isNaN(parseMoney('1.234,567')));
   truthy(Number.isNaN(parseMoney('R$')));
@@ -598,9 +648,19 @@ test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
   equal(settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html#config' }), null);
 });
 
-test('calcula saldos em centavos e exclui cartão do saldo líquido', () => {
+test('normaliza contas Dinheiro antigas para corrente e reconhece investimentos', () => {
+  equal(normalizeAccountType('cash'), 'checking');
+  equal(normalizeAccountType('investment'), 'investment');
+  equal(isValidAccountType('cash'), true);
+  equal(isValidAccountType('investment'), true);
+  equal(isValidAccountType('unknown'), false);
+  equal(ACCOUNT_TYPES.investment, 'Investimento');
+  equal(Object.hasOwn(ACCOUNT_TYPES, 'cash'), false);
+});
+
+test('calcula saldos em centavos, inclui investimentos e exclui cartão do saldo líquido', () => {
   const checking = { id: 'checking', type: 'checking', initialCents: 10000 };
-  const cash = { id: 'cash', type: 'cash', initialCents: 1000 };
+  const investment = { id: 'investment', type: 'investment', initialCents: 1000 };
   const card = { id: 'card', type: 'credit', initialCents: 0 };
 
   const transactions = [
@@ -609,7 +669,7 @@ test('calcula saldos em centavos e exclui cartão do saldo líquido', () => {
     {
       type: 'tr',
       accountId: 'checking',
-      toAccountId: 'cash',
+      toAccountId: 'investment',
       cents: 2000,
       paid: true,
     },
@@ -617,9 +677,9 @@ test('calcula saldos em centavos e exclui cartão do saldo líquido', () => {
   ];
 
   equal(accountBalance(checking, transactions), 11750);
-  equal(accountBalance(cash, transactions), 3000);
+  equal(accountBalance(investment, transactions), 3000);
   equal(accountBalance(card, transactions), -3000);
-  equal(netAccountBalance([checking, cash, card], transactions), 14750);
+  equal(netAccountBalance([checking, investment, card], transactions), 14750);
 });
 
 test('ignora lançamentos pendentes no saldo das contas', () => {
@@ -873,6 +933,40 @@ test('estatísticas de hábito sem meta mantêm a sequência diária', () => {
   equal(stats.streak, 3);
   equal(stats.weeklyTarget, null);
   equal(stats.weeklyStreak, null);
+});
+
+test('meta de água explícita prevalece e nomes antigos são normalizados sem perda da meta', () => {
+  const legacy = { ...habitBase, name: 'Beber água · 3.850 mL/dia', tracking: 'water' };
+  const normalized = normalizeHabits([legacy]);
+  equal(normalized.rejectedCount, 0);
+  equal(normalized.records[0].name, 'Beber água');
+  equal(normalized.records[0].waterGoalMl, 3850);
+  equal(waterGoalForHabit({ ...normalized.records[0], waterGoalMl: 2600 }), 2600);
+  equal(normalizeWaterHabit({ ...legacy, waterGoalMl: 2700 }).waterGoalMl, 2700);
+  equal(waterGoalForHabit({ name: 'Beber água', tracking: 'water' }, 2800), 2800);
+  equal(isValidWaterGoalMl(500), true);
+  equal(isValidWaterGoalMl(10001), false);
+  falsy(isValidHabit({ ...habitBase, waterGoalMl: 499 }));
+});
+
+test('panorama semanal conta somente dias programados até hoje e oferece pausados', () => {
+  const active = {
+    ...habitBase,
+    days: [1, 2, 3],
+    completions: ['2026-10-19'],
+    skipped: ['2026-10-20'],
+  };
+  const paused = { ...habitBase, id: 'h2', status: 'paused', days: [1, 2, 3] };
+  const overview = habitWeekOverview(
+    [active, paused],
+    '2026-10-21',
+    1,
+    (habit, day) => habit.completions.includes(day),
+    (habit, day) => habitIsSkipped(habit, day, '2026-10-21'),
+  );
+  equal(overview.planned, 2);
+  equal(overview.completed, 1);
+  equal(overview.paused.length, 1);
 });
 
 test('pular um dia exclui a data das metas e não interrompe sequência', () => {

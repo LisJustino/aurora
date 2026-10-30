@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurora-static-v7';
+const CACHE_NAME = 'aurora-static-v8';
 const API_PATH = /\/api(?:\/|$)/;
 const LEGAL_DOCUMENT = /\/(?:terms|privacy)\.html$/;
 const STATIC_ASSET = /\.(?:html|css|m?js|woff2?|ttf|otf|svg|png|jpe?g|webp|gif|ico|webmanifest)$/i;
@@ -107,18 +107,24 @@ self.addEventListener('push', (event) => {
     } catch {
       payload = {};
     }
-    const title = typeof payload.title === 'string' && payload.title.length <= 80
+    const habitReminder = payload.kind === 'habit-reminder';
+    const title = habitReminder
+      ? 'Aurora · Hábitos'
+      : typeof payload.title === 'string' && payload.title.length <= 80
       ? payload.title
       : 'Aurora · Pomodoro';
-    const body = typeof payload.body === 'string' && payload.body.length <= 180
+    const body = habitReminder
+      ? 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.'
+      : typeof payload.body === 'string' && payload.body.length <= 180
       ? payload.body
       : 'Uma nova fase do Pomodoro começou.';
     await self.registration.showNotification(title, {
       body,
       icon: new URL('./icons/aurora-192.png', self.registration.scope).href,
       badge: new URL('./icons/aurora-192.png', self.registration.scope).href,
-      tag: 'aurora-pomodoro',
+      tag: habitReminder ? 'aurora-habits' : 'aurora-pomodoro',
       renotify: false,
+      data: { route: habitReminder ? 'habitos' : 'pomodoro' },
     });
   })());
 });
@@ -128,11 +134,13 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-    const pomodoroUrl = new URL('./pages/pomodoro.html', self.registration.scope).href;
+    const route = event.notification.data?.route === 'habitos' ? 'habitos' : 'pomodoro';
+    const targetUrl = new URL(`./pages/${route === 'habitos' ? 'habitos' : 'pomodoro'}.html`, self.registration.scope).href;
     if (existing) {
+      if (typeof existing.navigate === 'function') await existing.navigate(targetUrl);
       await existing.focus();
       return;
     }
-    await self.clients.openWindow(pomodoroUrl);
+    await self.clients.openWindow(targetUrl);
   })());
 });

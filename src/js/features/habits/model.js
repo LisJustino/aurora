@@ -1,6 +1,7 @@
 import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
+import { isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
 
 export const HABIT_ICONS = Object.freeze([
   ['droplet', 'Água'], ['book', 'Leitura'], ['dumbbell', 'Treino'], ['activity', 'Movimento'],
@@ -71,6 +72,7 @@ export function isValidHabit(habit) {
     && (habit.icon === undefined || (typeof habit.icon === 'string' && /^[A-Za-z]{2,20}$/.test(habit.icon)))
     && (habit.color === undefined || (typeof habit.color === 'string' && HEX_COLOR.test(habit.color)))
     && (habit.weeklyGoal === undefined || (Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1 && habit.weeklyGoal <= 7))
+    && (habit.waterGoalMl === undefined || isValidWaterGoalMl(habit.waterGoalMl))
     && (habit.remind === undefined || (typeof habit.remind === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(habit.remind)));
 }
 
@@ -138,9 +140,29 @@ export function normalizeHabits(value) {
       continue;
     }
     ids.add(habit.id);
-    records.push({ ...habit, status: habit.status || 'active' });
+    const normalized = isWaterHabit(habit) ? normalizeWaterHabit(habit) : habit;
+    records.push({ ...normalized, status: habit.status || 'active' });
   }
   return { records, rejectedCount };
+}
+
+export function habitWeekOverview(habits, day, weekStart, completedFor, skippedFor) {
+  const days = weekDays(day, weekStart).filter((entry) => entry <= day);
+  let planned = 0;
+  let completed = 0;
+  for (const habit of habits) {
+    if ((habit.status || 'active') !== 'active') continue;
+    for (const entry of days) {
+      if (!habit.days.includes(pk(entry).getDay()) || skippedFor(habit, entry)) continue;
+      planned += 1;
+      if (completedFor(habit, entry)) completed += 1;
+    }
+  }
+  return {
+    completed,
+    planned,
+    paused: habits.filter((habit) => habit.status === 'paused'),
+  };
 }
 
 export function habitMonthDays(month, weekStart = 1) {

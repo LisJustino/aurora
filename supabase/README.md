@@ -4,9 +4,25 @@
 
 As migrations SQL ficam em `supabase/migrations/`. Elas criam e atualizam as tabelas relacionais, compatibilidade de IDs, lixeira, RPCs e políticas RLS. A migration de remoção de Estudos apaga as fatias cifradas e os registros relacionais dedicados à função; `user_keys` e as demais fatias são preservadas.
 
-Use projetos Supabase separados para desenvolvimento/teste e produção. O app local usa `VITE_SUPABASE_LOCAL_URL` e `VITE_SUPABASE_LOCAL_ANON_KEY`; o build publicado usa `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY`. A unicidade de e-mail vale dentro de cada projeto, permitindo o mesmo e-mail nos dois ambientes. Aplique e valide as migrations separadamente em cada projeto, confirmando o destino antes de executar qualquer operação.
+Use projetos Supabase separados para desenvolvimento/teste e produção. O app local usa `VITE_SUPABASE_LOCAL_URL` e `VITE_SUPABASE_LOCAL_ANON_KEY`; Preview do Cloudflare usa `VITE_SUPABASE_TARGET=development` com `VITE_SUPABASE_PREVIEW_URL` e `VITE_SUPABASE_PREVIEW_ANON_KEY`; Production usa `VITE_SUPABASE_TARGET=production` com `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY`. O cliente rejeita qualquer URL Supabase cujo project ref não corresponda ao ambiente esperado. A unicidade de e-mail vale dentro de cada projeto, permitindo o mesmo e-mail nos dois ambientes. Aplique e valide as migrations separadamente em cada projeto, confirmando o destino antes de executar qualquer operação.
 
 Para permitir acesso imediato após o cadastro, em cada projeto abra **Authentication → Providers → Email** e desative **Confirm email**. Com essa opção ativa, o Supabase cria a conta sem emitir uma sessão e a pessoa não consegue entrar até confirmar o endereço; o app informa essa configuração e mantém reenvio para cadastros pendentes. Sem confirmação obrigatória, um e-mail digitado incorretamente pode impedir a recuperação da conta.
+
+## Entrar com Google (Gmail)
+
+O botão social disponível no Aurora usa Google OAuth pelo Supabase. Configure-o separadamente em cada projeto Supabase de desenvolvimento e produção; as credenciais do provedor ficam somente no Dashboard do Supabase, nunca no `.env`, no frontend ou no repositório. Apple/iCloud está temporariamente desativado na interface; contas Apple existentes continuam reconhecidas.
+
+1. Em **Authentication → URL Configuration**, defina o **Site URL** do projeto de desenvolvimento como `http://127.0.0.1:5173/` e, em produção, como `https://aurora-9ze.pages.dev/`. Permita estes **Redirect URLs** no projeto de desenvolvimento:
+   - `http://localhost:5173/`
+   - `http://127.0.0.1:5173/`
+   - `http://localhost:5173/**`
+   - `http://127.0.0.1:5173/**`
+   Em produção, permita somente os redirects exatos `https://aurora-9ze.pages.dev/` e `https://aurora-9ze.pages.dev/#inicio`. O app retorna a `/#inicio` após o OAuth para abrir a área autenticada, em vez da landing pública. Não cadastre endereços de produção no projeto de desenvolvimento nem vice-versa.
+2. Para **Google (Gmail)**, crie um cliente OAuth do tipo **Web application** no Google Cloud Console. Em **Authorized JavaScript origins**, adicione `http://localhost:5173`, `http://127.0.0.1:5173` e `https://aurora-9ze.pages.dev`. Em **Authorized redirect URIs**, adicione o callback de cada projeto Supabase: desenvolvimento `https://cltymialatksylhzsitz.supabase.co/auth/v1/callback` e produção `https://xeneztudcqdumfhwotry.supabase.co/auth/v1/callback`. Ative o provedor em **Authentication → Sign In / Providers → Google** em cada projeto Supabase e informe o Client ID e o Client Secret do Google.
+3. Em **Authentication → Sign In / Providers → Google**, habilite Google nos projetos em que será usado e salve as credenciais. No primeiro acesso social, o fluxo exige nome, nome de preferência, idade mínima de 18 anos e aceite dos documentos; o Aurora não abre os dados da conta antes disso.
+4. Teste o fluxo local com o projeto de desenvolvimento e a URL `http://127.0.0.1:5173/#inicio`; depois teste produção em `https://aurora-9ze.pages.dev/#inicio`. Na primeira autenticação Google, o provedor cria uma conta Supabase quando ainda não existe uma identidade correspondente; o Aurora então exige nome, nome de preferência, idade mínima de 18 anos e aceite dos documentos antes de carregar os dados. Segredos OAuth devem ser inseridos somente no Dashboard Supabase. As variáveis `VITE_SUPABASE_*` continuam sendo apenas a URL do projeto e sua chave publicável.
+
+Apple/iCloud está pausado e não precisa ser configurado para novos logins. A configuração existente no Supabase, se houver, pode permanecer; o Aurora não inicia autenticação Apple até o recurso ser reativado.
 
 Antes de aplicar em produção:
 
