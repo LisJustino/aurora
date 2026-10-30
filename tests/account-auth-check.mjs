@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   calculateAge,
   createLegalConsentMetadata,
@@ -68,6 +69,11 @@ assert.equal(isLegalDocumentAtEnd({ scrollTop: 500, clientHeight: 500, scrollHei
 assert.equal(isLegalDocumentAtEnd({ scrollTop: 498, clientHeight: 500, scrollHeight: 1000 }), true);
 assert.equal(isLegalDocumentAtEnd({ scrollTop: Number.NaN, clientHeight: 500, scrollHeight: 1000 }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
+
+const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
+assert.doesNotMatch(accountAuthSource, /createGenderSelect\(form/);
+assert.doesNotMatch(accountAuthSource, /form\.elements\.sex\.checkValidity\(\)/);
+assert.doesNotMatch(accountAuthSource, /sex:\s*profileDraft\.sex/);
 
 assert.equal(meetsPasswordRequirements('Abc12!'), true);
 assert.equal(meetsPasswordRequirements('Abc1!'), false);

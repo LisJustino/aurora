@@ -9,7 +9,6 @@ import {
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, createBirthdayReference } from '../features/profile/birthday.js';
-import { PROFILE_SEX_OPTIONS } from '../features/profile/model.js';
 import { IC } from '../utils/icons.js';
 
 export { calculateAge };
@@ -167,30 +166,6 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
   return input;
 }
 
-function createGenderSelect(form, value = '') {
-  const wrapper = create('div', 'account-field');
-  const label = create('label', '', 'Identidade de gênero');
-  const select = create('select', 'field');
-  select.name = 'sex';
-  select.id = 'account-sex';
-  select.required = true;
-  select.append(create('option', '', 'Selecione uma opção'));
-  select.options[0].value = '';
-  PROFILE_SEX_OPTIONS.forEach(([value, text]) => {
-    const option = create('option', '', text);
-    option.value = value;
-    select.append(option);
-  });
-  select.value = value;
-  label.htmlFor = select.id;
-  const help = create('small', 'account-field-help', 'Identidade de gênero não é orientação sexual. Pessoas trans podem escolher mulher ou homem conforme se identificam; também há opções para pessoas não binárias, outras identidades e para não informar.');
-  help.id = 'account-sex-help';
-  select.setAttribute('aria-describedby', help.id);
-  wrapper.append(label, select, help);
-  form.append(wrapper);
-  return select;
-}
-
 function createFormGroup(className, legendText) {
   const group = create('fieldset', className);
   group.append(create('legend', '', legendText));
@@ -346,7 +321,6 @@ function createAccountForm(root, {
     ageStatus.setAttribute('aria-live', 'polite');
     birthDate.setAttribute('aria-describedby', `${birthDate.getAttribute('aria-describedby')} ${ageStatus.id}`.trim());
     form.append(ageStatus);
-    createGenderSelect(form, signupProfile?.sex || '');
   }
   if (mode === 'login' || mode === 'signup-access' || mode === 'recovery' || mode === 'verify-email') {
     createField(
@@ -503,7 +477,6 @@ function createAccountForm(root, {
       submit.disabled = !(
         form.elements.name.value.trim()
         && form.elements.preferredName.value.trim()
-        && form.elements.sex.checkValidity()
         && age !== null
         && age >= 18
       );
@@ -819,7 +792,6 @@ export async function requireAccount(root, initialMode = 'login', {
       return {
         name: form.elements.name.value.trim(),
         preferredName: form.elements.preferredName.value.trim(),
-        sex: form.elements.sex.value,
         birthDate,
         age: birthdayReference?.ageAtReference ?? null,
         birthdayReference,
@@ -994,7 +966,7 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
         if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
-          || !result.signupProfile.sex || !birthdayReference || result.signupProfile.age < 18) {
+          || !birthdayReference || result.signupProfile.age < 18) {
           message = 'Preencha seus dados e confirme que tem 18 anos ou mais para criar uma conta.';
           continue;
         }
@@ -1026,7 +998,6 @@ export async function requireAccount(root, initialMode = 'login', {
             data: {
               name: profileDraft.name.slice(0, 50),
               preferred_name: profileDraft.preferredName.slice(0, 50),
-              sex: profileDraft.sex,
               age: profileDraft.age,
               birthday_month: profileDraft.birthdayReference.month,
               birthday_day: profileDraft.birthdayReference.day,
