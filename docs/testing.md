@@ -79,6 +79,8 @@ npm --prefix worker test
 - **Aprovado:** formulário de cadastro — links dos documentos legais usam os botões do design system e, em viewports móveis estreitos/baixos, o cartão cresce com a página em vez de cortar o formulário com uma rolagem interna; sem overflow horizontal em 390 px e 565 px.
 - **Não executado automaticamente:** implantação da Edge Function, exclusão real de conta, limpeza em Worker publicado, CORS/configuração de secrets ou exclusão em cascata no Supabase. Esses cenários exigem projeto isolado e conta/inscrição fictícias; nunca testar em conta real.
 - O cadastro/login real e a configuração **Confirm email** nos projetos Supabase não foram testados. O acesso imediato depende de desativar essa opção em cada projeto; não foi criada nem alterada nenhuma conta remota.
+- **Aprovado:** navegador local em 390 px — percorrer somente os Termos manteve o aceite bloqueado; percorrer também a Política liberou a caixa e o botão após marcar o aceite; sem overflow horizontal nem erros JavaScript.
+- Login real e envio do cadastro, aceite e reenvio de confirmação não foram testados; a validação do fluxo foi feita localmente sem enviar dados ao Supabase.
 
 ## Limites
 
