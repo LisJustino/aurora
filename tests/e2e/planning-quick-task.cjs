@@ -25,6 +25,7 @@ const check = (passed, name, detail = '') => {
   const confirmation = page.locator('#dlg');
   await confirmation.waitFor({ state: 'visible' });
   check((await confirmation.innerText()).includes('Prazo interpretado'), 'apresenta o prazo antes da confirmação');
+  check(await confirmation.locator('.confirmation-heading').evaluate((heading) => heading.classList.contains('head') && getComputedStyle(heading).display === 'grid'), 'mantém o cabeçalho da confirmação no padrão do modal');
   check((await confirmation.innerText()).includes('18:00'), 'confirma horário interpretado');
   await confirmation.getByRole('button', { name: 'Cancelar' }).click();
   check(await page.locator('.task').filter({ hasText: 'Enviar proposta' }).count() === 0, 'cancelar não cria a tarefa');

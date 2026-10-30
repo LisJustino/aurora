@@ -10,24 +10,29 @@ estáticos necessários para servir a SPA e suas rotas.
 
 O app local usa `VITE_SUPABASE_LOCAL_URL` e
 `VITE_SUPABASE_LOCAL_ANON_KEY` em `.env.local`, apontando para `aurora-dev`.
-No Cloudflare Pages, configure as mesmas variáveis de build em cada ambiente:
+No Cloudflare Pages, configure variáveis de build diferentes para cada
+ambiente:
 
 | Ambiente do Pages | Projeto Supabase | Variáveis |
 |---|---|---|
-| Preview | `aurora-dev` | `VITE_SUPABASE_PRODUCTION_URL`, `VITE_SUPABASE_PRODUCTION_ANON_KEY` |
-| Production | `aurora-prod` | `VITE_SUPABASE_PRODUCTION_URL`, `VITE_SUPABASE_PRODUCTION_ANON_KEY` |
+| Preview | `aurora-dev` | `VITE_SUPABASE_TARGET=development`, `VITE_SUPABASE_PREVIEW_URL`, `VITE_SUPABASE_PREVIEW_ANON_KEY` |
+| Production | `aurora-prod` | `VITE_SUPABASE_TARGET=production`, `VITE_SUPABASE_PRODUCTION_URL`, `VITE_SUPABASE_PRODUCTION_ANON_KEY` |
 
-O nome `PRODUCTION` nas variáveis também é usado em Preview: ambos são builds
-de produção do Vite, e o Cloudflare injeta valores diferentes conforme o
-ambiente do Pages. Assim, o Preview e o app local usam `aurora-dev`, enquanto o
-site publicado usa `aurora-prod`, que preserva os dados existentes. Como a
-unicidade de e-mail vale dentro de cada projeto Supabase, o mesmo endereço pode
-ter uma conta em cada ambiente.
+Defina as variáveis em **Settings → Environment variables**, nos escopos
+Preview e Production correspondentes, e faça um novo deploy após salvar.
+Preview e produção são builds de produção do Vite; por isso, o target explícito
+seleciona o projeto. O app local usa somente as variáveis `LOCAL` e
+`aurora-dev`. Além do target, o cliente confere o project ref esperado: Preview
+aceita somente `cltymialatksylhzsitz` e Production somente
+`xeneztudcqdumfhwotry`. Se o target estiver ausente ou a URL pertencer ao outro
+projeto, a autenticação falha fechada, sem acessar nenhum banco. Como cada
+projeto Supabase mantém seu próprio conjunto de usuários, o mesmo e-mail pode
+ter uma conta em `aurora-dev` e outra em `aurora-prod`.
 
-As variáveis antigas `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` podem ser
-mantidas temporariamente para compatibilidade com deployments criados antes da
-separação. Remova-as somente depois de publicar uma versão que use os nomes
-novos.
+Não configure a URL ou a chave de `aurora-prod` no escopo Preview, nem as de
+`aurora-dev` no escopo Production. Após ajustar as variáveis, publique um novo
+deploy Preview e outro Production e confirme o target antes de testar login ou
+cadastro.
 
 As chaves anon/publishable são valores públicos destinados ao cliente; políticas
 RLS continuam obrigatórias. Nunca use chaves `service_role`, `sb_secret_*`,

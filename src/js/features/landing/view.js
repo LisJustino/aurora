@@ -79,13 +79,14 @@ export function renderLanding(root) {
       <main class="public-main" id="landing-main" tabindex="-1">
         <section class="public-hero" aria-labelledby="landing-title">
           <div class="public-copy">
-            <h1 id="landing-title">Tarefas, hábitos e finanças em um só lugar<span>.</span></h1>
-            <p class="public-lead">Organize tarefas e finanças, acompanhe seus hábitos e use o Pomodoro no seu ritmo.</p>
+            <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal, sem complicação</p>
+            <h1 id="landing-title">Mais clareza para a sua rotina<span>.</span></h1>
+            <p class="public-lead">Planeje a semana, acompanhe hábitos e organize suas finanças — com ferramentas de foco no seu ritmo.</p>
             <div class="public-actions">
-              <button class="btn primary large" type="button" data-public-action="signup">Criar minha conta</button>
-              <button class="btn large" type="button" data-public-action="demo">Ver demonstração</button>
+              <button class="btn primary large" type="button" data-public-action="signup">Criar conta e começar</button>
+              <button class="btn large" type="button" data-public-action="demo">Explorar a demonstração</button>
             </div>
-            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Experimente sem cadastro: a demonstração usa dados fictícios e não lê nem salva dados da sua conta.</span></p>
+            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Sem cadastro: teste uma tarefa, um hábito e o Pomodoro com dados fictícios. A demonstração não acessa sua conta nem salva alterações; os outros recursos ficam disponíveis ao criar uma conta.</span></p>
           </div>
           <figure class="product-preview" role="img" aria-label="Capturas da interface do Aurora em computador e celular">
             <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
@@ -93,39 +94,47 @@ export function renderLanding(root) {
           </figure>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Recursos</p><h2 id="public-features-title">Planejamento, foco, hábitos, finanças e ciclo</h2></div>
+          <div class="public-section-heading"><p class="public-eyebrow">Seu espaço pessoal</p><h2 id="public-features-title">Cuide do que importa, em um só lugar</h2></div>
           <div class="public-values">
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-            <div><h3>Planejar</h3><p>Crie tarefas, defina prazos e organize a semana em lista ou calendário.</p></div>
+            <div><h3>Planejar</h3><p>Transforme ideias em tarefas, organize prazos e enxergue sua semana.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
-            <div><h3>Foco</h3><p>Configure blocos Pomodoro e pausas; associe o timer a uma tarefa.</p></div>
+            <div><h3>Foco</h3><p>Use o Pomodoro com pausas e associe cada sessão a uma tarefa.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
-            <div><h3>Hábitos</h3><p>Marque os dias em que concluiu cada hábito e consulte a frequência.</p></div>
+            <div><h3>Hábitos</h3><p>Acompanhe seus registros ao longo da semana, sem cobrar perfeição.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
-            <div><h3>Finanças</h3><p>Registre receitas e despesas e acompanhe o mês com clareza.</p></div>
+            <div><h3>Finanças</h3><p>Anote receitas e despesas manualmente, sem conexão com bancos.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
-            <div><h3>Ciclo</h3><p>Registre seu ciclo e consulte informações gerais sobre suas fases.</p></div>
+            <div><h3>Ciclo</h3><p>Registre períodos e sintomas e consulte informações gerais, sem substituir orientação profissional.</p></div>
           </article>
           </div>
+        </section>
+        <section class="public-onboarding" aria-labelledby="public-onboarding-title">
+          <div class="public-section-heading"><p class="public-eyebrow">Para começar</p><h2 id="public-onboarding-title">Um passo de cada vez</h2></div>
+          <ol class="public-steps">
+            <li class="public-step card"><span class="public-step-number" aria-hidden="true">01</span><h3>Organize o dia</h3><p>Anote uma tarefa ou distribua seus planos pela semana.</p></li>
+            <li class="public-step card"><span class="public-step-number" aria-hidden="true">02</span><h3>Escolha um hábito</h3><p>Acompanhe algo que faça sentido para a sua rotina, sem buscar perfeição.</p></li>
+            <li class="public-step card"><span class="public-step-number" aria-hidden="true">03</span><h3>Reserve um tempo de foco</h3><p>Inicie o Pomodoro e, se quiser, associe a sessão a uma tarefa.</p></li>
+          </ol>
         </section>
         <section class="public-account-section" aria-labelledby="public-account-access-title">
           <div class="public-account-access card">
             <div class="public-account-copy">
-              <h2 id="public-account-access-title">Acesso à conta</h2>
-              <p>Crie sua conta e comece na hora. Use um e-mail ao qual tenha acesso para poder recuperar sua senha.</p>
-              <p class="public-account-privacy">Seus dados pessoais são associados à sua conta; a demonstração usa apenas dados fictícios.</p>
+              <h2 id="public-account-access-title">Comece pela sua rotina</h2>
+              <p>Crie uma conta para acessar seus próprios registros. Use um e-mail ao qual tenha acesso para recuperar sua senha.</p>
+              <p class="public-account-privacy">O acesso aos registros é limitado à conta autenticada. Finanças são anotadas manualmente; o Aurora não se conecta a bancos.</p>
             </div>
             <div class="public-account-actions">
-              <button class="btn primary" type="button" data-public-action="signup">Criar minha conta</button>
+              <button class="btn primary" type="button" data-public-action="signup">Criar conta e começar</button>
               <button class="btn" type="button" data-public-action="login">Entrar</button>
             </div>
           </div>
@@ -134,7 +143,7 @@ export function renderLanding(root) {
             <div class="public-faq-list">
               <details class="card public-faq-item">
                 <summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary>
-                <p>Os dados da conta ficam associados ao seu usuário e protegidos por acesso isolado. A demonstração usa dados fictícios e não acessa seus registros.</p>
+                <p>Seus registros ficam associados à sua conta e as regras de acesso limitam cada registro ao usuário autenticado. A demonstração usa dados fictícios e não acessa seus registros.</p>
               </details>
               <details class="card public-faq-item">
                 <summary>Preciso confirmar meu e-mail?<span aria-hidden="true">+</span></summary>
@@ -182,7 +191,7 @@ export function renderLandingDemo(root) {
             </section>
           </aside>
         </div>
-        <section class="demo-cta"><div><h2>Acesse seus próprios registros</h2><p>Crie uma conta para usar o Aurora fora da demonstração.</p></div><div class="public-actions"><button class="btn primary" type="button" data-public-action="signup">Criar minha conta</button><button class="btn" type="button" data-public-action="landing">Voltar</button></div></section>
+        <section class="demo-cta"><div><h2>Acesse seus próprios registros</h2><p>Aqui você pode testar uma tarefa, um hábito e o Pomodoro. Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.</p></div><div class="public-actions"><button class="btn primary" type="button" data-public-action="signup">Criar minha conta</button><button class="btn" type="button" data-public-action="landing">Voltar</button></div></section>
       </main>
       <footer class="app-footer public-footer demo-footer site-footer">${renderFooterContent()}</footer>
     </div>`;

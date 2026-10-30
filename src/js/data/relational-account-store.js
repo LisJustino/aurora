@@ -1,3 +1,5 @@
+import { normalizeAccountType } from '../features/finance/accounts.js';
+
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
   'task_tag_assignments', 'weekly_reflections', 'timer_state',
@@ -193,6 +195,10 @@ function indexForTrash(settings, collection) {
 function buildRows(userId, state, idMap) {
   const rows = new Map();
   const settings = state.settings;
+  const habits = [...(state.habits || [])];
+  indexForTrash(settings, 'habits').forEach((record) => {
+    if (!habits.some((item) => item.id === record.value.id)) habits.push(record.value);
+  });
   const taskSources = [
     ...(state.tasks || []),
     ...[...indexForTrash(settings, 'tasks').values()].map((record) => record.value),
@@ -234,18 +240,25 @@ function buildRows(userId, state, idMap) {
   const prefs = { ...(settings.prefs || {}) };
   delete prefs.trash;
   delete prefs.weeklyReflection;
+  const habitWaterGoals = { ...(prefs.habitWaterGoals || {}) };
+  for (const habit of habits) {
+    if (Number.isInteger(habit.waterGoalMl) && habit.waterGoalMl >= 500 && habit.waterGoalMl <= 10000) {
+      habitWaterGoals[habit.id] = habit.waterGoalMl;
+    }
+  }
   pushRow(rows, 'user_settings', {
     id: userId,
     user_id: userId,
     preferences: {
       ...prefs,
+      habitWaterGoals,
       cats: settings.cats || { out: [], in: [] },
       weightTracking: settings.weightTracking === true,
       onboardingComplete: settings.onboardingComplete === true,
       introSeen: settings.introSeen === true,
     },
     enabled_areas: settings.areas || {},
-    account_types: settings.accountTypes || ['checking', 'cash'],
+    account_types: ['checking', 'savings', 'investment'],
   });
   if (settings.prefs?.weeklyReflection?.weekOf) {
     const reflection = settings.prefs.weeklyReflection;
@@ -346,10 +359,6 @@ function buildRows(userId, state, idMap) {
     }));
   });
 
-  const habits = [...(state.habits || [])];
-  indexForTrash(settings, 'habits').forEach((record) => {
-    if (!habits.some((item) => item.id === record.value.id)) habits.push(record.value);
-  });
   for (const habit of habits) {
     const removedAt = deletedAtFor(settings, 'habits', habit.id);
     const habitId = idFor(idMap, 'habits', habit.id);
@@ -443,12 +452,20 @@ function buildRows(userId, state, idMap) {
   indexForTrash(settings, 'finance.recurring').forEach((record) => {
     if (!recurring.some((item) => item.id === record.value.id)) recurring.push(record.value);
   });
+  const accountsById = new Map(accounts.map((account) => [account.id, account]));
   for (const account of accounts) {
+    const linkedAccount = accountsById.get(account.linkedAccountId);
+    const linkedAccountId = account.type === 'credit'
+      && linkedAccount
+      && normalizeAccountType(linkedAccount.type) !== 'credit'
+      ? databaseId(idMap, 'finance_accounts', linkedAccount.id)
+      : null;
     pushRow(rows, 'finance_accounts', rowId(idMap, 'finance_accounts', userId, account.id, {
       name: account.name,
-      account_type: account.type,
+      account_type: normalizeAccountType(account.type),
       initial_cents: account.initialCents,
       bank: account.bank || null,
+      linked_account_id: linkedAccountId,
       limit_cents: account.limitCents ?? null,
       closing_day: account.closingDay ?? null,
       due_day: account.dueDay ?? null,
@@ -577,6 +594,9 @@ function buildRows(userId, state, idMap) {
 
 function taskFromRow(row, tables, idMap, includeDeleted = false) {
   const taskId = sourceId(idMap, 'tasks', row.id);
+  const list = tables.task_lists.find((item) => item.id === row.list_id)?.name;
+  const createdAt = fromIso(row.task_created_at);
+  const plannedTime = timeOnly(row.planned_time);
   const tags = tables.task_tag_assignments
     .filter((assignment) => assignment.task_id === row.id && (includeDeleted || includeActive(assignment)))
     .map((assignment) => tables.tags.find((tag) => tag.id === assignment.tag_id)?.name)
@@ -593,31 +613,33 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     id: taskId,
     title: row.title,
     done: row.is_completed,
-    tag: row.tag || undefined,
-    list: tables.task_lists.find((list) => list.id === row.list_id)?.name,
-    groupId: row.group_key || undefined,
-    groupTitle: row.group_title || undefined,
+    ...(row.tag ? { tag: row.tag } : {}),
+    ...(list ? { list } : {}),
+    ...(row.group_key ? { groupId: row.group_key } : {}),
+    ...(row.group_title ? { groupTitle: row.group_title } : {}),
     dueDate: row.due_date,
     priority: row.priority,
-    createdAt: fromIso(row.task_created_at) || undefined,
-    doneAt: row.completed_at || undefined,
-    time: timeOnly(row.planned_time) || undefined,
-    repeat: row.repeat_rule === 'none' ? undefined : row.repeat_rule,
-    remind: row.remind_minutes ?? undefined,
-    notes: row.notes || undefined,
+    ...(createdAt ? { createdAt } : {}),
+    ...(row.completed_at ? { doneAt: row.completed_at } : {}),
+    ...(plannedTime ? { time: plannedTime } : {}),
+    ...(row.repeat_rule && row.repeat_rule !== 'none' ? { repeat: row.repeat_rule } : {}),
+    ...(row.remind_minutes != null ? { remind: row.remind_minutes } : {}),
+    ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
-    tags: tags.length ? tags : undefined,
-    subtasks: subtasks.length ? subtasks : undefined,
-    sample: row.is_test_data || undefined,
+    ...(tags.length ? { tags } : {}),
+    ...(subtasks.length ? { subtasks } : {}),
+    ...(row.is_test_data ? { sample: true } : {}),
   };
 }
 
 function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
   if (table === 'finance_accounts') return {
-    id, name: row.name, type: row.account_type, initialCents: numeric(row.initial_cents),
-    bank: row.bank || undefined, limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
+    id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
+    bank: row.bank || undefined,
+    ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
+    limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
     closingDay: row.closing_day ?? undefined, dueDay: row.due_day ?? undefined,
     sample: row.is_test_data || undefined,
   };
@@ -713,6 +735,8 @@ function loadTrash(tables, idMap) {
 
 function habitFromRow(row, tables, idMap, includeDeleted = false) {
   const habitId = sourceId(idMap, 'habits', row.id);
+  const habitWaterGoals = tables.user_settings?.[0]?.preferences?.habitWaterGoals;
+  const waterGoalMl = habitWaterGoals?.[habitId];
   const logs = tables.habit_logs.filter((log) => log.habit_id === row.id && (includeDeleted || includeActive(log)));
   const completions = logs.filter((log) => log.status === 'completed').map((log) => log.log_date);
   const skipped = logs.filter((log) => log.status === 'skipped').map((log) => log.log_date);
@@ -729,6 +753,7 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
     icon: row.icon || undefined,
     color: row.color || undefined,
     weeklyGoal: row.weekly_goal || undefined,
+    ...(Number.isInteger(waterGoalMl) && waterGoalMl >= 500 && waterGoalMl <= 10000 ? { waterGoalMl } : {}),
     remind: timeOnly(row.remind) || undefined,
     sample: row.is_test_data || undefined,
   };
@@ -774,7 +799,6 @@ function buildState(tables, idMap) {
     })),
     cats: preferences.cats || { out: [], in: [] },
     weightTracking: preferences.weightTracking === true,
-    accountTypes: userSettings.account_types || ['checking', 'cash'],
     onboardingComplete: preferences.onboardingComplete === true,
     introSeen: preferences.introSeen === true,
     prefs: {

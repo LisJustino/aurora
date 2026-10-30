@@ -218,27 +218,8 @@
 }
 
 .footer-back-to-top {
-  display: inline-flex;
-  min-height: var(--control-sm);
-  align-items: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: .18em;
-  cursor: pointer;
-}
-
-.footer-back-to-top:hover {
-  color: var(--accent);
-}
-
-.footer-back-to-top:focus-visible {
-  outline: 3px solid var(--ring);
-  outline-offset: var(--space-half);
-  border-radius: var(--r-control);
+  align-self: flex-end;
+  white-space: nowrap;
 }
 
 .app-footer.site-footer {

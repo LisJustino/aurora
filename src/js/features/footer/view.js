@@ -42,15 +42,11 @@ export function renderFooterContent({
           </details>
           <details>
             <summary>Preciso de uma conta?</summary>
-            <p>Você pode explorar a demonstração sem cadastro. Para guardar seus próprios dados, crie e confirme uma conta.</p>
+            <p>Você pode explorar a demonstração sem cadastro. Para guardar seus próprios registros, crie uma conta.</p>
           </details>
           <details>
             <summary>O que acontece sem conexão?</summary>
             <p>O Aurora avisa quando está sem conexão e bloqueia gravações. Alterações offline não são sincronizadas automaticamente.</p>
-          </details>
-          <details>
-            <summary>Como configuro o acesso à conta?</summary>
-            <p>Adicione a URL do projeto e a chave pública anon ou publishable em .env.local e reinicie o servidor Vite. Nunca use uma chave service_role ou secret.</p>
           </details>
           <details>
             <summary>Como envio uma sugestão?</summary>
@@ -73,7 +69,7 @@ export function renderFooterContent({
       </details>
       <div class="footer-meta">
         <span>© ${new Date().getFullYear()} Aurora</span>
-        <button class="footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo</button>
+        <button class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo</button>
       </div>
       <dialog class="dlg legal-modal" data-legal-modal aria-labelledby="legal-modal-title">
         <header class="head legal-modal-header">
@@ -83,14 +79,7 @@ export function renderFooterContent({
         <p class="legal-modal-status" data-legal-dialog-status role="status" aria-live="polite" hidden></p>
         <div class="dlg-body legal-modal-content" data-legal-dialog-content role="region" aria-busy="false" tabindex="0"></div>
         <footer class="dlg-foot legal-modal-footer">
-          <label class="legal-modal-consent" data-legal-consent-choice hidden>
-            <input type="checkbox" data-legal-consent-checkbox disabled>
-            <span>Li e aceito os Termos de Uso e a Política de Privacidade.</span>
-          </label>
-          <span class="legal-modal-progress" data-legal-reading-progress role="status" aria-live="polite" hidden></span>
-          <button class="btn back" type="button" data-legal-jump-to-end aria-label="Ir ao fim do próximo documento não lido" hidden>Ir ao fim</button>
-          <button class="btn primary" type="button" data-legal-consent-confirm hidden disabled>Confirmar aceite</button>
-          <button class="btn back" type="button" data-legal-modal-close data-legal-close-only>Fechar</button>
+          <button class="btn back" type="button" data-legal-modal-close>Fechar</button>
         </footer>
       </dialog>
     </div>`;

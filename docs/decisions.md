@@ -13,8 +13,11 @@
   contraceptivo. Datas e dados de saúde são tratados como informação pessoal.
 - O hábito “Beber água” permite registrar cada volume em mL e acompanhar a meta
   diária; os registros usam a fatia de água compatível com os backups existentes.
-- Notificações Push do Pomodoro são opcionais, ativadas por ação da pessoa e
-  limitadas aos dados necessários ao agendamento do timer.
+- Notificações Push do Pomodoro e dos lembretes de Hábitos são opcionais,
+  ativadas por ação explícita da pessoa e limitadas aos dados necessários ao
+  agendamento; nomes e conteúdo dos hábitos não são enviados ao Worker. A
+  inscrição é compartilhada neste dispositivo, então desativá-la interrompe
+  ambos os recursos.
 - A interface mantém suporte a teclado, leitores de tela, layouts responsivos
   e temas claro e escuro.
 - O cadastro e cada atualização de documentos exigem aceite explícito dos
@@ -23,8 +26,8 @@
   a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
 - O cadastro não exige confirmação do e-mail para liberar acesso. Projetos
   Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
-  impedir recuperação da conta. Contas antigas ainda pendentes podem confirmar
-  o endereço como compatibilidade.
+  impedir recuperação da conta. O app não envia links de confirmação; contas
+  antigas pendentes precisam ser liberadas manualmente no Dashboard do Supabase.
 - No cadastro, um e-mail que o Supabase identifica como já associado recebe
   orientação de que uma exclusão confirmada libera novo cadastro sem os dados
   anteriores; erros não reconhecidos continuam sem detalhes técnicos do
@@ -42,6 +45,9 @@
 - Dados de conta são associados ao usuário autenticado e protegidos por RLS.
 - Falhas de leitura ou gravação devem ser informadas; a interface não deve
   apresentar uma operação malsucedida como concluída.
+- Campos opcionais nulos vindos do banco são omitidos ao reconstruir o estado;
+  propriedades próprias com `undefined` não podem fazer registros válidos
+  falharem na validação de integridade.
 - Não remover chaves, registros, tabelas ou formatos de backup legados sem
   revisão de compatibilidade e confirmação explícita.
 

@@ -91,6 +91,34 @@ test('Push visível não duplica o aviso do sistema; Push em segundo plano o exi
   assert.equal(harness.shown[0][1].tag, 'aurora-pomodoro');
 });
 
+test('aviso de hábito usa texto genérico e abre a área de Hábitos ao ser clicado', async () => {
+  const harness = serviceWorkerHarness();
+  const reminder = pushEvent({ kind: 'habit-reminder' });
+  harness.listeners.get('push')(reminder.event);
+  await reminder.complete();
+  assert.equal(harness.shown[0][0], 'Aurora · Hábitos');
+  assert.match(harness.shown[0][1].body, /horário de hábito chegou/i);
+  assert.equal(harness.shown[0][1].tag, 'aurora-habits');
+  assert.equal(harness.shown[0][1].data.route, 'habitos');
+
+  const navigated = [];
+  const focused = [];
+  harness.windows.push({
+    visibilityState: 'hidden',
+    url: 'https://aurora.example/',
+    navigate: async (url) => navigated.push(url),
+    focus: async () => focused.push(true),
+  });
+  let completion;
+  harness.listeners.get('notificationclick')({
+    notification: { data: { route: 'habitos' }, close() {} },
+    waitUntil: (promise) => { completion = promise; },
+  });
+  await completion;
+  assert.deepEqual(navigated, ['https://aurora.example/pages/habitos.html']);
+  assert.deepEqual(focused, [true]);
+});
+
 test('clique na notificação foca uma janela existente ou abre o app', async () => {
   const harness = serviceWorkerHarness();
   const focused = [];

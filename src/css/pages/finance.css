@@ -218,6 +218,74 @@
 .bank-choice .ci { width: 34px; height: 34px; border-radius: var(--r-sm); }
 .bank-choice .bank-logo { padding: 3px; }
 .bank-choice-name { min-width: 0; overflow-wrap: anywhere; }
+.account-type-field {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.account-type-field > .f-label { margin-bottom: 0; }
+.account-type-help { margin: 0 0 8px; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
+.account-type-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.account-type-choice {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 28px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+.account-type-choice:hover { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
+.account-type-choice:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--soft2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.account-type-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.account-type-choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.account-type-choice-icon { flex: none; }
+.account-type-choice-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.account-type-choice-copy b { font-size: var(--text-sm); }
+.account-type-choice-copy small { color: var(--muted); font-size: var(--text-meta); line-height: 1.4; }
+.account-type-choice-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: transparent;
+}
+.account-type-choice:has(input:checked) .account-type-choice-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-solid);
+}
+@media (max-width: 480px) {
+  .account-type-picker { grid-template-columns: minmax(0, 1fr); }
+  .account-type-choice { min-height: 60px; align-items: center; }
+}
 .meta2 { display: block; color: var(--muted); font-size: var(--text-meta); }
 .meta2 .m-warn { color: var(--warn); font-weight: 600; }
 .meta2 .m-bad { color: var(--bad); font-weight: 600; }

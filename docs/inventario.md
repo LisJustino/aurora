@@ -13,7 +13,7 @@ SPA em JavaScript puro (módulos ES), empacotada pelo Vite. Dados de conta no Su
 - Recursos globais: busca (Ctrl+K), notificações, onboarding, dados de exemplo.
 
 ## Arquivos
-- `index.html`, `service-worker.js`, `manifest.webmanifest`, `pages/*.html` (entradas de rota), `icons/`.
+- `index.html`, `service-worker.js`, `public/manifest.webmanifest`, `pages/*.html` (entradas de rota), `icons/`.
 - `src/js/main.js` (~5.090 linhas: templates, estado, ações, formulários, diálogos).
 - `src/js/core/`: router, data-integrity, backup-transaction.
 - `src/js/features/`: finance/calculations, habits (model, water-goal, template), pomodoro, water/template, backup reminder, planning (week, recurrence), navigation/menu, search, cycle/phases.

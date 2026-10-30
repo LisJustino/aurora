@@ -1,4 +1,4 @@
-export const FINANCE_PRIVACY_NOTICE = 'O Aurora não se conecta a bancos nem solicita sua senha bancária. Você escolhe o que cadastrar ou importar; esses registros ficam associados à sua conta Aurora e são tratados pelo Supabase conforme a Política de Privacidade.';
+export const FINANCE_PRIVACY_NOTICE = 'O Aurora não se conecta a bancos nem solicita sua senha bancária. Você escolhe o que cadastrar ou importar; esses registros ficam associados à sua conta Aurora e são tratados conforme a Política de Privacidade.';
 
 export const AREA_GUIDES = {
   inicio: {

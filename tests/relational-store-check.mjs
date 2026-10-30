@@ -31,6 +31,16 @@ const settledDateMigration = await readFile(
 );
 assert.match(settledDateMigration, /add column if not exists settled_date date/i);
 assert.doesNotMatch(settledDateMigration, /update\s+public\.finance_transactions/i);
+const financeAccountMigration = await readFile(
+  new URL('../supabase/migrations/20261030110000_finance_account_types_and_card_link.sql', import.meta.url),
+  'utf8',
+);
+assert.match(financeAccountMigration, /set account_type = 'checking'\s+where account_type = 'cash'/i);
+assert.match(financeAccountMigration, /'checking', 'savings', 'investment', 'credit'/i);
+assert.match(financeAccountMigration, /linked_account_id uuid/i);
+assert.match(financeAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
+assert.match(financeAccountMigration, /on delete set null \(linked_account_id\)/i);
+assert.match(financeAccountMigration, /linked_account_id is null or account_type = 'credit'/i);
 
 const trashCollectionMigration = await readFile(
   new URL('../supabase/migrations/20261029040000_trash_cycle_collection.sql', import.meta.url),
@@ -115,14 +125,29 @@ const state = {
   },
   tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', subtasks: [], tags: [] }],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
-  habits: [],
+  habits: [{
+    id: 'water-habit',
+    name: 'Beber água',
+    days: [0, 1, 2, 3, 4, 5, 6],
+    completions: [],
+    status: 'active',
+    tracking: 'water',
+    waterGoalMl: 2750,
+  }],
   water: [{ id: 'water-log-1', ml: 250, at: '2026-10-29T12:00:00.000Z' }],
   gym: { templates: [], logs: [] },
   finance: {
-    accounts: [{ id: 'account-1', name: 'Conta', type: 'checking', initialCents: 0 }],
+    accounts: [
+      { id: 'account-1', name: 'Conta', type: 'checking', initialCents: 0 },
+      { id: 'investment-1', name: 'Investimentos', type: 'investment', initialCents: 12000 },
+      { id: 'card-1', name: 'Cartão', type: 'credit', initialCents: 0, linkedAccountId: 'investment-1' },
+      { id: 'card-stale-link', name: 'Cartão sem vínculo válido', type: 'credit', initialCents: 0, linkedAccountId: 'missing-account' },
+      { id: 'cash-legacy', name: 'Carteira antiga', type: 'cash', initialCents: 500 },
+    ],
     tx: [
       { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', desc: 'Teste' },
       { id: 'tx-legacy', type: 'in', accountId: 'account-1', cents: 2500, date: '2026-10-27', desc: 'Antigo' },
+      { id: 'tx-cash', type: 'in', accountId: 'cash-legacy', cents: 500, date: '2026-10-26', desc: 'Saldo preservado' },
     ],
     budgets: { Mercado: { cents: 5000 } },
     goals: [],
@@ -144,6 +169,13 @@ assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
 assert.equal(changeByTable.get('finance_transactions')[0].user_id, userId);
+const accountRowsByLegacyId = new Map(changeByTable.get('finance_accounts').map((row) => [row.legacy_id, row]));
+assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment');
+assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');
+assert.equal(accountRowsByLegacyId.get('card-1').linked_account_id, accountRowsByLegacyId.get('investment-1').id);
+assert.equal(accountRowsByLegacyId.get('card-stale-link').linked_account_id, null);
+assert.equal(changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-cash').account_id, accountRowsByLegacyId.get('cash-legacy').id);
+assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking', 'savings', 'investment']);
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
 assert.equal(changeByTable.get('cycle_periods')[0].start_date, '2026-10-25');
 assert.equal(changeByTable.get('cycle_periods')[0].end_date, '2026-10-29');
@@ -161,6 +193,7 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 });
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
 assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
@@ -210,6 +243,9 @@ const loadClient = {
   },
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
+assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
+assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
+assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
@@ -220,6 +256,7 @@ assert.deepEqual(loadedState.water, [{
   at: '2026-10-29T12:00:00.000Z',
   sample: undefined,
 }]);
+assert.equal(loadedState.habits.find((habit) => habit.id === 'water-habit').waterGoalMl, 2750);
 const trashedPeriodRecord = loadedState.settings.prefs.trash[0].records[0];
 assert.equal(trashedPeriodRecord.collection, 'cycle');
 assert.equal(trashedPeriodRecord.key, '2026-10-10|2026-10-12');
@@ -289,6 +326,27 @@ const accountRows = {
     preferences: { onboardingComplete: true, introSeen: true },
     enabled_areas: { finances: true },
   }],
+  tasks: [{
+    id: 'task-with-optional-fields',
+    title: 'Tarefa válida',
+    is_completed: false,
+    tag: null,
+    list_id: null,
+    group_key: null,
+    group_title: null,
+    due_date: null,
+    priority: 'normal',
+    task_created_at: '2026-10-30T12:00:00.000Z',
+    completed_at: null,
+    planned_time: null,
+    repeat_rule: 'none',
+    remind_minutes: null,
+    notes: null,
+    sort_order: 0,
+    focus_seconds: 0,
+    is_test_data: false,
+    deleted_at: null,
+  }],
 };
 const loadingClient = {
   from(table) {
@@ -300,6 +358,15 @@ const loadingClient = {
 };
 const loaded = await new RelationalAccountStore(loadingClient, userId).load();
 assert.ok(Array.isArray(loaded.tasks));
+assert.equal(loaded.tasks.length, 1);
+assert.equal(loaded.tasks[0].title, 'Tarefa válida');
+assert.equal(loaded.tasks[0].dueDate, null);
+assert.equal(loaded.tasks[0].priority, 'normal');
+assert.equal(loaded.tasks[0].focusSeconds, 0);
+assert.equal(Object.values(loaded.tasks[0]).includes(undefined), false);
+for (const field of ['tag', 'list', 'groupId', 'groupTitle', 'doneAt', 'time', 'repeat', 'remind', 'notes', 'tags', 'subtasks', 'sample']) {
+  assert.equal(Object.hasOwn(loaded.tasks[0], field), false, `${field} should be omitted when empty`);
+}
 assert.ok(Array.isArray(loaded.habits));
 assert.deepEqual(loaded.finance.budgets, {});
 assert.equal(loaded.settings.onboardingComplete, true);

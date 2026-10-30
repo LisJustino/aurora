@@ -364,6 +364,11 @@
 .public-section-heading h2,
 .public-account-access h2 { font-size: var(--text-heading); }
 .public-values { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-4); }
+.public-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.public-step { display: grid; align-content: start; gap: var(--space-2); min-width: 0; padding: var(--space-5); }
+.public-step-number { color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-bold); letter-spacing: .08em; }
+.public-step h3 { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.public-step p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
 .public-value {
   min-height: 152px;
   padding: var(--space-5);
@@ -432,6 +437,7 @@
 @media (max-width: 900px) {
   .public-hero { grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); }
   .public-values { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .public-steps { gap: var(--space-3); }
   .public-value { flex-direction: column; }
   .public-faq-list { grid-template-columns: minmax(0, 1fr); }
 }
@@ -441,6 +447,7 @@
   .public-hero { grid-template-columns: minmax(0, 1fr); }
   .public-hero h1 { max-width: 560px; }
   .public-values { grid-template-columns: minmax(0, 1fr); }
+  .public-steps { grid-template-columns: minmax(0, 1fr); }
   .public-value { min-height: auto; flex-direction: row; }
   .public-account-access { align-items: flex-start; flex-direction: column; }
   .public-account-actions { width: 100%; }

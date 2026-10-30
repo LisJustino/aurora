@@ -408,8 +408,9 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .main[data-route="habitos"] .card > .head:first-child h2 { font-size: var(--text-xl); }
 .main[data-route="habitos"] .habit-reminder-note {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   margin: -4px 0 2px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--area-tone) 24%, var(--line));
@@ -419,6 +420,17 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   font-size: var(--text-xs);
   line-height: 1.45;
 }
+.main[data-route="habitos"] .habit-reminder-note p { margin: 0; }
+.main[data-route="habitos"] .habit-week-overview { display: grid; gap: 10px; }
+.main[data-route="habitos"] .habit-week-overview h2 { margin: 0; font-size: var(--text-lg); }
+.main[data-route="habitos"] .habit-week-overview > div > p { margin: 4px 0 0; }
+.main[data-route="habitos"] .habit-week-overview > progress { width: 100%; height: 8px; accent-color: var(--area-tone); }
+.main[data-route="habitos"] .habit-resume-list { border-top: 1px solid var(--line); padding-top: 8px; }
+.main[data-route="habitos"] .habit-resume-list > summary { display: flex; min-height: 36px; align-items: center; gap: 8px; cursor: pointer; font-size: var(--text-sm); font-weight: 700; }
+.main[data-route="habitos"] .habit-resume-list ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.main[data-route="habitos"] .habit-resume-list li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.main[data-route="habitos"] .habit-resume-list li > span { min-width: 0; overflow-wrap: anywhere; }
+.main[data-route="habitos"] .habit-row.is-pending { border-color: color-mix(in srgb, var(--area-tone) 28%, var(--line)); }
 .main[data-route="habitos"] .habit-reminder-note .ic { flex: none; margin-top: 1px; color: var(--area-tone); }
 .main[data-route="habitos"] .habit-record-actions > .btn { min-height: var(--control-sm); padding-inline: 14px; }
 :root[data-theme="dark"] .habit-record { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
