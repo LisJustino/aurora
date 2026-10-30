@@ -75,9 +75,10 @@ import {
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { renderFooterContent } from './features/footer/view.js';
 import {
-  isLegalDocumentAtEnd,
+  jumpToNextUnreadLegalDocument,
   showLegalConsentDocuments,
   showLegalDocument,
+  updateLegalConsentProgress,
 } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, initializePublicAppearance } from './features/appearance/public-controls.js';
@@ -5898,6 +5899,13 @@ document.addEventListener('click', async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
 
+  const jumpToEnd = target.closest('[data-legal-jump-to-end]');
+  if (jumpToEnd) {
+    const dialog = jumpToEnd.closest('dialog[data-legal-modal]');
+    if (dialog instanceof HTMLDialogElement) jumpToNextUnreadLegalDocument(dialog);
+    return;
+  }
+
   const consentConfirm = target.closest('[data-legal-consent-confirm]');
   if (consentConfirm) {
     const dialog = consentConfirm.closest('dialog[data-legal-modal]');
@@ -5963,16 +5971,7 @@ document.addEventListener('click', async (event) => {
 });
 
 function updateLegalConsentReading(dialog) {
-  if (dialog.dataset.legalConsent !== 'true') return;
-  const content = dialog.querySelector('[data-legal-dialog-content]');
-  const checkbox = dialog.querySelector('[data-legal-consent-checkbox]');
-  const confirm = dialog.querySelector('[data-legal-consent-confirm]');
-  const status = dialog.querySelector('[data-legal-dialog-status]');
-  if (!content || !(checkbox instanceof HTMLInputElement) || !confirm || !status) return;
-
-  checkbox.disabled = !isLegalDocumentAtEnd(content);
-  confirm.disabled = checkbox.disabled || !checkbox.checked;
-  if (!checkbox.disabled) status.hidden = true;
+  updateLegalConsentProgress(dialog);
 }
 
 document.addEventListener('change', (event) => {
@@ -5981,10 +5980,7 @@ document.addEventListener('change', (event) => {
     : null;
   if (!checkbox) return;
   const dialog = checkbox.closest('dialog[data-legal-modal]');
-  const content = dialog?.querySelector('[data-legal-dialog-content]');
-  const confirm = dialog?.querySelector('[data-legal-consent-confirm]');
-  if (!dialog || !content || !confirm) return;
-  confirm.disabled = !isLegalDocumentAtEnd(content) || !checkbox.checked;
+  if (dialog instanceof HTMLDialogElement) updateLegalConsentProgress(dialog);
 });
 
 document.addEventListener('scroll', (event) => {

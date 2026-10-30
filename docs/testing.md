@@ -80,6 +80,7 @@ npm --prefix worker test
 - **Não executado automaticamente:** implantação da Edge Function, exclusão real de conta, limpeza em Worker publicado, CORS/configuração de secrets ou exclusão em cascata no Supabase. Esses cenários exigem projeto isolado e conta/inscrição fictícias; nunca testar em conta real.
 - O cadastro/login real e a configuração **Confirm email** nos projetos Supabase não foram testados. O acesso imediato depende de desativar essa opção em cada projeto; não foi criada nem alterada nenhuma conta remota.
 - **Aprovado:** navegador local em 390 px — percorrer somente os Termos manteve o aceite bloqueado; percorrer também a Política liberou a caixa e o botão após marcar o aceite; sem overflow horizontal nem erros JavaScript.
+- **Aprovado (2026-10-30):** `node tests/e2e/legal-consent-progress.cjs http://127.0.0.1:5174` — progresso “1 de 2 lidos”, botão “Ir ao fim” acionado por Enter, progresso preservado ao reabrir e aceite bloqueado até o fim dos dois documentos em 390 px.
 - Login real e envio do cadastro, aceite e reenvio de confirmação não foram testados; a validação do fluxo foi feita localmente sem enviar dados ao Supabase.
 
 ## Limites
