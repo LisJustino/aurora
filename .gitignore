@@ -36,3 +36,15 @@ Desktop.ini
 .local/
 .vite/
 worker/.wrangler/
+supabase/.temp/
+
+# Instruções e personalizações locais de agentes
+CLAUDE.md
+AGENTS.md
+.github/copilot-instructions.md
+.github/instructions/
+.github/agents/
+.github/prompts/
+.github/skills/
+.agents/skills/
+.claude/skills/

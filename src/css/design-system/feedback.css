@@ -61,3 +61,72 @@
   .empty-copy { width: 100%; min-width: 0; }
   .empty-action, .empty-action > .btn { width: 100%; }
 }
+
+/* Progresso fala a mesma linguagem em todas as áreas, preservando a cor de cada contexto. */
+.main[data-route] { --progress-tone: var(--area-tone, var(--accent)); }
+.bar {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--progress-tone) 14%, transparent);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--progress-tone) 10%, var(--surface));
+}
+.bar { height: 8px; }
+.bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--progress-tone);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, white 34%, transparent);
+  transition: width var(--duration-base) var(--ease-standard);
+}
+.bar.near > span { background: var(--warn); }
+.bar.over > span { background: var(--bad); }
+
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.save-indicator::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  content: "";
+}
+.save-indicator[data-status="warning"]::before { background: var(--warn); }
+
+.offline-banner {
+  position: sticky;
+  z-index: 9;
+  top: 68px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--warn) 42%, var(--line));
+  box-shadow: var(--shadow-sm);
+}
+.offline-banner > .ic { flex: none; margin-top: 2px; }
+
+@media (max-width: 700px) {
+  .save-indicator { justify-content: center; }
+}
+
+@media (max-width: 899px) {
+  .offline-banner { top: 72px; }
+  :root[data-scrolled="true"] .offline-banner { top: 58px; }
+}
+
+/* Retorno visual discreto para conclusões, inclusive sem depender de toast. */
+@keyframes completion-feedback {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 0%, transparent); }
+  35% { transform: translateY(-2px); box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 18%, transparent); }
+  100% { transform: translateY(0); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+.completion-feedback { animation: completion-feedback .72s var(--ease-standard); }
+@media (prefers-reduced-motion: reduce) {
+  .completion-feedback { animation: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 24%, transparent); }
+}

@@ -140,7 +140,7 @@
   box-sizing: border-box;
   width: min(760px, calc(100vw - var(--space-4) * 2));
   max-width: none;
-  max-height: min(calc(100dvh - max(16px, env(safe-area-inset-top, 0px)) - max(16px, env(safe-area-inset-bottom, 0px))), 820px);
+  max-height: min(calc(100vh - max(16px, env(safe-area-inset-top, 0px)) - max(16px, env(safe-area-inset-bottom, 0px))), 820px);
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -148,6 +148,12 @@
   background: var(--surface-strong);
   color: var(--ink);
   box-shadow: var(--shadow);
+}
+
+@supports (height: 100dvh) {
+  .legal-modal {
+    max-height: min(calc(100dvh - max(16px, env(safe-area-inset-top, 0px)) - max(16px, env(safe-area-inset-bottom, 0px))), 820px);
+  }
 }
 
 .legal-modal::backdrop {
@@ -279,7 +285,6 @@
 
   .legal-modal {
     width: calc(100vw - var(--space-3) * 2);
-    max-height: min(calc(100dvh - max(16px, env(safe-area-inset-top, 0px)) - max(16px, env(safe-area-inset-bottom, 0px))), 820px);
     border-radius: var(--r-large);
   }
 

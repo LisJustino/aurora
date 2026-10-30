@@ -7,6 +7,11 @@ const TABLES = [
   'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records',
 ];
 const MANAGED_TABLES = TABLES.filter((table) => table !== 'push_subscriptions');
+const versionId = (table, row) => (
+  table === 'profiles' || table === 'user_settings'
+    ? row.user_id
+    : row.id
+);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuidLike = (value) => typeof value === 'string' && UUID.test(value);
@@ -17,6 +22,19 @@ const localDate = (timestamp) => {
 };
 const toIso = (value) => value == null ? null : new Date(value).toISOString();
 const fromIso = (value) => value == null ? null : Date.parse(value);
+const sortObject = (value) => {
+  if (Array.isArray(value)) return value.map((item) => sortObject(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, sortObject(item)]));
+  }
+  return value;
+};
+const rowSignature = (row) => {
+  const data = { ...(row || {}) };
+  delete data.updated_at;
+  delete data.expected_updated_at;
+  return JSON.stringify(sortObject(data));
+};
 const byId = (rows) => new Map(rows.map((row) => [row.id, row]));
 const includeActive = (row) => !row.deleted_at;
 const dateMonth = (month) => `${month}-01`;
@@ -56,8 +74,30 @@ function rowId(idMap, table, userId, sourceIdValue, extra = {}) {
     id: idFor(idMap, table, source),
     user_id: userId,
     legacy_id: uuidLike(source) ? null : source,
+    updated_at: toIso(Date.now()),
     ...extra,
   };
+}
+
+function diffTableRows(previousRows = [], nextRows = []) {
+  const previousMap = new Map((previousRows || []).map((row) => [row.id, row]));
+  const nextMap = new Map((nextRows || []).map((row) => [row.id, row]));
+  const changed = [];
+
+  for (const row of nextRows) {
+    const previous = previousMap.get(row.id);
+    if (!previous || rowSignature(previous) !== rowSignature(row)) {
+      changed.push(row);
+    }
+  }
+
+  for (const [id, row] of previousMap) {
+    if (!nextMap.has(id)) {
+      changed.push({ ...row, updated_at: toIso(Date.now()), deleted_at: toIso(Date.now()) });
+    }
+  }
+
+  return changed;
 }
 
 function databaseId(idMap, table, appId) {
@@ -839,6 +879,7 @@ export class RelationalAccountStore {
     this.client = client;
     this.userId = userId;
     this.idMap = getIdMap();
+    this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 
   async load() {
@@ -849,24 +890,54 @@ export class RelationalAccountStore {
     const tables = Object.fromEntries(result);
     this.rawTables = tables;
     for (const table of TABLES) {
+      this.rowVersions.get(table).clear();
       for (const row of tables[table]) {
         if (row.legacy_id) this.idMap.get(table).set(row.legacy_id, row.id);
+        if (row.updated_at) this.rowVersions.get(table).set(versionId(table, row), row.updated_at);
       }
     }
     return buildState(tables, this.idMap);
   }
 
-  async save(state) {
+  async save(state, previousState = null) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. A alteração não foi gravada; conecte-se e tente novamente.');
     }
     const rows = buildRows(this.userId, state, this.idMap);
-    const changes = MANAGED_TABLES.map((table) => ({
-      table,
-      rows: rows.get(table) || [],
-    }));
-    const { error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
+    const previousRows = previousState ? buildRows(this.userId, previousState, this.idMap) : null;
+    const changes = MANAGED_TABLES.map((table) => {
+      const nextRows = rows.get(table) || [];
+      const previousTableRows = previousRows?.get(table) || [];
+      const replaceMissing = previousRows === null;
+      const changedRows = previousRows ? diffTableRows(previousTableRows, nextRows) : nextRows;
+      const versions = this.rowVersions.get(table);
+      return {
+        table,
+        replace_missing: replaceMissing,
+        expected_versions: replaceMissing
+          ? [...versions].map(([id, updatedAt]) => ({
+            id,
+            user_id: this.userId,
+            expected_updated_at: updatedAt,
+          }))
+          : [],
+        rows: changedRows.map((row) => ({
+          ...row,
+          expected_updated_at: versions.get(versionId(table, row)) ?? null,
+        })),
+      };
+    });
+    const { data, error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
     if (error) {
+      const conflictMessage = typeof error.message === 'string' ? error.message : '';
+      const isVersionConflict = /version_conflict|recarregue os dados da conta|atualizada em outro dispositivo/i.test(conflictMessage)
+        || String(error.code || '').toLowerCase() === 'version_conflict';
+      if (isVersionConflict) {
+        const friendlyMessage = conflictMessage || 'A linha foi atualizada em outro dispositivo. Recarregue os dados da conta e tente novamente.';
+        const versionError = new Error(friendlyMessage);
+        versionError.code = 'version_conflict';
+        throw versionError;
+      }
       console.error('Aurora: a gravação relacional da conta falhou.', error);
       const code = typeof error.code === 'string' && /^[\w-]{1,32}$/.test(error.code)
         ? `Código ${error.code}. `
@@ -875,6 +946,31 @@ export class RelationalAccountStore {
         ? error.message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
         : '';
       throw new Error(`Não foi possível salvar as alterações na conta. ${code}${message}`.trim());
+    }
+    if (!Array.isArray(data)) {
+      throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+    }
+    for (const change of changes) {
+      const savedTable = data.find((result) => result?.table === change.table);
+      if (!savedTable || !Array.isArray(savedTable.rows)) {
+        throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+      }
+      for (const row of change.rows) {
+        const key = versionId(change.table, row);
+        if (!savedTable.rows.some((saved) => versionId(change.table, saved) === key && typeof saved.updated_at === 'string')) {
+          throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+        }
+      }
+    }
+    for (const result of data) {
+      if (!result || !Array.isArray(result.rows) || !this.rowVersions.has(result.table)) continue;
+      const versions = this.rowVersions.get(result.table);
+      for (const row of result.rows) {
+        const key = versionId(result.table, row);
+        if (typeof key === 'string' && typeof row.updated_at === 'string') {
+          versions.set(key, row.updated_at);
+        }
+      }
     }
   }
 
@@ -943,5 +1039,7 @@ export class RelationalAccountStore {
       console.error('Aurora: não foi possível apagar os dados relacionais da conta.', error);
       throw new Error('Não foi possível apagar os dados relacionais; os dados restantes foram preservados.');
     }
+    this.rawTables = null;
+    this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 }
