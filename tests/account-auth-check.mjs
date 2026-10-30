@@ -35,7 +35,6 @@ assert.deepEqual(resolveSupabaseConfig({
   productionUrl: 'https://legacy-project.supabase.co',
   productionAnonKey: 'legacy-public-key',
 }), { url: '', anonKey: '' });
-
 assert.equal(isPasswordRecoveryCallback({ search: '?type=recovery', hash: '' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '?code=', hash: '' }), false);
