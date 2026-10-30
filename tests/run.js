@@ -1,4 +1,5 @@
 
+import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { parseMoney } from '../src/js/utils/currency.js';
@@ -116,6 +117,17 @@ const test = (name, run) => {
     });
   }
 };
+
+test('inicia os alertas antes de aguardar o service worker', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const start = source.indexOf('async function startAuthenticatedAurora(');
+  const end = source.indexOf('\nfunction showAccountStartupError', start);
+  if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização autenticada.');
+  const startup = source.slice(start, end);
+  const timer = startup.indexOf('setInterval(tick, 1000)');
+  const serviceWorker = startup.indexOf('await navigator.serviceWorker.ready');
+  if (timer < 0 || serviceWorker <= timer) throw new Error('O timer precisa iniciar antes do service worker.');
+});
 
 const equal = (actual, expected) => {
   if (actual !== expected) {
