@@ -20,7 +20,6 @@
   font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: .095em;
-  text-transform: uppercase;
 }
 .home-head h1 { max-width: 18ch; font-size: clamp(2.15rem, 4.5vw, 3rem); }
 .home-head .lead { max-width: 52ch; margin-top: 12px; color: var(--muted); font-size: var(--text-base); }
@@ -49,6 +48,7 @@
 .home-tools > .head { margin-bottom: 0; }
 .home-tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .home-tool-grid.single { grid-template-columns: minmax(0, 1fr); }
+.home-tool-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .home-tool {
   display: grid;
   min-width: 0;
@@ -109,7 +109,7 @@
 .section-kicker { margin: 0 0 5px; color: var(--accent); font-size: var(--text-2xs); font-weight: 800; letter-spacing: .11em; }
 .home-task-groups { display: grid; gap: 18px; }
 .home-task-group { display: grid; gap: 8px; }
-.home-task-group h3, .home-completed summary { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: var(--text-meta); font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.home-task-group h3, .home-completed summary { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: var(--text-meta); font-weight: 800; letter-spacing: .04em; }
 .home-task-group h3 span, .home-completed summary span { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: var(--r-pill); background: var(--soft2); font-size: var(--text-2xs); letter-spacing: 0; }
 .home-task-group.is-overdue h3 { color: var(--bad); }
 .home-task-group.is-overdue h3 span { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
@@ -250,6 +250,7 @@
   padding: var(--space-3);
   background: var(--surface-soft);
 }
+
 .home-tool:hover { background: var(--soft); }
 .home-tool-icon { width: 36px; height: 36px; }
 

@@ -304,7 +304,7 @@ function transition(schedule) {
   let phase;
   if (schedule.phase === 'focus') {
     completedPomodoros += 1;
-    phase = completedPomodoros % 4 === 0 ? 'long-break' : 'short-break';
+    phase = 'short-break';
   } else {
     phase = 'focus';
   }
@@ -321,9 +321,9 @@ function notificationFor(phase) {
     return { title: 'Aurora · Pomodoro', body: 'A pausa terminou. Hora de retomar o foco.' };
   }
   if (phase === 'long-break') {
-    return { title: 'Aurora · Pomodoro', body: 'Quarto bloco concluído. Hora da pausa longa.' };
+    return { title: 'Aurora · Pomodoro', body: 'Hora da pausa.' };
   }
-  return { title: 'Aurora · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa curta.' };
+  return { title: 'Aurora · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa.' };
 }
 
 function constantTimeEqual(left, right) {

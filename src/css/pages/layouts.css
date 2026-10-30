@@ -84,6 +84,11 @@
 .settings-content h2 { scroll-margin-top: 96px; }
 .settings-content .card .f,
 .settings-content .card .form { max-width: 760px; }
+.profile-settings-container {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
 .profile-settings-heading { display: grid; gap: var(--space-2); }
 .profile-settings-heading > p { max-width: 62ch; color: var(--muted); line-height: 1.5; }
 .profile-settings-group {
@@ -100,8 +105,6 @@
 .profile-settings-fields { width: 100%; }
 .profile-settings-actions,
 .settings-save-actions { justify-content: flex-end; flex-wrap: wrap; }
-.profile-water-suggestion { display: grid; justify-items: start; gap: var(--space-3); }
-.profile-water-suggestion .notice { max-width: 760px; }
 .profile-page {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

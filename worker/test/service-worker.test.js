@@ -5,12 +5,24 @@ import { runInNewContext } from 'node:vm';
 
 const source = await readFile(new URL('../../service-worker.js', import.meta.url), 'utf8');
 
-function serviceWorkerHarness() {
+function serviceWorkerHarness({ fetchImplementation = async () => {} } = {}) {
   const listeners = new Map();
   const shown = [];
   const windows = [];
   const focused = [];
   const opened = [];
+  const cached = new Map();
+  const cacheKey = (request) => typeof request === 'string' ? request : request.url;
+  const cache = {
+    match: async (request) => cached.get(cacheKey(request)),
+    put: async (request, response) => cached.set(cacheKey(request), response),
+  };
+  const cacheStorage = {
+    open: async () => cache,
+    match: async (request) => cache.match(request),
+    keys: async () => [],
+    delete: async () => true,
+  };
   const self = {
     addEventListener: (name, listener) => listeners.set(name, listener),
     location: { origin: 'https://aurora.example' },
@@ -23,8 +35,31 @@ function serviceWorkerHarness() {
       openWindow: async (url) => opened.push(url),
     },
   };
-  runInNewContext(source, { self, URL, console, caches: {}, fetch: async () => {} });
-  return { listeners, shown, windows, focused, opened, self };
+  runInNewContext(source, { self, URL, console, caches: cacheStorage, fetch: fetchImplementation });
+  return { listeners, shown, windows, focused, opened, self, cached };
+}
+
+function fetchEvent(request) {
+  let response;
+  const waitUntil = [];
+  return {
+    event: {
+      request,
+      respondWith: (promise) => { response = Promise.resolve(promise); },
+      waitUntil: (promise) => waitUntil.push(promise),
+    },
+    getResponse: () => response,
+    waitUntil,
+  };
+}
+
+function basicResponse(contentType) {
+  return {
+    ok: true,
+    type: 'basic',
+    headers: { get: (name) => name === 'Content-Type' ? contentType : null },
+    clone() { return this; },
+  };
 }
 
 function pushEvent(data) {
@@ -80,4 +115,44 @@ test('clique na notificação foca uma janela existente ou abre o app', async ()
   });
   await completion;
   assert.deepEqual(harness.opened, ['https://aurora.example/pages/pomodoro.html']);
+});
+
+test('Cache Storage guarda apenas recursos estáticos e documentos HTML de navegação', async () => {
+  const html = basicResponse('text/html; charset=utf-8');
+  const script = basicResponse('text/javascript');
+  let fetchCount = 0;
+  const harness = serviceWorkerHarness({
+    fetchImplementation: async () => {
+      fetchCount += 1;
+      return fetchCount === 1 ? script : html;
+    },
+  });
+
+  const scriptFetch = fetchEvent({
+    method: 'GET',
+    mode: 'same-origin',
+    url: 'https://aurora.example/assets/app.js',
+  });
+  harness.listeners.get('fetch')(scriptFetch.event);
+  assert.equal(await scriptFetch.getResponse(), script);
+  await Promise.all(scriptFetch.waitUntil);
+  assert.equal(harness.cached.has('https://aurora.example/assets/app.js'), true);
+
+  const apiFetch = fetchEvent({
+    method: 'GET',
+    mode: 'same-origin',
+    url: 'https://aurora.example/rpc/user-data',
+  });
+  harness.listeners.get('fetch')(apiFetch.event);
+  assert.equal(apiFetch.getResponse(), undefined);
+  assert.equal(harness.cached.has('https://aurora.example/rpc/user-data'), false);
+
+  const navigationFetch = fetchEvent({
+    method: 'GET',
+    mode: 'navigate',
+    url: 'https://aurora.example/pages/inicio.html',
+  });
+  harness.listeners.get('fetch')(navigationFetch.event);
+  assert.equal(await navigationFetch.getResponse(), html);
+  assert.equal(harness.cached.has('https://aurora.example/pages/inicio.html'), true);
 });

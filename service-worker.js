@@ -1,5 +1,7 @@
-const CACHE_NAME = 'aurora-static-v3';
+const CACHE_NAME = 'aurora-static-v7';
 const API_PATH = /\/api(?:\/|$)/;
+const LEGAL_DOCUMENT = /\/(?:terms|privacy)\.html$/;
+const STATIC_ASSET = /\.(?:html|css|m?js|woff2?|ttf|otf|svg|png|jpe?g|webp|gif|ico|webmanifest)$/i;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
@@ -20,10 +22,63 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || API_PATH.test(url.pathname)) return;
 
+  if (LEGAL_DOCUMENT.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      try {
+        const response = await fetch(request, { cache: 'no-cache' });
+        if (response.ok && response.type === 'basic') {
+          await cache.put(request, response.clone()).catch((error) => {
+            console.warn('O Aurora não conseguiu atualizar o documento legal no cache offline.', error);
+          });
+        }
+        return response;
+      } catch (networkError) {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        throw networkError;
+      }
+    })());
+    return;
+  }
+
+  if (STATIC_ASSET.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      const update = fetch(request, { cache: 'no-cache' }).then((response) => {
+        if (!response.ok || response.type !== 'basic') return response;
+        return cache.put(request, response.clone()).then(() => response, (error) => {
+          console.warn('O Aurora não conseguiu atualizar o cache offline.', error);
+          return response;
+        });
+      });
+
+      if (cached) {
+        event.waitUntil(update.then(
+          () => {},
+          (error) => console.warn('O Aurora não conseguiu atualizar um recurso estático.', error),
+        ));
+        return cached;
+      }
+
+      try {
+        return await update;
+      } catch (networkError) {
+        const fallback = await caches.match(request);
+        if (fallback) return fallback;
+        throw networkError;
+      }
+    })());
+    return;
+  }
+
+  if (request.mode !== 'navigate') return;
+
   event.respondWith((async () => {
     try {
       const response = await fetch(request, { cache: 'no-cache' });
-      if (response.ok && response.type === 'basic') {
+      if (response.ok && response.type === 'basic' && response.headers.get('Content-Type')?.startsWith('text/html')) {
         await caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())).catch((error) => {
           console.warn('O Aurora não conseguiu atualizar o cache offline.', error);
         });

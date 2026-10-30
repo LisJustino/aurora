@@ -12,27 +12,29 @@
   min-height: var(--control-md);
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 var(--space-4);
+  gap: var(--button-gap);
+  padding-inline: var(--button-padding-inline);
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
+  border-radius: var(--button-radius);
   background: var(--surface);
   color: var(--ink);
   font-weight: var(--weight-bold);
   text-decoration: none;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
 .btn:hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-raised);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--ink) 68%, transparent);
+  transform: translateY(-1px);
 }
 .btn:active { transform: translateY(1px); }
 
 /* Tamanhos */
-.btn.sm { min-height: var(--control-sm); padding-inline: 12px; font-size: var(--text-sm); }
-.btn.large { min-height: var(--control-lg); padding-inline: 24px; font-size: var(--text-base); }
+.btn.sm { min-height: var(--control-sm); padding-inline: var(--button-padding-inline-sm); font-size: var(--text-sm); }
+.btn.large { min-height: var(--control-lg); padding-inline: var(--button-padding-inline-lg); font-size: var(--text-base); }
 .btn.block { width: 100%; }
 
 /* Primário */
@@ -127,3 +129,21 @@
 .ibtn.dlg-close::after { content: ""; position: absolute; inset: -2px; }
 .ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
 .ibtn.dlg-close:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Garantia global: qualquer botão permanece responsivo, mesmo quando usa uma
+   classe própria específica de uma página ou um estilo não baseado em .btn. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):not([aria-disabled="true"]) {
+    transition:
+      filter var(--duration-fast) var(--ease-standard),
+      transform var(--duration-fast) var(--ease-standard),
+      color var(--duration-fast) var(--ease-standard),
+      background-color var(--duration-fast) var(--ease-standard),
+      border-color var(--duration-fast) var(--ease-standard);
+  }
+
+  button:not(:disabled):not([aria-disabled="true"]):hover {
+    filter: brightness(.96);
+    transform: translateY(-1px);
+  }
+}

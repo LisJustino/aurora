@@ -4,10 +4,9 @@ compatibility_date = "2026-10-27"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ALLOWED_ORIGINS = "https://lisjustino.github.io"
+ALLOWED_ORIGINS = "https://aurora-9ze.pages.dev"
 ENVIRONMENT = "production"
 VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw"
-VAPID_SUBJECT = "mailto:REPLACE_WITH_YOUR_CONTACT_EMAIL"
 
 [[durable_objects.bindings]]
 name = "POMODORO_ALARMS"
@@ -31,7 +30,7 @@ simple = { limit = 30, period = 60 }
 
 [env.development]
 name = "aurora-pomodoro-push-development"
-vars = { ALLOWED_ORIGINS = "http://localhost:8765", ENVIRONMENT = "development", VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw", VAPID_SUBJECT = "mailto:dev@example.invalid" }
+vars = { ALLOWED_ORIGINS = "http://localhost:8765", ENVIRONMENT = "development", VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw" }
 
 [[env.development.durable_objects.bindings]]
 name = "POMODORO_ALARMS"
