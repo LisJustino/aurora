@@ -114,3 +114,9 @@ a.inline-link:focus-visible { color: var(--accent); text-decoration-thickness: 2
   animation-iteration-count: 1 !important;
   transition-duration: .01ms !important;
 }
+
+body {
+  background:
+    radial-gradient(ellipse at 12% -12%, var(--canvas-glow), transparent 34rem),
+    var(--bg);
+}

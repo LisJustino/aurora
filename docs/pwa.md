@@ -4,7 +4,9 @@ O manifest e os ícones tornam o Aurora instalável em navegadores compatíveis.
 
 Os caminhos do manifest e do worker são relativos à raiz publicada, inclusive quando o site está em um subdiretório. O registro funciona em HTTPS e em `localhost`; navegadores sem service worker continuam usando o app normalmente enquanto online. Depois de abrir a aplicação uma vez online, recarregue-a para que o worker assuma o controle e armazene a casca e os recursos acessados. O uso offline não sincroniza dados pessoais.
 
-No iPhone/iPad, o Push exige iOS/iPadOS 16.4 ou posterior, origem HTTPS e o app aberto como PWA independente depois de usar **Safari → Compartilhar → Adicionar à Tela de Início**. O pedido de permissão só ocorre ao tocar em **Ativar avisos**. A entrega e o som não são garantidos pelo app; consulte o guia do Pomodoro Push para limites e implantação.
+No iPhone/iPad, abra o site no Safari e use **Compartilhar → Adicionar à Tela de Início**. As entradas da aplicação declaram o ícone Apple e os metadados para abrir em modo independente. Se uma versão instalada anteriormente não abrir, remova somente o atalho antigo da tela inicial, abra o site novamente no Safari e adicione-o outra vez; os dados da conta não são apagados ao remover o atalho. A instalação e os recursos offline exigem conexão HTTPS.
+
+No iPhone/iPad, o Push exige iOS/iPadOS 16.4 ou posterior e o app aberto como PWA independente. O pedido de permissão só ocorre ao tocar em **Ativar avisos**. A entrega e o som não são garantidos pelo app; consulte o guia do Pomodoro Push para limites e implantação.
 
 ## Teste em um celular Android na rede local
 

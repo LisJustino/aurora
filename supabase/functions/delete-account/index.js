@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { deleteAccountPermanently } from './account-deletion.js';
 import {
   parseAllowedOrigins,
   removeRemotePushSubscriptions,
@@ -81,7 +82,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'push-cleanup-unavailable' }, 503, requestOrigin || undefined);
   }
 
-  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userData.user.id);
+  const { error: deleteError } = await deleteAccountPermanently(adminClient, userData.user.id);
   if (deleteError) {
     console.error('delete-account: Supabase did not confirm account deletion.');
     return jsonResponse({ error: 'account-deletion-unavailable' }, 503, requestOrigin || undefined);

@@ -4,7 +4,13 @@ import { filterValidRecords, isPlainObject, validateFinanceReferences } from '..
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { parseMoney } from '../src/js/utils/currency.js';
 import { isDay } from '../src/js/utils/dates.js';
-import { isPublicLandingHash, postSignOutPath, resolveRoute } from '../src/js/core/router.js';
+import {
+  isPublicLandingHash,
+  postSignOutPath,
+  redirectToPublicLanding,
+  resolveRoute,
+  settingsRootPath,
+} from '../src/js/core/router.js';
 import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
 import {
   isValidMenuOrder,
@@ -26,6 +32,7 @@ import {
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
 import { parseStatement } from '../src/js/features/finance/statement.js';
+import { parseQuickTaskText } from '../src/js/features/planning/quick-entry.js';
 import {
   AREA_GUIDES,
   AREA_GUIDE_IDS,
@@ -120,13 +127,35 @@ const test = (name, run) => {
 
 test('inicia os alertas antes de aguardar o service worker', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
-  const start = source.indexOf('async function startAuthenticatedAurora(');
-  const end = source.indexOf('\nfunction showAccountStartupError', start);
-  if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização autenticada.');
+  const start = source.indexOf('async function continueAuthenticatedAurora(');
+  const end = source.indexOf('\nasync function startAuthenticatedAurora', start);
+  if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização dos dados autenticados.');
   const startup = source.slice(start, end);
   const timer = startup.indexOf('setInterval(tick, 1000)');
   const serviceWorker = startup.indexOf('await navigator.serviceWorker.ready');
   if (timer < 0 || serviceWorker <= timer) throw new Error('O timer precisa iniciar antes do service worker.');
+});
+
+test('falha ao carregar dados oferece tentar novamente e sair', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function showAccountDataLoadError(');
+  const end = source.indexOf('\nasync function continueAuthenticatedAurora', start);
+  const continuation = source.slice(end, source.indexOf('\nasync function startAuthenticatedAurora', end));
+  const screen = source.slice(start, end);
+  if (start < 0 || end <= start
+    || !screen.includes("retry.textContent = 'Tentar novamente'")
+    || !screen.includes("exit.textContent = 'Sair'")
+    || !continuation.includes('showAccountDataLoadError(root, error, user)')) {
+    throw new Error('A falha de carga precisa oferecer ações recuperáveis e ser conectada ao catch.');
+  }
+});
+
+test('confirmações nativas foram substituídas e o feedback de persistência informa status', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
+  if (!source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
+    throw new Error('O shell precisa exibir o horário salvo e o aviso offline persistente.');
+  }
 });
 
 const equal = (actual, expected) => {
@@ -406,6 +435,22 @@ test('valida datas civis incluindo anos bissextos', () => {
   equal(isDay('2024-13-01'), false);
 });
 
+test('interpreta prazos de tarefa rápida sem depender do timezone do servidor', () => {
+  equal(JSON.stringify(parseQuickTaskText('Revisar hoje', '2026-10-30')), JSON.stringify({
+    title: 'Revisar', dueDate: '2026-10-30', time: '', hasDeadline: true, error: '',
+  }));
+  equal(JSON.stringify(parseQuickTaskText('Ler amanhã às 18:30', '2026-10-30')), JSON.stringify({
+    title: 'Ler', dueDate: '2026-10-31', time: '18:30', hasDeadline: true, error: '',
+  }));
+  equal(JSON.stringify(parseQuickTaskText('Enviar relatório sexta 18h', '2026-10-30')), JSON.stringify({
+    title: 'Enviar relatório', dueDate: '2026-10-30', time: '18:00', hasDeadline: true, error: '',
+  }));
+  equal(parseQuickTaskText('Reunião sexta', '2026-10-31').dueDate, '2026-11-06');
+  equal(parseQuickTaskText('Planejar semana', '2026-10-30').title, 'Planejar semana');
+  truthy(/horário válido/.test(parseQuickTaskText('Entregar sexta 25h', '2026-10-30').error));
+  truthy(/Escreva a tarefa/.test(parseQuickTaskText('amanhã 18h', '2026-10-30').error));
+});
+
 test('valida atividade sexual e métodos contraceptivos do diário do ciclo', () => {
   truthy(isValidCycleSexualLog({}));
   truthy(isValidCycleSexualLog({ sexualActivity: true }));
@@ -533,6 +578,24 @@ test('ao sair da conta, redireciona para a landing pública', () => {
     postSignOutPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config' }),
     '/',
   );
+});
+
+test('ao excluir a conta, navega para a landing pública', () => {
+  const destinations = [];
+  redirectToPublicLanding({
+    href: 'https://aurora.local/pages/inicio.html?source=pwa#inicio',
+    replace: (destination) => destinations.push(destination),
+  });
+  equal(destinations.join(','), '/');
+});
+
+test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
+  equal(
+    settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config?section=data' }),
+    '/pages/ajustes.html?source=pwa#config',
+  );
+  equal(settingsRootPath({ href: 'https://aurora.local/pages/inicio.html#inicio' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html#config' }), null);
 });
 
 test('calcula saldos em centavos e exclui cartão do saldo líquido', () => {

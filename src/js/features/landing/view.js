@@ -14,6 +14,16 @@ function publicFooter({ demoAvailable = false } = {}) {
   return `<footer class="app-footer public-footer site-footer">${renderFooterContent({ demoAvailable })}</footer>`;
 }
 
+const demoControllers = new WeakMap();
+
+function stopDemo(root) {
+  const controller = demoControllers.get(root);
+  if (!controller) return;
+  clearInterval(controller.interval);
+  root.removeEventListener('click', controller.onClick);
+  demoControllers.delete(root);
+}
+
 function demoHomeHeading(prefix = 'demo') {
   return `
     <header class="home-head" aria-labelledby="${prefix}-title">
@@ -21,11 +31,11 @@ function demoHomeHeading(prefix = 'demo') {
         <p class="date">Um exemplo de dia</p>
         <h1 id="${prefix}-title">Bom dia, pessoa<i>.</i></h1>
         <p class="lead">Escolha uma coisa de cada vez. Seu plano pode mudar — tudo bem.</p>
-        <button type="button" class="home-action" disabled>${demoIcon('plus', 18)}Adicionar tarefa para hoje${demoIcon('chevRight', 16)}</button>
+        <button type="button" class="home-action" data-demo-action="focus-task">${demoIcon('calendarCheck', 18)}Ver tarefas de exemplo${demoIcon('chevRight', 16)}</button>
       </div>
-      <div class="ringw demo-ring" role="img" aria-label="Duas de três tarefas de exemplo concluídas">
-        <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="34" fill="none" stroke-width="7"/><circle class="ring-fg" cx="40" cy="40" r="34" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="142 214" transform="rotate(-90 40 40)"/></svg>
-        <span class="rt">2/3</span>
+      <div class="ringw demo-ring" role="img" aria-label="Duas de três tarefas de exemplo concluídas" data-demo-progress>
+        <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="34" fill="none" stroke-width="7"/><circle class="ring-fg" data-demo-ring-progress cx="40" cy="40" r="34" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="142 214" transform="rotate(-90 40 40)"/></svg>
+        <span class="rt" data-demo-task-count>2/3</span>
       </div>
     </header>`;
 }
@@ -35,14 +45,14 @@ function demoTodayCard(prefix = 'demo') {
     <section class="card home-today-card" aria-labelledby="${prefix}-today-title">
       <div class="head">
         <div><p class="section-kicker">Seu plano</p><h2 id="${prefix}-today-title">Hoje<i>.</i></h2></div>
-        <span class="pill">2 de 3 feitos</span>
+        <span class="pill" data-demo-task-summary aria-live="polite">2 de 3 feitos</span>
       </div>
       <div class="home-task-groups">
         <section class="home-task-group" aria-labelledby="${prefix}-task-group">
           <h3 id="${prefix}-task-group">${demoIcon('calendarCheck', 16)}Para hoje <span>3</span></h3>
           <ul class="list">
             <li class="task done"><span class="chk" role="checkbox" aria-checked="true" aria-disabled="true" aria-label="Concluída: Organizar a semana"><span>${demoIcon('check', 15)}</span></span><div class="tt"><span class="ttl">Organizar a semana</span><span class="meta">Concluída · exemplo</span></div></li>
-            <li class="task"><span class="chk" role="checkbox" aria-checked="false" aria-disabled="true" aria-label="Pendente: Ler por alguns minutos"><span>${demoIcon('check', 15)}</span></span><div class="tt"><span class="ttl">Ler por alguns minutos</span><span class="meta">Sem horário marcado</span></div></li>
+            <li class="task demo-example-task"><button type="button" class="chk" role="checkbox" aria-checked="false" aria-label="Concluir: Ler por alguns minutos" data-demo-action="task-toggle"><span>${demoIcon('check', 15)}</span></button><div class="tt"><span class="ttl">Ler por alguns minutos</span><span class="meta" data-demo-task-status>Sem horário marcado · exemplo</span></div></li>
             <li class="task"><span class="chk" role="checkbox" aria-checked="false" aria-disabled="true" aria-label="Pendente: Fazer uma pausa"><span>${demoIcon('check', 15)}</span></span><div class="tt"><span class="ttl">Fazer uma pausa longe da tela</span><span class="meta">Quando puder</span></div></li>
           </ul>
         </section>
@@ -54,13 +64,14 @@ function demoFocusCard(prefix = 'demo') {
   return `
     <section class="card demo-focus-card" aria-labelledby="${prefix}-focus-title">
       <div class="head"><div><p class="section-kicker">Foco</p><h2 id="${prefix}-focus-title">Um tempo para você<i>.</i></h2></div>${demoIcon('clock', 20)}</div>
-      <div class="timer" aria-label="Exemplo: 25 minutos">25:00</div>
+      <div class="timer" aria-label="Exemplo: 25 minutos" data-demo-timer aria-live="off">25:00</div>
       <p class="demo-muted">Uma sessão curta também conta.</p>
-      <button class="btn" type="button" disabled>Cronômetro de exemplo</button>
+      <button class="btn" type="button" data-demo-action="timer-toggle" aria-pressed="false">Iniciar foco de exemplo</button>
     </section>`;
 }
 
 export function renderLanding(root) {
+  stopDemo(root);
   root.innerHTML = `
     <div class="public-site">
       <a class="skip" href="#landing-main" data-public-action="skip">Pular para o conteúdo principal</a>
@@ -71,48 +82,70 @@ export function renderLanding(root) {
             <h1 id="landing-title">Tarefas, hábitos e finanças em um só lugar<span>.</span></h1>
             <p class="public-lead">Organize tarefas e finanças, acompanhe seus hábitos e use o Pomodoro no seu ritmo.</p>
             <div class="public-actions">
-              <button class="btn primary large" type="button" data-public-action="demo">Ver demonstração</button>
-              <button class="btn large" type="button" data-public-action="signup">Criar minha conta</button>
+              <button class="btn primary large" type="button" data-public-action="signup">Criar minha conta</button>
+              <button class="btn large" type="button" data-public-action="demo">Ver demonstração</button>
             </div>
             <p class="public-reassurance">${demoIcon('lock', 17)}<span>Experimente sem cadastro: a demonstração usa dados fictícios e não lê nem salva dados da sua conta.</span></p>
           </div>
           <figure class="product-preview" role="img" aria-label="Capturas da interface do Aurora em computador e celular">
-            <div class="preview-monitor" aria-hidden="true">
-              <div class="preview-monitor-screen">
-                <img class="preview-device-screen" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
-              </div>
-              <div class="preview-monitor-neck"></div>
-              <div class="preview-monitor-base"></div>
-            </div>
-            <div class="preview-phone" aria-hidden="true">
-              <div class="preview-phone-camera"></div>
-              <div class="preview-phone-screen">
-                <img class="preview-device-screen preview-device-screen-mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async">
-              </div>
-            </div>
+            <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
+            <img class="preview-capture preview-capture--mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async">
           </figure>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Recursos</p><h2 id="public-features-title">Planejamento, foco e hábitos</h2></div>
+          <div class="public-section-heading"><p class="public-eyebrow">Recursos</p><h2 id="public-features-title">Planejamento, foco, hábitos, finanças e ciclo</h2></div>
           <div class="public-values">
-          <article class="public-value">
+          <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
             <div><h3>Planejar</h3><p>Crie tarefas, defina prazos e organize a semana em lista ou calendário.</p></div>
           </article>
-          <article class="public-value">
+          <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
             <div><h3>Foco</h3><p>Configure blocos Pomodoro e pausas; associe o timer a uma tarefa.</p></div>
           </article>
-          <article class="public-value">
+          <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
             <div><h3>Hábitos</h3><p>Marque os dias em que concluiu cada hábito e consulte a frequência.</p></div>
           </article>
+          <article class="card public-value">
+            <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
+            <div><h3>Finanças</h3><p>Registre receitas e despesas e acompanhe o mês com clareza.</p></div>
+          </article>
+          <article class="card public-value">
+            <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
+            <div><h3>Ciclo</h3><p>Registre seu ciclo e consulte informações gerais sobre suas fases.</p></div>
+          </article>
           </div>
-          <p class="public-features-more">Também organize seu ciclo e registre a hidratação como hábito.</p>
         </section>
-        <section class="public-account-access" aria-labelledby="public-account-access-title">
-          <h2 id="public-account-access-title">Acesso à conta</h2>
-          <p>Crie sua conta e comece na hora. Use um e-mail ao qual tenha acesso para poder recuperar sua senha.</p>
+        <section class="public-account-section" aria-labelledby="public-account-access-title">
+          <div class="public-account-access card">
+            <div class="public-account-copy">
+              <h2 id="public-account-access-title">Acesso à conta</h2>
+              <p>Crie sua conta e comece na hora. Use um e-mail ao qual tenha acesso para poder recuperar sua senha.</p>
+              <p class="public-account-privacy">Seus dados pessoais são associados à sua conta; a demonstração usa apenas dados fictícios.</p>
+            </div>
+            <div class="public-account-actions">
+              <button class="btn primary" type="button" data-public-action="signup">Criar minha conta</button>
+              <button class="btn" type="button" data-public-action="login">Entrar</button>
+            </div>
+          </div>
+          <section class="public-faq" aria-labelledby="public-faq-title">
+            <h2 id="public-faq-title">Perguntas frequentes</h2>
+            <div class="public-faq-list">
+              <details class="card public-faq-item">
+                <summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary>
+                <p>Os dados da conta ficam associados ao seu usuário e protegidos por acesso isolado. A demonstração usa dados fictícios e não acessa seus registros.</p>
+              </details>
+              <details class="card public-faq-item">
+                <summary>Preciso confirmar meu e-mail?<span aria-hidden="true">+</span></summary>
+                <p>Não. Você pode entrar assim que criar a conta. Use um endereço válido para poder recuperar sua senha.</p>
+              </details>
+              <details class="card public-faq-item">
+                <summary>Posso apagar minha conta?<span aria-hidden="true">+</span></summary>
+                <p>Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados.</p>
+              </details>
+            </div>
+          </section>
         </section>
       </main>
       ${publicFooter({ demoAvailable: true })}
@@ -120,6 +153,7 @@ export function renderLanding(root) {
 }
 
 export function renderLandingDemo(root) {
+  stopDemo(root);
   root.innerHTML = `
     <div class="app demo-app">
       <a class="skip" href="#demo-main" data-public-action="skip">Pular para o conteúdo principal</a>
@@ -133,7 +167,7 @@ export function renderLandingDemo(root) {
             <section class="card home-habit-checkins" aria-labelledby="demo-habits-title">
               <div class="head"><div><h2 id="demo-habits-title">Hábitos<i>.</i></h2></div><span class="pill">Esta semana</span></div>
               <ul class="list">
-                <li class="home-habit-row"><span class="home-next-mark">${demoIcon('leaf', 19)}</span><span class="grow"><b>Alongar um pouquinho</b><span class="meta">2 dias nesta semana</span></span><span class="demo-habit-dots" aria-hidden="true"><i class="is-complete"></i><i class="is-complete"></i><i></i><i></i><i></i><i></i><i></i></span></li>
+                <li class="home-habit-row"><span class="home-next-mark">${demoIcon('leaf', 19)}</span><span class="grow"><b>Alongar um pouquinho</b><span class="meta" data-demo-habit-status aria-live="polite">2 dias nesta semana</span></span><span class="demo-habit-dots" aria-hidden="true"><i class="is-complete"></i><i class="is-complete"></i><i></i><i></i><i></i><i></i><i></i></span><button type="button" class="btn sm" data-demo-action="habit-toggle" aria-pressed="false">Marcar hoje</button></li>
               </ul>
             </section>
           </div>
@@ -152,4 +186,88 @@ export function renderLandingDemo(root) {
       </main>
       <footer class="app-footer public-footer demo-footer site-footer">${renderFooterContent()}</footer>
     </div>`;
+
+  const state = {
+    taskDone: false,
+    habitDone: false,
+    remainingMs: 25 * 60 * 1000,
+    startedAt: 0,
+    interval: null,
+  };
+  const update = () => {
+    const task = root.querySelector('[data-demo-action="task-toggle"]');
+    const count = state.taskDone ? 3 : 2;
+    if (task) {
+      task.setAttribute('aria-checked', String(state.taskDone));
+      task.setAttribute('aria-label', `${state.taskDone ? 'Reabrir' : 'Concluir'}: Ler por alguns minutos`);
+      task.closest('.task')?.classList.toggle('done', state.taskDone);
+      root.querySelector('[data-demo-task-status]').textContent = state.taskDone ? 'Concluída · exemplo' : 'Sem horário marcado · exemplo';
+    }
+    root.querySelector('[data-demo-task-count]').textContent = `${count}/3`;
+    root.querySelector('[data-demo-task-summary]').textContent = `${count} de 3 feitos`;
+    root.querySelector('[data-demo-progress]').setAttribute('aria-label', `${count} de três tarefas de exemplo concluídas`);
+    const circumference = 2 * Math.PI * 34;
+    root.querySelector('[data-demo-ring-progress]').setAttribute('stroke-dasharray', `${(circumference * count / 3).toFixed(1)} ${circumference.toFixed(1)}`);
+
+    const habit = root.querySelector('[data-demo-action="habit-toggle"]');
+    if (habit) {
+      habit.setAttribute('aria-pressed', String(state.habitDone));
+      habit.textContent = state.habitDone ? 'Desmarcar hoje' : 'Marcar hoje';
+      root.querySelector('[data-demo-habit-status]').textContent = `${state.habitDone ? 3 : 2} dias nesta semana`;
+      root.querySelectorAll('.demo-habit-dots i')[2]?.classList.toggle('is-complete', state.habitDone);
+    }
+
+    const remaining = state.startedAt
+      ? Math.max(0, state.remainingMs - (Date.now() - state.startedAt))
+      : state.remainingMs;
+    const totalSeconds = Math.ceil(remaining / 1000);
+    const timer = root.querySelector('[data-demo-timer]');
+    timer.textContent = `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
+    timer.setAttribute('aria-label', `Cronômetro de exemplo: ${timer.textContent}`);
+    const timerButton = root.querySelector('[data-demo-action="timer-toggle"]');
+    const running = Boolean(state.startedAt);
+    timerButton.textContent = running
+      ? 'Pausar foco de exemplo'
+      : state.remainingMs === 0 ? 'Foco de exemplo concluído' : 'Iniciar foco de exemplo';
+    timerButton.disabled = state.remainingMs === 0 && !running;
+    timerButton.setAttribute('aria-pressed', String(running));
+  };
+  const onClick = (event) => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest('[data-demo-action]');
+    if (!button || button.disabled) return;
+    if (button.dataset.demoAction === 'focus-task') {
+      root.querySelector('.demo-example-task')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      root.querySelector('[data-demo-action="task-toggle"]')?.focus({ preventScroll: true });
+    } else if (button.dataset.demoAction === 'task-toggle') {
+      state.taskDone = !state.taskDone;
+      update();
+    } else if (button.dataset.demoAction === 'habit-toggle') {
+      state.habitDone = !state.habitDone;
+      update();
+    } else if (button.dataset.demoAction === 'timer-toggle') {
+      if (state.startedAt) {
+        state.remainingMs = Math.max(0, state.remainingMs - (Date.now() - state.startedAt));
+        state.startedAt = 0;
+        clearInterval(state.interval);
+        state.interval = null;
+      } else if (state.remainingMs > 0) {
+        state.startedAt = Date.now();
+        state.interval = setInterval(() => {
+          if (Date.now() - state.startedAt >= state.remainingMs) {
+            state.remainingMs = 0;
+            state.startedAt = 0;
+            clearInterval(state.interval);
+            state.interval = null;
+          }
+          update();
+        }, 250);
+      }
+      update();
+    }
+  };
+  state.onClick = onClick;
+  demoControllers.set(root, state);
+  root.addEventListener('click', onClick);
+  update();
 }

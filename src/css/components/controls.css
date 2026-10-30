@@ -18,3 +18,6 @@
   .areanav::-webkit-scrollbar, .scroll-x::-webkit-scrollbar { display: none; }
 }
 
+/* Contraste dedicado ao modo escuro para superfícies e controles frequentes. */
+:root[data-theme="dark"] .chip { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
+:root[data-theme="dark"] .chip { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }

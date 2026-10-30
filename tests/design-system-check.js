@@ -36,8 +36,11 @@ const defined = new Set([...allText.matchAll(/(--[\w-]+)\s*:/g)].map((match) => 
 const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((match) => match[1]))]
   .filter((name) => !defined.has(name) && !SET_BY_SCRIPT.has(name));
 check(files.length > 20, 'main.css importa as folhas esperadas', `${files.length} arquivos`);
+check(!files.some((item) => item.file === 'components/visual-refresh.css'), 'Regras visuais estão nas folhas de origem');
 check(files.some((item) => item.file === 'design-system/lists.css'), 'O padrão de listas está no design system');
 check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card--wide')), 'O padrão de atalhos compactos está no design system');
+const modalStyles = files.find((item) => item.file === 'components/modals.css');
+check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
 
 // base.css fixa 16 px no elemento raiz: é a base de todos os rem, por isso é a única exceção.

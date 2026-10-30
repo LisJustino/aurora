@@ -30,7 +30,7 @@ Deixe esse terminal aberto e acesse a URL que o Vite mostrar, normalmente **`htt
 
 `npm run build` gera o site em `dist/`; `npm run preview` serve esse build localmente.
 
-A aplicação apresenta a landing e uma demonstração somente de leitura com dados fictícios. É necessário entrar ou criar conta para acessar dados pessoais. A conta usa Supabase Auth e Postgres relacional, com RLS por usuário. O Worker de avisos Push é opcional e separado. Consulte [docs/cloudflare-pages.md](./docs/cloudflare-pages.md) para instruções de publicação.
+A aplicação apresenta a landing e uma demonstração interativa com dados fictícios. Marcar um hábito, iniciar o cronômetro e concluir a tarefa de exemplo alteram somente o estado em memória da demonstração; nada é enviado pela rede ou gravado no navegador. É necessário entrar ou criar conta para acessar dados pessoais. A conta usa Supabase Auth e Postgres relacional, com RLS por usuário. O Worker de avisos Push é opcional e separado. Consulte [docs/cloudflare-pages.md](./docs/cloudflare-pages.md) para instruções de publicação.
 
 ### Testar no Android pela rede Wi-Fi
 
@@ -82,7 +82,7 @@ Backups exportados e cópias de recuperação são JSON sem criptografia e podem
 
 ### Configurar contas Supabase
 
-1. Em cada projeto Supabase, desative **Authentication → Providers → Email → Confirm email** para liberar o acesso imediatamente após o cadastro. Configure também senha mínima de 12 caracteres, nível mínimo de garantia AAL1 e as URLs de redirecionamento desse ambiente. O Aurora não exige MFA. Sem confirmação, um e-mail digitado incorretamente pode impedir a recuperação da conta.
+1. Em cada projeto Supabase, desative **Authentication → Providers → Email → Confirm email** para liberar o acesso imediatamente após o cadastro. Configure também senha mínima de 6 caracteres (igual à regra do formulário do Aurora), nível mínimo de garantia AAL1 e as URLs de redirecionamento desse ambiente. O Aurora não exige MFA. Sem confirmação, um e-mail digitado incorretamente pode impedir a recuperação da conta.
 2. Aplique as migrations versionadas na ordem descrita em [supabase/README.md](./supabase/README.md), incluindo a migration que remove a exigência de MFA, depois execute os testes SQL de isolamento.
 3. Configure `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY` no Cloudflare Pages: Preview aponta para `aurora-dev` e Production para `aurora-prod`. O app local usa as variáveis `VITE_SUPABASE_LOCAL_*` em `.env.local`. Veja [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 4. Em Ajustes → Dados e backup, analise os dados antigos e importe na conta correta. Confira os registros antes de marcar a confirmação para apagar as chaves antigas lidas deste navegador. A importação não apaga `user_data` nem `user_keys`; a remoção do código e das tabelas exige revisão e uma migration separada aprovada.
