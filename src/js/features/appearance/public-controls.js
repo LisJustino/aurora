@@ -88,7 +88,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
           <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="Alternar tema: ${themeName}" title="Alternar tema">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
           <span class="accessibility-control">
-            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}<span class="accessibility-trigger-label">Acessibilidade</span></button>
+            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>
             ${accessibilityPanel()}
           </span>
           ${isLanding ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}

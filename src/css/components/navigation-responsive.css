@@ -95,24 +95,34 @@
 @media (min-width: 900px) {
   .topbar .nav {
     gap: 2px;
+    width: fit-content;
+    max-width: 100%;
     padding: 4px;
-    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
-    border-radius: var(--r-pill);
-    background: color-mix(in srgb, var(--surface) 76%, transparent);
-    box-shadow: 0 10px 24px -22px var(--ink);
+    border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    box-shadow: 0 8px 18px -18px color-mix(in srgb, var(--ink) 48%, transparent);
   }
   .topbar .nav a {
-    min-height: var(--control-sm);
+    min-height: 34px;
     flex-direction: row;
-    gap: 6px;
-    padding: 0 11px;
-    border-radius: var(--r-pill);
-    font-size: var(--text-meta);
+    gap: 7px;
+    padding: 0 14px 0 10px;
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: -.01em;
   }
-  .topbar .nav a .ni { width: auto; height: auto; }
+  .topbar .nav a .ni {
+    width: 18px;
+    height: 18px;
+    background: transparent;
+    border-radius: 999px;
+  }
   .topbar .nav a[aria-current="page"] {
-    background: var(--surface-strong);
-    box-shadow: 0 3px 9px -7px var(--ink);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
   }
 }
 
@@ -183,53 +193,44 @@
   .topbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
   }
-  .topbar .brand { grid-column: 1; justify-self: start; }
+  .topbar .brand { grid-column: 1; justify-self: start; align-items: center; }
   .topbar .nav {
     grid-column: 2;
     margin-left: 0;
+    align-items: center;
   }
   .topbar .header-actions {
     grid-column: 3;
     justify-self: end;
+    align-items: center;
     margin-left: 0;
   }
 }
 
-@media (min-width: 900px) and (max-width: 1439px) {
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-  }
+@media (min-width: 900px) {
   .topbar .nav {
-    min-width: 0;
-    flex: 1 1 0;
-    justify-content: flex-start;
-    overflow-x: auto;
-    margin-inline: clamp(12px, 2vw, 24px);
-  }
-  .topbar .nav > a {
-    flex: 0 0 auto;
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
   }
 }
 
-@media (min-width: 900px) and (max-width: 1099px) {
-  .topbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    gap: 4px 12px;
-    padding-block: 8px;
+@media (min-width: 900px) and (max-width: 1199px) {
+  .topbar { gap: 12px; }
+  .topbar .nav { gap: 0; }
+  .topbar .nav a {
+    gap: 0;
+    padding-inline: 8px;
   }
-  .topbar .brand { grid-column: 1; grid-row: 1; }
-  .topbar .header-actions { grid-column: 2; grid-row: 1; }
-  .topbar .nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    width: 100%;
-    flex: none;
-    justify-content: center;
-    overflow: visible;
-    margin: 0;
+  .topbar .nav .tab-label-group {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }
 
