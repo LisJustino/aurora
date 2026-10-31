@@ -64,7 +64,7 @@ Os dados da conta são carregados e gravados no Supabase; fora da sessão gerenc
 - `src/js/data/`: cliente Supabase singleton e camada de acesso relacional; `src/js/services/` contém autenticação, Push e busca determinística.
 - `supabase/migrations/`: migrations versionadas do schema relacional e políticas RLS por usuário; aplique conforme [supabase/README.md](./supabase/README.md).
 - `src/js/utils/`: templates HTML escapados, moeda, datas e IDs.
-- `docs/`: arquitetura, estrutura, modelo de dados, testes e decisões.
+- `docs/`: arquitetura, estrutura, modelo de dados, testes, decisões e [padrão de mensagens de commit](./docs/commit-conventions.md).
 
 Consulte [docs/project-structure.md](./docs/project-structure.md) antes de adicionar uma rota ou feature, [docs/architecture.md](./docs/architecture.md) para os contratos atuais e [docs/design-system.md](./docs/design-system.md) para os tokens e regras visuais.
 
