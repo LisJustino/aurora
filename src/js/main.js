@@ -104,6 +104,7 @@ import {
 } from './features/profile/birthday.js';
 import { filterWeightInput } from './features/profile/weight.js';
 import { PROFILE_SEX } from './features/profile/model.js';
+import { initializeCustomSelects } from './features/selects/custom-select.js';
 import {
   habitWeeklyTarget,
   habitIsComplete,
@@ -183,9 +184,68 @@ const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
-const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon })) });
-const catNames = (k) => S.settings.cats[k].map((c) => c.name);
-const catInfo = (k, n) => { const c = S.settings.cats[k].find((x) => x.name === n); return c ? { c: c.color, i: c.icon } : { c: '#8b8b95', i: 'tag' }; };
+const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
+const categoryLeafName = (category) => {
+  if (typeof category === 'string') return category.trim();
+  if (isPlainObject(category) && typeof category.name === 'string') return category.name.trim();
+  return '';
+};
+const categoryPathParts = (value) => {
+  const text = String(value ?? '').trim();
+  const parts = text.split(/\s*>\s*/).map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return { parent: '', child: '' };
+  if (parts.length === 1) return { parent: '', child: parts[0] };
+  return { parent: parts[0], child: parts.slice(1).join(' > ') };
+};
+const normalizeCategoryEntry = (category) => {
+  if (typeof category === 'string') {
+    const name = category.trim();
+    return name ? { name: name.slice(0, 30), color: '#8b8b95', icon: 'tag', subcategories: [] } : null;
+  }
+  if (!isPlainObject(category) || typeof category.name !== 'string') return null;
+  const name = category.name.trim();
+  if (!name) return null;
+  const subcategories = Array.isArray(category.subcategories)
+    ? category.subcategories.map((item) => normalizeCategoryEntry(item)).filter(Boolean)
+    : [];
+  return {
+    name: name.slice(0, 30),
+    color: hexOk(category.color) ? category.color : '#8b8b95',
+    icon: CAT_ICONS.includes(category.icon) ? category.icon : 'tag',
+    subcategories: subcategories.slice(0, 20),
+  };
+};
+const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean);
+const topCategoryNames = (kind) => categoryEntries(kind).map((category) => category.name);
+const categoryMatch = (kind, value) => {
+  const target = String(value ?? '').trim();
+  if (!target) return null;
+  const { parent, child } = categoryPathParts(target);
+  const categories = categoryEntries(kind);
+  if (parent) {
+    const parentEntry = categories.find((category) => norm(category.name) === norm(parent));
+    if (!parentEntry) return null;
+    const subcategory = (parentEntry.subcategories || []).find((category) => norm(categoryLeafName(category)) === norm(child));
+    return subcategory ? { category: parentEntry, subcategory, fullName: `${parentEntry.name} > ${categoryLeafName(subcategory)}` } : null;
+  }
+  const direct = categories.find((category) => norm(category.name) === norm(target));
+  if (direct) return { category: direct, subcategory: null, fullName: direct.name };
+  for (const category of categories) {
+    const subcategory = (category.subcategories || []).find((item) => norm(categoryLeafName(item)) === norm(target));
+    if (subcategory) return { category, subcategory, fullName: `${category.name} > ${categoryLeafName(subcategory)}` };
+  }
+  return null;
+};
+const catNames = (k) => categoryEntries(k).flatMap((category) => {
+  const subcategories = Array.isArray(category.subcategories) ? category.subcategories.map((subcategory) => `${category.name} > ${categoryLeafName(subcategory)}`) : [];
+  return [category.name, ...subcategories];
+});
+const catInfo = (k, n) => {
+  const match = categoryMatch(k, n);
+  if (!match) return { c: '#8b8b95', i: 'tag' };
+  const source = match.subcategory || match.category;
+  return { c: source.color || '#8b8b95', i: source.icon || 'tag' };
+};
 const OTHER_BANK = 'other';
 const BANKS = {
   nubank: { name: 'Nubank', logo: new URL('../assets/bank-logos/18236120.svg', import.meta.url).href },
@@ -342,7 +402,7 @@ function normalizeSettings(s) {
     ? profile.preferredName.slice(0, 50)
     : o.profile.name;
   o.profile.sex = Object.hasOwn(SEX, profile.sex) ? profile.sex : '';
-  o.profile.age = Number.isInteger(profile.age) && profile.age >= 5 && profile.age <= 120 ? profile.age : null;
+  o.profile.age = Number.isInteger(profile.age) && profile.age >= 0 && profile.age <= 120 ? profile.age : null;
   o.profile.weightKg = Number.isFinite(profile.weightKg) && profile.weightKg >= 20 && profile.weightKg <= 400 ? profile.weightKg : null;
   o.profile.heightCm = Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250 ? profile.heightCm : null;
   o.areas = Object.fromEntries(Object.keys(d.areas).map((key) => [key, typeof areas[key] === 'boolean' ? areas[key] : d.areas[key]]));
@@ -407,8 +467,9 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
+  const cleanCategoryGroup = (a) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean).slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
-  const dc = defCats(); o.cats = { out: cleanL(s?.cats?.out, true), in: cleanL(s?.cats?.in, true) };
+  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out), in: cleanCategoryGroup(s?.cats?.in) };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
   if (!PALETTES[o.theme] && o.theme !== 'custom') o.theme = 'rose';
   delete o.accountTypes;
@@ -543,7 +604,7 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(profile, 'name') && profile.name !== undefined && !isText(profile.name)) issues++;
     if (Object.hasOwn(profile, 'preferredName') && profile.preferredName !== undefined && !isText(profile.preferredName)) issues++;
     if (Object.hasOwn(profile, 'sex') && profile.sex !== undefined && profile.sex !== '' && !Object.hasOwn(SEX, profile.sex)) issues++;
-    if (Object.hasOwn(profile, 'age') && profile.age !== undefined && profile.age !== null && !(Number.isInteger(profile.age) && profile.age >= 5 && profile.age <= 120)) issues++;
+    if (Object.hasOwn(profile, 'age') && profile.age !== undefined && profile.age !== null && !(Number.isInteger(profile.age) && profile.age >= 0 && profile.age <= 120)) issues++;
     if (Object.hasOwn(profile, 'weightKg') && profile.weightKg !== undefined && profile.weightKg !== null && !(isFiniteValue(profile.weightKg) && profile.weightKg >= 20 && profile.weightKg <= 400)) issues++;
     if (Object.hasOwn(profile, 'heightCm') && profile.heightCm !== undefined && profile.heightCm !== null && !(Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250)) issues++;
   }
@@ -1110,12 +1171,12 @@ const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
-const brandLink = h`<a class="brand" href="#inicio" aria-label="Aurora, início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
+const brandLink = h`<a class="brand" href="#inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
 
 const notificationCount = () => Object.keys(ui.alerts).length;
 function updateDocumentTitle() {
-  const title = ROUTE_TITLES[ui.route] || 'Aurora';
-  document.title = `${notificationCount() ? `(${notificationCount()}) ` : ''}${title} | Aurora`;
+  const title = ROUTE_TITLES[ui.route] || 'aurora.';
+  document.title = `${notificationCount() ? `(${notificationCount()}) ` : ''}${title} | aurora.`;
 }
 function notificationButton(cls, id) {
   const count = notificationCount();
@@ -2700,14 +2761,13 @@ function profileSettings(s) {
     <section class="profile-settings-group" aria-labelledby="profile-estimate-title">
       <div><h3 id="profile-estimate-title">Idade</h3><p>Informe sua idade para usá-la na estimativa ao adicionar o hábito de água. Você pode deixar em branco.</p></div>
       <div class="form profile-settings-fields">
-        <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="5" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 5 e 120 anos.</span></label>
+        <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 0 e 120 anos.</span></label>
       </div>
     </section>
       <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar</button></div>
       </form>
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2></div>
-      <button type="button" class="btn ghost sm" data-account-signout>Sair da conta</button>
+      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
     </section>
   </div>`;
 }
@@ -3566,15 +3626,31 @@ function dlgAreaTutorial() {
     'area-tutorial-body');
 }
 function listArr(g) { return S.settings.cats[g]; }
-function addItem(g, name) {
-  const arr = listArr(g), ex = arr.find((x) => norm(x.name) === norm(name)); if (ex) return ex.name;
-  arr.push({ name, color: LIST_COLORS[arr.length % LIST_COLORS.length], icon: 'tag' }); return name;
+function addItem(g, name, parentName = '') {
+  const arr = listArr(g), value = String(name || '').trim().slice(0, 30);
+  if (!value) return '';
+  const parent = String(parentName || '').trim();
+  if (parent) {
+    const parentEntry = arr.find((category) => norm(category.name) === norm(parent));
+    if (parentEntry) {
+      const subcategories = Array.isArray(parentEntry.subcategories) ? parentEntry.subcategories : [];
+      const existing = subcategories.find((category) => norm(categoryLeafName(category)) === norm(value));
+      if (existing) return `${parentEntry.name} > ${categoryLeafName(existing)}`;
+      parentEntry.subcategories = [...subcategories, { name: value, color: parentEntry.color, icon: parentEntry.icon, subcategories: [] }];
+      return `${parentEntry.name} > ${value}`;
+    }
+  }
+  const ex = arr.find((category) => norm(category.name) === norm(value));
+  if (ex) return ex.name;
+  arr.push({ name: value, color: LIST_COLORS[arr.length % LIST_COLORS.length], icon: 'tag', subcategories: [] });
+  return value;
 }
 function resolveNew(g, d, key) {
   if (d[key] !== '__new') return true;
   const n = String(d.newName || '').trim().slice(0, 30);
   if (!n) { toast('Dê um nome para a nova opção.'); return false; }
-  d[key] = addItem(g, n); d.newName = ''; commit('settings'); return true;
+  const parentName = String(d.newParent || '').trim();
+  d[key] = addItem(g, n, parentName); d.newName = ''; d.newParent = ''; commit('settings'); return true;
 }
 const DLG = { taskplan: dlgTaskPlan, task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-batch': dlgCycleBatch, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
@@ -3774,7 +3850,7 @@ function parseBackup(text) {
   if (ex.about && typeof ex.about === 'object') {
     const a = ex.about;
     if ((a.sex !== undefined && a.sex !== '' && !Object.hasOwn(SEX, a.sex))
-      || (a.age !== undefined && a.age !== null && !(Number.isInteger(a.age) && a.age >= 5 && a.age <= 120))
+      || (a.age !== undefined && a.age !== null && !(Number.isInteger(a.age) && a.age >= 0 && a.age <= 120))
       || (a.weightKg !== undefined && a.weightKg !== null && !(isFiniteValue(a.weightKg) && a.weightKg >= 20 && a.weightKg <= 400))
       || (a.heightCm !== undefined && a.heightCm !== null && !(Number.isInteger(a.heightCm) && a.heightCm >= 80 && a.heightCm <= 250))) throw new Error('Os dados do perfil no backup estão inválidos.');
     Object.assign(settings.profile, { sex: SEX[a.sex] ? a.sex : '', age: Number.isFinite(a.age) ? a.age : null, weightKg: Number.isFinite(a.weightKg) ? a.weightKg : null, heightCm: Number.isFinite(a.heightCm) ? a.heightCm : null });
@@ -4650,8 +4726,8 @@ const FORMS = {
     const age = ageInput ? Number(ageInput) : null;
     if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
     if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-    if (ageInput && (!Number.isInteger(age) || age < 5 || age > 120)) {
-      toast('A idade deve ser um número inteiro entre 5 e 120 anos.');
+    if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
+      toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
       $('#page')?.focus();
       return;
     }
@@ -5523,8 +5599,7 @@ function dlgTx() {
     <form id="dlgform" class="form" data-form="dlg-tx">
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>＋ Nova categoria…</option></select>`, 'full')}${!tr && d.category === '__new' ? dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full') : ''}
-      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
+      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>＋ Nova categoria…</option></select>`, 'full')}      ${!tr && d.category === '__new' ? h`${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}` : ''}      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
       ${tr ? dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : ''}
       ${!tr && !isCredit(acc) ? h`<label class="row full" style="gap:12px;min-height:44px"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><br><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'}</span></span></label>` : ''}
@@ -5534,11 +5609,19 @@ function dlgTx() {
     h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
 }
 function dlgCategoryManager() {
+  const renderCategoryNode = (kind, category) => {
+    const subcategories = Array.isArray(category.subcategories) ? category.subcategories : [];
+    return h`<li class="category-manager-item">
+      ${catChip(catInfo(kind, category.name))}
+      <span class="grow ttl">${kind === 'out' ? expenseTitle(category.name) : category.name}</span>
+      ${subcategories.length ? h`<span class="muted small">${subcategories.length} subcategoria${subcategories.length > 1 ? 's' : ''}</span>` : ''}
+    </li>${subcategories.length ? h`<li class="category-manager-sublist"><ul class="list category-manager-list category-manager-subcategories">${subcategories.map((subcategory) => h`<li>${catChip(catInfo(kind, `${category.name} > ${categoryLeafName(subcategory)}`))}<span class="grow ttl">${kind === 'out' ? expenseTitle(`${category.name} > ${categoryLeafName(subcategory)}`) : `${category.name} > ${categoryLeafName(subcategory)}`}</span></li>`)}</ul></li>` : ''}`;
+  };
   const categoryGroup = (kind, label) => h`<section class="category-manager-group">
     <div class="head"><h3>${label}</h3><button type="button" class="btn sm" data-action="category-new" data-kind="${kind}">${icon('plus', 16)}Adicionar</button></div>
-    <ul class="list category-manager-list">${listArr(kind).map((category) => h`<li>${catChip(catInfo(kind, category.name))}<span class="grow ttl">${kind === 'out' ? expenseTitle(category.name) : category.name}</span></li>`)}</ul>
+    <ul class="list category-manager-list">${categoryEntries(kind).map((category) => renderCategoryNode(kind, category))}</ul>
   </section>`;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Os registros existentes não serão alterados.</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
     ${categoryGroup('out', 'Despesas')}
     ${categoryGroup('in', 'Receitas')}`,
     h`<button type="button" class="btn back" data-action="dlg-close">Fechar</button>`);
@@ -5546,8 +5629,10 @@ function dlgCategoryManager() {
 function dlgCategoryNew() {
   const kind = ui.dlg.d.kind;
   const label = kind === 'in' ? 'receita' : 'despesa';
+  const parents = topCategoryNames(kind);
   return dlgWrap(h`<div class="head"><div><h2 id="dt">Nova categoria de ${label}<i>.</i></h2><p class="small muted">Ela ficará disponível nos próximos lançamentos.</p></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-category">
+      ${parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${ui.dlg.d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
       ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${ui.dlg.d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
     </form>`,
     h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">Adicionar</button>`);
@@ -5852,11 +5937,14 @@ Object.assign(FORMS, {
   },
   'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
   'dlg-category': () => {
-    const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30);
+    const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
     if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
     if (!name) return toast('Informe o nome da categoria.');
-    if (listArr(d.kind).some((category) => norm(category.name) === norm(name))) return toast('Já existe uma categoria com esse nome.');
-    addItem(d.kind, name);
+    const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
+    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.');
+    const duplicate = parentEntry ? (Array.isArray(parentEntry.subcategories) ? parentEntry.subcategories.some((category) => norm(categoryLeafName(category)) === norm(name)) : false) : listArr(d.kind).some((category) => norm(category.name) === norm(name));
+    if (duplicate) return toast('Já existe uma categoria com esse nome.');
+    addItem(d.kind, name, parentName);
     ui.dlg = createDialog('category-manager', {});
     commit('settings');
     toast('Categoria adicionada.');
@@ -6393,6 +6481,8 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+
+initializeCustomSelects(document);
 
 startAurora().catch((error) => {
   console.error('Aurora: a inicialização segura falhou.', error);

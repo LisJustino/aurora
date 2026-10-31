@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Design system do Aurora</title>
+  <title>Design system | aurora.</title>
   <link rel="stylesheet" href="../src/css/main.css">
   <style>
     /* Só a moldura desta página de referência; os componentes usam o CSS real do app. */
@@ -133,7 +133,7 @@
   </section>
 
   <section class="card" aria-labelledby="ds-field"><h2 id="ds-field">Campos</h2>
-    <p class="ds-note">Altura mínima 48 px, borda visível, foco evidente e fonte mínima de 16 px. Para uma escolha única em formulário, use o <code>&lt;select&gt;</code> nativo com rótulo persistente; teclado e menu aberto seguem o navegador.</p>
+    <p class="ds-note">Altura mínima 48 px, borda visível e foco evidente. O campo mantém o valor e a validação do <code>&lt;select&gt;</code> nativo, mas a lista aberta segue o menu próprio do Aurora, com suporte a teclado, temas e rótulos acessíveis.</p>
     <form class="form" onsubmit="return false">
       <label class="f">Texto<input type="text" placeholder="Ex.: ler por 10 minutos"></label>
       <label class="f">Data<input type="date"></label>
@@ -203,6 +203,7 @@
   </section>
 </main>
 </div>
+<script type="module" src="./design-system.js"></script>
 <script>
   var themeMode = 'light';
   var systemTheme = window.matchMedia('(prefers-color-scheme: dark)');

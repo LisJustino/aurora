@@ -17,7 +17,7 @@ import { IC } from '../utils/icons.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.4';
+export const LEGAL_DOCUMENT_VERSION = '1.5';
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
   if (!(acceptedAt instanceof Date) || Number.isNaN(acceptedAt.getTime())) {
@@ -39,7 +39,7 @@ export function hasCurrentLegalConsent(user) {
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
 }
 
-export function hasCompleteAdultProfile(user) {
+export function hasCompleteProfile(user) {
   const metadata = user?.user_metadata;
   return Boolean(metadata
     && typeof metadata.name === 'string'
@@ -511,11 +511,11 @@ export function createAccountForm(root, {
       'date',
       'bday',
       signupProfile?.birthDate || '',
-      'Usamos a data para verificar a idade; guardamos somente a idade calculada.',
+      'Usamos a data para calcular sua idade; guardamos somente a idade calculada.',
     );
     birthDate.closest('.account-field')?.classList.add('account-birth-field');
     birthDate.max = localDateValue(new Date());
-    ageStatus = create('p', 'account-age-status', 'Informe sua data de nascimento para verificar a maioridade.');
+    ageStatus = create('p', 'account-age-status', 'Informe sua data de nascimento para calcular sua idade.');
     ageStatus.id = 'account-age-status';
     ageStatus.setAttribute('role', 'status');
     ageStatus.setAttribute('aria-live', 'polite');
@@ -694,19 +694,15 @@ export function createAccountForm(root, {
     const updateProfileValidity = () => {
       const age = calculateAge(birthDate.value);
       if (!birthDate.value) {
-        ageStatus.textContent = 'Informe sua data de nascimento para verificar a maioridade.';
+        ageStatus.textContent = 'Informe sua data de nascimento para calcular sua idade.';
         ageStatus.dataset.state = 'pending';
         birthDate.setCustomValidity('');
       } else if (age === null) {
         ageStatus.textContent = 'Informe uma data válida, com até 120 anos.';
         ageStatus.dataset.state = 'invalid';
         birthDate.setCustomValidity('Informe uma data de nascimento válida.');
-      } else if (age < 18) {
-        ageStatus.textContent = `Você tem ${age} anos. O cadastro está disponível a partir dos 18 anos.`;
-        ageStatus.dataset.state = 'invalid';
-        birthDate.setCustomValidity('A criação de conta está disponível apenas para pessoas com 18 anos ou mais.');
       } else {
-        ageStatus.textContent = `Você tem ${age} anos e é maior de idade.`;
+        ageStatus.textContent = `Você tem ${age} anos.`;
         ageStatus.dataset.state = 'eligible';
         birthDate.setCustomValidity('');
       }
@@ -714,7 +710,6 @@ export function createAccountForm(root, {
         form.elements.name.value.trim()
         && form.elements.preferredName.value.trim()
         && age !== null
-        && age >= 18
         && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
       );
     };
@@ -1040,9 +1035,9 @@ export async function requireAccount(root, initialMode = 'login', {
   const authPage = async (mode, email = '', notice = '', signupProfile = null) => {
     const copy = {
       login: ['Entrar na sua conta', 'Seus dados pessoais são carregados após a autenticação.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
-      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para verificar a idade e não será salva.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
+      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para calcular sua idade e não será salva.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
       'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
-      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta com segurança, informe seus dados, confirme que tem 18 anos ou mais e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
+      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta, informe seus dados e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
       recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
       'update-password': ['Atualizar senha', 'Escolha uma senha longa e exclusiva para sua conta. A redefinição não altera a senha do cofre legado; para importar dados cifrados, use a senha original dele.', []],
       'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos Termos de Uso e da Política de Privacidade. Se recusar, você poderá confirmar a exclusão permanente da conta e dos dados associados.', []],
@@ -1149,8 +1144,8 @@ export async function requireAccount(root, initialMode = 'login', {
     }
   };
 
-  const requireCurrentAdultProfile = async (user) => {
-    if (!hasSocialIdentity(user) || hasCompleteAdultProfile(user)) return user;
+  const requireCurrentProfile = async (user) => {
+    if (!hasSocialIdentity(user) || hasCompleteProfile(user)) return user;
     const metadata = user.user_metadata || {};
     const providerName = metadata.full_name || metadata.name || '';
     const profileDraft = {
@@ -1169,8 +1164,8 @@ export async function requireAccount(root, initialMode = 'login', {
       }
       const profile = result.signupProfile;
       if (!profile || !profile.name || !profile.preferredName
-        || !profile.birthdayReference || profile.age < 18) {
-        message = 'Preencha seus dados e confirme que tem 18 anos ou mais para continuar.';
+        || !profile.birthdayReference) {
+        message = 'Preencha seus dados e informe uma data de nascimento válida para continuar.';
         continue;
       }
       if (!result.termsAccepted) {
@@ -1201,7 +1196,7 @@ export async function requireAccount(root, initialMode = 'login', {
   };
 
   const requireCurrentLegalConsent = async (user) => {
-    user = await requireCurrentAdultProfile(user);
+    user = await requireCurrentProfile(user);
     if (!user || hasCurrentLegalConsent(user)) return user;
     let message = '';
     for (;;) {
@@ -1315,8 +1310,8 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
         if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
-          || !birthdayReference || result.signupProfile.age < 18) {
-          message = 'Preencha seus dados e confirme que tem 18 anos ou mais para criar uma conta.';
+          || !birthdayReference) {
+          message = 'Preencha seus dados e informe uma data de nascimento válida para criar uma conta.';
           continue;
         }
         profileDraft = result.signupProfile;
@@ -1325,9 +1320,9 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       if (mode === 'signup-access') {
-        if (!profileDraft || !profileDraft.birthdayReference || profileDraft.age < 18) {
+        if (!profileDraft || !profileDraft.birthdayReference) {
           mode = 'signup-profile';
-          message = 'Confirme seus dados e sua idade para continuar o cadastro.';
+          message = 'Confirme seus dados e a data de nascimento para continuar o cadastro.';
           continue;
         }
         if (!result.termsAccepted) {

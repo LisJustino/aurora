@@ -24,7 +24,8 @@ aurora/
 │       ├── main.js            # Composição atual; ainda concentrada
 │       ├── core/              # Router e compatibilidade de rotas
 │       ├── features/           # Funcionalidades agrupadas por domínio
-│       │   └── footer/         # Conteúdo compartilhado do footer
+│       │   ├── footer/         # Conteúdo compartilhado do footer
+│       │   └── selects/        # Combobox acessível compartilhado
 │       ├── data/              # Store relacional e importador temporário do legado
 │       ├── services/          # Autenticação, Push e busca local
 │       └── utils/             # DOM, ícones, templates HTML, datas, moeda e IDs

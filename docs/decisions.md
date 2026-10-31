@@ -27,6 +27,8 @@
   Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
   autenticada oferece exclusão permanente da conta, com confirmação digitada;
   a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
+- O cadastro não exige idade mínima. A data completa de nascimento é usada para
+  calcular a idade do perfil, mas não é armazenada.
 - O cadastro não exige confirmação do e-mail para liberar acesso. Projetos
   Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
   impedir recuperação da conta. A landing e a etapa de cadastro devem deixar
@@ -52,6 +54,10 @@
   Alterações nos documentos precisam manter alinhados os metadados HTML, a
   versão em `account-auth.js` e o fluxo de novo aceite; não editar conteúdo
   versionado sem revisar esse impacto.
+
+## Selects da plataforma
+
+Os selects compartilham um menu Aurora para manter o visual consistente entre navegadores e sistemas operacionais. A camada acessível controla abertura, opções, foco e teclado, enquanto o `<select>` original permanece no formulário como fonte de valor, validação, rótulos e eventos. Assim, os fluxos existentes de formulários e filtros continuam integrados sem depender da aparência nativa do menu.
 
 ## Persistência e compatibilidade
 

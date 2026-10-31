@@ -109,10 +109,10 @@ self.addEventListener('push', (event) => {
     }
     const habitReminder = payload.kind === 'habit-reminder';
     const title = habitReminder
-      ? 'Aurora · Hábitos'
+      ? 'aurora. · Hábitos'
       : typeof payload.title === 'string' && payload.title.length <= 80
       ? payload.title
-      : 'Aurora · Pomodoro';
+      : 'aurora. · Pomodoro';
     const body = habitReminder
       ? 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.'
       : typeof payload.body === 'string' && payload.body.length <= 180
