@@ -68,7 +68,7 @@ export function renderFooterContent({
         </div>
       </details>
       <div class="footer-meta">
-        <span>© ${new Date().getFullYear()} Aurora</span>
+        <span>© ${new Date().getFullYear()} aurora.</span>
         <button class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo</button>
       </div>
       <dialog class="dlg legal-modal" data-legal-modal aria-labelledby="legal-modal-title">

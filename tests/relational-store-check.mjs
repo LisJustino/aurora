@@ -37,6 +37,10 @@ const financeAccountMigration = await readFile(
 );
 assert.match(financeAccountMigration, /set account_type = 'checking'\s+where account_type = 'cash'/i);
 assert.match(financeAccountMigration, /'checking', 'savings', 'investment', 'credit'/i);
+assert.match(
+  financeAccountMigration,
+  /check \(account_types <@ array\['checking', 'savings', 'investment', 'cash'\]::text\[\]\)/i,
+);
 assert.match(financeAccountMigration, /linked_account_id uuid/i);
 assert.match(financeAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
 assert.match(financeAccountMigration, /on delete set null \(linked_account_id\)/i);

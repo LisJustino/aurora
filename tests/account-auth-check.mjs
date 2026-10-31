@@ -4,7 +4,7 @@ import {
   calculateAge,
   createLegalConsentMetadata,
   hasCurrentLegalConsent,
-  hasCompleteAdultProfile,
+  hasCompleteProfile,
   hasSocialIdentity,
   authCallbackErrorMessage,
   getOAuthRedirectUrl,
@@ -169,13 +169,17 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: LEGAL_DOCUMENT_VERSION,
   privacy_policy_version: LEGAL_DOCUMENT_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.4');
+assert.equal(LEGAL_DOCUMENT_VERSION, '1.5');
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
-assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.4">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.4">/);
+const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261030234700_signup_allow_any_age.sql', import.meta.url), 'utf8');
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.5">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.5">/);
+assert.match(termsDocument, /cadastro não exige idade mínima/i);
+assert.match(signupAgeMigration, /age between 0 and 120/);
+assert.match(signupAgeMigration, /profile_age < 0 or profile_age > 120/);
 assert.match(termsDocument, /provedor deve permitir o acesso sem confirmação do e-mail/);
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
@@ -185,11 +189,18 @@ assert.match(landingSource, /erro de digitação pode impedir a recuperação da
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
+    terms_version: '1.5',
+    privacy_policy_version: '1.5',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), true);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
     terms_version: '1.4',
     privacy_policy_version: '1.4',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
-}), true);
+}), false);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.1',
@@ -201,7 +212,7 @@ assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
 assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/#inicio');
 assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/#inicio');
-assert.equal(hasCompleteAdultProfile({
+assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',
     preferred_name: 'Ana',
@@ -211,7 +222,7 @@ assert.equal(hasCompleteAdultProfile({
     birthday_reference_date: '2020-10-30',
   },
 }), true);
-assert.equal(hasCompleteAdultProfile({
+assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',
     preferred_name: 'Ana',
@@ -220,7 +231,17 @@ assert.equal(hasCompleteAdultProfile({
     birthday_day: 30,
     birthday_reference_date: '2020-10-30',
   },
-}), false);
+}), true);
+assert.equal(hasCompleteProfile({
+  user_metadata: {
+    name: 'Ana',
+    preferred_name: 'Ana',
+    age: 0,
+    birthday_month: 10,
+    birthday_day: 30,
+    birthday_reference_date: '2020-10-29',
+  },
+}), true);
 assert.equal(hasSocialIdentity({ app_metadata: { provider: 'google' } }), true);
 assert.equal(hasSocialIdentity({ identities: [{ provider: 'apple' }] }), true);
 assert.equal(hasSocialIdentity({ app_metadata: { provider: 'email' } }), false);
