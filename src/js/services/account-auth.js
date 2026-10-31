@@ -530,7 +530,9 @@ export function createAccountForm(root, {
       'email',
       'email',
       email,
-      mode === 'signup-access' ? 'Use um e-mail ao qual você tenha acesso para recuperar sua senha.' : '',
+      mode === 'signup-access'
+        ? 'Você não precisa confirmar o e-mail para entrar. Confira o endereço: um erro pode impedir a recuperação da senha.'
+        : '',
     );
   }
   if (mode === 'signup-access') {

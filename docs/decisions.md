@@ -20,14 +20,24 @@
   ambos os recursos.
 - A interface mantém suporte a teclado, leitores de tela, layouts responsivos
   e temas claro e escuro.
+- O onboarding inicial recomenda áreas conforme as necessidades escolhidas,
+  permite revisar as ativações e informa que elas podem ser alteradas depois
+  em Ajustes → Áreas e navegação. Planejar permanece sempre disponível.
 - O cadastro e cada atualização de documentos exigem aceite explícito dos
   Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
   autenticada oferece exclusão permanente da conta, com confirmação digitada;
   a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
 - O cadastro não exige confirmação do e-mail para liberar acesso. Projetos
   Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
-  impedir recuperação da conta. O app não envia links de confirmação; contas
-  antigas pendentes precisam ser liberadas manualmente no Dashboard do Supabase.
+  impedir recuperação da conta. A landing e a etapa de cadastro devem deixar
+  esse risco claro antes da criação da conta. O app não envia links de
+  confirmação; contas antigas pendentes precisam ser liberadas manualmente no
+  Dashboard do Supabase.
+- Métricas comportamentais e analytics de terceiros estão adiados. Não
+  adicionar scripts ou eventos de rastreamento até definir finalidade,
+  minimização, retenção, transparência na Política de Privacidade e necessidade
+  de novo aceite; métricas agregadas de hospedagem também dependem de decisão
+  explícita.
 - No cadastro, um e-mail que o Supabase identifica como já associado recebe
   orientação de que uma exclusão confirmada libera novo cadastro sem os dados
   anteriores; erros não reconhecidos continuam sem detalhes técnicos do
@@ -39,6 +49,9 @@
 - Os documentos legais ficam acessíveis no footer em um diálogo modal, com
   páginas estáticas de fallback. O conteúdo ainda exige revisão jurídica e
   confirmação das configurações operacionais antes de publicação definitiva.
+  Alterações nos documentos precisam manter alinhados os metadados HTML, a
+  versão em `account-auth.js` e o fluxo de novo aceite; não editar conteúdo
+  versionado sem revisar esse impacto.
 
 ## Persistência e compatibilidade
 

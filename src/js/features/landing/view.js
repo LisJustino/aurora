@@ -77,44 +77,56 @@ export function renderLanding(root) {
       <a class="skip" href="#landing-main" data-public-action="skip">Pular para o conteúdo principal</a>
       ${publicHeader()}
       <main class="public-main" id="landing-main" tabindex="-1">
-        <section class="public-hero" aria-labelledby="landing-title">
+        <section class="public-hero public-hero-card" aria-labelledby="landing-title">
           <div class="public-copy">
             <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal, sem complicação</p>
             <h1 id="landing-title">Mais clareza para a sua rotina<span>.</span></h1>
-            <p class="public-lead">Planeje a semana, acompanhe hábitos e organize suas finanças — com ferramentas de foco no seu ritmo.</p>
+            <p class="public-lead">Organize tarefas, acompanhe hábitos e cuide das finanças — com espaço para focar no que importa.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="signup">Criar conta e começar</button>
               <button class="btn large" type="button" data-public-action="demo">Explorar a demonstração</button>
             </div>
-            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Sem cadastro: teste uma tarefa, um hábito e o Pomodoro com dados fictícios. A demonstração não acessa sua conta nem salva alterações; os outros recursos ficam disponíveis ao criar uma conta.</span></p>
+            <p class="public-reassurance">${demoIcon('lock', 17)}<span>A demonstração usa dados fictícios: não acessa sua conta nem salva alterações.</span></p>
           </div>
           <figure class="product-preview" role="img" aria-label="Capturas da interface do Aurora em computador e celular">
-            <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
-            <img class="preview-capture preview-capture--mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async">
+            <div class="preview-device preview-device--desktop" aria-hidden="true">
+              <div class="preview-device-screen">
+                <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
+              </div>
+              <span class="preview-device-base"></span>
+            </div>
+            <div class="preview-device preview-device--mobile" aria-hidden="true">
+              <span class="preview-device-side-button"></span>
+              <div class="preview-device-screen">
+                <span class="preview-device-notch"></span>
+                <img class="preview-capture preview-capture--mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async">
+              </div>
+              <span class="preview-device-home-indicator"></span>
+            </div>
           </figure>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Seu espaço pessoal</p><h2 id="public-features-title">Cuide do que importa, em um só lugar</h2></div>
+          <div class="public-section-heading"><p class="public-eyebrow">Seu espaço pessoal</p><h2 id="public-features-title">Um lugar para organizar o que importa</h2></div>
           <div class="public-values">
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-            <div><h3>Planejar</h3><p>Transforme ideias em tarefas, organize prazos e enxergue sua semana.</p></div>
+            <div><h3>Planejar</h3><p>Tire tarefas da cabeça, defina prazos e organize a semana.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
-            <div><h3>Foco</h3><p>Use o Pomodoro com pausas e associe cada sessão a uma tarefa.</p></div>
+            <div><h3>Foco</h3><p>Use o Pomodoro no seu ritmo, com ou sem uma tarefa associada.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
-            <div><h3>Hábitos</h3><p>Acompanhe seus registros ao longo da semana, sem cobrar perfeição.</p></div>
+            <div><h3>Hábitos</h3><p>Registre seus hábitos e acompanhe a constância, sem cobrança.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
-            <div><h3>Finanças</h3><p>Anote receitas e despesas manualmente, sem conexão com bancos.</p></div>
+            <div><h3>Finanças</h3><p>Lance receitas, despesas e cartões manualmente, sem conexão com bancos.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
-            <div><h3>Ciclo</h3><p>Registre períodos e sintomas e consulte informações gerais, sem substituir orientação profissional.</p></div>
+            <div><h3>Ciclo</h3><p>Registre períodos e sintomas; informações gerais, sem substituir orientação profissional.</p></div>
           </article>
           </div>
         </section>
@@ -126,35 +138,25 @@ export function renderLanding(root) {
             <li class="public-step card"><span class="public-step-number" aria-hidden="true">03</span><h3>Reserve um tempo de foco</h3><p>Inicie o Pomodoro e, se quiser, associe a sessão a uma tarefa.</p></li>
           </ol>
         </section>
-        <section class="public-account-section" aria-labelledby="public-account-access-title">
-          <div class="public-account-access card">
-            <div class="public-account-copy">
-              <h2 id="public-account-access-title">Comece pela sua rotina</h2>
-              <p>Crie uma conta para acessar seus próprios registros. Use um e-mail ao qual tenha acesso para recuperar sua senha.</p>
-              <p class="public-account-privacy">O acesso aos registros é limitado à conta autenticada. Finanças são anotadas manualmente; o Aurora não se conecta a bancos.</p>
-            </div>
-            <div class="public-account-actions">
-              <button class="btn primary" type="button" data-public-action="signup">Criar conta e começar</button>
-              <button class="btn" type="button" data-public-action="login">Entrar</button>
-            </div>
-          </div>
-          <section class="public-faq" aria-labelledby="public-faq-title">
+        <section class="public-faq" aria-labelledby="public-faq-title">
+          <div class="public-section-heading">
+            <p class="public-eyebrow">Antes de começar</p>
             <h2 id="public-faq-title">Perguntas frequentes</h2>
-            <div class="public-faq-list">
-              <details class="card public-faq-item">
-                <summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary>
-                <p>Seus registros ficam associados à sua conta e as regras de acesso limitam cada registro ao usuário autenticado. A demonstração usa dados fictícios e não acessa seus registros.</p>
-              </details>
-              <details class="card public-faq-item">
-                <summary>Preciso confirmar meu e-mail?<span aria-hidden="true">+</span></summary>
-                <p>Não. Você pode entrar assim que criar a conta. Use um endereço válido para poder recuperar sua senha.</p>
-              </details>
-              <details class="card public-faq-item">
-                <summary>Posso apagar minha conta?<span aria-hidden="true">+</span></summary>
-                <p>Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados.</p>
-              </details>
-            </div>
-          </section>
+          </div>
+          <div class="public-faq-list compact-card-grid">
+            <details class="card public-faq-item">
+              <summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary>
+              <p>Seus registros ficam associados à sua conta e as regras de acesso limitam cada registro ao usuário autenticado. A demonstração usa dados fictícios e não acessa seus registros.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Preciso confirmar meu e-mail?<span aria-hidden="true">+</span></summary>
+              <p>Não. O acesso é liberado assim que a conta é criada. Confira o endereço antes: um erro de digitação pode impedir a recuperação da senha.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Posso apagar minha conta?<span aria-hidden="true">+</span></summary>
+              <p>Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados.</p>
+            </details>
+          </div>
         </section>
       </main>
       ${publicFooter({ demoAvailable: true })}

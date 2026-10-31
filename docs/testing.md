@@ -33,6 +33,14 @@ Na etapa de perfil do cadastro em mobile, confirme que o texto introdutório red
 - Campos opcionais nulos no banco devem ser omitidos ao reconstruir registros, não materializados como propriedades `undefined`, para que a validação de tarefas não bloqueie dados válidos.
 - A migration `20261030100000_relational_version_conflict.sql` foi aplicada no projeto Supabase de desenvolvimento em 2026-10-30; uma consulta somente de leitura confirmou que `apply_relational_changes(jsonb)` retorna `jsonb`. Depois da migration, uma tarefa de teste permaneceu após recarregar o app sem erro; os dados da tentativa anterior também estavam presentes.
 
+### Publicação e decisões pendentes
+
+- Antes de ampliar a divulgação, siga o checklist de [`cloudflare-pages.md`](./cloudflare-pages.md): revisão jurídica dos documentos, confirmação operacional do projeto de produção e testes dos fluxos com contas fictícias.
+- A produção ainda precisa de verificação independente das configurações Supabase; o estado do projeto de desenvolvimento não comprova as configurações de produção.
+- O cadastro permanece sem confirmação de e-mail. A interface deve avisar que o endereço precisa estar correto e acessível para permitir recuperação da senha.
+- Analytics comportamental e scripts de terceiros estão adiados; a publicação não deve adicionar rastreadores ou eventos sem uma nova decisão e revisão da política/consentimento.
+- Não altere a versão dos documentos legais sem alinhar `terms.html`, `privacy.html`, `LEGAL_DOCUMENT_VERSION` e o fluxo de reconsentimento; uma nova versão pode exigir aceite de contas existentes.
+
 Na raiz do repositório, instale as dependências e execute:
 
 ```powershell
@@ -61,6 +69,7 @@ node tests/e2e/legal-consent-flow.cjs http://127.0.0.1:5173
 node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5173
 node tests/e2e/notifications.cjs http://127.0.0.1:5173
 node tests/e2e/home-first-steps.cjs http://127.0.0.1:5173
+node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
 node tests/e2e/planning-quick-task.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
@@ -69,7 +78,7 @@ node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
 O cenário de notificações confirma que lembretes novos não abrem o painel
 automaticamente, que o indicador do sino permite encontrá-los e que abrir,
 adiar e dispensar continuam funcionando em mobile e desktop.
-- `node tests/e2e/signup-birthdate.cjs` confere a aparência nativa do seletor de nascimento, idade mínima e largura do campo em 320 px, 390 px e desktop sem enviar o cadastro.
+- `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px e o seletor de nascimento sem enviar o cadastro.
 - **Aprovado (2026-10-29):** `node tests/e2e/notifications.cjs http://127.0.0.1:5173` — fluxo mobile/desktop, sem overflow horizontal nem erros no console.
 
 ## Prévia visual local
@@ -78,7 +87,8 @@ adiar e dispensar continuam funcionando em mobile e desktop.
 - **Aprovado:** `node tests/e2e/close-buttons.cjs http://127.0.0.1:5173` — os controles medem 40×40 px e mantêm raio consistente em celular e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
-- `node tests/e2e/home-first-steps.cjs` verifica o cartão, a ausência de abertura automática, o botão “Como usar?” e os dois formatos locais de vídeo.
+- `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
+- `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
 - `node tests/e2e/planning-quick-task.cjs` verifica a prévia do prazo, confirmação, cancelamento e criação por Enter em 390 px.
 - `node tests/e2e/public-demo-interactions.cjs` verifica hábito/tarefa/timer por teclado, zero requisições e zero gravações no navegador, em 390 px e desktop.
 - **Aprovado (2026-10-30):** `node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5190` — lista compacta, filtragem, seleção por teclado/clique e validação após sair do campo, em 320 px e desktop.

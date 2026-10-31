@@ -47,7 +47,7 @@
 .empty-copy { display: grid; justify-items: center; gap: 5px; }
 .empty b { color: var(--ink); font-size: var(--text-lg); letter-spacing: -.02em; }
 .empty-copy > span { max-width: 42ch; font-size: var(--text-sm); line-height: 1.5; }
-.empty-action { display: flex; justify-content: center; margin-top: 10px; }
+.empty-action { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
 .empty-action > .btn { min-width: 188px; }
 .empty-action > .btn:not(.danger) {
   border-color: transparent;
@@ -59,6 +59,7 @@
 @media (max-width: 480px) {
   .empty { min-height: 190px; flex-direction: column; padding: 28px 16px; }
   .empty-copy { width: 100%; min-width: 0; }
+  .empty-action { flex-direction: column; }
   .empty-action, .empty-action > .btn { width: 100%; }
 }
 
@@ -111,8 +112,16 @@
 }
 .offline-banner > .ic { flex: none; margin-top: 2px; }
 
+.save-problem-banner { display: flex; align-items: center; gap: var(--space-3); }
+.save-problem-banner > .ic { flex: none; }
+.save-problem-copy { min-width: 0; flex: 1; }
+.save-problem-banner > .btn { flex: none; }
+
 @media (max-width: 700px) {
   .save-indicator { justify-content: center; }
+  .save-problem-banner { align-items: flex-start; flex-wrap: wrap; }
+  .save-problem-copy { flex-basis: calc(100% - 32px); }
+  .save-problem-banner > .btn { margin-left: 32px; }
 }
 
 @media (max-width: 899px) {
