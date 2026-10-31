@@ -74,8 +74,8 @@
   </section>
 
   <section class="card" aria-labelledby="ds-shortcuts"><h2 id="ds-shortcuts">Atalhos compactos</h2>
-    <p class="ds-note">Use <code>.shortcut-grid</code> com links <code>.shortcut-card</code> para destinos relacionados com título e descrição. Cada cartão é um único link; <code>.shortcut-card--wide</code> ocupa a linha inteira em grades largas. A grade vira uma coluna em telas estreitas.</p>
-    <nav class="shortcut-grid" aria-label="Exemplo de atalhos">
+    <p class="ds-note">Use <code>.compact-card-grid</code> ou <code>.shortcut-grid</code> para opções e destinos com pouco conteúdo. Em telas largas, os cartões ficam entre <code>--card-compact-min-width</code> e <code>--card-compact-max-width</code> (240–320 px); a última linha não se estica. Em telas estreitas, a grade vira uma coluna. Cada <code>.shortcut-card</code> é um único link, sem controles interativos aninhados.</p>
+    <nav class="shortcut-grid compact-card-grid" aria-label="Exemplo de atalhos">
       <a class="shortcut-card" href="../pages/planejar.html">
         <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18M8 16l2 2 4-4"/></svg></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Planejar</span><span class="shortcut-card-description">Tarefas, prazos, calendário e planos por etapas.</span></span>
@@ -91,12 +91,33 @@
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Finanças</span><span class="shortcut-card-description">Contas, entradas e saídas.</span></span>
         <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </a>
-      <a class="shortcut-card shortcut-card--wide" href="../pages/ciclo.html">
+      <a class="shortcut-card" href="../pages/ciclo.html">
         <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Ciclo</span><span class="shortcut-card-description">Registro e estimativas.</span></span>
         <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
       </a>
     </nav>
+  </section>
+
+  <section class="card" aria-labelledby="ds-options"><h2 id="ds-options">Opções de áreas</h2>
+    <p class="ds-note">Em Ajustes, cada área usa um cartão curto com ativação e descrição na primeira linha; visibilidade e ordenação ficam agrupadas abaixo. A grade respeita <code>--card-compact-max-width</code> e vira uma coluna em telas estreitas.</p>
+    <ol class="areas-navigation-list compact-card-grid" aria-label="Exemplo de opções de áreas">
+      <li class="areas-navigation-item">
+        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <label class="areas-navigation-toggle"><input type="checkbox" checked aria-label="Ativar Hábitos"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Hábitos</b><small class="area-status is-active">Ativa</small></span><span>Registre práticas que fazem sentido para a sua rotina.</span></span></label>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">2º</span><button type="button" class="ibtn" aria-label="Mover Hábitos para baixo">↓</button></span></span>
+      </li>
+      <li class="areas-navigation-item">
+        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <label class="areas-navigation-toggle"><input type="checkbox" aria-label="Ativar Finanças"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Finanças</b><small class="area-status">Desativada</small></span><span>Acompanhe contas, receitas e despesas.</span></span></label>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox">Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">3º</span><button type="button" class="ibtn" aria-label="Mover Finanças para cima">↑</button><button type="button" class="ibtn" aria-label="Mover Finanças para baixo">↓</button></span></span>
+      </li>
+      <li class="areas-navigation-item">
+        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <label class="areas-navigation-toggle"><input type="checkbox" checked aria-label="Ativar Ciclo"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Ciclo</b><small class="area-status is-active">Ativa</small></span><span>Registre períodos, sintomas e observações.</span></span></label>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">4º</span><button type="button" class="ibtn" aria-label="Mover Ciclo para cima">↑</button></span></span>
+      </li>
+    </ol>
   </section>
 
   <section class="card" aria-labelledby="ds-list"><h2 id="ds-list">Listas</h2>

@@ -870,8 +870,15 @@
 }
 
 .main[data-route="config"] .settings-options {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(
+      min(100%, var(--card-compact-min-width)),
+      min(100%, var(--card-compact-max-width))
+    )
+  );
+  justify-content: start;
+  gap: var(--card-compact-gap);
 }
 .main[data-route="config"] .areas-settings { container-type: inline-size; }
 .main[data-route="config"] .setting-toggle {
@@ -968,7 +975,7 @@
 .main[data-route="config"] .setting-toggle input:checked::after { opacity: 1; }
 .main[data-route="config"] .setting-toggle input:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
-@media (max-width: 560px) {
+@media (max-width: 700px) {
   .main[data-route="config"] .settings-options { grid-template-columns: minmax(0, 1fr); }
   .main[data-route="config"] .setting-toggle { min-height: 88px; padding: 14px; }
 }

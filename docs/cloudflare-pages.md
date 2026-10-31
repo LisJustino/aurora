@@ -64,3 +64,32 @@ variáveis `VITE_*` ou no bundle do frontend.
 - Teste login e gravação com uma conta de teste, quando Supabase estiver
   configurado.
 - Verifique HTTPS, cabeçalhos, console e navegação em larguras móveis e desktop.
+
+## Checklist antes de ampliar a divulgação
+
+Não considere o site pronto para divulgação ampla até concluir e registrar estes
+itens:
+
+- **Revisão dos documentos:** obtenha revisão jurídica dos Termos e da Política
+  de Privacidade, especialmente sobre dados de ciclo/saúde e financeiros,
+  operadores e região de hospedagem, retenção, exclusão, backups e Push. A
+  revisão técnica do repositório não substitui essa validação.
+- **Configuração de produção:** confirme no projeto Supabase de produção a
+  autoconfirmação de novos cadastros, as URLs de retorno permitidas, a região,
+  as políticas RLS e a publicação/configuração da Edge Function de exclusão.
+  A configuração de desenvolvimento não comprova a de produção.
+- **Fluxos com conta de teste:** em Preview e, depois, em Production, valide
+  cadastro, login, recuperação de senha, leitura/gravação após recarregar e
+  exclusão definitiva usando somente contas e dados fictícios. Não faça
+  testes destrutivos em contas reais.
+- **Entrega e acessibilidade:** confira a landing e a demonstração em mobile e
+  desktop, navegação por teclado, links dos documentos, rotas diretas, erros no
+  console, cabeçalhos, links quebrados e os arquivos do PWA. Registre problemas
+  conhecidos antes de divulgar.
+- **Analytics:** métricas comportamentais estão adiadas. Não adicionar scripts
+  ou eventos de terceiros por enquanto; qualquer adoção futura exige revisar a
+  Política de Privacidade, a CSP e o fluxo de aceite antes de publicar.
+
+Os documentos legais ainda registram pendências de revisão e confirmação
+operacional. Esses itens não são cobertos pelo build local nem pelos testes
+automatizados.

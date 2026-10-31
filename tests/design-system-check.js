@@ -38,7 +38,7 @@ const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((
 check(files.length > 20, 'main.css importa as folhas esperadas', `${files.length} arquivos`);
 check(!files.some((item) => item.file === 'components/visual-refresh.css'), 'Regras visuais estão nas folhas de origem');
 check(files.some((item) => item.file === 'design-system/lists.css'), 'O padrão de listas está no design system');
-check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card--wide')), 'O padrão de atalhos compactos está no design system');
+check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card')), 'O padrão de cartões compactos está no design system');
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
@@ -63,6 +63,8 @@ for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
   '--r-xs', '--r-sm', '--r-control', '--r-group', '--r', '--r-large', '--r-pill', '--on-solid',
   '--card-padding', '--card-padding-compact', '--card-content-gap',
+  '--card-compact-min-width', '--card-compact-max-width', '--card-compact-gap',
+  '--shadow-sm',
   '--button-gap', '--button-padding-inline', '--button-padding-inline-sm', '--button-padding-inline-lg', '--button-radius',
   '--list-gap', '--list-row-gap', '--list-row-padding-block', '--list-row-padding-inline',
 ]) {

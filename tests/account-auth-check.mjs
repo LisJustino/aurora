@@ -172,10 +172,17 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
 assert.equal(LEGAL_DOCUMENT_VERSION, '1.4');
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
+const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
+const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.4">/);
 assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.4">/);
 assert.match(termsDocument, /provedor deve permitir o acesso sem confirmação do e-mail/);
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
+assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
+assert.match(accountAuthSource, /erro pode impedir a recuperação da senha/i);
+assert.match(landingSource, /acesso é liberado assim que a conta é criada/i);
+assert.match(landingSource, /erro de digitação pode impedir a recuperação da senha/i);
+assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.4',
@@ -218,7 +225,6 @@ assert.equal(hasSocialIdentity({ app_metadata: { provider: 'google' } }), true);
 assert.equal(hasSocialIdentity({ identities: [{ provider: 'apple' }] }), true);
 assert.equal(hasSocialIdentity({ app_metadata: { provider: 'email' } }), false);
 
-const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 assert.doesNotMatch(accountAuthSource, /createGenderSelect\(form/);
 assert.doesNotMatch(accountAuthSource, /form\.elements\.sex\.checkValidity\(\)/);
 assert.doesNotMatch(accountAuthSource, /sex:\s*profileDraft\.sex/);
