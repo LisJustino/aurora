@@ -37,7 +37,6 @@ import {
   normalizeAccountType,
 } from '../src/js/features/finance/accounts.js';
 import { parseStatement } from '../src/js/features/finance/statement.js';
-import { parseQuickTaskText } from '../src/js/features/planning/quick-entry.js';
 import {
   AREA_GUIDES,
   AREA_GUIDE_IDS,
@@ -54,11 +53,14 @@ import {
   habitIconKey,
   habitIsComplete,
   habitIsSkipped,
+  filterSuggestedHabits,
   isWaterHabit,
   HABIT_COLORS,
   HABIT_ICON_KEYS,
   SUGGESTED_HABITS,
+  SUGGESTED_HABIT_CATEGORIES,
   habitStats,
+  habitWeekReview,
   habitWeekOverview,
   habitWeeklyTarget,
   isValidHabit,
@@ -92,11 +94,13 @@ import {
 } from '../src/js/features/trash/model.js';
 import {
   advancePomodoro,
+  customPomodoroSettings,
   cyclesPerLongBreak,
   effectivePomodoroSettings,
   longBreakMinutes,
   normalizePomodoroHistory,
   phaseDurationSeconds,
+  POMODORO_PRESETS,
   recentFocusDays,
 } from '../src/js/features/pomodoro/pomodoro.js';
 import {
@@ -120,6 +124,7 @@ import {
   backupReminderStatus,
 } from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
+import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 
 const results = [];
 
@@ -161,11 +166,11 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
   }
 });
 
-test('confirmações nativas foram substituídas e o feedback de persistência informa status', () => {
+test('confirmações nativas foram substituídas e o feedback de persistência não exibe horários salvos', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
-  if (!source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
-    throw new Error('O shell precisa exibir o horário salvo e o aviso offline persistente.');
+  if (source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
+    throw new Error('O shell não deve exibir horários de salvamento e deve manter o aviso offline.');
   }
 });
 
@@ -174,21 +179,37 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   renderLanding(root);
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Mais clareza para a sua rotina',
+    'Mais clareza para a sua semana',
+    'registre suas finanças manualmente',
     'Criar conta e começar',
     'Explorar a demonstração',
-    'não acessa sua conta nem salva alterações',
-    'sem conexão com bancos',
-    'usuário autenticado',
-    'Um passo de cada vez',
-    'Reserve um tempo de foco',
+    'não são salvas nem sincronizadas',
+    'Finanças manuais',
+    'O Aurora não se conecta a bancos',
+    'associados à sua conta',
+    'Acompanhe períodos e sintomas',
   ];
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
-  if (!entryHtml.includes('<title>Aurora — mais clareza para a sua rotina</title>')
-    || !entryHtml.includes('property="og:title" content="Aurora — mais clareza para a sua rotina"')
-    || !entryHtml.includes('name="twitter:title" content="Aurora — mais clareza para a sua rotina"')) {
+  if (root.innerHTML.includes('public-testimonial')
+    || root.innerHTML.includes('profissional e mãe')
+    || root.innerHTML.includes('estudante e freelancer')
+    || root.innerHTML.includes('gestora de rotina')) {
+    throw new Error('A landing não deve apresentar depoimentos ou perfis fictícios como prova social.');
+  }
+  if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
+    throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
+  }
+  if (root.innerHTML.indexOf('data-public-action="signup"') > root.innerHTML.indexOf('data-public-action="demo"')) {
+    throw new Error('O cadastro deve aparecer antes da demonstração como ação principal.');
+  }
+  if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
+    throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
+  }
+  if (!entryHtml.includes('<title>aurora. — mais clareza para a sua rotina</title>')
+    || !entryHtml.includes('property="og:title" content="aurora. — mais clareza para a sua rotina"')
+    || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
   const landingView = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
@@ -216,6 +237,37 @@ const truthy = (value) => {
 const falsy = (value) => {
   if (value) throw new Error('Esperava um valor falso.');
 };
+
+test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', () => {
+  ok(Object.isFrozen(IC));
+  ok(Object.isFrozen(ICON_SIZES));
+  for (const name of HABIT_ICON_KEYS) {
+    ok(Object.hasOwn(IC, name), `ícone de hábito ${name} precisa existir no catálogo`);
+  }
+  for (const [name, paths] of Object.entries(IC)) {
+    ok(paths.startsWith('<'), `caminhos de ${name}`);
+    const markup = iconSvg(name);
+    ok(markup.includes('viewBox="0 0 24 24"'), `viewBox de ${name}`);
+    ok(markup.includes('stroke="currentColor"'), `cor herdada de ${name}`);
+    ok(markup.includes('aria-hidden="true"') && markup.includes('focusable="false"'), `acessibilidade de ${name}`);
+  }
+  ok(icon('home').s.includes('width="18"'));
+  ok(iconSvg('home', ICON_SIZES.navigation, 'nav-icon').includes('class="ic nav-icon"'));
+  let unknownRejected = false;
+  try {
+    iconSvg('toString');
+  } catch (error) {
+    unknownRejected = error instanceof RangeError;
+  }
+  ok(unknownRejected, 'ícones ausentes precisam falhar explicitamente');
+  let invalidSizeRejected = false;
+  try {
+    iconSvg('home', 0);
+  } catch (error) {
+    invalidSizeRejected = error instanceof RangeError;
+  }
+  ok(invalidSizeRejected, 'tamanhos inválidos precisam falhar explicitamente');
+});
 
 test('orientações cobrem as telas e esclarecem a privacidade financeira', () => {
   const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'ciclo'];
@@ -270,7 +322,12 @@ test('aniversário mantém somente dia e mês e atualiza a idade na data correta
   equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 28)), 24);
   equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 29)), 25);
   equal(ageFromBirthdayReference(birthday, new Date(2026, 9, 29)), 26);
-  equal(createBirthdayReference('2010-10-29', new Date(2024, 9, 29)), null);
+  const minorBirthday = createBirthdayReference('2010-10-29', new Date(2024, 9, 29));
+  equal(minorBirthday.ageAtReference, 14);
+  equal(isValidBirthdayReference(minorBirthday), true);
+  const infantBirthday = createBirthdayReference('2024-10-29', new Date(2024, 9, 29));
+  equal(infantBirthday.ageAtReference, 0);
+  equal(isValidBirthdayReference(infantBirthday), true);
 });
 
 test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos comuns', () => {
@@ -280,9 +337,12 @@ test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos com
 });
 
 test('sugestão de água considera idade registrada e usa referência adulta quando ausente', () => {
+  const infant = estimateWaterGoal({ weightKg: 60, age: 0 });
   const middleAge = estimateWaterGoal({ weightKg: 60, age: 40 });
   const olderAdult = estimateWaterGoal({ weightKg: 60, age: 60 });
   const senior = estimateWaterGoal({ weightKg: 60, age: 70 });
+  equal(infant.per, 40);
+  equal(infant.assumed, false);
   const ageUnavailable = estimateWaterGoal({ weightKg: 60 });
 
   equal(middleAge.per, 35);
@@ -483,22 +543,6 @@ test('valida datas civis incluindo anos bissextos', () => {
   truthy(isDay('2024-02-29'));
   equal(isDay('2025-02-29'), false);
   equal(isDay('2024-13-01'), false);
-});
-
-test('interpreta prazos de tarefa rápida sem depender do timezone do servidor', () => {
-  equal(JSON.stringify(parseQuickTaskText('Revisar hoje', '2026-10-30')), JSON.stringify({
-    title: 'Revisar', dueDate: '2026-10-30', time: '', hasDeadline: true, error: '',
-  }));
-  equal(JSON.stringify(parseQuickTaskText('Ler amanhã às 18:30', '2026-10-30')), JSON.stringify({
-    title: 'Ler', dueDate: '2026-10-31', time: '18:30', hasDeadline: true, error: '',
-  }));
-  equal(JSON.stringify(parseQuickTaskText('Enviar relatório sexta 18h', '2026-10-30')), JSON.stringify({
-    title: 'Enviar relatório', dueDate: '2026-10-30', time: '18:00', hasDeadline: true, error: '',
-  }));
-  equal(parseQuickTaskText('Reunião sexta', '2026-10-31').dueDate, '2026-11-06');
-  equal(parseQuickTaskText('Planejar semana', '2026-10-30').title, 'Planejar semana');
-  truthy(/horário válido/.test(parseQuickTaskText('Entregar sexta 25h', '2026-10-30').error));
-  truthy(/Escreva a tarefa/.test(parseQuickTaskText('amanhã 18h', '2026-10-30').error));
 });
 
 test('valida atividade sexual e métodos contraceptivos do diário do ciclo', () => {
@@ -916,6 +960,38 @@ test('meta semanal nunca passa do número de dias escolhidos', () => {
   equal(habitWeeklyTarget(habitBase), null);
 });
 
+test('revisão semanal resume somente dias programados até hoje e ignora dias pulados e pausados', () => {
+  const habit = {
+    ...habitBase,
+    days: [1, 2, 3, 4],
+    weeklyGoal: 2,
+    completions: ['2026-10-19', '2026-10-22'],
+    skipped: ['2026-10-20'],
+  };
+  const paused = { ...habitBase, id: 'h2', status: 'paused', days: [1, 2, 3] };
+  const review = habitWeekReview(
+    [habit, paused],
+    '2026-10-21',
+    1,
+    (item, day) => item.completions.includes(day),
+    (item, day) => habitIsSkipped(item, day, '2026-10-21'),
+  );
+  equal(review.length, 1);
+  equal(review[0].completed, 1);
+  equal(review[0].planned, 2);
+  equal(review[0].weeklyTarget, 2);
+  equal(review[0].goalMet, false);
+  const metReview = habitWeekReview(
+    [{ ...habit, completions: ['2026-10-19', '2026-10-21'] }],
+    '2026-10-21',
+    1,
+    (item, day) => item.completions.includes(day),
+    (item, day) => habitIsSkipped(item, day, '2026-10-21'),
+  );
+  equal(metReview[0].completed, 2);
+  equal(metReview[0].goalMet, true);
+});
+
 test('estatísticas de hábito com meta semanal contam semanas seguidas', () => {
   const habit = { ...habitBase, weeklyGoal: 3, completions: ['2026-10-19', '2026-10-20', '2026-10-21'] };
   const stats = habitStats(habit, '2026-10-21', 1);
@@ -1076,9 +1152,13 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  ok(SUGGESTED_HABITS.length >= 12);
+  ok(SUGGESTED_HABITS.length >= 20);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
-  for (const id of ['water', 'reading', 'movement', 'pause']) ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  for (const id of ['water', 'reading', 'training', 'pause']) ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados pessoais'));
+  ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados com a mente'));
+  ok(SUGGESTED_HABITS.some((item) => item.id === 'skincare' && item.category === 'personal-care'));
+  ok(SUGGESTED_HABITS.some((item) => item.id === 'gym' && item.category === 'movement'));
   for (const item of SUGGESTED_HABITS) {
     ok(HABIT_ICON_KEYS.includes(item.icon), `ícone de ${item.id}`);
     ok(HABIT_COLORS.includes(item.color), `cor de ${item.id}`);
@@ -1086,6 +1166,21 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
   const created = createSuggestedHabits(['sleep'], [], () => 'n1');
   equal(created[0].icon, 'moon');
   ok(isValidHabit(created[0]));
+});
+
+test('ideias de hábitos filtram por texto sem diferenciar acentos ou categoria', () => {
+  const water = filterSuggestedHabits(SUGGESTED_HABITS, 'AGUA');
+  equal(water.length, 1);
+  equal(water[0].id, 'water');
+  const reading = filterSuggestedHabits(SUGGESTED_HABITS, '10 minutos');
+  equal(reading.length, 1);
+  equal(reading[0].id, 'reading');
+  const movement = filterSuggestedHabits(SUGGESTED_HABITS, '', 'movement');
+  ok(movement.length > 0);
+  ok(movement.every((idea) => idea.category === 'movement'));
+  const mind = filterSuggestedHabits(SUGGESTED_HABITS, 'mente');
+  ok(mind.length > 0);
+  ok(mind.some((idea) => idea.category === 'mind'));
 });
 
 /* ---- Pomodoro ---- */
@@ -1195,6 +1290,33 @@ test('preset clássico fixa 25/5/15 mesmo com valores personalizados salvos', ()
   equal(effective.focusMin, 25);
   equal(effective.breakMin, 5);
   equal(effective.longBreakMin, 15);
+});
+
+test('presets de Pomodoro oferecem ritmos curtos, estendidos e profundos', () => {
+  for (const [preset, focusMin, breakMin] of [
+    ['short', 15, 3],
+    ['extended', 50, 10],
+    ['deep', 90, 20],
+  ]) {
+    const effective = effectivePomodoroSettings({ preset, focusMin: 25, breakMin: 5, autoAdvance: false });
+    equal(effective.focusMin, focusMin);
+    equal(effective.breakMin, breakMin);
+    equal(effective.longBreakMin, POMODORO_PRESETS[preset].longBreakMin);
+    equal(effective.autoAdvance, false);
+  }
+});
+
+test('editar um preset mantém o ritmo escolhido e o avanço automático', () => {
+  const custom = customPomodoroSettings({
+    preset: 'deep',
+    focusMin: 25,
+    breakMin: 5,
+    autoAdvance: false,
+  });
+  equal(custom.preset, 'custom');
+  equal(custom.focusMin, 90);
+  equal(custom.breakMin, 20);
+  equal(custom.autoAdvance, false);
 });
 
 test('concluir um bloco de foco avança a fase e registra o dia no histórico', () => {

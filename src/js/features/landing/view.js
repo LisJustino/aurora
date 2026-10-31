@@ -1,10 +1,7 @@
-import { IC } from '../../utils/icons.js';
+import { iconSvg as demoIcon } from '../../utils/icons.js';
+import { prefersReducedMotion } from '../../utils/motion.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
 import { renderFooterContent } from '../footer/view.js';
-
-function demoIcon(name, size = 18) {
-  return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name] || ''}</svg>`;
-}
 
 function publicHeader() {
   return renderPublicHeader();
@@ -79,16 +76,21 @@ export function renderLanding(root) {
       <main class="public-main" id="landing-main" tabindex="-1">
         <section class="public-hero public-hero-card" aria-labelledby="landing-title">
           <div class="public-copy">
-            <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal, sem complicação</p>
-            <h1 id="landing-title">Mais clareza para a sua rotina<span>.</span></h1>
-            <p class="public-lead">Organize tarefas, acompanhe hábitos e cuide das finanças — com espaço para focar no que importa.</p>
+            <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal para a rotina real</p>
+            <h1 id="landing-title">Mais clareza para a sua semana<span>.</span></h1>
+            <p class="public-lead">Planeje tarefas, acompanhe hábitos e registre suas finanças manualmente em um só lugar. Comece pela demonstração com exemplos fictícios ou crie uma conta para guardar seus próprios registros.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="signup">Criar conta e começar</button>
               <button class="btn large" type="button" data-public-action="demo">Explorar a demonstração</button>
             </div>
-            <p class="public-reassurance">${demoIcon('lock', 17)}<span>A demonstração usa dados fictícios: não acessa sua conta nem salva alterações.</span></p>
+            <ul class="public-proof" aria-label="Informações práticas sobre o Aurora">
+              <li><strong>Teste sem conta</strong><span>com exemplos fictícios</span></li>
+              <li><strong>Finanças manuais</strong><span>sem conexão bancária</span></li>
+              <li><strong>Seus registros</strong><span>na sua conta Aurora</span></li>
+            </ul>
+            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Na demonstração, tarefas, hábitos e Pomodoro usam exemplos fictícios; suas alterações não são salvas nem sincronizadas.</span></p>
           </div>
-          <figure class="product-preview" role="img" aria-label="Capturas da interface do Aurora em computador e celular">
+          <figure class="product-preview" role="img" aria-label="Capturas da interface do aurora. em computador e celular">
             <div class="preview-device preview-device--desktop" aria-hidden="true">
               <div class="preview-device-screen">
                 <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
@@ -106,37 +108,39 @@ export function renderLanding(root) {
           </figure>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Seu espaço pessoal</p><h2 id="public-features-title">Um lugar para organizar o que importa</h2></div>
+          <div class="public-section-heading"><p class="public-eyebrow">Conheça o produto</p><h2 id="public-features-title">O que você pode organizar</h2></div>
           <div class="public-values">
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-            <div><h3>Planejar</h3><p>Tire tarefas da cabeça, defina prazos e organize a semana.</p></div>
+            <div><h3>Planejar</h3><p>Organize tarefas por dia, defina prazos e acompanhe o que já foi concluído.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
-            <div><h3>Foco</h3><p>Use o Pomodoro no seu ritmo, com ou sem uma tarefa associada.</p></div>
+            <div><h3>Foco</h3><p>Personalize os períodos de foco e pausa; use o Pomodoro com ou sem uma tarefa.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
-            <div><h3>Hábitos</h3><p>Registre seus hábitos e acompanhe a constância, sem cobrança.</p></div>
+            <div><h3>Hábitos</h3><p>Registre check-ins e metas semanais com espaço para ajustar o plano à sua rotina.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
-            <div><h3>Finanças</h3><p>Lance receitas, despesas e cartões manualmente, sem conexão com bancos.</p></div>
+            <div><h3>Finanças</h3><p>Registre receitas, despesas e cartões manualmente. O Aurora não se conecta a bancos.</p></div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
-            <div><h3>Ciclo</h3><p>Registre períodos e sintomas; informações gerais, sem substituir orientação profissional.</p></div>
+            <div><h3>Ciclo</h3><p>Acompanhe períodos e sintomas. As informações são gerais e não substituem orientação profissional.</p></div>
           </article>
           </div>
         </section>
-        <section class="public-onboarding" aria-labelledby="public-onboarding-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Para começar</p><h2 id="public-onboarding-title">Um passo de cada vez</h2></div>
-          <ol class="public-steps">
-            <li class="public-step card"><span class="public-step-number" aria-hidden="true">01</span><h3>Organize o dia</h3><p>Anote uma tarefa ou distribua seus planos pela semana.</p></li>
-            <li class="public-step card"><span class="public-step-number" aria-hidden="true">02</span><h3>Escolha um hábito</h3><p>Acompanhe algo que faça sentido para a sua rotina, sem buscar perfeição.</p></li>
-            <li class="public-step card"><span class="public-step-number" aria-hidden="true">03</span><h3>Reserve um tempo de foco</h3><p>Inicie o Pomodoro e, se quiser, associe a sessão a uma tarefa.</p></li>
-          </ol>
+        <section class="public-cta-panel" aria-labelledby="public-cta-title">
+          <div>
+            <p class="public-eyebrow">Seus registros, no seu espaço</p>
+            <h2 id="public-cta-title">Crie uma conta para começar a organizar a sua rotina.</h2>
+          </div>
+          <div class="public-actions">
+            <button class="btn primary large" type="button" data-public-action="signup">Começar agora</button>
+            <button class="btn large" type="button" data-public-action="demo">Ver demonstração</button>
+          </div>
         </section>
         <section class="public-faq" aria-labelledby="public-faq-title">
           <div class="public-section-heading">
@@ -145,16 +149,20 @@ export function renderLanding(root) {
           </div>
           <div class="public-faq-list compact-card-grid">
             <details class="card public-faq-item">
-              <summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary>
-              <p>Seus registros ficam associados à sua conta e as regras de acesso limitam cada registro ao usuário autenticado. A demonstração usa dados fictícios e não acessa seus registros.</p>
+              <summary>Como meus dados são protegidos?${demoIcon('chevDown', 16)}</summary>
+                <p>Os registros salvos pelo app ficam associados à sua conta. Consulte a Política de Privacidade para detalhes sobre o tratamento dos dados e como solicitar a exclusão.</p>
             </details>
             <details class="card public-faq-item">
-              <summary>Preciso confirmar meu e-mail?<span aria-hidden="true">+</span></summary>
+              <summary>Preciso confirmar meu e-mail?${demoIcon('chevDown', 16)}</summary>
               <p>Não. O acesso é liberado assim que a conta é criada. Confira o endereço antes: um erro de digitação pode impedir a recuperação da senha.</p>
             </details>
             <details class="card public-faq-item">
-              <summary>Posso apagar minha conta?<span aria-hidden="true">+</span></summary>
-              <p>Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados.</p>
+              <summary>O Aurora se conecta ao meu banco?${demoIcon('chevDown', 16)}</summary>
+              <p>Não. Receitas, despesas e cartões são registrados manualmente; o Aurora não se conecta a contas bancárias.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Posso apagar minha conta?${demoIcon('chevDown', 16)}</summary>
+              <p>Sim. Você pode iniciar a exclusão permanente nas configurações; aurora. pede confirmação antes de apagar a conta e os dados associados.</p>
             </details>
           </div>
         </section>
@@ -182,7 +190,7 @@ export function renderLandingDemo(root) {
               </ul>
             </section>
           </div>
-          <aside class="home-primary demo-side" aria-label="Outras áreas do Aurora">
+          <aside class="home-primary demo-side" aria-label="Outras áreas do aurora.">
             ${demoFocusCard()}
             <section class="card demo-area-card" aria-labelledby="demo-areas-title">
               <div class="head"><div><p class="section-kicker">Outras ferramentas</p><h2 id="demo-areas-title">Áreas<i>.</i></h2></div></div>
@@ -248,7 +256,10 @@ export function renderLandingDemo(root) {
     const button = event.target.closest('[data-demo-action]');
     if (!button || button.disabled) return;
     if (button.dataset.demoAction === 'focus-task') {
-      root.querySelector('.demo-example-task')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      root.querySelector('.demo-example-task')?.scrollIntoView({
+        behavior: prefersReducedMotion(document.documentElement.dataset.motion === 'reduce') ? 'auto' : 'smooth',
+        block: 'center',
+      });
       root.querySelector('[data-demo-action="task-toggle"]')?.focus({ preventScroll: true });
     } else if (button.dataset.demoAction === 'task-toggle') {
       state.taskDone = !state.taskDone;

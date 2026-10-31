@@ -37,6 +37,10 @@ const financeAccountMigration = await readFile(
 );
 assert.match(financeAccountMigration, /set account_type = 'checking'\s+where account_type = 'cash'/i);
 assert.match(financeAccountMigration, /'checking', 'savings', 'investment', 'credit'/i);
+assert.match(
+  financeAccountMigration,
+  /check \(account_types <@ array\['checking', 'savings', 'investment', 'cash'\]::text\[\]\)/i,
+);
 assert.match(financeAccountMigration, /linked_account_id uuid/i);
 assert.match(financeAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
 assert.match(financeAccountMigration, /on delete set null \(linked_account_id\)/i);
@@ -78,6 +82,12 @@ const rlsIsolationTest = await readFile(
 assert.match(rlsIsolationTest, /valid-trash-a/i);
 assert.match(rlsIsolationTest, /when check_violation/i);
 assert.match(rlsIsolationTest, /User A inserted trash for User B/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_keys/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_data/i);
+assert.match(rlsIsolationTest, /User A read User B vault key/i);
+assert.match(rlsIsolationTest, /User A read User B legacy data/i);
+assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
+assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];
@@ -148,10 +158,20 @@ const state = {
       { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', desc: 'Teste' },
       { id: 'tx-legacy', type: 'in', accountId: 'account-1', cents: 2500, date: '2026-10-27', desc: 'Antigo' },
       { id: 'tx-cash', type: 'in', accountId: 'cash-legacy', cents: 500, date: '2026-10-26', desc: 'Saldo preservado' },
+      { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
     ],
     budgets: { Mercado: { cents: 5000 } },
     goals: [],
-    recurring: [],
+    recurring: [{
+      id: 'rec-rent',
+      type: 'out',
+      accountId: 'account-1',
+      cents: 1800,
+      day: 25,
+      startYM: '2026-10',
+      category: 'Moradia',
+      desc: 'Aluguel',
+    }],
   },
   cycle: [{ start: '2026-10-25', end: '2026-10-29' }],
   cycleLog: {},
@@ -163,12 +183,17 @@ await store.save(state);
 assert.equal(writes.length, 1);
 assert.equal(writes[0].name, 'apply_relational_changes');
 const changeByTable = new Map(writes[0].args.p_changes.map((change) => [change.table, change.rows]));
+const orderedTables = writes[0].args.p_changes.map((change) => change.table);
 const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
 assert.equal(changeByTable.get('finance_transactions')[0].user_id, userId);
+const recurrenceRow = changeByTable.get('finance_recurrences')[0];
+const recurringTransactionRow = changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-recurring');
+assert.equal(recurringTransactionRow.recurrence_id, recurrenceRow.id);
+assert.ok(orderedTables.indexOf('finance_recurrences') < orderedTables.indexOf('finance_transactions'));
 const accountRowsByLegacyId = new Map(changeByTable.get('finance_accounts').map((row) => [row.legacy_id, row]));
 assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment');
 assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');

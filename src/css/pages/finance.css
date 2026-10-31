@@ -391,23 +391,6 @@
   .fr-main { flex-basis: calc(100% - 52px); }
 }
 
-/* No Pomodoro, um mostrador maior equilibra o peso visual dos ajustes. */
-.main[data-route="pomodoro"] .free-pomodoro .focus-timer-body {
-  grid-template-columns: minmax(220px, 264px) minmax(0, 1fr);
-  gap: clamp(24px, 4vw, 40px);
-}
-.main[data-route="pomodoro"] .free-pomodoro .focus-dial { width: min(100%, 248px); }
-
-/* Pomodoro: o relógio passa a ser o centro visual, com ação primária evidente. */
-@media (min-width: 900px) {
-  .main[data-route="pomodoro"] .free-pomodoro .focus-timer-body { grid-template-columns: minmax(0, 1fr); justify-items: center; }
-  .main[data-route="pomodoro"] .free-pomodoro .focus-dial { width: min(100%, 280px); }
-  .main[data-route="pomodoro"] .free-pomodoro .focus-timer-actions { width: min(100%, 620px); }
-  .main[data-route="pomodoro"] .free-pomodoro .focus-controls { justify-content: center; }
-}
-.main[data-route="pomodoro"] .free-pomodoro .focus-dial-progress { stroke: var(--pomodoro-phase, var(--accent)); stroke-width: 5; }
-.main[data-route="pomodoro"] .free-pomodoro .focus-controls > .btn.primary { min-height: var(--control-lg); padding-inline: 24px; font-size: var(--text-base); }
-
 .fin-hero {
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
   border-radius: var(--r-large);
@@ -452,11 +435,6 @@
 
 @media (max-width: 480px) {
   .main[data-route="financas"] { scroll-padding-bottom: calc(var(--nav-h) + 112px + env(safe-area-inset-bottom, 0px)); }
-  .main[data-route="pomodoro"] .free-pomodoro .focus-timer-body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-  .main[data-route="pomodoro"] .free-pomodoro .focus-dial { width: min(100%, 204px); }
   .main[data-route="financas"] .fin-section-menu {
     max-width: 100%;
     overflow-x: auto;

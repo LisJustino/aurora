@@ -110,7 +110,7 @@ function localDateValue(date) {
   await page.locator('#account-preferredName').fill('Teste');
   await birthDate.fill('2000-10-29');
   check(
-    (await page.locator('#account-age-status').textContent()).includes('maior de idade'),
+    (await page.locator('#account-age-status').textContent()).includes('anos'),
     'data válida calcula a idade sem enviar o formulário',
   );
   check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data válida libera a etapa seguinte');
@@ -119,10 +119,16 @@ function localDateValue(date) {
   minorDate.setFullYear(minorDate.getFullYear() - 17);
   await birthDate.fill(localDateValue(minorDate));
   check(
-    (await page.locator('#account-age-status').textContent()).includes('a partir dos 18 anos'),
-    'data de menor de idade continua bloqueada',
+    (await page.locator('#account-age-status').textContent()).includes('17 anos'),
+    'data de menor de idade calcula a idade',
   );
-  check(await page.locator('.account-form button[type="submit"]').isDisabled(), 'data de menor não libera a etapa');
+  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data de menor libera a etapa seguinte');
+  await birthDate.fill(localDateValue(new Date()));
+  check(
+    (await page.locator('#account-age-status').textContent()).includes('0 anos'),
+    'idade zero também pode continuar o cadastro',
+  );
+  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade zero não bloqueia o cadastro');
   check(errors.length === 0, 'sem erros JavaScript', errors.slice(0, 3).join(' | '));
 
   await page.setViewportSize({ width: 390, height: 844 });

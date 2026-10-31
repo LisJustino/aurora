@@ -96,7 +96,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 /* ---- Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas ---- */
 /* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
-.dlg-body { padding-inline: 20px; padding-bottom: 24px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent; }
+.dlg-body { padding-inline: 20px; padding-bottom: 24px; }
 .dlg-foot { position: relative; padding-inline: 20px; padding-bottom: 14px; }
 .dlg-foot::before {
   content: "";
@@ -106,8 +106,6 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   background: linear-gradient(to top, var(--surface-strong), transparent);
   pointer-events: none;
 }
-.dlg-body::-webkit-scrollbar { width: 6px; }
-.dlg-body::-webkit-scrollbar-thumb { border-radius: var(--r-pill); background: color-mix(in srgb, var(--ink) 22%, transparent); }
 @media (max-width: 640px) {
   .dlg-body { padding-inline: 16px; padding-bottom: 24px; }
   .dlg-foot { padding-inline: 16px; }
