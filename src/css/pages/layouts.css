@@ -441,28 +441,6 @@
   .main[data-route="planejar"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }
 }
 
-.main[data-route="planejar"] > .planning-quick-entry {
-  display: grid;
-  gap: var(--space-3);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
-  background: color-mix(in srgb, var(--surface-strong) 90%, var(--soft));
-}
-.planning-quick-entry > .head { margin: 0; }
-.planning-quick-entry h2 { margin: 0; font-size: var(--text-lg); }
-.planning-quick-entry .section-kicker { text-transform: uppercase; }
-.planning-quick-form { display: flex; min-width: 0; gap: var(--space-2); }
-.planning-quick-form input {
-  min-width: 0;
-  min-height: var(--control-field);
-  flex: 1;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  background: var(--surface);
-  color: var(--ink);
-}
-.planning-quick-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); outline: 0; }
-.planning-quick-entry > p { min-height: 1.4em; margin: 0; overflow-wrap: anywhere; }
 .main[data-route="planejar"] > .planning-overview {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr);
@@ -509,8 +487,6 @@
   .main[data-route="planejar"] > .planning-overview { grid-template-columns: minmax(0, 1fr); gap: 20px; }
 }
 @media (max-width: 480px) {
-  .planning-quick-form { flex-direction: column; }
-  .planning-quick-form .btn { align-self: flex-end; }
   .main[data-route="planejar"] > .planning-overview { gap: 16px; }
   .planning-overview-stats { gap: 6px; }
   .planning-overview-stats > div { min-height: 78px; padding: 10px 8px; border-radius: var(--r-control); }

@@ -70,7 +70,7 @@ node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5173
 node tests/e2e/notifications.cjs http://127.0.0.1:5173
 node tests/e2e/home-first-steps.cjs http://127.0.0.1:5173
 node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
-node tests/e2e/planning-quick-task.cjs http://127.0.0.1:5173
+node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
 node tests/e2e/custom-select.cjs http://127.0.0.1:5173
@@ -81,17 +81,18 @@ automaticamente, que o indicador do sino permite encontrá-los e que abrir,
 adiar e dispensar continuam funcionando em mobile e desktop.
 - `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
 - `node tests/e2e/custom-select.cjs` valida o menu padronizado em desktop e mobile, navegação por teclado, sincronização de valor/eventos, rótulo acessível, campo desabilitado e posicionamento dentro da viewport.
+- `node tests/e2e/legal-consent-flow.cjs` valida o painel Aurora de reaceite, os links acessíveis dos documentos, o aceite obrigatório e os layouts mobile/desktop.
 - **Aprovado (2026-10-29):** `node tests/e2e/notifications.cjs http://127.0.0.1:5173` — fluxo mobile/desktop, sem overflow horizontal nem erros no console.
 
 ## Prévia visual local
 
-- **Aprovado:** `node tests/e2e/dialog-mobile.cjs http://127.0.0.1:5173` — o campo recebe foco na abertura em iPhone e desktop, sem deslocar o diálogo.
+- `node tests/e2e/dialog-mobile.cjs http://127.0.0.1:5173` — verifica diálogos móveis e desktop sem abrir o teclado automaticamente.
 - **Aprovado:** `node tests/e2e/close-buttons.cjs http://127.0.0.1:5173` — os controles medem 40×40 px e mantêm raio consistente em celular e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
 - `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
 - `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
-- `node tests/e2e/planning-quick-task.cjs` verifica a prévia do prazo, confirmação, cancelamento e criação por Enter em 390 px.
+- `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
 - `node tests/e2e/public-demo-interactions.cjs` verifica hábito/tarefa/timer por teclado, zero requisições e zero gravações no navegador, em 390 px e desktop.
 - **Aprovado (2026-10-30):** `node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5190` — lista compacta, filtragem, seleção por teclado/clique e validação após sair do campo, em 320 px e desktop.
 - **Aprovado (2026-10-30):** `npm test` — 82/82 testes base, além das verificações de conta, exclusão, sugestões, cofre, persistência relacional e importação; a persistência cobre no-op, delta de linhas, conflito por versão e substituição explícita.
@@ -99,6 +100,8 @@ adiar e dispensar continuam funcionando em mobile e desktop.
 - **Aprovado (2026-10-30):** aplicação de `20261030100000_relational_version_conflict.sql` no Supabase de desenvolvimento; consulta a `pg_get_function_result` confirmou `jsonb`.
 - **Aprovado (2026-10-30):** gravação real de uma tarefa de teste após a migration e releitura após recarga no projeto de desenvolvimento, sem erro.
 - **Aprovado (2026-10-30):** `node tests/relational-store-check.mjs` e navegador local — campos opcionais nulos são omitidos no mapeamento relacional; a tarefa antes ocultada voltou a aparecer sem bloqueio. Nenhuma gravação foi feita durante esta correção.
+- A falha de gravação de Finanças em Production exige verificar no Dashboard do projeto `aurora-prod` as migrations pendentes, especialmente `20261030110000_finance_account_types_and_card_link.sql`, e registrar o erro da requisição/RPC antes de aplicar qualquer mudança. A validação de uma migration no projeto dev não confirma o estado de Production.
+- O erro `23503` em `finance_transactions_recurrence_owner_fkey` indica que um lançamento recorrente foi enviado antes da recorrência referenciada; o teste relacional confirma que `finance_recurrences` é persistida antes de `finance_transactions`, sem alterar IDs ou schema.
 - **Pendente:** testar concorrência real contra PostgreSQL/Supabase; não há banco local de teste configurado neste ambiente.
 
 ## Worker de notificações
@@ -124,10 +127,12 @@ npm --prefix worker test
 - Os vídeos são arquivos locais WebM com fallback MP4 e não carregam um player ou serviço de terceiros.
 - Os tutoriais são gravados em 24 fps, 1280 × 720 e 2,4 Mbps para manter legibilidade em tela cheia sem sobrecarregar a decodificação móvel; depois de qualquer regeneração, valide reprodução contínua e seek no Chromium.
 - Em Planejar, valide “hoje”, “amanhã” e “sexta 18h”: confira a prévia antes de confirmar, cancele sem criar e use Enter para confirmar a tarefa.
-- Em rede indisponível, confirme que o aviso permanece visível e que o salvamento é bloqueado; um salvamento confirmado mostra “Salvo às HH:MM”. Confirme também cancelar e aceitar nos diálogos de backup, importação, recarga e saída.
+- Em rede indisponível, confirme que o aviso permanece visível e que o salvamento é bloqueado; não exiba horário de salvamento no cabeçalho. Confirme também cancelar e aceitar nos diálogos de backup, importação, recarga e saída.
 - Simule falha de `load()` do store autenticado: a tela deve oferecer “Tentar novamente” e “Sair”, sem exibir estado vazio como se os dados tivessem sido carregados.
-- Para a sugestão “Beber água”, confira que a idade é editável em Ajustes e que o peso informado no formulário só calcula uma estimativa, sem salvar no perfil ou histórico. Edite a meta independente do nome, registre volumes em mL, confira a soma do dia local, a conclusão automática e a persistência. Importe também um hábito legado com “mL/dia” no nome e confirme que sua meta é preservada e o sufixo deixa de ser necessário. Verifique exportação/importação e reload sem alterar a versão do backup.
+- Para a sugestão “Beber água”, confira que a idade é editável em Ajustes e que o peso informado no formulário só calcula uma estimativa, sem salvar no perfil ou histórico; o campo deve indicar kg e aceitar decimais. Edite a meta independente do nome, registre volumes em mL, confira a soma do dia local, a conclusão automática e a persistência. Importe também um hábito legado com “mL/dia” no nome e confirme que sua meta é preservada e o sufixo deixa de ser necessário. Verifique exportação/importação e reload sem alterar a versão do backup.
 - Em Hábitos, confira o panorama semanal agregado, as ações de retomar hábitos pausados e o destaque discreto de pendentes; “Hoje” não deve cobrar sequências nem substituir seu foco por histórico.
+- Em Hábitos, confira sugestões separadas por categoria e a cartela expandida de ícones no formulário de criação.
+- Em Ciclo, registre sintomas em dias diferentes e confirme que cada registro afeta somente o dia selecionado.
 - Em perfil isolado e HTTPS, configure um horário e dias em um hábito; autorize Push somente pelo botão explícito, confirme uma mensagem genérica fora do app e que o clique abre Hábitos. Marcar ou pular o dia deve atualizar o agendamento. Desativar a inscrição deve interromper também o Push do Pomodoro. Sem configuração de Worker/permissão, o horário deve continuar descrito como preferência e não como alarme garantido.
 - **Aprovado (2026-10-29):** `npm test` — 76/76 testes base e verificações de conta, exclusão, sugestões, cofre, persistência relacional e importação legada; inclui validação do peso usado na estimativa de água.
 - **Aprovado (2026-10-29):** `npm run build`, verificações de sintaxe nos módulos alterados e `git diff --check`.

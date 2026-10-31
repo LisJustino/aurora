@@ -37,7 +37,6 @@ import {
   normalizeAccountType,
 } from '../src/js/features/finance/accounts.js';
 import { parseStatement } from '../src/js/features/finance/statement.js';
-import { parseQuickTaskText } from '../src/js/features/planning/quick-entry.js';
 import {
   AREA_GUIDES,
   AREA_GUIDE_IDS,
@@ -58,6 +57,7 @@ import {
   HABIT_COLORS,
   HABIT_ICON_KEYS,
   SUGGESTED_HABITS,
+  SUGGESTED_HABIT_CATEGORIES,
   habitStats,
   habitWeekOverview,
   habitWeeklyTarget,
@@ -161,11 +161,11 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
   }
 });
 
-test('confirmações nativas foram substituídas e o feedback de persistência informa status', () => {
+test('confirmações nativas foram substituídas e o feedback de persistência não exibe horários salvos', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
-  if (!source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
-    throw new Error('O shell precisa exibir o horário salvo e o aviso offline persistente.');
+  if (source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
+    throw new Error('O shell não deve exibir horários de salvamento e deve manter o aviso offline.');
   }
 });
 
@@ -491,22 +491,6 @@ test('valida datas civis incluindo anos bissextos', () => {
   truthy(isDay('2024-02-29'));
   equal(isDay('2025-02-29'), false);
   equal(isDay('2024-13-01'), false);
-});
-
-test('interpreta prazos de tarefa rápida sem depender do timezone do servidor', () => {
-  equal(JSON.stringify(parseQuickTaskText('Revisar hoje', '2026-10-30')), JSON.stringify({
-    title: 'Revisar', dueDate: '2026-10-30', time: '', hasDeadline: true, error: '',
-  }));
-  equal(JSON.stringify(parseQuickTaskText('Ler amanhã às 18:30', '2026-10-30')), JSON.stringify({
-    title: 'Ler', dueDate: '2026-10-31', time: '18:30', hasDeadline: true, error: '',
-  }));
-  equal(JSON.stringify(parseQuickTaskText('Enviar relatório sexta 18h', '2026-10-30')), JSON.stringify({
-    title: 'Enviar relatório', dueDate: '2026-10-30', time: '18:00', hasDeadline: true, error: '',
-  }));
-  equal(parseQuickTaskText('Reunião sexta', '2026-10-31').dueDate, '2026-11-06');
-  equal(parseQuickTaskText('Planejar semana', '2026-10-30').title, 'Planejar semana');
-  truthy(/horário válido/.test(parseQuickTaskText('Entregar sexta 25h', '2026-10-30').error));
-  truthy(/Escreva a tarefa/.test(parseQuickTaskText('amanhã 18h', '2026-10-30').error));
 });
 
 test('valida atividade sexual e métodos contraceptivos do diário do ciclo', () => {
@@ -1084,9 +1068,13 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  ok(SUGGESTED_HABITS.length >= 12);
+  ok(SUGGESTED_HABITS.length >= 20);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
-  for (const id of ['water', 'reading', 'movement', 'pause']) ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  for (const id of ['water', 'reading', 'training', 'pause']) ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados pessoais'));
+  ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados com a mente'));
+  ok(SUGGESTED_HABITS.some((item) => item.id === 'skincare' && item.category === 'personal-care'));
+  ok(SUGGESTED_HABITS.some((item) => item.id === 'gym' && item.category === 'movement'));
   for (const item of SUGGESTED_HABITS) {
     ok(HABIT_ICON_KEYS.includes(item.icon), `ícone de ${item.id}`);
     ok(HABIT_COLORS.includes(item.color), `cor de ${item.id}`);

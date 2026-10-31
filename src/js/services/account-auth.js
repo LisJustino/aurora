@@ -405,7 +405,7 @@ function createAccountPageLayout() {
   return { layout, page };
 }
 
-export function appendLegalConsent(form) {
+export function appendLegalConsent(form, { updatedDocuments = false } = {}) {
   const accepted = create('input');
   accepted.type = 'checkbox';
   accepted.name = 'termsAccepted';
@@ -425,16 +425,33 @@ export function appendLegalConsent(form) {
   privacyLink.href = '/privacy.html';
   privacyLink.target = '_blank';
   privacyLink.rel = 'noopener noreferrer';
-  const links = create('p', 'account-terms-copy');
-  links.append(
-    document.createTextNode('Leia os documentos (abrem em novas abas): '),
-    termsLink,
-    document.createTextNode(' e '),
-    privacyLink,
-    document.createTextNode('.'),
-  );
   const group = create('div', 'account-terms-group');
-  group.append(consent, links);
+  if (updatedDocuments) {
+    group.classList.add('account-terms-group-updated');
+    const documents = create('div', 'account-legal-documents');
+    termsLink.className = 'account-legal-document';
+    termsLink.replaceChildren(
+      create('span', 'account-legal-document-title', 'Termos de Uso'),
+      create('span', 'account-legal-document-description', 'Regras para usar o Aurora'),
+    );
+    privacyLink.className = 'account-legal-document';
+    privacyLink.replaceChildren(
+      create('span', 'account-legal-document-title', 'Política de Privacidade'),
+      create('span', 'account-legal-document-description', 'Como seus dados são tratados'),
+    );
+    documents.append(termsLink, privacyLink);
+    group.append(documents, consent);
+  } else {
+    const links = create('p', 'account-terms-copy');
+    links.append(
+      document.createTextNode('Leia os documentos (abrem em novas abas): '),
+      termsLink,
+      document.createTextNode(' e '),
+      privacyLink,
+      document.createTextNode('.'),
+    );
+    group.append(consent, links);
+  }
   form.append(group);
   return accepted;
 }
@@ -451,6 +468,7 @@ export function createAccountForm(root, {
 }) {
   root.replaceChildren();
   const { layout, page } = createAccountPageLayout();
+  page.dataset.accountMode = mode;
   const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
   const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
@@ -467,6 +485,9 @@ export function createAccountForm(root, {
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', description);
+  const legalEyebrow = mode === 'legal-consent'
+    ? create('p', 'account-legal-eyebrow', 'DOCUMENTOS ATUALIZADOS')
+    : null;
   if (mode === 'login') {
     detail.classList.add('account-security-note');
     const icon = document.createElement('span');
@@ -492,7 +513,8 @@ export function createAccountForm(root, {
     });
     card.append(steps);
   }
-  card.append(brand, heading, detail);
+  if (legalEyebrow) card.append(brand, legalEyebrow, heading, detail);
+  else card.append(brand, heading, detail);
 
   if (recoveryKey) {
     const instructions = create('p', 'account-security-note', 'Guarde esta chave fora do Aurora. Ela é exibida somente agora e será necessária para recuperar os dados se a senha for redefinida ou você usar outro dispositivo.');
@@ -555,7 +577,9 @@ export function createAccountForm(root, {
     form.elements.confirmPassword.maxLength = 72;
     appendLegalConsent(form);
   }
-  if (mode === 'legal-consent' || mode === 'oauth-profile') appendLegalConsent(form);
+  if (mode === 'legal-consent' || mode === 'oauth-profile') {
+    appendLegalConsent(form, { updatedDocuments: mode === 'legal-consent' });
+  }
   if (mode === 'delete-account') {
     form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os backups JSON baixados não são apagados pelo Aurora.'));
     const confirmation = createField(
@@ -583,8 +607,9 @@ export function createAccountForm(root, {
     const rememberSession = create('input');
     rememberSession.type = 'checkbox';
     rememberSession.name = 'rememberSession';
+    rememberSession.checked = true;
     const rememberSessionLabel = create('label', 'account-remember-session');
-    const rememberSessionCopy = create('span', '', 'Manter conectado');
+    const rememberSessionCopy = create('span', '', 'Manter conectado neste dispositivo');
     rememberSessionLabel.append(rememberSession, rememberSessionCopy);
     form.append(rememberSessionLabel);
   }
@@ -1040,7 +1065,7 @@ export async function requireAccount(root, initialMode = 'login', {
       'oauth-profile': ['Complete seu perfil', 'Para criar sua conta, informe seus dados e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
       recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
       'update-password': ['Atualizar senha', 'Escolha uma senha longa e exclusiva para sua conta. A redefinição não altera a senha do cofre legado; para importar dados cifrados, use a senha original dele.', []],
-      'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos Termos de Uso e da Política de Privacidade. Se recusar, você poderá confirmar a exclusão permanente da conta e dos dados associados.', []],
+      'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos documentos. Se preferir recusar, você poderá revisar as etapas para confirmar a exclusão permanente da conta.', []],
       'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; esta ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
     }[mode];
     const publicAuthMode = ['login', 'signup-profile', 'signup-access', 'recovery'].includes(mode);

@@ -4,7 +4,7 @@ SPA em JavaScript puro (módulos ES), empacotada pelo Vite. Dados de conta no Su
 
 ## Telas (rotas por hash)
 - `#inicio`: cartão "boa noite" com progresso do dia, campo rápido de tarefa, hábitos de hoje, tarefas agrupadas (atrasadas, hoje, concluídas), áreas opcionais.
-- `#planejar`: lista, calendário e semana; filtros, busca, ordenação, plano por etapas, revisão semanal, subtarefas, etiquetas, repetição e lembretes. O Pomodoro é uma ferramenta independente para qualquer atividade.
+- `#planejar`: lista, calendário e semana; filtros, busca, ordenação, formulário completo de tarefas, revisão semanal, subtarefas, etiquetas, repetição e lembretes. O Pomodoro é uma ferramenta independente para qualquer atividade.
 - `#habitos`: check-ins diários, sugestões, histórico mensal, lembretes; beber água é um hábito comum.
 - `#pomodoro`: timer que alterna blocos de foco e pausa, histórico, tempos personalizados e aviso sonoro; não há registro de matérias ou sessões.
 - `#financas`: contas, cartões, lançamentos, fixas, orçamentos, metas, comparação de meses, importação CSV e exportação.
@@ -42,7 +42,7 @@ SPA em JavaScript puro (módulos ES), empacotada pelo Vite. Dados de conta no Su
 18. Pomodoro: campo opcional "Em que você vai focar?" (`focusLabel` em `S.pomodoro`, até 40 caracteres). É só um rótulo e não cria registros de matérias ou sessões.
 19. Finanças: card "Lançamentos fixos" no Resumo (quantidade e total mensal). Exportar CSV e comparar meses já existiam.
 20. Criação rápida pela tecla N removida; o menu Mais contém apenas links de navegação.
-21. Testes novos: `tests/contrast-check.html` (contraste AA de 14 paletas × claro/escuro × alto contraste); os fluxos públicos atuais ficam em `tests/e2e/home-first-steps.cjs`, `tests/e2e/planning-quick-task.cjs` e `tests/e2e/public-demo-interactions.cjs`.
+21. Testes novos: `tests/contrast-check.html` (contraste AA de 14 paletas × claro/escuro × alto contraste); os fluxos públicos atuais ficam em `tests/e2e/home-first-steps.cjs`, `tests/e2e/planning-task-form.cjs` e `tests/e2e/public-demo-interactions.cjs`.
 22. Código: ícones foram para `src/js/utils/icons.js` (`main.js` perdeu ~75 linhas); `cards.css` passou para `design-system/`; `--shadow-hover` virou token.
 23. PWA/offline validado com Chromium: o service worker guarda no cache cada arquivo visitado, então os arquivos novos entram sozinhos; o app abriu sem rede.
 24. Melhorias visuais (`src/css/design-system/touch.css`, `src/js/main.js`): áreas de toque ampliadas (círculos, pontinhos de hábito, links curtos) e botões de 34–38 px elevados para 40–44 px; o plano de hoje ganha destaque no Início e o cartão de entrada rápida fica mais curto no celular; o círculo marcado dá um pulo curto (respeita "reduzir movimento"); calendário anual com células de 14 px que abre mostrando os meses mais recentes; erros de formulário aparecem junto ao campo (função `fieldError`, usada no nome do hábito, lembrete e valor do lançamento); indicador forte do item ativo na barra inferior; cartões do tema escuro mais separados; seções de Finanças em uma única fileira rolável no celular; valores de Finanças alinhados à direita; estado "Dia livre" de Hábitos ganhou o botão "Novo hábito"; campos numéricos do Pomodoro com teclado numérico.
@@ -51,7 +51,7 @@ SPA em JavaScript puro (módulos ES), empacotada pelo Vite. Dados de conta no Su
 
 26. Menu "Mais" no celular: painel opaco e fundo escurecido com desfoque (antes dava para ler o conteúdo atrás). Toque fora ou Esc fecham.
 
-27. Diálogos no celular: o teclado não abre mais sozinho (o foco vai para o diálogo e o teclado só abre ao tocar no campo); diálogos com campos ficam presos ao topo, para não pularem quando o teclado aparece; a animação de entrada roda só ao abrir; avisos de confirmação somem ao abrir um diálogo em vez de cobrir o título. No desktop o foco automático continua.
+27. Diálogos em todas as telas: o teclado não abre sozinho (o foco inicial vai para o diálogo e o teclado só abre ao tocar no campo); a altura disponível acompanha a viewport quando o teclado aparece; a animação de entrada roda só ao abrir; avisos de confirmação somem ao abrir um diálogo em vez de cobrir o título.
 
 28. Diálogos com teclado no iPhone (segunda correção): o painel não segue mais o deslocamento horizontal nem a animação do teclado (`fitDlg` em `src/js/main.js`). Precisa de conferência em iPhone real.
 

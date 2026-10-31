@@ -1222,3 +1222,109 @@
 @media (max-width: 760px) {
   .account-gate[data-account-stage="1"] > .account-intro { display: none; }
 }
+
+.account-gate[data-account-mode="legal-consent"] {
+  max-width: 760px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: center;
+}
+
+.account-gate[data-account-mode="legal-consent"] > .account-intro {
+  display: none;
+}
+
+.account-gate[data-account-mode="legal-consent"] > .account-card {
+  width: min(100%, 640px);
+  grid-column: 1;
+  padding: clamp(var(--space-5), 6vw, var(--space-7));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 5%, var(--surface-strong)), var(--surface-strong) 48%);
+}
+
+.account-legal-eyebrow {
+  width: fit-content;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: .08em;
+}
+
+.account-terms-group-updated {
+  gap: var(--space-3);
+}
+
+.account-legal-documents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.account-legal-document {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--surface);
+  text-decoration: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.account-legal-document:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: var(--surface-soft);
+}
+
+.account-legal-document:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: var(--space-half);
+}
+
+.account-legal-document-title {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.account-legal-document-description {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+}
+
+.account-terms-group-updated .account-terms-consent {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+@media (max-width: 480px) {
+  .account-gate[data-account-mode="legal-consent"] {
+    --account-page-gutter: var(--space-4);
+    width: 100%;
+    padding-block: var(--space-4);
+  }
+
+  .account-gate[data-account-mode="legal-consent"] > .account-card {
+    padding: var(--space-4);
+  }
+
+  .account-legal-documents {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

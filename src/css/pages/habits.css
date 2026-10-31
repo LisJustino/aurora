@@ -235,7 +235,10 @@
 .habit-ideas > summary > span:first-child { display: grid; min-width: 0; gap: 2px; }
 .habit-ideas > summary small { color: var(--muted); }
 .habit-count { flex: none; padding: 3px 9px; border-radius: var(--r-pill); background: var(--soft2); color: var(--muted); font-size: var(--text-xs); font-weight: 700; }
-.habit-idea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; padding-top: 10px; }
+.habit-idea-categories { display: grid; gap: 18px; padding-top: 12px; }
+.habit-idea-section { display: grid; gap: 8px; }
+.habit-idea-section h3 { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.habit-idea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
 .habit-idea {
   --hc: var(--accent);
   display: grid;
@@ -262,6 +265,9 @@
 .habit-look { min-width: 0; margin: 0; padding: 0; border: 0; }
 .habit-look legend { margin-bottom: 8px; font-size: var(--text-sm); font-weight: 700; }
 .habit-icon-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.water-weight-input { position: relative; display: flex; min-width: 0; align-items: center; }
+.water-weight-input input { padding-right: 48px; }
+.water-weight-input > span { position: absolute; right: 12px; color: var(--muted); font-size: var(--text-sm); font-weight: 700; pointer-events: none; }
 .habit-color-picker { display: flex; flex-wrap: wrap; gap: 10px; }
 .habit-icon-picker label, .habit-color-picker label { position: relative; display: block; }
 .habit-icon-picker input, .habit-color-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
