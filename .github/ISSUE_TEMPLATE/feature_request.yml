@@ -1,0 +1,25 @@
+name: Sugerir uma melhoria
+description: Compartilhe uma ideia para melhorar o Aurora.
+title: "[Ideia]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Que necessidade a ideia atenderia?
+      description: Explique o problema ou a necessidade, sem incluir dados pessoais.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Como você imagina a solução?
+      description: Descreva a mudança sugerida e como ela ajudaria.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Opcionalmente, conte outras soluções que você considerou.
+    validations:
+      required: false
