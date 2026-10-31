@@ -13,7 +13,7 @@ import {
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, createBirthdayReference, isValidBirthdayReference } from '../features/profile/birthday.js';
-import { IC } from '../utils/icons.js';
+import { iconSvg } from '../utils/icons.js';
 
 export { calculateAge };
 
@@ -165,8 +165,6 @@ const create = (tag, className, text) => {
   if (text !== undefined) element.textContent = text;
   return element;
 };
-
-const accountIcon = (name, size = 18) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name] || ''}</svg>`;
 
 function setAccountFieldError(input, message) {
   const field = input.closest('.account-field');
@@ -335,14 +333,14 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
     reveal.setAttribute('aria-controls', input.id);
     reveal.setAttribute('aria-pressed', 'false');
     reveal.title = 'Mostrar senha';
-    reveal.innerHTML = accountIcon('eye');
+    reveal.innerHTML = iconSvg('eye');
     reveal.addEventListener('click', () => {
       const visible = input.type === 'password';
       input.type = visible ? 'text' : 'password';
       reveal.setAttribute('aria-pressed', String(visible));
       reveal.setAttribute('aria-label', `${visible ? 'Ocultar' : 'Mostrar'} ${labelText.toLowerCase()}`);
       reveal.title = `${visible ? 'Ocultar' : 'Mostrar'} senha`;
-      reveal.innerHTML = accountIcon(visible ? 'eyeOff' : 'eye');
+      reveal.innerHTML = iconSvg(visible ? 'eyeOff' : 'eye');
       input.focus();
     });
     control.append(reveal);
@@ -492,7 +490,7 @@ export function createAccountForm(root, {
     detail.classList.add('account-security-note');
     const icon = document.createElement('span');
     icon.className = 'account-security-icon';
-    icon.innerHTML = accountIcon('shield', 18);
+    icon.innerHTML = iconSvg('shield', 18);
     detail.prepend(icon);
   }
   const form = create('form', 'account-form');
@@ -506,9 +504,16 @@ export function createAccountForm(root, {
       const item = create('li', `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`);
       item.dataset.step = String(index);
       if (index === activeStage) item.setAttribute('aria-current', 'step');
-      const number = create('span', 'account-step-number', index === activeStage ? String(index) : index < activeStage ? '✓' : String(index));
+      const number = create('span', 'account-step-number', index < activeStage ? '' : String(index));
+      if (index < activeStage) number.innerHTML = iconSvg('check', 16);
       const text = create('span', 'account-step-label', label);
       item.append(number, text);
+      if (index < signupSteps[signupSteps.length - 1][1]) {
+        const separator = create('span', 'account-step-separator');
+        separator.setAttribute('aria-hidden', 'true');
+        separator.innerHTML = iconSvg('chevRight', 16);
+        item.append(separator);
+      }
       steps.append(item);
     });
     card.append(steps);
@@ -669,6 +674,10 @@ export function createAccountForm(root, {
     password.setAttribute('aria-describedby', `${password.getAttribute('aria-describedby')} ${checklist.id}`.trim());
     PASSWORD_REQUIREMENTS.forEach(([key, text]) => {
       const item = create('li', 'account-password-criterion', text);
+      const indicator = create('span', 'account-password-criterion-icon');
+      indicator.setAttribute('aria-hidden', 'true');
+      indicator.innerHTML = iconSvg('circle', 12);
+      item.prepend(indicator);
       item.dataset.criterion = key;
       checklist.append(item);
     });
@@ -686,6 +695,7 @@ export function createAccountForm(root, {
         const item = checklist.querySelector(`[data-criterion="${key}"]`);
         item.classList.toggle('is-met', valid);
         item.setAttribute('aria-label', `${valid ? 'atendido' : 'pendente'}: ${item.textContent}`);
+        item.querySelector('.account-password-criterion-icon').innerHTML = iconSvg(valid ? 'check' : 'circle', 12);
         if (valid) passed += 1;
       });
       const level = passed >= 5 ? 'forte' : passed >= 3 ? 'média' : 'fraca';

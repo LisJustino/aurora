@@ -649,19 +649,6 @@
 .account-age-status[data-state="eligible"] { color: var(--ok); }
 
 .account-message { font-size: var(--text-sm); }
-.account-message:not(:empty)::before {
-  display: inline-grid;
-  width: 1.25em;
-  height: 1.25em;
-  margin-right: var(--space-1);
-  place-items: center;
-  border-radius: var(--r-pill);
-  background: var(--bad-soft);
-  color: var(--bad);
-  content: "!";
-  font-weight: var(--weight-bold);
-}
-
 .account-actions .btn.is-loading { cursor: progress; }
 .account-spinner {
   width: var(--space-4);
@@ -744,7 +731,7 @@
 .account-step.is-current { color: var(--accent); font-weight: var(--weight-semibold); }
 .account-step.is-current .account-step-number { border-color: var(--accent); background: var(--soft2); color: var(--accent); }
 .account-step.is-complete .account-step-number { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
-.account-step:not(:last-child) .account-step-label::after { color: var(--muted); content: " →"; }
+.account-step-separator { display: flex; flex: none; color: var(--muted); }
 
 .account-password-strength { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
 .account-strength-track { height: var(--space-1); overflow: hidden; border-radius: var(--r-pill); background: var(--line); }
@@ -753,10 +740,10 @@
 .account-password-strength[data-strength="strong"] .account-strength-track span { width: 100%; background: var(--ok); }
 .account-strength-label { color: var(--muted); font-size: var(--text-xs); }
 .account-password-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1) var(--space-3); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
-.account-password-criterion { color: var(--muted); font-size: var(--text-xs); }
-.account-password-criterion::before { margin-right: var(--space-1); color: var(--bad); content: "○"; }
+.account-password-criterion { display: flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: var(--text-xs); }
+.account-password-criterion-icon { display: inline-flex; flex: none; color: var(--bad); }
 .account-password-criterion.is-met { color: var(--ok); }
-.account-password-criterion.is-met::before { content: "✓"; }
+.account-password-criterion.is-met .account-password-criterion-icon { color: var(--ok); }
 .account-field-error { color: var(--bad); font-size: var(--text-xs); }
 
 .account-links {
@@ -1327,4 +1314,65 @@
   .account-legal-documents {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.main[data-route="config"] .settings-menu-heading {
+  margin: 0 6px 4px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.main[data-route="config"] .settings-link { border-radius: var(--r-control); }
+.main[data-route="config"] .settings-content > .card {
+  padding: var(--card-padding-compact);
+}
+.main[data-route="config"] .settings-section-card { gap: var(--space-4); }
+.main[data-route="config"] .settings-section-card > .settings-section-heading {
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.main[data-route="config"] .settings-section-heading h2 {
+  font-size: var(--text-xl);
+  line-height: 1.25;
+}
+.main[data-route="config"] .settings-section-heading > p {
+  max-width: 68ch;
+  margin: 0;
+  line-height: 1.5;
+}
+:root[data-density="compact"] .main[data-route="config"] .settings-content > .card {
+  padding: var(--space-3);
+}
+:root[data-density="compact"] .main[data-route="config"] .settings-section-card {
+  gap: var(--space-3);
+}
+:root[data-density="compact"] .main[data-route="config"] .settings-section-card > .settings-section-heading {
+  padding-bottom: var(--space-3);
+}
+.main[data-route="config"] .profile-settings-group {
+  max-width: none;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.6fr);
+  align-items: start;
+}
+.main[data-route="config"] .profile-settings-fields {
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.main[data-route="config"] .profile-settings-fields > .f:only-child,
+.main[data-route="config"] .profile-settings-fields > .f:last-child:nth-child(3) {
+  grid-column: 1 / -1;
+}
+.main[data-route="config"] .profile-greeting-preview { max-width: none; }
+.main[data-route="config"] .areas-navigation-settings { container-type: inline-size; }
+.main[data-route="config"] .areas-navigation-list.compact-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
+}
+@container (max-width: 620px) {
+  .main[data-route="config"] .areas-navigation-list.compact-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .main[data-route="config"] .profile-settings-group { grid-template-columns: minmax(0, 1fr); }
 }

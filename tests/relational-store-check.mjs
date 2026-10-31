@@ -82,6 +82,12 @@ const rlsIsolationTest = await readFile(
 assert.match(rlsIsolationTest, /valid-trash-a/i);
 assert.match(rlsIsolationTest, /when check_violation/i);
 assert.match(rlsIsolationTest, /User A inserted trash for User B/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_keys/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_data/i);
+assert.match(rlsIsolationTest, /User A read User B vault key/i);
+assert.match(rlsIsolationTest, /User A read User B legacy data/i);
+assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
+assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];

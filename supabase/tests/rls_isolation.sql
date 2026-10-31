@@ -30,7 +30,7 @@ declare
     'task_tag_assignments', 'weekly_reflections',
     'timer_state', 'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
     'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
-    'finance_transactions', 'finance_budgets', 'finance_goals', 'finance_recurrences',
+    'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
     'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records'
   ];
 begin
@@ -69,6 +69,53 @@ begin
 end;
 $$;
 
+do $$
+declare
+  table_name text;
+  has_rls boolean;
+  has_force_rls boolean;
+  policy_count integer;
+  command_count integer;
+begin
+  foreach table_name in array array['user_data', 'user_keys'] loop
+    select c.relrowsecurity, c.relforcerowsecurity
+    into has_rls, has_force_rls
+    from pg_class as c
+    join pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = table_name;
+
+    if has_rls is distinct from true or has_force_rls is distinct from true then
+      raise exception 'RLS and FORCE RLS must be enabled on public.%', table_name;
+    end if;
+
+    select count(*) into policy_count
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = table_name
+      and 'authenticated' = any(roles);
+    select count(distinct cmd) into command_count
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = table_name
+      and 'authenticated' = any(roles);
+    if policy_count <> (case when table_name = 'user_data' then 4 else 2 end)
+      or command_count <> (case when table_name = 'user_data' then 4 else 2 end) then
+      raise exception 'Unexpected authenticated policy count on public.%: %', table_name, policy_count;
+    end if;
+
+    if exists (
+      select 1
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = table_name
+        and roles && array['public', 'anon']::name[]
+    ) then
+      raise exception 'A public or anon policy exists on public.%', table_name;
+    end if;
+  end loop;
+end;
+$$;
+
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -84,6 +131,37 @@ values
     'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102',
     'authenticated', 'authenticated', 'rls-user-b@example.invalid', '',
     now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()
+  ),
+  (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a103',
+    'authenticated', 'authenticated', 'rls-user-c@example.invalid', '',
+    now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()
+  );
+
+insert into public.user_keys (
+  user_id, key_version, salt, password_wrap, recovery_wrap
+)
+values
+  (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101', 1, repeat('A', 22),
+    '{"iv":"AAAAAAAAAAAAAAAA","ciphertext":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}'::jsonb,
+    '{"iv":"AAAAAAAAAAAAAAAA","ciphertext":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}'::jsonb
+  ),
+  (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102', 1, repeat('B', 22),
+    '{"iv":"BBBBBBBBBBBBBBBB","ciphertext":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}'::jsonb,
+    '{"iv":"BBBBBBBBBBBBBBBB","ciphertext":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}'::jsonb
+  );
+
+insert into public.user_data (user_id, slice, data)
+values
+  (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101', 'tasks',
+    '{"v":"1","iv":"AAAAAAAAAAAAAAAA","ciphertext":"AAAAAAAAAAAAAAAAAAAAAA"}'::jsonb
+  ),
+  (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102', 'tasks',
+    '{"v":"1","iv":"BBBBBBBBBBBBBBBB","ciphertext":"BBBBBBBBBBBBBBBBBBBBBB"}'::jsonb
   );
 
 do $$
@@ -118,6 +196,55 @@ begin
   end if;
 end;
 $$;
+
+reset role;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+set local role anon;
+
+do $$
+begin
+  begin
+    perform count(*) from public.user_keys;
+    raise exception 'Anonymous users read user_keys';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.user_keys (
+      user_id, key_version, salt, password_wrap, recovery_wrap
+    )
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a103', 1, repeat('C', 22),
+      '{"iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"}'::jsonb,
+      '{"iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"}'::jsonb
+    );
+    raise exception 'Anonymous users inserted user_keys';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    perform count(*) from public.user_data;
+    raise exception 'Anonymous users read user_data';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.user_data (user_id, slice, data)
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101', 'tasks',
+      '{"v":"1","iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCC"}'::jsonb
+    );
+    raise exception 'Anonymous users inserted user_data';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+reset role;
 
 insert into public.tasks (id, user_id, title)
 values
@@ -170,6 +297,70 @@ declare
   visible_count integer;
   affected_rows integer;
 begin
+  select count(*) into visible_count from public.user_keys;
+  if visible_count <> 1 then
+    raise exception 'User A must see exactly its own vault key; got %', visible_count;
+  end if;
+
+  select count(*) into visible_count
+  from public.user_keys
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102';
+  if visible_count <> 0 then
+    raise exception 'User A read User B vault key';
+  end if;
+
+  select count(*) into visible_count from public.user_data;
+  if visible_count <> 1 then
+    raise exception 'User A must see exactly its own legacy data; got %', visible_count;
+  end if;
+
+  select count(*) into visible_count
+  from public.user_data
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102';
+  if visible_count <> 0 then
+    raise exception 'User A read User B legacy data';
+  end if;
+
+  update public.user_data
+  set data = '{"v":"1","iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCC"}'::jsonb
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102';
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> 0 then
+    raise exception 'User A updated User B legacy data';
+  end if;
+
+  delete from public.user_data
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a102';
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> 0 then
+    raise exception 'User A deleted User B legacy data';
+  end if;
+
+  begin
+    insert into public.user_keys (
+      user_id, key_version, salt, password_wrap, recovery_wrap
+    )
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a103', 1, repeat('C', 22),
+      '{"iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"}'::jsonb,
+      '{"iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"}'::jsonb
+    );
+    raise exception 'User A inserted User B vault key';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.user_data (user_id, slice, data)
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a103', 'tasks',
+      '{"v":"1","iv":"CCCCCCCCCCCCCCCC","ciphertext":"CCCCCCCCCCCCCCCCCCCCCC"}'::jsonb
+    );
+    raise exception 'User A inserted User B legacy data';
+  exception
+    when insufficient_privilege then null;
+  end;
+
   select count(*) into visible_count from public.tasks;
   if visible_count <> 1 then
     raise exception 'User A must see exactly its own task; got %', visible_count;

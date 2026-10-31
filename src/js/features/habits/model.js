@@ -70,6 +70,25 @@ export const SUGGESTED_HABITS = [
   { id: 'evening-routine', category: 'routine', name: 'Preparar o dia seguinte', description: 'Deixe algo organizado para amanhã.', icon: 'calendarCheck', color: HABIT_COLORS[6] },
 ];
 
+export function filterSuggestedHabits(suggestions, query = '', category = 'all') {
+  const normalize = (value) => String(value ?? '')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  const categoryTitles = new Map(SUGGESTED_HABIT_CATEGORIES.map(({ id, title }) => [id, title]));
+  return (Array.isArray(suggestions) ? suggestions : []).filter((suggestion) => {
+    if (category !== 'all' && suggestion.category !== category) return false;
+    const searchable = normalize([
+      suggestion.name,
+      suggestion.description,
+      categoryTitles.get(suggestion.category),
+    ].join(' '));
+    return terms.every((term) => searchable.includes(term));
+  });
+}
+
 export function isValidHabit(habit) {
   return isPlainObject(habit)
     && typeof habit.id === 'string'
@@ -185,6 +204,26 @@ export function habitWeekOverview(habits, day, weekStart, completedFor, skippedF
     planned,
     paused: habits.filter((habit) => habit.status === 'paused'),
   };
+}
+
+export function habitWeekReview(habits, day, weekStart, completedFor, skippedFor) {
+  const days = weekDays(day, weekStart).filter((entry) => entry <= day);
+  return habits
+    .filter((habit) => (habit.status || 'active') === 'active')
+    .map((habit) => {
+      const scheduled = days.filter((entry) => (
+        habit.days.includes(pk(entry).getDay()) && !skippedFor(habit, entry)
+      ));
+      const weeklyTarget = habitWeeklyTarget(habit);
+      const completed = scheduled.filter((entry) => completedFor(habit, entry)).length;
+      return {
+        habit,
+        completed,
+        planned: scheduled.length,
+        weeklyTarget,
+        goalMet: weeklyTarget !== null && completed >= weeklyTarget,
+      };
+    });
 }
 
 export function habitMonthDays(month, weekStart = 1) {

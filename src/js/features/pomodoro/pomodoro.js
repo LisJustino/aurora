@@ -5,7 +5,10 @@ export const MIN_LONG_BREAK_MIN = 5;
 export const MAX_LONG_BREAK_MIN = 60;
 export const HISTORY_DAYS = 30;
 export const POMODORO_PRESETS = Object.freeze({
-  classic: Object.freeze({ focusMin: 25, breakMin: 5, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK, autoAdvance: true }),
+  short: Object.freeze({ focusMin: 15, breakMin: 3, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK }),
+  classic: Object.freeze({ focusMin: 25, breakMin: 5, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK }),
+  extended: Object.freeze({ focusMin: 50, breakMin: 10, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK }),
+  deep: Object.freeze({ focusMin: 90, breakMin: 20, longBreakMin: DEFAULT_LONG_BREAK_MIN, cyclesPerLongBreak: POMODOROS_PER_LONG_BREAK }),
 });
 
 export function longBreakMinutes(pomodoro) {
@@ -50,9 +53,18 @@ export function recentFocusDays(history, endDay, days = 7) {
 }
 
 export function effectivePomodoroSettings(settings) {
-  return settings.preset === 'classic'
-    ? { ...settings, ...POMODORO_PRESETS.classic }
-    : settings;
+  const preset = POMODORO_PRESETS[settings.preset];
+  return preset ? { ...settings, ...preset } : settings;
+}
+
+export function customPomodoroSettings(settings) {
+  const effective = effectivePomodoroSettings(settings);
+  return {
+    ...settings,
+    preset: 'custom',
+    focusMin: effective.focusMin,
+    breakMin: effective.breakMin,
+  };
 }
 
 export function phaseDurationSeconds(pomodoro, phase) {

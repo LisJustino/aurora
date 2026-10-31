@@ -103,8 +103,11 @@
 
 .footer-faq > summary,
 .footer-faq-content > details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   min-height: var(--control-sm);
-  align-content: center;
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
@@ -130,15 +133,18 @@
 }
 
 .footer-faq > summary span {
+  display: grid;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  flex: none;
+  place-items: center;
   color: var(--accent);
-  font-size: var(--text-lg);
-  line-height: 1;
   transition: transform .2s ease;
 }
 
-.footer-faq[open] > summary span {
-  transform: rotate(45deg);
-}
+.footer-faq[open] > summary span { transform: rotate(180deg); }
+.footer-faq-content > details > summary > span { display: grid; width: var(--control-sm); height: var(--control-sm); flex: none; place-items: center; color: var(--muted); transition: transform var(--duration-fast) var(--ease-standard); }
+.footer-faq-content > details[open] > summary > span { transform: rotate(180deg); }
 
 .footer-faq[open] > summary {
   border-bottom: 1px solid var(--line);
