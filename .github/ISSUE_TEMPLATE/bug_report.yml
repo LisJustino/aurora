@@ -1,0 +1,41 @@
+name: Relatar um problema
+description: Descreva algo que não está funcionando como esperado.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Não inclua dados pessoais, financeiros ou de saúde, endereços de e-mail,
+        tokens ou capturas com informações reais. Reproduza o problema apenas
+        com dados fictícios.
+  - type: textarea
+    id: problem
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Como reproduzir
+      description: Liste os passos mínimos usando dados fictícios.
+      placeholder: |
+        1. Abra ...
+        2. Selecione ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que você esperava?
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Navegador e dispositivo
+      placeholder: Ex.: Firefox no Windows 11
+    validations:
+      required: false

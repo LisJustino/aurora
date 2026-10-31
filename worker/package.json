@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --env development",
-    "deploy": "wrangler deploy --env=",
+    "deploy": "wrangler deploy",
     "test": "node --test"
   },
   "dependencies": {

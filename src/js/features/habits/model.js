@@ -1,6 +1,7 @@
 import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
+import { isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
 
 export const HABIT_ICONS = Object.freeze([
   ['droplet', 'Água'], ['book', 'Leitura'], ['dumbbell', 'Treino'], ['activity', 'Movimento'],
@@ -19,17 +20,19 @@ export const DEFAULT_HABIT_ICON = 'sparkles';
 export const DEFAULT_HABIT_COLOR = HABIT_COLORS[0];
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const normalizeHabitName = (name) => String(name || '').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const isWaterHabit = (habit) => (
+  habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitName(habit?.name))
+);
 export const habitIconKey = (habit) => (
-  habit?.tracking === 'water' ? 'droplet'
-    : HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
+  HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
 );
 export const habitColor = (habit) => (
-  habit?.tracking === 'water' ? HABIT_COLORS[5]
-    : HEX_COLOR.test(habit?.color || '') ? habit.color : DEFAULT_HABIT_COLOR
+  HEX_COLOR.test(habit?.color || '') ? habit.color : DEFAULT_HABIT_COLOR
 );
 
 export const SUGGESTED_HABITS = [
-  { id: 'water', name: 'Beber água', description: 'Acompanhe o volume registrado em Hábitos.', tracking: 'water', icon: 'droplet', color: HABIT_COLORS[5] },
+  { id: 'water', name: 'Beber água', description: 'Registre os mL consumidos e acompanhe a meta diária.', icon: 'droplet', color: HABIT_COLORS[5] },
   { id: 'reading', name: 'Ler por 10 minutos', description: 'Reserve alguns minutos para a leitura.', icon: 'book', color: HABIT_COLORS[6] },
   { id: 'movement', name: 'Movimentar o corpo', description: 'Inclua um momento de movimento na rotina.', icon: 'activity', color: HABIT_COLORS[4] },
   { id: 'pause', name: 'Fazer uma pausa', description: 'Faça uma pausa consciente durante o dia.', icon: 'coffee', color: HABIT_COLORS[2] },
@@ -69,6 +72,7 @@ export function isValidHabit(habit) {
     && (habit.icon === undefined || (typeof habit.icon === 'string' && /^[A-Za-z]{2,20}$/.test(habit.icon)))
     && (habit.color === undefined || (typeof habit.color === 'string' && HEX_COLOR.test(habit.color)))
     && (habit.weeklyGoal === undefined || (Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1 && habit.weeklyGoal <= 7))
+    && (habit.waterGoalMl === undefined || isValidWaterGoalMl(habit.waterGoalMl))
     && (habit.remind === undefined || (typeof habit.remind === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(habit.remind)));
 }
 
@@ -101,15 +105,13 @@ export function habitIsSkipped(habit, day, today = day) {
 
 export function createSuggestedHabits(selectedIds, existingHabits, createId) {
   const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
-  const existingNames = new Set(existingHabits.map((habit) => (
-    habit.name.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  )));
-  const existingWaterHabit = existingHabits.some((habit) => habit.tracking === 'water');
+  const existingNames = new Set(existingHabits.map((habit) => normalizeHabitName(habit.name)));
+  const existingWaterHabit = existingHabits.some(isWaterHabit);
   return SUGGESTED_HABITS
     .filter((suggestion) => selected.has(suggestion.id))
     .filter((suggestion) => (
-      !existingNames.has(suggestion.name.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-      && (suggestion.tracking !== 'water' || !existingWaterHabit)
+      !existingNames.has(normalizeHabitName(suggestion.name))
+      && (suggestion.id !== 'water' || !existingWaterHabit)
     ))
     .map((suggestion) => ({
       id: createId(),
@@ -117,16 +119,14 @@ export function createSuggestedHabits(selectedIds, existingHabits, createId) {
       days: [0, 1, 2, 3, 4, 5, 6],
       completions: [],
       status: 'active',
+      ...(suggestion.id === 'water' ? { tracking: 'water' } : {}),
       icon: suggestion.icon,
       color: suggestion.color,
-      ...(suggestion.tracking ? { tracking: suggestion.tracking } : {}),
     }));
 }
 
-export function habitIsComplete(habit, day, waterTotal, waterGoal) {
-  return habit.tracking === 'water'
-    ? waterTotal >= waterGoal
-    : habit.completions.includes(day);
+export function habitIsComplete(habit, day) {
+  return habit.completions.includes(day);
 }
 
 export function normalizeHabits(value) {
@@ -140,9 +140,29 @@ export function normalizeHabits(value) {
       continue;
     }
     ids.add(habit.id);
-    records.push({ ...habit, status: habit.status || 'active' });
+    const normalized = isWaterHabit(habit) ? normalizeWaterHabit(habit) : habit;
+    records.push({ ...normalized, status: habit.status || 'active' });
   }
   return { records, rejectedCount };
+}
+
+export function habitWeekOverview(habits, day, weekStart, completedFor, skippedFor) {
+  const days = weekDays(day, weekStart).filter((entry) => entry <= day);
+  let planned = 0;
+  let completed = 0;
+  for (const habit of habits) {
+    if ((habit.status || 'active') !== 'active') continue;
+    for (const entry of days) {
+      if (!habit.days.includes(pk(entry).getDay()) || skippedFor(habit, entry)) continue;
+      planned += 1;
+      if (completedFor(habit, entry)) completed += 1;
+    }
+  }
+  return {
+    completed,
+    planned,
+    paused: habits.filter((habit) => habit.status === 'paused'),
+  };
 }
 
 export function habitMonthDays(month, weekStart = 1) {
