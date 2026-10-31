@@ -9,6 +9,7 @@ const TABLES = [
   'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records',
 ];
 const MANAGED_TABLES = TABLES.filter((table) => table !== 'push_subscriptions');
+const VERSION_CONFIRMATION_ERROR = 'O Supabase não confirmou as versões salvas. Verifique se a migration 20261030100000_relational_version_conflict.sql foi aplicada no projeto correto e se apply_relational_changes(jsonb) retorna jsonb. A gravação pode ter sido concluída; recarregue os dados da conta antes de tentar novamente.';
 const versionId = (table, row) => (
   table === 'profiles' || table === 'user_settings'
     ? row.user_id
@@ -972,17 +973,17 @@ export class RelationalAccountStore {
       throw new Error(`Não foi possível salvar as alterações na conta. ${code}${message}`.trim());
     }
     if (!Array.isArray(data)) {
-      throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+      throw new Error(VERSION_CONFIRMATION_ERROR);
     }
     for (const change of changes) {
       const savedTable = data.find((result) => result?.table === change.table);
       if (!savedTable || !Array.isArray(savedTable.rows)) {
-        throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+        throw new Error(VERSION_CONFIRMATION_ERROR);
       }
       for (const row of change.rows) {
         const key = versionId(change.table, row);
         if (!savedTable.rows.some((saved) => versionId(change.table, saved) === key && typeof saved.updated_at === 'string')) {
-          throw new Error('A gravação foi enviada, mas não foi possível confirmar as versões salvas. Recarregue os dados da conta antes de continuar.');
+          throw new Error(VERSION_CONFIRMATION_ERROR);
         }
       }
     }

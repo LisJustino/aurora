@@ -1248,12 +1248,32 @@ function shell(body) {
     ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}<button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Busca global" title="Buscar (Ctrl+K)">${icon('search', 20)}</button>${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-haspopup="true" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
+      ${persistenceNotice()}
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
       ${body}
     </main>
     <footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: !ui.preview, preview: ui.preview }))}${saveLabel ? h`<span class="save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</span>` : ''}</footer>
   </div>`;
+}
+function persistenceNotice() {
+  if (ui.preview || ui.route === 'config' || (!ui.persistBlocked.size && !ui.persistFailed.size)) return '';
+  let message;
+  let action;
+  if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
+    message = 'Alguns dados precisam de revisão; alterações estão bloqueadas para evitar perda.';
+    action = h`<a class="btn sm" href="#config?section=data">Revisar dados</a>`;
+  } else if (syncState.conflicts.size) {
+    message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
+    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar app</button>`;
+  } else if (Persist.pendingSnapshot) {
+    message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
+    action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
+  } else {
+    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e backup.';
+    action = h`<a class="btn sm" href="#config?section=data">Ver dados e backup</a>`;
+  }
+  return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
 function weeklyReviewView() {
   const review = weeklyReview(
@@ -1969,10 +1989,11 @@ function homeFirstSteps() {
   if (S.settings.prefs.firstStepsDismissed) return '';
   const steps = [
     ['Criar uma tarefa', '#planejar', 'calendarCheck', S.tasks.length > 0],
-    ['Marcar um hábito', '#habitos', 'leaf', S.habits.some((habit) => habitCompletedFor(habit, today()))],
-    ['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0],
-    ['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0],
+    ...(areaOn('habits') ? [['Marcar um hábito', '#habitos', 'leaf', S.habits.some((habit) => habitCompletedFor(habit, today()))]] : []),
+    ...(areaOn('pomodoro') ? [['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0]] : []),
+    ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0]] : []),
   ];
+  if (steps.every(([, , , complete]) => complete)) return '';
   return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
     <header class="head"><div><p class="section-kicker">Comece com uma ação pequena</p><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2></div>
       <button type="button" class="btn ghost sm" data-action="first-steps-dismiss">Dispensar</button>
@@ -2003,7 +2024,7 @@ function viewInicio() {
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${areaGuideButton('inicio')}
     ${homeFirstSteps()}
     ${sampleBanner()}
@@ -2034,7 +2055,7 @@ function viewInicio() {
     </div>
     ${activeAreaItems.length >= 2 ? h`<section class="home-tools" aria-labelledby="home-tools-title">
       <div class="head"><h2 id="home-tools-title">O que você pode fazer<i>.</i></h2></div>
-      <div class="home-tool-grid">
+      <div class="home-tool-grid compact-card-grid">
         <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos, calendário e planos por etapas.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
         ${activeAreaItems.map(({ id, area, label, icon: iconName }) => h`<a class="home-tool" href="#${id}"><span class="home-tool-icon">${icon(iconName, 20)}</span><span><b>${AREAS[area]?.[0] || label}</b><small>${AREAS[area]?.[1] || label}</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>`)}
       </div>
@@ -2060,10 +2081,16 @@ function taskListHtml() {
   const r = filteredTasks(), { f, sort } = ui.filters, tdy = today();
   if (!r.length) {
     const hasTasks = S.tasks.length > 0;
+    const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
+    const actions = hasTasks
+      ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
+      : hasFilters
+        ? h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
+        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="plan-open">${icon('calendar', 16)}Criar plano por etapas</button>`;
     return empty(
       hasTasks ? 'Nenhuma tarefa nesse filtro' : 'Ainda não há tarefas',
       hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa ou monte um plano por etapas.',
-      hasTasks ? '' : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button>`,
+      actions,
       hasTasks ? 'search' : 'calendarCheck',
     );
   }
@@ -2722,7 +2749,7 @@ function areasNavigationSettings(s) {
     <div class="head areas-navigation-head"><h2>Áreas e navegação<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
     <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
     <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
-    <ol class="areas-navigation-list" aria-label="Áreas e menus principais">${items.map((item) => {
+    <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
       const areaName = item.area ? AREAS[item.area]?.[0] || item.label : item.label;
       const areaDescription = item.area ? AREAS[item.area]?.[1] || '' : item.id === 'inicio' ? 'Página inicial do Aurora' : 'Tarefas, prazos e planejamento';
       const orderIndex = orderedItems.findIndex(({ id }) => id === item.id);
@@ -3490,7 +3517,8 @@ function dlgOnboard() {
     const hasOrganizationNeed = d.needs.includes('organization');
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
       ${hasOrganizationNeed ? h`<article class="onboard-solution-note"><span class="mk">${icon('calendarCheck', 22)}</span><span class="tx"><b>Planejar</b><span>Tarefas, prazos e prioridades já estão disponíveis para organizar seu dia.</span></span><span class="onboard-always-on">Sempre disponível</span></article>` : ''}
-      ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}`;
+      ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
+      <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e navegação.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
@@ -4135,6 +4163,13 @@ const ACTIONS = {
     requestActionConfirmation('del-task', { id }, 'Excluir tarefa?', `A tarefa "${task.title}" irá para a lixeira por 30 dias.`, 'Excluir tarefa');
   },
   'set-filter': (el) => { ui.filters.f = el.dataset.f; render(); },
+  'task-filters-clear': () => {
+    ui.filters.f = 'todas';
+    ui.filters.q = '';
+    const search = $('#q');
+    if (search) search.value = '';
+    render();
+  },
   'settings-section': (el, event) => {
     const tab = el.dataset.settingsTab;
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
@@ -5374,11 +5409,13 @@ function filteredTx() {
 function txListHtml() {
   const r = filteredTx();
   if (!r.length) {
-    const filtered = !!(ui.finQ || ui.finAcc || ui.finFilter !== 'todos');
+    const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finFilter !== 'todos');
     return empty(
       'Nenhum lançamento aqui',
       filtered ? 'Troque os filtros para ver mais.' : 'Toque em Lançamento para registrar o primeiro deste mês.',
-      filtered ? '' : h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`,
+      filtered
+        ? h`<button class="btn" data-action="fin-filters-clear">Limpar filtros</button>`
+        : h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`,
       filtered ? 'search' : 'list',
     );
   }
@@ -5608,6 +5645,15 @@ Object.assign(ACTIONS, {
   },
   'fin-go': (el) => { ui.finTab = el.dataset.t; if (el.dataset.f) ui.finFilter = el.dataset.f; render(); window.scrollTo(0, 0); },
   'fin-filter': (el) => { ui.finFilter = el.dataset.f; render(); },
+  'fin-filters-clear': () => {
+    ui.finFilter = 'todos';
+    ui.finQ = '';
+    ui.finAcc = '';
+    ui.finCat = '';
+    const search = $('#fq');
+    if (search) search.value = '';
+    render();
+  },
   'fin-month': (el) => { const n = Number(el.dataset.n); ui.finMonth = n === 0 ? today().slice(0, 7) : shiftMonth(ui.finMonth, n); render(); },
   'rep-kind': (el) => { ui.repKind = el.dataset.k; render(); },
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },

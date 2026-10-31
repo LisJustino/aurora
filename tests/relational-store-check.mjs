@@ -319,6 +319,21 @@ try {
   console.error = originalConsoleError;
 }
 
+const unconfirmedSaveClient = {
+  async rpc() {
+    return { data: null, error: null };
+  },
+};
+await assert.rejects(
+  () => new RelationalAccountStore(unconfirmedSaveClient, userId).save(state),
+  (error) => {
+    assert.match(error.message, /20261030100000_relational_version_conflict\.sql/);
+    assert.match(error.message, /apply_relational_changes\(jsonb\) retorna jsonb/);
+    assert.match(error.message, /A gravação pode ter sido concluída/);
+    return true;
+  },
+);
+
 const accountRows = {
   user_settings: [{
     id: userId,

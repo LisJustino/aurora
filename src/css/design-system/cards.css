@@ -40,10 +40,19 @@
   gap: var(--space-4);
 }
 
+.compact-card-grid,
 .shortcut-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(
+      min(100%, var(--card-compact-min-width)),
+      min(100%, var(--card-compact-max-width))
+    )
+  );
+  align-content: start;
+  justify-content: start;
+  gap: var(--card-compact-gap);
   min-width: 0;
 }
 
@@ -100,10 +109,6 @@
   flex: none;
   margin-inline-start: auto;
   color: var(--muted);
-}
-
-.shortcut-card--wide {
-  grid-column: 1 / -1;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -208,7 +213,8 @@
   .stat { padding: 16px; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
+  .compact-card-grid,
   .shortcut-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
