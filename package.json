@@ -1,0 +1,20 @@
+{
+  "name": "aurora",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/copy-static-assets.mjs",
+    "preview": "vite preview",
+    "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
+    "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.57.4"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1",
+    "vite": "^6.4.1"
+  }
+}

@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install application dependencies
+        run: npm ci
+      - name: Run application tests
+        run: npm test
+      - name: Build Cloudflare Pages assets
+        run: npm run build
+      - name: Install worker dependencies
+        working-directory: worker
+        run: npm ci
+      - name: Run worker tests
+        working-directory: worker
+        run: npm test
