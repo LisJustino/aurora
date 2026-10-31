@@ -1,17 +1,4 @@
 .accessibility-control { position: relative; }
-#accessibility-trigger.accessibility-trigger,
-#public-accessibility-trigger.accessibility-trigger {
-  display: inline-flex;
-  width: auto;
-  min-width: var(--control-md);
-  height: var(--control-md);
-  min-height: var(--control-md);
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding-inline: var(--space-3);
-}
-.accessibility-trigger-label { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
 .accessibility-panel {
   position: fixed;
   z-index: var(--z-panel);
@@ -98,12 +85,3 @@
 /* Tema e acessibilidade: seletor de tema e atalho para Personalização */
 .accessibility-panel .seg button { min-height: var(--control-md); }
 .accessibility-more { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
-
-@media (max-width: 599px) {
-  .accessibility-trigger-label { display: none; }
-  #accessibility-trigger.accessibility-trigger,
-  #public-accessibility-trigger.accessibility-trigger {
-    width: var(--control-md);
-    padding-inline: 0;
-  }
-}

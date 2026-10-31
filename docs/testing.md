@@ -22,7 +22,7 @@ o Pomodoro; finanças e ciclo são apresentados, mas não simulados nela.
 
 Ao navegar para outra área a partir de Ajustes e retornar pelo histórico ou pelo menu, confirme que “Seu perfil” é selecionado. Recarregue enquanto outra aba de Ajustes estiver aberta e confirme que essa aba permanece selecionada.
 
-Na navegação, confira todas as áreas no cabeçalho desktop sem o botão “Mais” entre 900 e 1439 px e sem rolagem horizontal dos links; entre 900 e 1099 px, a navegação ocupa uma segunda linha. No móvel, o dock deve manter quatro atalhos e “Mais” deve abrir as opções restantes; toque fora e Esc devem fechá-lo.
+Na navegação, confira todas as áreas no cabeçalho desktop em uma única linha, centralizadas e sem o botão “Mais”, entre 900 e 1439 px; entre 900 e 1199 px, os links mostram ícones com nomes acessíveis e não há rolagem horizontal. O botão de busca não aparece no cabeçalho; Ctrl+K continua abrindo a busca global. No móvel, o dock deve manter quatro atalhos e “Mais” deve abrir as opções restantes; toque fora e Esc devem fechá-lo.
 
 Em Hábitos, abra “Revisar cada hábito” e confira o resumo até a data atual,
 excluindo dias pulados e sem contar dias futuros. “Ajustar” deve abrir o editor
