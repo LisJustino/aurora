@@ -133,6 +133,7 @@
   --z-header: 30;
   --z-panel: 45;
   --z-dialog: 50;
+  --z-popover: 55;
   --z-toast: 60;
   --z-skip: 100;
   --r-control: 16px;
@@ -153,6 +154,7 @@
   --control-md: var(--target-size);
   --control-field: var(--control-height);
   --control-lg: 52px;
+  --select-menu-max-height: 288px;
   /* Raios: xs 8 · sm 12 · control 16 · group 20 · card 28 · large 36 · pill */
   --r-xs: 8px;
   --r-sm: 12px;

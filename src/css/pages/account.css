@@ -324,7 +324,7 @@
 }
 
 .account-field input,
-.account-field select {
+.account-field .ds-select__trigger {
   box-sizing: border-box;
   width: 100%;
   min-height: var(--control-field);
@@ -338,16 +338,16 @@
 }
 
 .account-field input[aria-invalid="true"],
-.account-field select[aria-invalid="true"] { border-color: var(--bad); }
+.account-field .ds-select__trigger[aria-invalid="true"] { border-color: var(--bad); }
 
-.account-field select {
+.account-field .ds-select__trigger {
   cursor: pointer;
   color: var(--ink);
   transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
 
 .account-field input:focus-visible,
-.account-field select:focus-visible,
+.account-field .ds-select__trigger:focus-visible,
 .account-card button:focus-visible {
   outline: 3px solid var(--ring);
   outline-offset: var(--space-half);
@@ -596,23 +596,23 @@
   background: var(--surface-raised);
   transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
-.account-field select { background: var(--surface-raised); }
+.account-field .ds-select__trigger { background: var(--surface-raised); }
 .account-field input::placeholder { color: var(--muted); opacity: 1; }
 .account-field input:hover,
-.account-field select:hover { border-color: var(--accent); }
+.account-field .ds-select__trigger:hover { border-color: var(--accent); }
 .account-field input:active,
-.account-field select:active { border-color: var(--accent); }
+.account-field .ds-select__trigger:active { border-color: var(--accent); }
 .account-field input:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--focus-ring-shadow);
   outline: 0;
 }
 .account-field input[aria-invalid="true"]:focus-visible,
-.account-field select[aria-invalid="true"]:focus-visible {
+.account-field .ds-select__trigger[aria-invalid="true"]:focus-visible {
   border-color: var(--bad);
   box-shadow: var(--focus-ring-shadow);
 }
-.account-field select:focus-visible {
+.account-field .ds-select__trigger:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--focus-ring-shadow);
   outline: 0;
@@ -1044,6 +1044,13 @@
 .main[data-route="config"] .settings-content { gap: 18px; }
 .main[data-route="config"] .settings-content > .card {
   max-width: 900px;
+}
+.main[data-route="config"] .account-session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 .main[data-route="config"] .profile-settings-group,
 .main[data-route="config"] .appearance-settings-group {

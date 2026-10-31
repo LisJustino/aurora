@@ -66,7 +66,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
 
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
-      <a class="brand public-brand-link" href="./" ${authMode ? 'data-account-mode="landing"' : 'data-public-action="landing"'} aria-label="Aurora, página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
+      <a class="brand public-brand-link" href="./" ${authMode ? 'data-account-mode="landing"' : 'data-public-action="landing"'} aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
       ${nav}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'entrar')}

@@ -18,7 +18,7 @@ No cadastro, valide que erros de e-mail já associado (incluindo a resposta sem 
 
 Nos projetos Supabase de desenvolvimento e produção, confirme que **Authentication → Providers → Email → Confirm email** está desativado. Um cadastro novo deve receber sessão imediatamente; se o provedor retornar usuário sem sessão, a tela deve apontar a configuração incompatível, não orientar a pessoa a confirmar o e-mail. Contas antigas pendentes devem receber instrução para liberação manual no Dashboard; o app não pode oferecer reenvio de confirmação. Ao abrir um callback com `error_code=otp_expired`, o login deve explicar que o link expirou, limpar parâmetros de erro da URL e manter um caminho recuperável sem expor a descrição técnica do provedor.
 
-Com Google habilitado e `/#inicio` cadastrado como URL de retorno no Supabase, teste o botão social. O retorno deve abrir a área autenticada, não a landing pública. No primeiro acesso, o OAuth também cria a conta no Supabase; nome, nome de preferência, idade mínima de 18 anos e aceite dos documentos são obrigatórios antes de carregar os dados. Cancelar esse cadastro deve encerrar a sessão. O login Apple/iCloud não deve aparecer nem ser aceito como novo fluxo por enquanto; a detecção de identidade Apple existente permanece para compatibilidade.
+Com Google habilitado e `/#inicio` cadastrado como URL de retorno no Supabase, teste o botão social. O retorno deve abrir a área autenticada, não a landing pública. No primeiro acesso, o OAuth também cria a conta no Supabase; nome, nome de preferência, data de nascimento válida (com idade entre 0 e 120 anos) e aceite dos documentos são obrigatórios antes de carregar os dados. Cadastros abaixo de 18 anos, inclusive com idade zero, não devem ser bloqueados. Cancelar esse cadastro deve encerrar a sessão. O login Apple/iCloud não deve aparecer nem ser aceito como novo fluxo por enquanto; a detecção de identidade Apple existente permanece para compatibilidade.
 
 Nos campos de e-mail do cadastro, login e recuperação, confira sugestões após `@`, lista inicial compacta, filtragem, seleção por teclado/toque e a possibilidade de continuar digitando um domínio que não aparece. Ao abrir o login, os campos vazios não devem exibir erros; a validação não deve mostrar erro enquanto o campo está em edição e deve avisar depois que a pessoa sair de um endereço inválido.
 
@@ -73,12 +73,14 @@ node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
 node tests/e2e/planning-quick-task.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
+node tests/e2e/custom-select.cjs http://127.0.0.1:5173
 ```
 
 O cenário de notificações confirma que lembretes novos não abrem o painel
 automaticamente, que o indicador do sino permite encontrá-los e que abrir,
 adiar e dispensar continuam funcionando em mobile e desktop.
-- `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px e o seletor de nascimento sem enviar o cadastro.
+- `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
+- `node tests/e2e/custom-select.cjs` valida o menu padronizado em desktop e mobile, navegação por teclado, sincronização de valor/eventos, rótulo acessível, campo desabilitado e posicionamento dentro da viewport.
 - **Aprovado (2026-10-29):** `node tests/e2e/notifications.cjs http://127.0.0.1:5173` — fluxo mobile/desktop, sem overflow horizontal nem erros no console.
 
 ## Prévia visual local

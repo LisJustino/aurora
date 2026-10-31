@@ -2,7 +2,8 @@
  * Campos — rótulo, input, select, textarea, checkbox e radio
  *
  * Altura mínima --control-field (48 px), borda visível, foco evidente e fonte mínima de 16 px
- * (evita zoom automático no celular). select é nativo com seta própria; aria-invalid destaca o limite.
+ * (evita zoom automático no celular). O design system substitui a apresentação do select,
+ * mas mantém o elemento nativo como fonte do valor e da validação.
  */
 label.f {
   display: flex;

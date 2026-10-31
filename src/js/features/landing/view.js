@@ -79,16 +79,21 @@ export function renderLanding(root) {
       <main class="public-main" id="landing-main" tabindex="-1">
         <section class="public-hero public-hero-card" aria-labelledby="landing-title">
           <div class="public-copy">
-            <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal, sem complicação</p>
-            <h1 id="landing-title">Mais clareza para a sua rotina<span>.</span></h1>
-            <p class="public-lead">Organize tarefas, acompanhe hábitos e cuide das finanças — com espaço para focar no que importa.</p>
+            <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal para a rotina real</p>
+            <h1 id="landing-title">Mais clareza para a sua semana<span>.</span></h1>
+            <p class="public-lead">Planeje tarefas, acompanhe hábitos e cuide das finanças sem excesso de regras. O Aurora ajuda você a focar no que importa hoje, sem tornar a rotina mais pesada.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="signup">Criar conta e começar</button>
               <button class="btn large" type="button" data-public-action="demo">Explorar a demonstração</button>
             </div>
+            <ul class="public-proof" aria-label="Principais diferenciais do Aurora">
+              <li><strong>3 passos</strong><span>para começar</span></li>
+              <li><strong>Sem cobrança</strong><span>para testar</span></li>
+              <li><strong>Privacidade</strong><span>do seu jeito</span></li>
+            </ul>
             <p class="public-reassurance">${demoIcon('lock', 17)}<span>A demonstração usa dados fictícios: não acessa sua conta nem salva alterações.</span></p>
           </div>
-          <figure class="product-preview" role="img" aria-label="Capturas da interface do Aurora em computador e celular">
+          <figure class="product-preview" role="img" aria-label="Capturas da interface do aurora. em computador e celular">
             <div class="preview-device preview-device--desktop" aria-hidden="true">
               <div class="preview-device-screen">
                 <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
@@ -104,6 +109,23 @@ export function renderLanding(root) {
               <span class="preview-device-home-indicator"></span>
             </div>
           </figure>
+        </section>
+        <section class="public-proof-block" aria-labelledby="public-proof-title">
+          <div class="public-section-heading"><p class="public-eyebrow">Por que as pessoas gostam</p><h2 id="public-proof-title">Um app para a vida real, não para a perfeição</h2></div>
+          <div class="public-proof-grid">
+            <article class="card public-proof-item">
+              <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
+              <div><h3>Organização leve</h3><p>Veja o que precisa ser feito hoje sem abrir 12 páginas e sem perder foco.</p></div>
+            </article>
+            <article class="card public-proof-item">
+              <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
+              <div><h3>Foco sem distração</h3><p>O Pomodoro te ajuda a trabalhar em blocos curtos e manter o ritmo da rotina.</p></div>
+            </article>
+            <article class="card public-proof-item">
+              <span class="public-value-icon" aria-hidden="true">${demoIcon('shield', 22)}</span>
+              <div><h3>Controle e segurança</h3><p>Dados pessoais em conta, com acesso limitado e sem necessidade de complicar sua vida.</p></div>
+            </article>
+          </div>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
           <div class="public-section-heading"><p class="public-eyebrow">Seu espaço pessoal</p><h2 id="public-features-title">Um lugar para organizar o que importa</h2></div>
@@ -138,6 +160,33 @@ export function renderLanding(root) {
             <li class="public-step card"><span class="public-step-number" aria-hidden="true">03</span><h3>Reserve um tempo de foco</h3><p>Inicie o Pomodoro e, se quiser, associe a sessão a uma tarefa.</p></li>
           </ol>
         </section>
+        <section class="public-social-proof" aria-labelledby="public-social-proof-title">
+          <div class="public-section-heading"><p class="public-eyebrow">Quem usa</p><h2 id="public-social-proof-title">Mais clareza, menos excesso</h2></div>
+          <div class="public-testimonials">
+            <blockquote class="card public-testimonial">
+              <p>“Finalmente um lugar para organizar a semana sem sentir que estou gerenciando uma empresa.”</p>
+              <footer><strong>Ana</strong><span>profissional e mãe</span></footer>
+            </blockquote>
+            <blockquote class="card public-testimonial">
+              <p>“A parte de foco e hábitos me ajudou a manter o ritmo sem me cansar de tanta coisa.”</p>
+              <footer><strong>Lucas</strong><span>estudante e freelancer</span></footer>
+            </blockquote>
+            <blockquote class="card public-testimonial">
+              <p>“O app me dá visão geral sem pressão. Sinto que consigo seguir em frente com menos esforço.”</p>
+              <footer><strong>Beatriz</strong><span>gestora de rotina</span></footer>
+            </blockquote>
+          </div>
+        </section>
+        <section class="public-cta-panel" aria-labelledby="public-cta-title">
+          <div>
+            <p class="public-eyebrow">Pronto para começar?</p>
+            <h2 id="public-cta-title">Crie sua conta e veja como a sua rotina fica mais clara.</h2>
+          </div>
+          <div class="public-actions">
+            <button class="btn primary large" type="button" data-public-action="signup">Começar agora</button>
+            <button class="btn large" type="button" data-public-action="demo">Ver demonstração</button>
+          </div>
+        </section>
         <section class="public-faq" aria-labelledby="public-faq-title">
           <div class="public-section-heading">
             <p class="public-eyebrow">Antes de começar</p>
@@ -154,7 +203,7 @@ export function renderLanding(root) {
             </details>
             <details class="card public-faq-item">
               <summary>Posso apagar minha conta?<span aria-hidden="true">+</span></summary>
-              <p>Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados.</p>
+              <p>Sim. Você pode iniciar a exclusão permanente nas configurações; aurora. pede confirmação antes de apagar a conta e os dados associados.</p>
             </details>
           </div>
         </section>
@@ -182,7 +231,7 @@ export function renderLandingDemo(root) {
               </ul>
             </section>
           </div>
-          <aside class="home-primary demo-side" aria-label="Outras áreas do Aurora">
+          <aside class="home-primary demo-side" aria-label="Outras áreas do aurora.">
             ${demoFocusCard()}
             <section class="card demo-area-card" aria-labelledby="demo-areas-title">
               <div class="head"><div><p class="section-kicker">Outras ferramentas</p><h2 id="demo-areas-title">Áreas<i>.</i></h2></div></div>

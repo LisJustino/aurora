@@ -336,6 +336,7 @@
 .task-dialog .task-form > .f { gap: 5px; font-size: var(--text-xs); font-weight: 750; }
 .task-dialog .task-form input,
 .task-dialog .task-form select { min-height: var(--control-md); }
+.task-dialog .task-form .ds-select__trigger { min-height: var(--control-md); }
 .task-dialog .task-title-field { padding-bottom: 3px; }
 .task-dialog .task-title-field input {
   min-height: 56px;

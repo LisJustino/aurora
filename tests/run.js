@@ -174,7 +174,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   renderLanding(root);
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Mais clareza para a sua rotina',
+    'Mais clareza para a sua semana',
     'Criar conta e começar',
     'Explorar a demonstração',
     'não acessa sua conta nem salva alterações',
@@ -186,9 +186,9 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
-  if (!entryHtml.includes('<title>Aurora — mais clareza para a sua rotina</title>')
-    || !entryHtml.includes('property="og:title" content="Aurora — mais clareza para a sua rotina"')
-    || !entryHtml.includes('name="twitter:title" content="Aurora — mais clareza para a sua rotina"')) {
+  if (!entryHtml.includes('<title>aurora. — mais clareza para a sua rotina</title>')
+    || !entryHtml.includes('property="og:title" content="aurora. — mais clareza para a sua rotina"')
+    || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
   const landingView = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
@@ -270,7 +270,12 @@ test('aniversário mantém somente dia e mês e atualiza a idade na data correta
   equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 28)), 24);
   equal(ageFromBirthdayReference(birthday, new Date(2025, 9, 29)), 25);
   equal(ageFromBirthdayReference(birthday, new Date(2026, 9, 29)), 26);
-  equal(createBirthdayReference('2010-10-29', new Date(2024, 9, 29)), null);
+  const minorBirthday = createBirthdayReference('2010-10-29', new Date(2024, 9, 29));
+  equal(minorBirthday.ageAtReference, 14);
+  equal(isValidBirthdayReference(minorBirthday), true);
+  const infantBirthday = createBirthdayReference('2024-10-29', new Date(2024, 9, 29));
+  equal(infantBirthday.ageAtReference, 0);
+  equal(isValidBirthdayReference(infantBirthday), true);
 });
 
 test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos comuns', () => {
@@ -280,9 +285,12 @@ test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos com
 });
 
 test('sugestão de água considera idade registrada e usa referência adulta quando ausente', () => {
+  const infant = estimateWaterGoal({ weightKg: 60, age: 0 });
   const middleAge = estimateWaterGoal({ weightKg: 60, age: 40 });
   const olderAdult = estimateWaterGoal({ weightKg: 60, age: 60 });
   const senior = estimateWaterGoal({ weightKg: 60, age: 70 });
+  equal(infant.per, 40);
+  equal(infant.assumed, false);
   const ageUnavailable = estimateWaterGoal({ weightKg: 60 });
 
   equal(middleAge.per, 35);
