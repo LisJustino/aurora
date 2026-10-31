@@ -28,6 +28,34 @@
   .fab-clearance { height: calc(160px + env(safe-area-inset-bottom, 0px)); }
 }
 
+@media (max-width: 540px) {
+  .main[data-route="financas"] {
+    padding-bottom: calc(var(--nav-h) + 112px + env(safe-area-inset-bottom, 0px));
+  }
+  .main[data-route="financas"] .fin-section-content {
+    gap: 14px;
+  }
+  .main[data-route="financas"] .fin-section-menu {
+    position: relative;
+    z-index: 1;
+  }
+  .main[data-route="financas"] .mnav {
+    min-height: var(--control-md);
+  }
+  .main[data-route="financas"] .fin-hero {
+    gap: 2px;
+    padding: 16px;
+  }
+  .main[data-route="financas"] .balance-sparkline {
+    height: 38px;
+  }
+  .main[data-route="financas"] .fh-row {
+    gap: 10px 12px;
+    margin-top: 8px;
+    padding-top: 12px;
+  }
+}
+
 .imp > li { flex-direction: column; align-items: stretch; gap: 6px; }
 .impcat { min-height: var(--control-sm); padding: 6px 10px; font-size: var(--text-sm); }
 .ellip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
