@@ -1,3 +1,5 @@
+import { normalizeAccountType } from '../features/finance/accounts.js';
+
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
   'task_tag_assignments', 'weekly_reflections', 'timer_state',
@@ -7,6 +9,12 @@ const TABLES = [
   'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records',
 ];
 const MANAGED_TABLES = TABLES.filter((table) => table !== 'push_subscriptions');
+const VERSION_CONFIRMATION_ERROR = 'O Supabase não confirmou as versões salvas. Verifique se a migration 20261030100000_relational_version_conflict.sql foi aplicada no projeto correto e se apply_relational_changes(jsonb) retorna jsonb. A gravação pode ter sido concluída; recarregue os dados da conta antes de tentar novamente.';
+const versionId = (table, row) => (
+  table === 'profiles' || table === 'user_settings'
+    ? row.user_id
+    : row.id
+);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuidLike = (value) => typeof value === 'string' && UUID.test(value);
@@ -17,6 +25,19 @@ const localDate = (timestamp) => {
 };
 const toIso = (value) => value == null ? null : new Date(value).toISOString();
 const fromIso = (value) => value == null ? null : Date.parse(value);
+const sortObject = (value) => {
+  if (Array.isArray(value)) return value.map((item) => sortObject(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, sortObject(item)]));
+  }
+  return value;
+};
+const rowSignature = (row) => {
+  const data = { ...(row || {}) };
+  delete data.updated_at;
+  delete data.expected_updated_at;
+  return JSON.stringify(sortObject(data));
+};
 const byId = (rows) => new Map(rows.map((row) => [row.id, row]));
 const includeActive = (row) => !row.deleted_at;
 const dateMonth = (month) => `${month}-01`;
@@ -56,8 +77,30 @@ function rowId(idMap, table, userId, sourceIdValue, extra = {}) {
     id: idFor(idMap, table, source),
     user_id: userId,
     legacy_id: uuidLike(source) ? null : source,
+    updated_at: toIso(Date.now()),
     ...extra,
   };
+}
+
+function diffTableRows(previousRows = [], nextRows = []) {
+  const previousMap = new Map((previousRows || []).map((row) => [row.id, row]));
+  const nextMap = new Map((nextRows || []).map((row) => [row.id, row]));
+  const changed = [];
+
+  for (const row of nextRows) {
+    const previous = previousMap.get(row.id);
+    if (!previous || rowSignature(previous) !== rowSignature(row)) {
+      changed.push(row);
+    }
+  }
+
+  for (const [id, row] of previousMap) {
+    if (!nextMap.has(id)) {
+      changed.push({ ...row, updated_at: toIso(Date.now()), deleted_at: toIso(Date.now()) });
+    }
+  }
+
+  return changed;
 }
 
 function databaseId(idMap, table, appId) {
@@ -153,6 +196,10 @@ function indexForTrash(settings, collection) {
 function buildRows(userId, state, idMap) {
   const rows = new Map();
   const settings = state.settings;
+  const habits = [...(state.habits || [])];
+  indexForTrash(settings, 'habits').forEach((record) => {
+    if (!habits.some((item) => item.id === record.value.id)) habits.push(record.value);
+  });
   const taskSources = [
     ...(state.tasks || []),
     ...[...indexForTrash(settings, 'tasks').values()].map((record) => record.value),
@@ -194,18 +241,25 @@ function buildRows(userId, state, idMap) {
   const prefs = { ...(settings.prefs || {}) };
   delete prefs.trash;
   delete prefs.weeklyReflection;
+  const habitWaterGoals = { ...(prefs.habitWaterGoals || {}) };
+  for (const habit of habits) {
+    if (Number.isInteger(habit.waterGoalMl) && habit.waterGoalMl >= 500 && habit.waterGoalMl <= 10000) {
+      habitWaterGoals[habit.id] = habit.waterGoalMl;
+    }
+  }
   pushRow(rows, 'user_settings', {
     id: userId,
     user_id: userId,
     preferences: {
       ...prefs,
+      habitWaterGoals,
       cats: settings.cats || { out: [], in: [] },
       weightTracking: settings.weightTracking === true,
       onboardingComplete: settings.onboardingComplete === true,
       introSeen: settings.introSeen === true,
     },
     enabled_areas: settings.areas || {},
-    account_types: settings.accountTypes || ['checking', 'cash'],
+    account_types: ['checking', 'savings', 'investment'],
   });
   if (settings.prefs?.weeklyReflection?.weekOf) {
     const reflection = settings.prefs.weeklyReflection;
@@ -306,10 +360,6 @@ function buildRows(userId, state, idMap) {
     }));
   });
 
-  const habits = [...(state.habits || [])];
-  indexForTrash(settings, 'habits').forEach((record) => {
-    if (!habits.some((item) => item.id === record.value.id)) habits.push(record.value);
-  });
   for (const habit of habits) {
     const removedAt = deletedAtFor(settings, 'habits', habit.id);
     const habitId = idFor(idMap, 'habits', habit.id);
@@ -403,12 +453,20 @@ function buildRows(userId, state, idMap) {
   indexForTrash(settings, 'finance.recurring').forEach((record) => {
     if (!recurring.some((item) => item.id === record.value.id)) recurring.push(record.value);
   });
+  const accountsById = new Map(accounts.map((account) => [account.id, account]));
   for (const account of accounts) {
+    const linkedAccount = accountsById.get(account.linkedAccountId);
+    const linkedAccountId = account.type === 'credit'
+      && linkedAccount
+      && normalizeAccountType(linkedAccount.type) !== 'credit'
+      ? databaseId(idMap, 'finance_accounts', linkedAccount.id)
+      : null;
     pushRow(rows, 'finance_accounts', rowId(idMap, 'finance_accounts', userId, account.id, {
       name: account.name,
-      account_type: account.type,
+      account_type: normalizeAccountType(account.type),
       initial_cents: account.initialCents,
       bank: account.bank || null,
+      linked_account_id: linkedAccountId,
       limit_cents: account.limitCents ?? null,
       closing_day: account.closingDay ?? null,
       due_day: account.dueDay ?? null,
@@ -537,6 +595,9 @@ function buildRows(userId, state, idMap) {
 
 function taskFromRow(row, tables, idMap, includeDeleted = false) {
   const taskId = sourceId(idMap, 'tasks', row.id);
+  const list = tables.task_lists.find((item) => item.id === row.list_id)?.name;
+  const createdAt = fromIso(row.task_created_at);
+  const plannedTime = timeOnly(row.planned_time);
   const tags = tables.task_tag_assignments
     .filter((assignment) => assignment.task_id === row.id && (includeDeleted || includeActive(assignment)))
     .map((assignment) => tables.tags.find((tag) => tag.id === assignment.tag_id)?.name)
@@ -553,31 +614,33 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     id: taskId,
     title: row.title,
     done: row.is_completed,
-    tag: row.tag || undefined,
-    list: tables.task_lists.find((list) => list.id === row.list_id)?.name,
-    groupId: row.group_key || undefined,
-    groupTitle: row.group_title || undefined,
+    ...(row.tag ? { tag: row.tag } : {}),
+    ...(list ? { list } : {}),
+    ...(row.group_key ? { groupId: row.group_key } : {}),
+    ...(row.group_title ? { groupTitle: row.group_title } : {}),
     dueDate: row.due_date,
     priority: row.priority,
-    createdAt: fromIso(row.task_created_at) || undefined,
-    doneAt: row.completed_at || undefined,
-    time: timeOnly(row.planned_time) || undefined,
-    repeat: row.repeat_rule === 'none' ? undefined : row.repeat_rule,
-    remind: row.remind_minutes ?? undefined,
-    notes: row.notes || undefined,
+    ...(createdAt ? { createdAt } : {}),
+    ...(row.completed_at ? { doneAt: row.completed_at } : {}),
+    ...(plannedTime ? { time: plannedTime } : {}),
+    ...(row.repeat_rule && row.repeat_rule !== 'none' ? { repeat: row.repeat_rule } : {}),
+    ...(row.remind_minutes != null ? { remind: row.remind_minutes } : {}),
+    ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
-    tags: tags.length ? tags : undefined,
-    subtasks: subtasks.length ? subtasks : undefined,
-    sample: row.is_test_data || undefined,
+    ...(tags.length ? { tags } : {}),
+    ...(subtasks.length ? { subtasks } : {}),
+    ...(row.is_test_data ? { sample: true } : {}),
   };
 }
 
 function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
   if (table === 'finance_accounts') return {
-    id, name: row.name, type: row.account_type, initialCents: numeric(row.initial_cents),
-    bank: row.bank || undefined, limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
+    id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
+    bank: row.bank || undefined,
+    ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
+    limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
     closingDay: row.closing_day ?? undefined, dueDay: row.due_day ?? undefined,
     sample: row.is_test_data || undefined,
   };
@@ -673,6 +736,8 @@ function loadTrash(tables, idMap) {
 
 function habitFromRow(row, tables, idMap, includeDeleted = false) {
   const habitId = sourceId(idMap, 'habits', row.id);
+  const habitWaterGoals = tables.user_settings?.[0]?.preferences?.habitWaterGoals;
+  const waterGoalMl = habitWaterGoals?.[habitId];
   const logs = tables.habit_logs.filter((log) => log.habit_id === row.id && (includeDeleted || includeActive(log)));
   const completions = logs.filter((log) => log.status === 'completed').map((log) => log.log_date);
   const skipped = logs.filter((log) => log.status === 'skipped').map((log) => log.log_date);
@@ -689,6 +754,7 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
     icon: row.icon || undefined,
     color: row.color || undefined,
     weeklyGoal: row.weekly_goal || undefined,
+    ...(Number.isInteger(waterGoalMl) && waterGoalMl >= 500 && waterGoalMl <= 10000 ? { waterGoalMl } : {}),
     remind: timeOnly(row.remind) || undefined,
     sample: row.is_test_data || undefined,
   };
@@ -734,7 +800,6 @@ function buildState(tables, idMap) {
     })),
     cats: preferences.cats || { out: [], in: [] },
     weightTracking: preferences.weightTracking === true,
-    accountTypes: userSettings.account_types || ['checking', 'cash'],
     onboardingComplete: preferences.onboardingComplete === true,
     introSeen: preferences.introSeen === true,
     prefs: {
@@ -839,6 +904,7 @@ export class RelationalAccountStore {
     this.client = client;
     this.userId = userId;
     this.idMap = getIdMap();
+    this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 
   async load() {
@@ -849,24 +915,54 @@ export class RelationalAccountStore {
     const tables = Object.fromEntries(result);
     this.rawTables = tables;
     for (const table of TABLES) {
+      this.rowVersions.get(table).clear();
       for (const row of tables[table]) {
         if (row.legacy_id) this.idMap.get(table).set(row.legacy_id, row.id);
+        if (row.updated_at) this.rowVersions.get(table).set(versionId(table, row), row.updated_at);
       }
     }
     return buildState(tables, this.idMap);
   }
 
-  async save(state) {
+  async save(state, previousState = null) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. A alteração não foi gravada; conecte-se e tente novamente.');
     }
     const rows = buildRows(this.userId, state, this.idMap);
-    const changes = MANAGED_TABLES.map((table) => ({
-      table,
-      rows: rows.get(table) || [],
-    }));
-    const { error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
+    const previousRows = previousState ? buildRows(this.userId, previousState, this.idMap) : null;
+    const changes = MANAGED_TABLES.map((table) => {
+      const nextRows = rows.get(table) || [];
+      const previousTableRows = previousRows?.get(table) || [];
+      const replaceMissing = previousRows === null;
+      const changedRows = previousRows ? diffTableRows(previousTableRows, nextRows) : nextRows;
+      const versions = this.rowVersions.get(table);
+      return {
+        table,
+        replace_missing: replaceMissing,
+        expected_versions: replaceMissing
+          ? [...versions].map(([id, updatedAt]) => ({
+            id,
+            user_id: this.userId,
+            expected_updated_at: updatedAt,
+          }))
+          : [],
+        rows: changedRows.map((row) => ({
+          ...row,
+          expected_updated_at: versions.get(versionId(table, row)) ?? null,
+        })),
+      };
+    });
+    const { data, error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
     if (error) {
+      const conflictMessage = typeof error.message === 'string' ? error.message : '';
+      const isVersionConflict = /version_conflict|recarregue os dados da conta|atualizada em outro dispositivo/i.test(conflictMessage)
+        || String(error.code || '').toLowerCase() === 'version_conflict';
+      if (isVersionConflict) {
+        const friendlyMessage = conflictMessage || 'A linha foi atualizada em outro dispositivo. Recarregue os dados da conta e tente novamente.';
+        const versionError = new Error(friendlyMessage);
+        versionError.code = 'version_conflict';
+        throw versionError;
+      }
       console.error('Aurora: a gravação relacional da conta falhou.', error);
       const code = typeof error.code === 'string' && /^[\w-]{1,32}$/.test(error.code)
         ? `Código ${error.code}. `
@@ -875,6 +971,31 @@ export class RelationalAccountStore {
         ? error.message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
         : '';
       throw new Error(`Não foi possível salvar as alterações na conta. ${code}${message}`.trim());
+    }
+    if (!Array.isArray(data)) {
+      throw new Error(VERSION_CONFIRMATION_ERROR);
+    }
+    for (const change of changes) {
+      const savedTable = data.find((result) => result?.table === change.table);
+      if (!savedTable || !Array.isArray(savedTable.rows)) {
+        throw new Error(VERSION_CONFIRMATION_ERROR);
+      }
+      for (const row of change.rows) {
+        const key = versionId(change.table, row);
+        if (!savedTable.rows.some((saved) => versionId(change.table, saved) === key && typeof saved.updated_at === 'string')) {
+          throw new Error(VERSION_CONFIRMATION_ERROR);
+        }
+      }
+    }
+    for (const result of data) {
+      if (!result || !Array.isArray(result.rows) || !this.rowVersions.has(result.table)) continue;
+      const versions = this.rowVersions.get(result.table);
+      for (const row of result.rows) {
+        const key = versionId(result.table, row);
+        if (typeof key === 'string' && typeof row.updated_at === 'string') {
+          versions.set(key, row.updated_at);
+        }
+      }
     }
   }
 
@@ -943,5 +1064,7 @@ export class RelationalAccountStore {
       console.error('Aurora: não foi possível apagar os dados relacionais da conta.', error);
       throw new Error('Não foi possível apagar os dados relacionais; os dados restantes foram preservados.');
     }
+    this.rawTables = null;
+    this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 }

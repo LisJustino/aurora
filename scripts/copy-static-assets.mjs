@@ -11,7 +11,6 @@ await mkdir(outputAssets, { recursive: true });
 await Promise.all([
   cp(resolve(root, 'icons'), resolve(output, 'icons'), { recursive: true }),
   copyFile(resolve(root, 'service-worker.js'), resolve(output, 'service-worker.js')),
-  copyFile(resolve(root, 'manifest.webmanifest'), resolve(output, 'manifest.webmanifest')),
   copyFile(resolve(root, '404.html'), resolve(output, '404.html')),
   copyFile(resolve(root, '_headers'), resolve(output, '_headers')),
   copyFile(resolve(root, '_redirects'), resolve(output, '_redirects')),

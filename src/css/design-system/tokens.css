@@ -56,6 +56,7 @@
   --on-hero-home: var(--on-btn);
   --on-hero: var(--ink);
   --shadow: 0 28px 64px -34px rgb(44 38 33 / 26%);
+  --shadow-sm: 0 8px 18px -14px rgb(44 38 33 / 28%);
   --card-shadow: 0 16px 38px -28px rgb(44 38 33 / 20%);
   --shadow-hover: 0 20px 40px -30px color-mix(in srgb, var(--ink) 55%, transparent);
   --focus-ring-shadow: 0 0 0 4px var(--focus-soft);
@@ -79,6 +80,9 @@
   --card-padding: var(--space-5);
   --card-padding-compact: clamp(var(--space-4), 5vw, var(--space-5));
   --card-content-gap: var(--space-4);
+  --card-compact-min-width: 240px;
+  --card-compact-max-width: 320px;
+  --card-compact-gap: var(--space-3);
   --button-gap: var(--space-2);
   --button-padding-inline: var(--space-4);
   --button-padding-inline-sm: var(--space-3);
@@ -191,6 +195,7 @@
   --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
   --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 70%, #241f1d), color-mix(in srgb, var(--btn) 52%, #302b27));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
+  --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
   --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
 }
 

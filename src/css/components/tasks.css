@@ -261,3 +261,17 @@ details.card:not([open]) { gap: 0; }
   .tile { min-height: 0; }
   .tile.water { grid-column: auto; }
 }
+
+.task .meta { font-size: var(--text-xs); }
+.task .meta > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding-inline: 7px;
+  border-radius: var(--r-pill);
+  background: var(--surface-soft);
+}
+.task .meta > .m-bad,
+.task .meta > .m-hi { background: var(--bad-soft); }
+.task .meta > .m-warn { background: var(--warn-soft); }
+.task .chk span { box-shadow: 0 2px 6px -5px var(--ink); }

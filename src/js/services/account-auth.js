@@ -1,4 +1,8 @@
-import { getSupabaseClient, hasSupabaseConfig } from '../data/supabase-client.js';
+import {
+  getSupabaseClient,
+  hasSupabaseConfig,
+  setRememberSession,
+} from '../data/supabase-client.js';
 import {
   createVault,
   decryptAccountSlice,
@@ -8,13 +12,12 @@ import {
 } from './crypto-vault.js';
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
-import { calculateAge, createBirthdayReference } from '../features/profile/birthday.js';
-import { PROFILE_SEX_OPTIONS } from '../features/profile/model.js';
+import { calculateAge, createBirthdayReference, isValidBirthdayReference } from '../features/profile/birthday.js';
 import { IC } from '../utils/icons.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.2';
+export const LEGAL_DOCUMENT_VERSION = '1.4';
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
   if (!(acceptedAt instanceof Date) || Number.isNaN(acceptedAt.getTime())) {
@@ -36,6 +39,34 @@ export function hasCurrentLegalConsent(user) {
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
 }
 
+export function hasCompleteAdultProfile(user) {
+  const metadata = user?.user_metadata;
+  return Boolean(metadata
+    && typeof metadata.name === 'string'
+    && metadata.name.trim()
+    && typeof metadata.preferred_name === 'string'
+    && metadata.preferred_name.trim()
+    && isValidBirthdayReference({
+      month: metadata.birthday_month,
+      day: metadata.birthday_day,
+      ageAtReference: metadata.age,
+      referenceDate: metadata.birthday_reference_date,
+    }));
+}
+
+export function hasSocialIdentity(user) {
+  const providers = [
+    user?.app_metadata?.provider,
+    ...(Array.isArray(user?.app_metadata?.providers) ? user.app_metadata.providers : []),
+    ...(Array.isArray(user?.identities) ? user.identities.map((identity) => identity?.provider) : []),
+  ];
+  return providers.some((provider) => provider === 'google' || provider === 'apple');
+}
+
+export function getOAuthRedirectUrl(origin) {
+  return new URL('/#inicio', origin).href;
+}
+
 const SLICES = new Set([
   'tasks', 'pomodoro', 'settings',
   'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits',
@@ -49,6 +80,32 @@ const PASSWORD_REQUIREMENTS = [
   ['number', 'um dígito', (value) => /\p{N}/u.test(value)],
   ['symbol', 'um símbolo', (value) => /[\p{P}\p{S}]/u.test(value)],
 ];
+const EMAIL_DOMAINS = [
+  'gmail.com',
+  'outlook.com',
+  'hotmail.com',
+  'yahoo.com',
+  'icloud.com',
+  'live.com',
+  'proton.me',
+  'protonmail.com',
+  'outlook.com.br',
+  'hotmail.com.br',
+  'yahoo.com.br',
+  'uol.com.br',
+  'bol.com.br',
+];
+
+export function getEmailDomainSuggestions(value) {
+  if (typeof value !== 'string') return [];
+  const separator = value.lastIndexOf('@');
+  if (separator <= 0 || value.indexOf('@') !== separator) return [];
+  const localPart = value.slice(0, separator);
+  const domainPrefix = value.slice(separator + 1).toLowerCase();
+  return EMAIL_DOMAINS
+    .filter((domain) => domain.startsWith(domainPrefix) && domain !== domainPrefix)
+    .map((domain) => `${localPart}@${domain}`);
+}
 
 export function meetsPasswordRequirements(value) {
   return typeof value === 'string'
@@ -67,6 +124,17 @@ export function isPasswordRecoveryCallback(locationLike) {
   const queryType = new URLSearchParams(locationLike?.search || '').get('type');
   const hashType = new URLSearchParams((locationLike?.hash || '').replace(/^#/, '')).get('type');
   return queryType === 'recovery' || hashType === 'recovery';
+}
+
+export function authCallbackErrorMessage(locationLike) {
+  const params = new URLSearchParams(locationLike?.search || '');
+  const error = params.get('error');
+  const code = params.get('error_code');
+  if (!error && !code) return '';
+  if (code === 'otp_expired') {
+    return 'Esse link expirou ou já foi usado. No projeto atual, o acesso deve ser liberado sem confirmação de e-mail; volte para entrar. Se a conta foi criada enquanto a confirmação estava ativa, ela ainda precisa ser liberada no Supabase.';
+  }
+  return 'Não foi possível concluir o link de acesso. Ele pode ter expirado ou já ter sido usado. Volte para entrar ou solicite novas instruções.';
 }
 
 export class AccountConflictError extends Error {
@@ -99,6 +167,129 @@ const create = (tag, className, text) => {
 };
 
 const accountIcon = (name, size = 18) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name] || ''}</svg>`;
+
+function setAccountFieldError(input, message) {
+  const field = input.closest('.account-field');
+  if (!field) return;
+  let error = field.querySelector('.account-field-error');
+  if (!message) {
+    if (error) {
+      input.setAttribute('aria-describedby', (input.getAttribute('aria-describedby') || '')
+        .split(/\s+/)
+        .filter((id) => id && id !== error.id)
+        .join(' '));
+      error.remove();
+    }
+    input.removeAttribute('aria-invalid');
+    return;
+  }
+  if (!error) {
+    error = create('small', 'field-err account-field-error');
+    error.id = `${input.id}-error`;
+    field.append(error);
+  }
+  error.textContent = message;
+  input.setAttribute('aria-invalid', 'true');
+  const describedBy = new Set((input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  describedBy.add(error.id);
+  input.setAttribute('aria-describedby', [...describedBy].join(' '));
+}
+
+function attachEmailSuggestions(input) {
+  const field = input.closest('.account-field');
+  if (!field) return;
+
+  const listId = `${input.id}-suggestions`;
+  const popup = create('div', 'account-email-suggestions');
+  const list = create('div', 'account-email-suggestion-list');
+  list.id = listId;
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', 'Sugestões de provedores de e-mail');
+  const hint = create('small', 'account-email-suggestion-hint', 'Digite mais para filtrar ou continue seu e-mail.');
+  popup.append(list, hint);
+  popup.hidden = true;
+  field.append(popup);
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', listId);
+  input.setAttribute('aria-expanded', 'false');
+
+  let activeIndex = -1;
+  let suggestions = [];
+
+  const close = () => {
+    popup.hidden = true;
+    field.classList.remove('has-email-suggestions');
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeIndex = -1;
+  };
+
+  const setActive = (index) => {
+    activeIndex = (index + suggestions.length) % suggestions.length;
+    [...list.children].forEach((option, optionIndex) => {
+      const active = optionIndex === activeIndex;
+      option.setAttribute('aria-selected', String(active));
+      if (active) input.setAttribute('aria-activedescendant', option.id);
+    });
+  };
+
+  const select = (suggestion) => {
+    input.value = suggestion;
+    close();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.focus();
+  };
+
+  const refresh = () => {
+    suggestions = getEmailDomainSuggestions(input.value).slice(0, 4);
+    list.replaceChildren();
+    if (!suggestions.length) {
+      close();
+      return;
+    }
+
+    suggestions.forEach((suggestion, index) => {
+      const option = create('div', 'account-email-suggestion', suggestion);
+      option.id = `${listId}-${index}`;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', 'false');
+      option.addEventListener('pointermove', () => setActive(index));
+      option.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        select(suggestion);
+      });
+      list.append(option);
+    });
+    popup.hidden = false;
+    field.classList.add('has-email-suggestions');
+    input.setAttribute('aria-expanded', 'true');
+    input.removeAttribute('aria-activedescendant');
+    activeIndex = -1;
+  };
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('focus', refresh);
+  input.addEventListener('blur', close);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (popup.hidden) refresh();
+      if (suggestions.length) {
+        event.preventDefault();
+        const nextIndex = activeIndex < 0
+          ? (event.key === 'ArrowDown' ? 0 : suggestions.length - 1)
+          : activeIndex + (event.key === 'ArrowDown' ? 1 : -1);
+        setActive(nextIndex);
+      }
+    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault();
+      select(suggestions[activeIndex]);
+    } else if (event.key === 'Escape' && !popup.hidden) {
+      event.preventDefault();
+      close();
+    }
+  });
+}
 
 function createField(form, labelText, name, type, autocomplete, value = '', helpText = '', container = form) {
   const wrapper = create('div', 'account-field');
@@ -163,32 +354,13 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
     input.setAttribute('aria-describedby', help.id);
     wrapper.append(help);
   }
-  container.append(wrapper);
-  return input;
-}
-
-function createGenderSelect(form, value = '') {
-  const wrapper = create('div', 'account-field');
-  const label = create('label', '', 'Identidade de gênero');
-  const select = create('select', 'field');
-  select.name = 'sex';
-  select.id = 'account-sex';
-  select.required = true;
-  select.append(create('option', '', 'Selecione uma opção'));
-  select.options[0].value = '';
-  PROFILE_SEX_OPTIONS.forEach(([value, text]) => {
-    const option = create('option', '', text);
-    option.value = value;
-    select.append(option);
+  input.addEventListener('invalid', () => setAccountFieldError(input, input.validationMessage));
+  input.addEventListener('input', () => {
+    if (input.validity.valid) setAccountFieldError(input, '');
   });
-  select.value = value;
-  label.htmlFor = select.id;
-  const help = create('small', 'account-field-help', 'Identidade de gênero não é orientação sexual. Pessoas trans podem escolher mulher ou homem conforme se identificam; também há opções para pessoas não binárias, outras identidades e para não informar.');
-  help.id = 'account-sex-help';
-  select.setAttribute('aria-describedby', help.id);
-  wrapper.append(label, select, help);
-  form.append(wrapper);
-  return select;
+  container.append(wrapper);
+  if (type === 'email') attachEmailSuggestions(input);
+  return input;
 }
 
 function createFormGroup(className, legendText) {
@@ -233,37 +405,41 @@ function createAccountPageLayout() {
   return { layout, page };
 }
 
-function appendLegalConsent(form, mode) {
-  form.dataset.legalConsent = '';
+export function appendLegalConsent(form) {
   const accepted = create('input');
   accepted.type = 'checkbox';
   accepted.name = 'termsAccepted';
-  accepted.hidden = true;
-  form.append(accepted);
+  accepted.required = true;
+  const consent = create('label', 'account-terms-consent');
+  consent.append(accepted, create(
+    'span',
+    'account-terms-label',
+    'Li e aceito os Termos de Uso e a Política de Privacidade.',
+  ));
 
-  const openDocuments = create(
-    'button',
-    'btn ghost account-legal-open',
-    mode === 'signup' || mode.startsWith('signup-')
-      ? 'Ler Termos de Uso e Política de Privacidade'
-      : 'Ler documentos atualizados e aceitar',
+  const termsLink = create('a', '', 'Termos de Uso');
+  termsLink.href = '/terms.html';
+  termsLink.target = '_blank';
+  termsLink.rel = 'noopener noreferrer';
+  const privacyLink = create('a', '', 'Política de Privacidade');
+  privacyLink.href = '/privacy.html';
+  privacyLink.target = '_blank';
+  privacyLink.rel = 'noopener noreferrer';
+  const links = create('p', 'account-terms-copy');
+  links.append(
+    document.createTextNode('Leia os documentos (abrem em novas abas): '),
+    termsLink,
+    document.createTextNode(' e '),
+    privacyLink,
+    document.createTextNode('.'),
   );
-  openDocuments.type = 'button';
-  openDocuments.dataset.legalConsentOpen = '';
-  form.append(openDocuments);
-  const readingStatus = create(
-    'p',
-    'account-legal-reading-status',
-    'Os dois documentos serão exibidos juntos; a confirmação fica no final da leitura.',
-  );
-  readingStatus.dataset.legalReadingStatus = '';
-  readingStatus.setAttribute('role', 'status');
-  readingStatus.setAttribute('aria-live', 'polite');
-  form.append(readingStatus);
+  const group = create('div', 'account-terms-group');
+  group.append(consent, links);
+  form.append(group);
   return accepted;
 }
 
-function createAccountForm(root, {
+export function createAccountForm(root, {
   title,
   description,
   mode,
@@ -275,7 +451,8 @@ function createAccountForm(root, {
 }) {
   root.replaceChildren();
   const { layout, page } = createAccountPageLayout();
-  const activeStage = { 'signup-profile': 1, 'signup-access': 2, 'verify-email': 3 }[mode];
+  const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
+  const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
   if (includePublicHeader) {
     const header = document.createElement('template');
@@ -303,9 +480,7 @@ function createAccountForm(root, {
   if (activeStage) {
     const steps = create('ol', 'account-steps');
     steps.setAttribute('aria-label', 'Etapas para criar uma conta');
-    const signupSteps = mode === 'verify-email'
-      ? [['seus dados', 1], ['acesso', 2], ['e-mail', 3]]
-      : [['seus dados', 1], ['acesso', 2]];
+    const signupSteps = [['seus dados', 1], ['acesso', 2]];
     signupSteps.forEach(([label, index]) => {
       const item = create('li', `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`);
       item.dataset.step = String(index);
@@ -326,7 +501,7 @@ function createAccountForm(root, {
   }
 
   let ageStatus = null;
-  if (mode === 'signup-profile') {
+  if (profileMode) {
     createField(form, 'Nome', 'name', 'text', 'name', signupProfile?.name || '').maxLength = 50;
     createField(form, 'Como prefere ser chamado(a)?', 'preferredName', 'text', 'nickname', signupProfile?.preferredName || '').maxLength = 50;
     const birthDate = createField(
@@ -346,9 +521,8 @@ function createAccountForm(root, {
     ageStatus.setAttribute('aria-live', 'polite');
     birthDate.setAttribute('aria-describedby', `${birthDate.getAttribute('aria-describedby')} ${ageStatus.id}`.trim());
     form.append(ageStatus);
-    createGenderSelect(form, signupProfile?.sex || '');
   }
-  if (mode === 'login' || mode === 'signup-access' || mode === 'recovery' || mode === 'verify-email') {
+  if (mode === 'login' || mode === 'signup-access' || mode === 'recovery') {
     createField(
       form,
       'E-mail',
@@ -356,7 +530,9 @@ function createAccountForm(root, {
       'email',
       'email',
       email,
-      mode === 'signup-access' ? 'Use um e-mail ao qual você tenha acesso para recuperar sua senha.' : '',
+      mode === 'signup-access'
+        ? 'Você não precisa confirmar o e-mail para entrar. Confira o endereço: um erro pode impedir a recuperação da senha.'
+        : '',
     );
   }
   if (mode === 'signup-access') {
@@ -377,9 +553,9 @@ function createAccountForm(root, {
     createField(form, 'Confirmar senha', 'confirmPassword', 'password', 'new-password', '', '', securityGroup);
     form.elements.confirmPassword.minLength = 6;
     form.elements.confirmPassword.maxLength = 72;
-    appendLegalConsent(form, 'signup');
+    appendLegalConsent(form);
   }
-  if (mode === 'legal-consent') appendLegalConsent(form, mode);
+  if (mode === 'legal-consent' || mode === 'oauth-profile') appendLegalConsent(form);
   if (mode === 'delete-account') {
     form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os backups JSON baixados não são apagados pelo Aurora.'));
     const confirmation = createField(
@@ -404,6 +580,13 @@ function createAccountForm(root, {
       '',
       'mínimo 6 caracteres.',
     );
+    const rememberSession = create('input');
+    rememberSession.type = 'checkbox';
+    rememberSession.name = 'rememberSession';
+    const rememberSessionLabel = create('label', 'account-remember-session');
+    const rememberSessionCopy = create('span', '', 'Manter conectado');
+    rememberSessionLabel.append(rememberSession, rememberSessionCopy);
+    form.append(rememberSessionLabel);
   }
   if (mode === 'setup-vault') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
   if (mode === 'unlock-password') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
@@ -426,7 +609,7 @@ function createAccountForm(root, {
   message.setAttribute('role', 'alert');
   message.setAttribute('aria-live', 'assertive');
   const actions = create('div', 'account-actions');
-  const submit = create('button', `btn primary${mode === 'delete-account' ? ' danger' : ''}`, mode === 'login' ? 'Entrar' : mode === 'signup-profile' ? 'Continuar' : mode === 'signup-access' ? 'Criar conta' : mode === 'legal-consent' ? 'Aceitar e continuar' : mode === 'delete-account' ? 'Excluir minha conta e meus dados' : mode === 'recovery' ? 'Enviar instruções' : mode === 'verify-email' ? 'Reenviar e-mail' : mode === 'update-password' ? 'Atualizar senha' : mode === 'setup-vault' ? 'Criar cofre criptografado' : mode === 'confirm-recovery' ? 'Confirmei que guardei' : 'Confirmar');
+  const submit = create('button', `btn primary${mode === 'delete-account' ? ' danger' : ''}`, mode === 'login' ? 'Entrar' : mode === 'signup-profile' ? 'Continuar' : mode === 'signup-access' ? 'Criar conta' : mode === 'legal-consent' || mode === 'oauth-profile' ? 'Aceitar e continuar' : mode === 'delete-account' ? 'Excluir minha conta e meus dados' : mode === 'recovery' ? 'Enviar instruções' : mode === 'update-password' ? 'Atualizar senha' : mode === 'setup-vault' ? 'Criar cofre criptografado' : mode === 'confirm-recovery' ? 'Confirmei que guardei' : 'Confirmar');
   submit.type = 'submit';
   actions.append(submit);
   if (mode === 'legal-consent') {
@@ -436,9 +619,20 @@ function createAccountForm(root, {
     actions.append(refuse);
   }
   form.append(message, actions);
+  if (mode === 'login') {
+    const providers = create('fieldset', 'account-oauth');
+    providers.append(create('legend', '', 'Ou entre com'));
+    const googleButton = create('button', 'btn account-oauth-button', 'Continuar com Google (Gmail)');
+    googleButton.type = 'button';
+    googleButton.dataset.oauthProvider = 'google';
+    providers.append(googleButton);
+    providers.append(create('p', 'account-oauth-note', 'No primeiro acesso, você completará seu perfil e aceitará os documentos.'));
+    form.append(providers);
+  }
   card.append(form);
 
   if (mode === 'signup-access') {
+    const emailInput = form.elements.email;
     const password = form.elements.password;
     const confirmPassword = form.elements.confirmPassword;
     const passwordField = password.closest('.account-field');
@@ -454,6 +648,11 @@ function createAccountForm(root, {
       checklist.append(item);
     });
     passwordField.append(strength, checklist);
+    let emailWasBlurred = false;
+    emailInput.addEventListener('focus', () => {
+      emailWasBlurred = false;
+      setAccountFieldError(emailInput, '');
+    });
     const updateSignupValidity = () => {
       const value = password.value;
       let passed = 0;
@@ -469,17 +668,28 @@ function createAccountForm(root, {
       strength.querySelector('.account-strength-label b').textContent = level;
       const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === value;
       confirmPassword.setCustomValidity(confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '');
+      const emailIsValid = emailInput.validity.valid;
+      setAccountFieldError(emailInput, emailInput.value && !emailIsValid && emailWasBlurred
+        ? 'Digite um e-mail válido.'
+        : '');
+      setAccountFieldError(confirmPassword, confirmPassword.value && !confirmationMatches
+        ? 'As senhas não coincidem.'
+        : '');
       submit.disabled = !(
-        form.elements.email.checkValidity()
+        emailIsValid
         && meetsPasswordRequirements(value)
         && confirmationMatches
         && form.elements.termsAccepted.checked
       );
     };
+    emailInput.addEventListener('blur', () => {
+      emailWasBlurred = true;
+      updateSignupValidity();
+    });
     form.addEventListener('input', updateSignupValidity);
     form.addEventListener('change', updateSignupValidity);
     updateSignupValidity();
-  } else if (mode === 'signup-profile') {
+  } else if (profileMode) {
     const birthDate = form.elements.birthDate;
     const updateProfileValidity = () => {
       const age = calculateAge(birthDate.value);
@@ -503,9 +713,9 @@ function createAccountForm(root, {
       submit.disabled = !(
         form.elements.name.value.trim()
         && form.elements.preferredName.value.trim()
-        && form.elements.sex.checkValidity()
         && age !== null
         && age >= 18
+        && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
       );
     };
     form.addEventListener('input', updateProfileValidity);
@@ -527,7 +737,8 @@ function createAccountForm(root, {
     updateDeleteValidity();
   } else if (form.querySelector('input[required]')) {
     const updateFormValidity = () => {
-      submit.disabled = !form.checkValidity();
+      submit.disabled = Array.from(form.elements)
+        .some((field) => field.willValidate && !field.validity.valid);
     };
     form.addEventListener('input', updateFormValidity);
     form.addEventListener('change', updateFormValidity);
@@ -536,11 +747,23 @@ function createAccountForm(root, {
 
   if (links.length) {
     const accountLinks = create('div', 'account-links');
-    links.forEach(({ label, target }) => {
-      const link = create('button', 'btn ghost account-link', label);
+    links.forEach(({ label, target, prompt }) => {
+      const isAccountSwitch = target === 'login' || target === 'signup';
+      const isDemoReturn = target === 'landing';
+      const link = create(
+        'button',
+        `btn ${isAccountSwitch ? 'back account-link-switch' : isDemoReturn ? 'account-link-return' : 'ghost'} account-link`,
+        label,
+      );
       link.type = 'button';
       link.dataset.accountMode = target;
-      accountLinks.append(link);
+      if (prompt && isAccountSwitch) {
+        const switchAction = create('div', 'account-switch');
+        switchAction.append(create('p', 'account-switch-prompt', prompt), link);
+        accountLinks.append(switchAction);
+      } else {
+        accountLinks.append(link);
+      }
     });
     card.append(accountLinks);
   }
@@ -560,40 +783,30 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   }
   page.append(createAccountIntro());
   const card = create('section', 'account-card');
+  card.setAttribute('aria-labelledby', 'account-title');
   const brand = create('p', 'account-brand', 'aurora');
   const heading = create('h1', '', title);
+  heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', message);
   detail.setAttribute('role', 'alert');
-  const security = create('p', 'account-security-note', 'Por segurança, os dados da conta só aparecem depois de conectar ao Supabase e autenticar.');
-  const retry = create('button', 'btn primary', configGuide ? 'Recarregar após configurar' : 'Tentar novamente');
+  const security = create('p', 'account-security-note', 'Por segurança, seus dados aparecem somente depois que você entra na conta.');
+  const showConfigGuide = configGuide && import.meta.env?.DEV === true;
+  const retry = create('button', 'btn primary', showConfigGuide ? 'Recarregar após configurar' : 'Tentar novamente');
   retry.type = 'button';
   retry.addEventListener('click', () => location.reload());
-  if (configGuide) {
+  const actions = create('div', 'account-actions');
+  actions.append(retry);
+  if (showConfigGuide) {
     const guide = create('div', 'account-config-guide');
-    const isLocalEnvironment = import.meta.env?.DEV === true;
-    const intro = create(
-      'p',
-      '',
-      isLocalEnvironment
-        ? 'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores do projeto de teste local:'
-        : 'Configure estas variáveis no ambiente de produção do Cloudflare Pages com os valores do projeto Supabase de produção:',
-    );
+    const intro = create('p', '', 'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores do projeto de teste local:');
     const example = create(
       'pre',
       'account-config-code',
-      isLocalEnvironment
-        ? 'VITE_SUPABASE_LOCAL_URL=https://SEU-PROJETO-DE-TESTE.supabase.co\nVITE_SUPABASE_LOCAL_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE'
-        : 'VITE_SUPABASE_PRODUCTION_URL=https://SEU-PROJETO-DE-PRODUCAO.supabase.co\nVITE_SUPABASE_PRODUCTION_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE',
+      'VITE_SUPABASE_LOCAL_URL=https://SEU-PROJETO-DE-TESTE.supabase.co\nVITE_SUPABASE_LOCAL_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE',
     );
     const source = create('p', '', 'Busque a Project URL e a chave publicável (anon) em Supabase → Project Settings → API / API Keys.');
-    const restart = create(
-      'p',
-      '',
-      isLocalEnvironment
-        ? 'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.'
-        : 'Depois de salvar as variáveis, faça um novo deploy para incluí-las no build.',
-    );
+    const restart = create('p', '', 'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.');
     const warning = create('p', 'account-config-warning', 'Use somente a chave pública anon/publishable. Nunca use service_role/secret e não envie esses valores pelo chat.');
     const separation = create(
       'p',
@@ -601,11 +814,10 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
       'Desenvolvimento e produção devem usar projetos Supabase diferentes. Contas e e-mails são independentes entre projetos.',
     );
     guide.append(intro, example, source, restart, warning, separation);
-    card.append(brand, heading, detail, guide, security);
+    card.append(brand, heading, detail, guide, security, actions);
   } else {
-    card.append(brand, heading, detail, security, retry);
+    card.append(brand, heading, detail, security, actions);
   }
-  if (configGuide) card.append(retry);
   page.append(card);
   root.append(layout);
   heading.focus({ preventScroll: true });
@@ -617,6 +829,36 @@ export function showAccountError(root, message, includePublicHeader = false) {
 
 function genericAuthError() {
   return 'Não foi possível concluir a solicitação. Confira os dados e tente novamente.';
+}
+
+export function isExistingAccountSignup(error, data = {}) {
+  const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
+  const message = typeof error?.message === 'string' ? error.message : '';
+  const identities = data.user?.identities;
+  return Boolean(['email_exists', 'user_already_exists'].includes(code)
+    || /\b(?:user|email)(?: address)?\s+(?:already\s+)?(?:registered|exists)\b/i.test(message)
+    || (!data.session && data.user && Array.isArray(identities) && identities.length === 0));
+}
+
+export function isAccountDeletionConfirmed(error, data) {
+  return !error && data?.deleted === true;
+}
+
+export function signupErrorMessage(error, data = {}) {
+  if (isExistingAccountSignup(error, data)) {
+    return 'Este e-mail ainda está associado a uma conta. Após uma exclusão confirmada, você pode usá-lo para criar uma conta nova, sem recuperar os dados anteriores. Como o serviço ainda reconhece o endereço, a exclusão pode não ter sido concluída; tente entrar ou recuperar o acesso, ou peça ajuda para verificar a exclusão.';
+  }
+  const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
+  if (code === 'weak_password') {
+    return 'Essa senha não atende aos requisitos de segurança do serviço. Escolha outra senha e tente novamente.';
+  }
+  if (code === 'invalid_email') {
+    return 'Confira se o e-mail foi digitado corretamente e tente novamente.';
+  }
+  if (code === 'over_email_send_rate_limit' || error?.status === 429) {
+    return 'Muitas tentativas de cadastro em pouco tempo. Aguarde alguns minutos e tente novamente.';
+  }
+  return genericAuthError();
 }
 
 async function loadVaultRecord(client, userId) {
@@ -672,7 +914,7 @@ async function unlockAccountData(client, user, knownPassword, root) {
     for (;;) {
       const { form, message, submit } = createAccountForm(root, {
         title: 'Guarde sua chave de recuperação',
-        description: 'Este cofre legado guarda dados cifrados. Novos dados são salvos em tabelas do Supabase; use a importação para migrar o conteúdo antigo.',
+        description: 'Este cofre antigo guarda dados cifrados. Novos dados ficam na sua conta; use a importação para trazer o conteúdo antigo.',
         mode: 'confirm-recovery',
         recoveryKey: vault.recoveryKey,
       });
@@ -763,14 +1005,25 @@ export async function requireAccount(root, initialMode = 'login', {
   onPublicReturn,
   onAccountDeleted,
 } = {}) {
+  const callbackErrorMessage = authCallbackErrorMessage(location);
+  if (callbackErrorMessage) {
+    const callbackUrl = new URL(location.href);
+    callbackUrl.searchParams.delete('error');
+    callbackUrl.searchParams.delete('error_code');
+    callbackUrl.searchParams.delete('error_description');
+    history.replaceState(null, '', `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
+  }
   const passwordRecoveryRequested = isPasswordRecoveryCallback(location);
   if (!hasSupabaseConfig()) {
+    const isDevelopment = import.meta.env?.DEV === true;
     showConfigurationError(
       root,
-      'O Vite iniciou, mas não encontrou as configurações públicas necessárias para conectar ao Supabase.',
-      'Conecte o Aurora ao Supabase',
+      isDevelopment
+        ? 'O ambiente de desenvolvimento não encontrou as configurações necessárias para acessar a conta.'
+        : 'O acesso à conta está temporariamente indisponível. Tente novamente mais tarde.',
+      isDevelopment ? 'Configuração necessária' : 'Acesso indisponível',
       false,
-      true,
+      isDevelopment,
     );
     return null;
   }
@@ -786,19 +1039,17 @@ export async function requireAccount(root, initialMode = 'login', {
 
   const authPage = async (mode, email = '', notice = '', signupProfile = null) => {
     const copy = {
-      login: ['Entrar na sua conta', 'Seus dados pessoais são carregados após a autenticação.', [{ label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
-      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para verificar a idade e não será salva.', [{ label: 'Já tenho uma conta', target: 'login' }]],
-      'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { label: 'Já tenho uma conta', target: 'login' }]],
+      login: ['Entrar na sua conta', 'Seus dados pessoais são carregados após a autenticação.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
+      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para verificar a idade e não será salva.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
+      'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
+      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta com segurança, informe seus dados, confirme que tem 18 anos ou mais e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
       recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
-      'verify-email': ['Confirme seu e-mail pendente', 'Esta conta foi criada enquanto o projeto ainda exigia confirmação. Verifique sua caixa de entrada para liberar o acesso; você pode solicitar outro link abaixo.', [{ label: 'Voltar para entrar', target: 'login' }]],
       'update-password': ['Atualizar senha', 'Escolha uma senha longa e exclusiva para sua conta. A redefinição não altera a senha do cofre legado; para importar dados cifrados, use a senha original dele.', []],
       'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos Termos de Uso e da Política de Privacidade. Se recusar, você poderá confirmar a exclusão permanente da conta e dos dados associados.', []],
       'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; esta ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
     }[mode];
     const publicAuthMode = ['login', 'signup-profile', 'signup-access', 'recovery'].includes(mode);
-    const links = allowPublicReturn
-      ? copy[2].filter(({ target }) => target !== 'login' && target !== 'signup')
-      : [...copy[2]];
+    const links = [...copy[2]];
     if (allowPublicReturn && publicAuthMode) {
       links.push({ label: 'Voltar à demonstração', target: 'landing' });
     }
@@ -813,13 +1064,12 @@ export async function requireAccount(root, initialMode = 'login', {
     });
     message.textContent = notice;
     const readSignupProfile = () => {
-      if (mode !== 'signup-profile') return null;
+      if (mode !== 'signup-profile' && mode !== 'oauth-profile') return null;
       const birthDate = form.elements.birthDate.value;
       const birthdayReference = birthDate ? createBirthdayReference(birthDate) : null;
       return {
         name: form.elements.name.value.trim(),
         preferredName: form.elements.preferredName.value.trim(),
-        sex: form.elements.sex.value,
         birthDate,
         age: birthdayReference?.ageAtReference ?? null,
         birthdayReference,
@@ -832,8 +1082,9 @@ export async function requireAccount(root, initialMode = 'login', {
         resolve({
           email: form.elements.email?.value.trim() || email,
           password: form.elements.password?.value || '',
+          rememberSession: form.elements.rememberSession?.checked === true,
           signupProfile: profile,
-          termsAccepted: mode === 'signup-access' || mode === 'legal-consent'
+          termsAccepted: mode === 'signup-access' || mode === 'legal-consent' || mode === 'oauth-profile'
             ? form.elements.termsAccepted.checked
             : false,
           deleteConfirmation: mode === 'delete-account' ? form.elements.deleteConfirmation.value : '',
@@ -851,6 +1102,15 @@ export async function requireAccount(root, initialMode = 'login', {
           signupProfile: readSignupProfile(),
         }), { once: true });
       });
+      form.querySelectorAll('button[data-oauth-provider]').forEach((control) => {
+        control.addEventListener('click', () => resolve({
+          oauthProvider: control.dataset.oauthProvider,
+          rememberSession: form.elements.rememberSession?.checked === true,
+          submit,
+          message,
+          providerButtons: Array.from(form.querySelectorAll('button[data-oauth-provider]')),
+        }), { once: true });
+      });
     });
     return result;
   };
@@ -865,11 +1125,11 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       setSubmitPending(result.submit, true);
-      const { error } = await client.functions.invoke('delete-account');
-      if (error) {
+      const { data, error } = await client.functions.invoke('delete-account');
+      if (!isAccountDeletionConfirmed(error, data)) {
         console.error('Aurora: a exclusão segura da conta não foi confirmada.', error);
         setSubmitPending(result.submit, false);
-        message = 'A conta e os dados não foram declarados como excluídos. O serviço seguro não confirmou a operação. Tente novamente ou volte para aceitar os termos.';
+        message = 'A exclusão da conta não foi confirmada. Você poderá criar uma conta nova com este e-mail assim que a exclusão for concluída. Tente novamente ou volte para aceitar os termos.';
         continue;
       }
 
@@ -889,8 +1149,60 @@ export async function requireAccount(root, initialMode = 'login', {
     }
   };
 
+  const requireCurrentAdultProfile = async (user) => {
+    if (!hasSocialIdentity(user) || hasCompleteAdultProfile(user)) return user;
+    const metadata = user.user_metadata || {};
+    const providerName = metadata.full_name || metadata.name || '';
+    const profileDraft = {
+      name: metadata.name || providerName,
+      preferredName: metadata.preferred_name || providerName,
+    };
+    let message = '';
+    for (;;) {
+      const result = await authPage('oauth-profile', user.email, message, profileDraft);
+      if (result.nextMode === 'oauth-profile-cancel') {
+        const { error } = await client.auth.signOut({ scope: 'local' });
+        if (error) throw new Error('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
+        if (allowPublicReturn) onPublicReturn?.();
+        else location.reload();
+        return null;
+      }
+      const profile = result.signupProfile;
+      if (!profile || !profile.name || !profile.preferredName
+        || !profile.birthdayReference || profile.age < 18) {
+        message = 'Preencha seus dados e confirme que tem 18 anos ou mais para continuar.';
+        continue;
+      }
+      if (!result.termsAccepted) {
+        message = 'Marque a caixa para aceitar os Termos de Uso e a Política de Privacidade.';
+        continue;
+      }
+
+      setSubmitPending(result.submit, true);
+      const { data, error } = await client.auth.updateUser({
+        data: {
+          name: profile.name.slice(0, 50),
+          preferred_name: profile.preferredName.slice(0, 50),
+          age: profile.age,
+          birthday_month: profile.birthdayReference.month,
+          birthday_day: profile.birthdayReference.day,
+          birthday_reference_date: profile.birthdayReference.referenceDate,
+          ...createLegalConsentMetadata(),
+        },
+      });
+      if (error || !data.user) {
+        console.error('Aurora: não foi possível salvar o perfil e o aceite da conta social.', error);
+        setSubmitPending(result.submit, false);
+        message = 'Não foi possível salvar seus dados e seu aceite. A conta não será aberta; tente novamente.';
+        continue;
+      }
+      return data.user;
+    }
+  };
+
   const requireCurrentLegalConsent = async (user) => {
-    if (hasCurrentLegalConsent(user)) return user;
+    user = await requireCurrentAdultProfile(user);
+    if (!user || hasCurrentLegalConsent(user)) return user;
     let message = '';
     for (;;) {
       const result = await authPage('legal-consent', user.email, message);
@@ -953,7 +1265,7 @@ export async function requireAccount(root, initialMode = 'login', {
 
     let mode = initialMode === 'signup' ? 'signup-profile' : 'login';
     let email = '';
-    let message = '';
+    let message = callbackErrorMessage;
     let profileDraft = null;
     for (;;) {
       const result = await authPage(mode, email, message, profileDraft);
@@ -969,18 +1281,27 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       email = result.email || email;
-      if (mode === 'verify-email') {
+      if (result.oauthProvider) {
+        if (result.oauthProvider !== 'google') {
+          throw new Error('Provedor de acesso não permitido.');
+        }
+        setRememberSession(result.rememberSession);
         setSubmitPending(result.submit, true);
-        const { error: resendError } = await client.auth.resend({
-          type: 'signup',
-          email,
-          options: { emailRedirectTo: `${location.origin}${location.pathname}` },
+        result.providerButtons.forEach((button) => { button.disabled = true; });
+        const { error: oauthError } = await client.auth.signInWithOAuth({
+          provider: result.oauthProvider,
+          options: {
+            redirectTo: getOAuthRedirectUrl(location.origin),
+          },
         });
-        setSubmitPending(result.submit, false);
-        message = resendError
-          ? genericAuthError()
-          : 'Se este endereço puder criar uma conta, enviaremos outro link de confirmação.';
-        continue;
+        if (oauthError) {
+          console.error(`Aurora: não foi possível iniciar o acesso por ${result.oauthProvider}.`, oauthError);
+          setSubmitPending(result.submit, false);
+          result.providerButtons.forEach((button) => { button.disabled = false; });
+          message = 'Não foi possível iniciar o acesso. Verifique se o provedor está habilitado em Authentication → Sign In / Providers no Supabase.';
+          continue;
+        }
+        return null;
       }
       if (mode === 'recovery') {
         setSubmitPending(result.submit, true);
@@ -994,7 +1315,7 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
         if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
-          || !result.signupProfile.sex || !birthdayReference || result.signupProfile.age < 18) {
+          || !birthdayReference || result.signupProfile.age < 18) {
           message = 'Preencha seus dados e confirme que tem 18 anos ou mais para criar uma conta.';
           continue;
         }
@@ -1026,7 +1347,6 @@ export async function requireAccount(root, initialMode = 'login', {
             data: {
               name: profileDraft.name.slice(0, 50),
               preferred_name: profileDraft.preferredName.slice(0, 50),
-              sex: profileDraft.sex,
               age: profileDraft.age,
               birthday_month: profileDraft.birthdayReference.month,
               birthday_day: profileDraft.birthdayReference.day,
@@ -1037,18 +1357,24 @@ export async function requireAccount(root, initialMode = 'login', {
         });
         if (signupError) {
           setSubmitPending(result.submit, false);
-          message = genericAuthError();
+          message = signupErrorMessage(signupError, data);
           continue;
         }
         if (!data.session || !data.user) {
-          message = 'Este projeto Supabase ainda exige confirmação de e-mail. A conta pode já ter sido criada; desative “Confirm email” em Authentication → Providers → Email para liberar o acesso imediato. Enquanto isso, você pode confirmar o link enviado ou pedir outro abaixo.';
+          if (isExistingAccountSignup(null, data)) {
+            setSubmitPending(result.submit, false);
+            message = signupErrorMessage(null, data);
+            continue;
+          }
           const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
           if (signOutError) throw new Error(genericAuthError());
-          mode = 'verify-email';
+          setSubmitPending(result.submit, false);
+          message = 'Este projeto Supabase está exigindo confirmação de e-mail. No projeto de desenvolvimento, desative Authentication → Providers → Email → Confirm email e tente novamente. Esta tentativa pode ter criado uma conta pendente; confira-a no painel antes de repetir o cadastro.';
           continue;
         }
       } else {
         setSubmitPending(result.submit, true);
+        if (mode === 'login') setRememberSession(result.rememberSession);
         const { data, error: loginError } = await client.auth.signInWithPassword({
           email,
           password: result.password,
@@ -1056,8 +1382,7 @@ export async function requireAccount(root, initialMode = 'login', {
         if (loginError || !data.user) {
           setSubmitPending(result.submit, false);
           if (loginError?.code === 'email_not_confirmed') {
-            message = 'Esta conta ainda aguarda confirmação de e-mail. Confirme o link enviado ou peça outro para liberar o acesso.';
-            mode = 'verify-email';
+            message = 'Esta conta foi criada quando a confirmação de e-mail estava ativa. Para entrar sem receber link, confirme-a manualmente em Authentication → Users no projeto Supabase; depois, entre novamente. Novos cadastros não exigem confirmação.';
             continue;
           }
           message = genericAuthError();

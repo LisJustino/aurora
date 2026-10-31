@@ -167,3 +167,16 @@
   .main { gap: 24px; padding-top: 12px; }
   .nav { bottom: 0; width: 100%; margin: 0; border-radius: var(--r-large) var(--r-large) 0 0; }
 }
+
+.main { gap: clamp(24px, 3vw, 36px); }
+
+@media (max-width: 480px) {
+  .main { gap: 22px; }
+}
+
+/* Linguagem compartilhada das áreas: cada tema mantém sua cor, mas usa a mesma estrutura. */
+.main { padding-top: clamp(24px, 3vw, 40px); }
+
+@media (max-width: 700px) {
+  .main { padding-bottom: calc(var(--nav-h) + 64px + env(safe-area-inset-bottom, 0px)); }
+}

@@ -291,6 +291,28 @@ export async function cancelPomodoroPushSchedule() {
   });
 }
 
+export async function scheduleHabitPushReminders(reminders) {
+  return serializeMutation(async () => {
+    const credentials = activeCredentials;
+    if (!credentials?.enabled) return false;
+    if (!reminders.length) {
+      await request('/api/habits', { method: 'DELETE', credentials });
+      return false;
+    }
+    await request('/api/habits', { method: 'POST', credentials, body: { reminders } });
+    return true;
+  });
+}
+
+export async function cancelHabitPushReminders() {
+  return serializeMutation(async () => {
+    const credentials = activeCredentials;
+    if (!credentials?.enabled) return false;
+    await request('/api/habits', { method: 'DELETE', credentials });
+    return true;
+  });
+}
+
 export function pomodoroPushErrorMessage(error) {
   const messages = {
     'not-configured': 'O serviço de avisos não está configurado para esta instalação.',
@@ -309,6 +331,7 @@ export function pomodoroPushErrorMessage(error) {
     'rate-limited': 'Muitas solicitações em pouco tempo. Aguarde um minuto e tente novamente.',
     'server-unavailable': 'O serviço de avisos está indisponível no momento.',
     'schedule-horizon': 'A próxima fase está fora do limite de agendamento permitido.',
+    'invalid-habit-reminders': 'Os dias, horários ou o fuso dos lembretes foram rejeitados pelo serviço.',
     'invalid-request': 'A solicitação enviada ao serviço de avisos foi rejeitada.',
     'invalid-subscription': 'A inscrição Push deste navegador foi rejeitada pelo serviço.',
     'subscription-required': 'Ative os avisos antes de agendar as mudanças de fase.',

@@ -324,3 +324,124 @@ test('o servidor impõe horizonte curto e cancelar remove o alarme', async () =>
   assert.equal(await object.state.storage.get('schedule'), undefined);
   assert.equal(await object.state.storage.get('subscription'), undefined);
 });
+
+test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme do dispositivo', async () => {
+  const env = await environment();
+  const client = await register(env);
+  const pushSubscription = await createSubscription();
+  await call(env, '/api/subscription', {
+    method: 'POST',
+    headers: authHeaders(client),
+    body: { subscription: pushSubscription },
+  });
+  const now = Date.parse('2026-10-26T14:00:00.000Z');
+  const pomoEndsAt = Date.parse('2026-10-26T15:00:00.000Z');
+  const reminder = {
+    id: 'habit-0',
+    days: [1],
+    time: '10:02',
+    timeZone: 'America/New_York',
+    skipDate: null,
+  };
+  const originalNow = Date.now;
+  const originalFetch = globalThis.fetch;
+  let pushCount = 0;
+  Date.now = () => now;
+  try {
+    const pomodoro = await call(env, '/api/schedule', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: {
+        phase: 'focus',
+        phaseEndsAt: pomoEndsAt,
+        focusMin: 25,
+        breakMin: 5,
+        longBreakMin: 15,
+        completedPomodoros: 0,
+      },
+    });
+    assert.equal(pomodoro.response.status, 200);
+    const invalid = await call(env, '/api/habits', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [{ ...reminder, name: 'Beber água' }] },
+    });
+    assert.equal(invalid.response.status, 400);
+    assert.equal(invalid.body.error, 'invalid-habit-reminders');
+
+    const scheduled = await call(env, '/api/habits', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [reminder] },
+    });
+    assert.equal(scheduled.response.status, 200);
+    assert.equal(scheduled.body.scheduledAt, Date.parse('2026-10-26T14:02:00.000Z'));
+    const object = env.POMODORO_ALARMS.get(client.clientId);
+    const saved = await object.state.storage.get('habitReminders');
+    assert.deepEqual(saved, [reminder]);
+    assert.equal(JSON.stringify(saved).includes('Beber água'), false);
+
+    Date.now = () => scheduled.body.scheduledAt;
+    globalThis.fetch = async (url) => {
+      pushCount += 1;
+      assert.equal(url, pushSubscription.endpoint);
+      return new Response(null, { status: 201 });
+    };
+    await object.instance.alarm();
+    assert.equal(pushCount, 1);
+    assert.equal(object.state.storage.alarm, pomoEndsAt);
+    assert.equal((await object.state.storage.get('schedule')).phase, 'focus');
+
+    Date.now = () => pomoEndsAt;
+    await object.instance.alarm();
+    assert.equal(pushCount, 2);
+    assert.equal((await object.state.storage.get('schedule')).phase, 'short-break');
+    assert.equal(object.state.storage.alarm, Date.parse('2026-10-26T15:05:00.000Z'));
+
+    const cleared = await call(env, '/api/habits', {
+      method: 'DELETE',
+      headers: authHeaders(client),
+    });
+    assert.equal(cleared.response.status, 200);
+    assert.equal(await object.state.storage.get('habitReminders'), undefined);
+    assert.equal(object.state.storage.alarm, Date.parse('2026-10-26T15:05:00.000Z'));
+    await call(env, '/api/schedule', { method: 'DELETE', headers: authHeaders(client) });
+    assert.equal(object.state.storage.alarm, null);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('horário local inexistente no início do horário de verão é ignorado até a próxima ocorrência', async () => {
+  const env = await environment();
+  const client = await register(env);
+  const pushSubscription = await createSubscription();
+  await call(env, '/api/subscription', {
+    method: 'POST',
+    headers: authHeaders(client),
+    body: { subscription: pushSubscription },
+  });
+  const now = Date.parse('2026-03-08T05:00:00.000Z');
+  const originalNow = Date.now;
+  Date.now = () => now;
+  try {
+    const scheduled = await call(env, '/api/habits', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: {
+        reminders: [{
+          id: 'habit-0',
+          days: [0],
+          time: '02:30',
+          timeZone: 'America/New_York',
+          skipDate: null,
+        }],
+      },
+    });
+    assert.equal(scheduled.response.status, 200);
+    assert.equal(scheduled.body.scheduledAt, Date.parse('2026-03-15T06:30:00.000Z'));
+  } finally {
+    Date.now = originalNow;
+  }
+});

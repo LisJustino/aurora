@@ -3,23 +3,6 @@ const LEGAL_DOCUMENTS = Object.freeze({
   privacy: Object.freeze({ title: 'Política de Privacidade', path: '/privacy.html' }),
 });
 
-function configureConsentControls(dialog, visible) {
-  const choice = dialog.querySelector('[data-legal-consent-choice]');
-  const checkbox = dialog.querySelector('[data-legal-consent-checkbox]');
-  const confirm = dialog.querySelector('[data-legal-consent-confirm]');
-  const close = dialog.querySelector('[data-legal-close-only]');
-  if (!choice || !checkbox || !confirm || !close) {
-    throw new Error('Os controles de aceite do diálogo legal estão incompletos.');
-  }
-
-  choice.hidden = !visible;
-  confirm.hidden = !visible;
-  close.hidden = visible;
-  checkbox.checked = false;
-  checkbox.disabled = true;
-  confirm.disabled = true;
-}
-
 async function loadLegalDocument(name) {
   const documentInfo = LEGAL_DOCUMENTS[name];
   if (!documentInfo) throw new Error('Documento legal desconhecido.');
@@ -43,8 +26,6 @@ function showLegalDocumentFallback(dialog, names) {
   const status = dialog.querySelector('[data-legal-dialog-status]');
   const content = dialog.querySelector('[data-legal-dialog-content]');
   delete dialog.dataset.legalDocument;
-  delete dialog.dataset.legalConsent;
-  configureConsentControls(dialog, false);
   const links = names.map((name) => {
     const link = document.createElement('a');
     link.href = LEGAL_DOCUMENTS[name].path;
@@ -60,13 +41,6 @@ function showLegalDocumentFallback(dialog, names) {
   content.setAttribute('aria-busy', 'false');
 }
 
-export function isLegalDocumentAtEnd({ scrollTop, clientHeight, scrollHeight }) {
-  return Number.isFinite(scrollTop)
-    && Number.isFinite(clientHeight)
-    && Number.isFinite(scrollHeight)
-    && scrollTop + clientHeight >= scrollHeight - 2;
-}
-
 export async function showLegalDocument(dialog, name) {
   const documentInfo = LEGAL_DOCUMENTS[name];
   if (!documentInfo || !(dialog instanceof HTMLDialogElement)) return false;
@@ -75,14 +49,12 @@ export async function showLegalDocument(dialog, name) {
   const content = dialog.querySelector('[data-legal-dialog-content]');
   if (!title || !status || !content) throw new Error('A estrutura do diálogo legal está incompleta.');
 
-  configureConsentControls(dialog, false);
   title.textContent = documentInfo.title;
   status.textContent = 'Carregando documento…';
   status.hidden = false;
   content.replaceChildren();
   content.setAttribute('aria-busy', 'true');
   delete dialog.dataset.legalDocument;
-  delete dialog.dataset.legalConsent;
   if (!dialog.open) dialog.showModal();
 
   try {
@@ -97,40 +69,6 @@ export async function showLegalDocument(dialog, name) {
   } catch (error) {
     console.error('Aurora: não foi possível carregar o documento legal no modal.', error);
     showLegalDocumentFallback(dialog, [name]);
-    return false;
-  }
-}
-
-export async function showLegalConsentDocuments(dialog) {
-  if (!(dialog instanceof HTMLDialogElement)) return false;
-  const title = dialog.querySelector('[data-legal-dialog-title]');
-  const status = dialog.querySelector('[data-legal-dialog-status]');
-  const content = dialog.querySelector('[data-legal-dialog-content]');
-  if (!title || !status || !content) throw new Error('A estrutura do diálogo legal está incompleta.');
-
-  configureConsentControls(dialog, true);
-  title.textContent = 'Termos de Uso e Política de Privacidade';
-  status.textContent = 'Carregando os documentos…';
-  status.hidden = false;
-  content.replaceChildren();
-  content.setAttribute('aria-busy', 'true');
-  delete dialog.dataset.legalDocument;
-  dialog.dataset.legalConsent = 'true';
-  if (!dialog.open) dialog.showModal();
-
-  try {
-    const documents = await Promise.all(['terms', 'privacy'].map(loadLegalDocument));
-    content.replaceChildren(...documents);
-    content.scrollTop = 0;
-    content.setAttribute('aria-busy', 'false');
-    content.setAttribute('aria-label', 'Termos de Uso e Política de Privacidade');
-    status.textContent = 'Role até o final dos dois documentos para liberar a confirmação.';
-    status.hidden = false;
-    content.focus({ preventScroll: true });
-    return true;
-  } catch (error) {
-    console.error('Aurora: não foi possível carregar os documentos legais no modal.', error);
-    showLegalDocumentFallback(dialog, ['terms', 'privacy']);
     return false;
   }
 }

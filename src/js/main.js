@@ -13,14 +13,20 @@ import {
 } from './data/legacy-import-model.js';
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
-import { brl, parseMoney } from './utils/currency.js';
+import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
   addDays, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
   MESES, MESES_L, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
-import { isPublicLandingHash, postSignOutPath, resolveRoute } from './core/router.js';
+import {
+  isPublicLandingHash,
+  postSignOutPath,
+  redirectToPublicLanding,
+  resolveRoute,
+  settingsRootPath,
+} from './core/router.js';
 import {
   accountBalance as balanceForAccount,
   netAccountBalanceOn,
@@ -35,14 +41,19 @@ import {
   recurringBillsDueOn,
   signedAmount,
 } from './features/finance/calculations.js';
+import {
+  ACCOUNT_TYPES,
+  isValidAccountType,
+  normalizeAccountType,
+} from './features/finance/accounts.js';
 import { parseStatement } from './features/finance/statement.js';
 import {
   AREA_GUIDES,
-  AREA_GUIDE_IDS,
   FINANCE_PRIVACY_NOTICE,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
+import { parseQuickTaskText } from './features/planning/quick-entry.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import {
@@ -63,6 +74,7 @@ import {
 } from './features/pomodoro/pomodoro-audio.js';
 import {
   cancelPomodoroPushSchedule,
+  cancelHabitPushReminders,
   clearPomodoroPushState,
   configurePomodoroPushStore,
   disablePomodoroPush,
@@ -70,15 +82,12 @@ import {
   getPomodoroPushStatus,
   initializePomodoroPush,
   pomodoroPushErrorMessage,
+  scheduleHabitPushReminders,
   schedulePomodoroPush,
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { renderFooterContent } from './features/footer/view.js';
-import {
-  isLegalDocumentAtEnd,
-  showLegalConsentDocuments,
-  showLegalDocument,
-} from './features/footer/legal-dialog.js';
+import { showLegalDocument } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, initializePublicAppearance } from './features/appearance/public-controls.js';
 import {
@@ -101,6 +110,7 @@ import {
   habitMonthDays,
   habitMonthStats,
   habitStats,
+  habitWeekOverview,
   isWaterHabit,
   isValidHabit,
   normalizeHabits,
@@ -116,9 +126,10 @@ import {
 } from './features/habits/model.js';
 import {
   estimateWaterGoal,
+  isValidWaterGoalMl,
   parseWaterMl,
   parseWaterWeightKg,
-  waterGoalFromName,
+  waterGoalForHabit,
   waterGoalReached,
   waterMlForDay,
 } from './features/habits/water-goal.js';
@@ -175,7 +186,6 @@ const DEF_CATS = {
 const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon })) });
 const catNames = (k) => S.settings.cats[k].map((c) => c.name);
 const catInfo = (k, n) => { const c = S.settings.cats[k].find((x) => x.name === n); return c ? { c: c.color, i: c.icon } : { c: '#8b8b95', i: 'tag' }; };
-const ACCOUNT_TYPES = { checking: 'Conta corrente', savings: 'Poupança', cash: 'Dinheiro', credit: 'Cartão de crédito' };
 const OTHER_BANK = 'other';
 const BANKS = {
   nubank: { name: 'Nubank', logo: new URL('../assets/bank-logos/18236120.svg', import.meta.url).href },
@@ -223,7 +233,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, accountTypes: ['checking', 'cash'], onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -234,7 +244,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', exploreNoticeDismissed: false, areaTutorialsPresented: new Set(), filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, persistSavedAt: null, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -295,7 +305,7 @@ function updateSettingsDraft(update, shouldRender = true) {
 function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
-function saveSettingsDraft() {
+async function saveSettingsDraft() {
   if (!settingsDraftDirty()) return;
   const previousSettings = S.settings;
   S.settings = normalizeSettings(settingsView());
@@ -307,7 +317,7 @@ function saveSettingsDraft() {
   ui.settingsDraft = null;
   ui.settingsDraftBase = null;
   render();
-  toast('Configurações salvas.');
+  if (await Persist.flush()) toast('Configurações salvas.');
 }
 function settingsSaveButton(label = 'Salvar') {
   const dirty = settingsDraftDirty();
@@ -362,8 +372,13 @@ function normalizeSettings(s) {
     ? pomodoro.soundVolume
     : d.prefs.pomodoro.soundVolume;
   o.prefs.waterGoalMl = Number.isInteger(prefs.waterGoalMl) && prefs.waterGoalMl >= 500 && prefs.waterGoalMl <= 10000 ? prefs.waterGoalMl : d.prefs.waterGoalMl;
+  o.prefs.habitWaterGoals = Object.fromEntries(
+    Object.entries(isPlainObject(prefs.habitWaterGoals) ? prefs.habitWaterGoals : {})
+      .filter(([id, goal]) => id.length <= 200 && isValidWaterGoalMl(goal)),
+  );
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
+  o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
@@ -396,9 +411,7 @@ function normalizeSettings(s) {
   const dc = defCats(); o.cats = { out: cleanL(s?.cats?.out, true), in: cleanL(s?.cats?.in, true) };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
   if (!PALETTES[o.theme] && o.theme !== 'custom') o.theme = 'rose';
-  o.accountTypes = Array.isArray(source.accountTypes)
-    ? [...new Set(source.accountTypes.filter((key) => Object.hasOwn(ACCOUNT_TYPES, key)))]
-    : d.accountTypes;
+  delete o.accountTypes;
   return o;
 }
 function currentProfileAge(settings) {
@@ -446,9 +459,10 @@ const isValidGymLog = (record) => isPlainObject(record)
   && optional(record, 'notes', isText);
 const isValidAccount = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && isText(record.name)
-  && Object.hasOwn(ACCOUNT_TYPES, record.type)
+  && isValidAccountType(record.type)
   && isSafeInteger(record.initialCents)
   && optional(record, 'bank', isText)
+  && optional(record, 'linkedAccountId', isNonEmptyText)
   && optional(record, 'limitCents', (value) => isSafeInteger(value) && value >= 0)
   && optional(record, 'closingDay', (value) => Number.isInteger(value) && value >= 0 && value <= 31)
   && optional(record, 'dueDay', (value) => Number.isInteger(value) && value >= 0 && value <= 31);
@@ -542,6 +556,7 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(prefs, 'birthday') && prefs.birthday !== null
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
       && !isValidMenuOrder(prefs.menuOrder)) issues++;
     if (Object.hasOwn(prefs, 'visibleMenuItems') && prefs.visibleMenuItems !== undefined
@@ -607,7 +622,7 @@ function settingsIssueCount(value) {
   }
   if (Object.hasOwn(value, 'accountTypes') && value.accountTypes !== undefined) {
     if (!Array.isArray(value.accountTypes)) issues++;
-    else issues += value.accountTypes.filter((key) => !Object.hasOwn(ACCOUNT_TYPES, key)).length;
+    else issues += value.accountTypes.filter((key) => !isValidAccountType(key)).length;
   }
   if (Object.hasOwn(value, 'cats') && value.cats !== undefined) {
     if (!isPlainObject(value.cats)) issues++;
@@ -693,7 +708,16 @@ function normalizeSlice(k, v) {
       }
       else invalidCount++;
     });
-    return { value: { accounts: accounts.records, tx: tx.records, budgets, goals: goals.records, recurring: recurring.records }, invalidCount };
+    return {
+      value: {
+        accounts: accounts.records.map((account) => ({ ...account, type: normalizeAccountType(account.type) })),
+        tx: tx.records,
+        budgets,
+        goals: goals.records,
+        recurring: recurring.records,
+      },
+      invalidCount,
+    };
   }
   if (k === 'habits') {
     const result = normalizeHabits(v);
@@ -789,13 +813,14 @@ const Persist = {
         const snapshot = this.pendingSnapshot;
         this.pendingSnapshot = null;
         try {
-          await this.store.save(snapshot);
+          await this.store.save(snapshot, this.confirmedState);
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
           ui.persistFailed.clear();
           ui.persistError = '';
+          ui.persistSavedAt = new Date();
         } catch (error) {
           if (!this.pendingSnapshot) {
             this.pendingSnapshot = snapshot;
@@ -803,6 +828,7 @@ const Persist = {
               S = JSON.parse(JSON.stringify(this.confirmedState));
             }
           }
+          const isVersionConflict = error instanceof Error && error.code === 'version_conflict';
           syncState.pending.forEach((slice) => syncState.failed.add(slice));
           syncState.failed.add('account');
           syncState.pending.clear();
@@ -810,8 +836,13 @@ const Persist = {
           ui.persistError = error instanceof Error
             ? error.message.replace(/^Não foi possível salvar as alterações na conta\.\s*/, '').slice(0, 200)
             : '';
-          console.error('Aurora: a gravação relacional não foi confirmada.', error);
-          toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.');
+          if (isVersionConflict) {
+            syncState.conflicts.add('account');
+            toast('Os dados da conta foram alterados em outro dispositivo. Recarregue os dados da conta para continuar.');
+          } else {
+            console.error('Aurora: a gravação relacional não foi confirmada.', error);
+            toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.');
+          }
           return false;
         }
       }
@@ -875,19 +906,27 @@ const Persist = {
 };
 async function loadAccountData() {
   const loaded = await Persist.store.load();
-  Persist.rawTables = Persist.store.rawTables;
-  const initial = defaults();
+  const next = defaults();
+  const integrityIssues = {};
+  const persistBlocked = new Set();
+  const persistFailed = new Set();
   for (const slice of SLICES) {
-    const normalized = normalizeSlice(slice, loaded[slice] ?? initial[slice]);
-    S[slice] = normalized.value;
-    stamps[slice] = Date.now();
+    const normalized = normalizeSlice(slice, loaded[slice] ?? next[slice]);
+    next[slice] = normalized.value;
     if (normalized.invalidCount) {
-      ui.integrityIssues[slice] = normalized.invalidCount;
-      ui.persistBlocked.add(slice);
-      ui.persistFailed.add(slice);
-      syncState.failed.add(slice);
+      integrityIssues[slice] = normalized.invalidCount;
+      persistBlocked.add(slice);
+      persistFailed.add(slice);
     }
   }
+  Object.assign(S, next);
+  Persist.rawTables = Persist.store.rawTables;
+  for (const slice of SLICES) stamps[slice] = Date.now();
+  ui.integrityIssues = integrityIssues;
+  ui.persistBlocked = persistBlocked;
+  ui.persistFailed = persistFailed;
+  syncState.failed.clear();
+  persistFailed.forEach((slice) => syncState.failed.add(slice));
   Persist.confirmedState = JSON.parse(JSON.stringify(S));
 }
 function initializeBirthdayFromMetadata(user) {
@@ -910,6 +949,7 @@ const saveSlices = (...ks) => {
   if (!saved && navigator.onLine !== false) {
     toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.');
   }
+  if (saved && ks.includes('habits')) syncHabitReminderSchedule();
   return saved;
 };
 const commit = (...ks) => { if (saveSlices(...ks)) render(); };
@@ -928,7 +968,7 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
     if (shouldRender) render();
     return false;
   }
-  if (!Persist.saveMany(slices)) {
+  if (!ui.preview && !Persist.saveMany(slices)) {
     restoreSliceSnapshot(snapshot);
     toast(`Não foi possível preparar ${context} para salvar; os dados originais foram mantidos.`);
     if (shouldRender) render();
@@ -1190,7 +1230,11 @@ function shell(body) {
       ? 'Dados bloqueados; revise antes de salvar'
       : ui.persistFailed.size
         ? 'Falha ao salvar; tente novamente'
-        : '';
+        : syncState.pending.size
+          ? 'Salvando…'
+          : ui.persistSavedAt
+            ? `Salvo às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(ui.persistSavedAt)}`
+            : '';
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const compactItems = menuItems.slice(0, 4);
   const secondaryItems = menuItems.slice(4);
@@ -1204,12 +1248,32 @@ function shell(body) {
     ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}<button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Busca global" title="Buscar (Ctrl+K)">${icon('search', 20)}</button>${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-haspopup="true" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
+      ${persistenceNotice()}
       ${notificationsHtml()}
-      ${navigator.onLine === false ? h`<div class="notice warn" role="status">Sem conexão com a internet. O Aurora não grava alterações offline; conecte-se e toque em “Tentar novamente” para reenviar o que ainda estiver nesta tela.</div>` : ''}
+      ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
       ${body}
     </main>
     <footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: !ui.preview, preview: ui.preview }))}${saveLabel ? h`<span class="save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</span>` : ''}</footer>
   </div>`;
+}
+function persistenceNotice() {
+  if (ui.preview || ui.route === 'config' || (!ui.persistBlocked.size && !ui.persistFailed.size)) return '';
+  let message;
+  let action;
+  if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
+    message = 'Alguns dados precisam de revisão; alterações estão bloqueadas para evitar perda.';
+    action = h`<a class="btn sm" href="#config?section=data">Revisar dados</a>`;
+  } else if (syncState.conflicts.size) {
+    message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
+    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar app</button>`;
+  } else if (Persist.pendingSnapshot) {
+    message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
+    action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
+  } else {
+    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e backup.';
+    action = h`<a class="btn sm" href="#config?section=data">Ver dados e backup</a>`;
+  }
+  return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
 function weeklyReviewView() {
   const review = weeklyReview(
@@ -1476,12 +1540,6 @@ function render() {
   if (af && keep[af] !== undefined) { const el = document.getElementById(af); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) { /* tipo sem seleção */ } } }
   const dc = $('.dchip.on'); if (dc && dc.parentElement) { const sx = dc.parentElement; sx.scrollLeft = dc.offsetLeft - sx.clientWidth / 2 + dc.offsetWidth / 2; }
   $$('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; });
-  if (!ui.preview && !ui.dlg && AREA_GUIDE_IDS.includes(ui.route)
-    && !S.settings.prefs.areaTutorialsSeen.includes(ui.route)
-    && !ui.areaTutorialsPresented.has(ui.route)) {
-    ui.areaTutorialsPresented.add(ui.route);
-    ui.dlg = createDialog('area-tutorial', { route: ui.route, automatic: true });
-  }
   renderDialog();
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
@@ -1494,7 +1552,7 @@ function setToast(msg, undo) {
     msg = `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
     undo = null;
   } else if (ui.persistFailed.size) {
-    msg = `Não foi possível salvar as alterações no Supabase. Confira a conexão e tente novamente.${ui.persistError ? ` Detalhe técnico: ${ui.persistError}` : ''}`;
+    msg = `Não foi possível salvar as alterações. Confira sua conexão e tente novamente.${ui.persistError ? ` Detalhe técnico: ${ui.persistError}` : ''}`;
     undo = null;
   }
   const text = String(msg?.s || msg).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
@@ -1518,7 +1576,26 @@ function renderToast() {
   const toastMessage = typeof ui.toast.msg === 'string' ? preserveCopyTerms(ui.toast.msg) : ui.toast.msg;
   el.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[ui.toast.tone], 18)}</span><span class="toast-content"><span class="toast-label">${labels[ui.toast.tone]}</span><span class="toast-message">${toastMessage}</span></span>${ui.toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
 }
-function nav(route) { if (location.hash.slice(1) !== route) location.hash = route; else render(); }
+function resetSettingsTabBeforeLeaving() {
+  const path = settingsRootPath(location);
+  if (path) history.replaceState(null, '', path);
+}
+document.addEventListener('click', (event) => {
+  if (ui.route !== 'config' || event.defaultPrevented || event.button !== 0
+    || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
+    || !(event.target instanceof Element)) return;
+  const link = event.target.closest('a[href^="#"]');
+  if (!link || (link.target && link.target !== '_self')) return;
+  const targetRoute = link.hash.slice(1).split('?')[0];
+  if (Object.hasOwn(ROUTES, targetRoute) && targetRoute !== 'config') {
+    resetSettingsTabBeforeLeaving();
+  }
+}, true);
+function nav(route) {
+  if (ui.route === 'config' && route.split('?')[0] !== 'config') resetSettingsTabBeforeLeaving();
+  if (location.hash.slice(1) !== route) location.hash = route;
+  else render();
+}
 function focusRouteTarget(id) {
   const target = document.getElementById(id);
   if (!target) return;
@@ -1540,9 +1617,11 @@ function onRoute() {
   ui.route = resolved.route;
   const targetFocus = query === 'weight' ? 'pk' : null;
   const requestedSettingsTab = settingsTabId(new URLSearchParams(query).get('section'));
-  if (ui.route === 'config' && SETTINGS_SECTIONS.some(([id]) => id === requestedSettingsTab)) {
-    ui.settingsTab = requestedSettingsTab;
-  } else if (ui.route === 'config' && targetFocus) ui.settingsTab = 'profile';
+  if (ui.route === 'config') {
+    ui.settingsTab = SETTINGS_SECTIONS.some(([id]) => id === requestedSettingsTab)
+      ? requestedSettingsTab
+      : 'profile';
+  }
   if (resolved.replaceHash) history.replaceState(null, '', '#' + resolved.replaceHash);
   render();
   if (resolved.scrollTarget) requestAnimationFrame(() => focusRouteTarget(resolved.scrollTarget));
@@ -1647,6 +1726,65 @@ function syncPomodoroPushSchedule(timer = S.pomodoro) {
     reportPomodoroPushStatus(`${timerState}, mas ${pomodoroPushErrorMessage(error)}${staleNotice}`);
   });
 }
+async function syncHabitReminderSchedule() {
+  const status = getPomodoroPushStatus();
+  if (!status.enabled) return false;
+  try {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const reminders = S.habits
+      .filter((habit) => habit.status === 'active' && habit.remind && isTime(habit.remind))
+      .map((habit, index) => ({
+        id: `habit-${index}`,
+        days: [...habit.days],
+        time: habit.remind,
+        timeZone,
+        skipDate: habitCompletedFor(habit, today()) || habitIsSkipped(habit, today(), today()) ? today() : null,
+      }));
+    if (reminders.length) await scheduleHabitPushReminders(reminders);
+    else await cancelHabitPushReminders();
+    ui.habitPushNotice = reminders.length
+      ? 'Lembretes atualizados. A entrega depende da rede, do serviço e das permissões do navegador.'
+      : 'Não há horários de lembrete ativos para enviar ao serviço.';
+    return true;
+  } catch (error) {
+    ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pomodoroPushErrorMessage(error)}`;
+    return false;
+  }
+}
+function toggleHabitPush() {
+  if (ui.pushBusy) return;
+  const wasEnabled = getPomodoroPushStatus().enabled;
+  let operation;
+  try {
+    operation = wasEnabled ? disablePomodoroPush() : enablePomodoroPush();
+  } catch (error) {
+    ui.habitPushNotice = pomodoroPushErrorMessage(error);
+    render();
+    return;
+  }
+  ui.pushBusy = true;
+  ui.habitPushNotice = wasEnabled ? 'Desativando avisos…' : 'Solicitando permissão e configurando avisos…';
+  render();
+  Promise.resolve(operation).then(async () => {
+    if (wasEnabled) {
+      ui.habitPushNotice = 'Avisos desativados neste dispositivo; os avisos do Pomodoro também foram interrompidos.';
+      return;
+    }
+    await syncHabitReminderSchedule();
+    if (S.pomodoro.startedAt !== null) {
+      try {
+        await schedulePomodoroPush(S.pomodoro, pomodoroSettingsForTimer());
+      } catch (error) {
+        ui.habitPushNotice = `Os lembretes foram ativados, mas o Pomodoro não foi agendado: ${pomodoroPushErrorMessage(error)}`;
+      }
+    }
+  }).catch((error) => {
+    ui.habitPushNotice = `Não foi possível ${wasEnabled ? 'desativar' : 'ativar'} os avisos: ${pomodoroPushErrorMessage(error)}`;
+  }).finally(() => {
+    ui.pushBusy = false;
+    render();
+  });
+}
 function togglePomodoroPush() {
   if (ui.pushBusy) return;
   const wasEnabled = getPomodoroPushStatus().enabled;
@@ -1664,8 +1802,10 @@ function togglePomodoroPush() {
   Promise.resolve(operation).then(async () => {
     if (wasEnabled) {
       ui.pushNotice = 'Avisos desativados e inscrição removida deste dispositivo.';
+      ui.habitPushNotice = 'Avisos desativados neste dispositivo; os avisos dos hábitos também foram interrompidos.';
       return;
     }
+    await syncHabitReminderSchedule();
     if (S.pomodoro.startedAt !== null) {
       try {
         await schedulePomodoroPush(S.pomodoro, pomodoroSettingsForTimer());
@@ -1845,6 +1985,25 @@ function homeHabitCheckins() {
   </section>`;
 }
 
+function homeFirstSteps() {
+  if (S.settings.prefs.firstStepsDismissed) return '';
+  const steps = [
+    ['Criar uma tarefa', '#planejar', 'calendarCheck', S.tasks.length > 0],
+    ...(areaOn('habits') ? [['Marcar um hábito', '#habitos', 'leaf', S.habits.some((habit) => habitCompletedFor(habit, today()))]] : []),
+    ...(areaOn('pomodoro') ? [['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0]] : []),
+    ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0]] : []),
+  ];
+  if (steps.every(([, , , complete]) => complete)) return '';
+  return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
+    <header class="head"><div><p class="section-kicker">Comece com uma ação pequena</p><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2></div>
+      <button type="button" class="btn ghost sm" data-action="first-steps-dismiss">Dispensar</button>
+    </header>
+    <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete]) => h`<li class="${complete ? 'is-complete' : ''}">
+      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
+    </li>`)}</ol>
+  </section>`;
+}
+
 function viewInicio() {
   const name = (S.settings.profile.preferredName || S.settings.profile.name).trim();
   const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
@@ -1865,8 +2024,9 @@ function viewInicio() {
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${areaGuideButton('inicio')}
+    ${homeFirstSteps()}
     ${sampleBanner()}
     ${backupReminder()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
@@ -1895,7 +2055,7 @@ function viewInicio() {
     </div>
     ${activeAreaItems.length >= 2 ? h`<section class="home-tools" aria-labelledby="home-tools-title">
       <div class="head"><h2 id="home-tools-title">O que você pode fazer<i>.</i></h2></div>
-      <div class="home-tool-grid">
+      <div class="home-tool-grid compact-card-grid">
         <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos, calendário e planos por etapas.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
         ${activeAreaItems.map(({ id, area, label, icon: iconName }) => h`<a class="home-tool" href="#${id}"><span class="home-tool-icon">${icon(iconName, 20)}</span><span><b>${AREAS[area]?.[0] || label}</b><small>${AREAS[area]?.[1] || label}</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>`)}
       </div>
@@ -1921,10 +2081,16 @@ function taskListHtml() {
   const r = filteredTasks(), { f, sort } = ui.filters, tdy = today();
   if (!r.length) {
     const hasTasks = S.tasks.length > 0;
+    const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
+    const actions = hasTasks
+      ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
+      : hasFilters
+        ? h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
+        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="plan-open">${icon('calendar', 16)}Criar plano por etapas</button>`;
     return empty(
       hasTasks ? 'Nenhuma tarefa nesse filtro' : 'Ainda não há tarefas',
       hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa ou monte um plano por etapas.',
-      hasTasks ? '' : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button>`,
+      actions,
       hasTasks ? 'search' : 'calendarCheck',
     );
   }
@@ -1970,6 +2136,17 @@ function taskWeek() {
     </section>`)}</div>
   </div>`;
 }
+function planningQuickPreview(value) {
+  const parsed = parseQuickTaskText(value, today());
+  if (parsed.error) return parsed.error;
+  if (!parsed.title) return 'Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.';
+  if (!parsed.hasDeadline) return `${parsed.title} · sem prazo identificado`;
+  return `${parsed.title} · ${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`;
+}
+function updatePlanningQuickPreview(input) {
+  const preview = $('#planning-quick-preview');
+  if (preview) preview.textContent = planningQuickPreview(input.value);
+}
 function viewPlanejar() {
   const f = ui.filters;
   const todayKey = today();
@@ -1985,6 +2162,15 @@ function viewPlanejar() {
     ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
     : 'Nenhuma tarefa atrasada';
   return h`${pageTitle('Planejar')}${areaGuideButton('planejar')}
+    <section class="card planning-quick-entry" aria-labelledby="planning-quick-entry-title">
+      <div class="head"><div><p class="section-kicker">Adicionar sem abrir formulário</p><h2 id="planning-quick-entry-title">Tarefa rápida<i>.</i></h2></div></div>
+      <form class="planning-quick-form" data-form="planning-quick-task">
+        <label class="sr" for="planning-quick-task">Nova tarefa</label>
+        <input id="planning-quick-task" name="title" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Enviar proposta sexta 18h" required data-input="planning-quick-task">
+        <button type="submit" class="btn primary">${icon('plus', 16)}Adicionar</button>
+      </form>
+      <p id="planning-quick-preview" class="small muted" aria-live="polite">Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.</p>
+    </section>
     <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
       <div class="planning-overview-copy">
         <span class="section-kicker">Resumo de tarefas</span>
@@ -2069,16 +2255,10 @@ function remainingHabitSuggestions() {
   ));
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
-function habitStreakLabel(stats) {
-  const weekly = stats.weeklyStreak !== null && stats.weeklyStreak !== undefined;
-  const n = weekly ? stats.weeklyStreak : stats.streak;
-  if (!n) return 'Comece hoje';
-  return `${n} ${weekly ? plural(n, 'semana seguida', 'semanas seguidas') : plural(n, 'dia seguido', 'dias seguidos')}`;
-}
 function habitWaterTracker(habit) {
   if (!isWaterHabit(habit)) return '';
   const total = waterMlForDay(S.water, today());
-  const target = waterGoalFromName(habit.name, S.settings.prefs.waterGoalMl);
+  const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
   return h`<section class="water-tracker" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
@@ -2097,19 +2277,20 @@ function habitRow(habit) {
   const skipped = habitIsSkipped(habit, today(), today());
   const canCheck = status === 'active' && dayOn && !skipped;
   const done = habitCompletedFor(habit, today());
+  const pending = canCheck && !done;
   const stats = habitStats(habit, today(), weekStartDay(), (day) => habitCompletedFor(habit, day));
   const color = habitColor(habit);
   const open = ui.openDetails[`hab-${habit.id}`] ? raw('open') : '';
   const target = stats.weeklyTarget ?? stats.scheduledThisWeek;
   const waterTotal = isWaterHabit(habit) ? waterMlForDay(S.water, today()) : 0;
-  const waterTarget = isWaterHabit(habit) ? waterGoalFromName(habit.name, S.settings.prefs.waterGoalMl) : 0;
+  const waterTarget = isWaterHabit(habit) ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
   const sub = status === 'paused' ? 'Pausado' : skipped ? 'Dia pulado' : isWaterHabit(habit)
     ? `${waterTotal.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL hoje`
-    : !dayOn ? habitDaysLabel(habit) : habitStreakLabel(stats);
+    : habitDaysLabel(habit);
   const orderList = S.habits.filter((item) => item.status !== 'archived');
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
-  return h`<li class="habit-row${done ? ' is-done' : ''}${canCheck ? '' : ' is-off'}" data-habit-id="${habit.id}" style="--hc:${color}">
+  return h`<li class="habit-row${done ? ' is-done' : ''}${pending ? ' is-pending' : ''}${canCheck ? '' : ' is-off'}" data-habit-id="${habit.id}" style="--hc:${color}">
     <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}" aria-pressed="${done}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span class="habit-circle-check">${icon('check', 22)}</span>
     </button>
@@ -2140,6 +2321,17 @@ function viewHabits() {
   const suggestions = remainingHabitSuggestions();
   const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
   const archived = S.habits.filter((habit) => habit.status === 'archived');
+  const overview = habitWeekOverview(
+    live,
+    today(),
+    weekStartDay(),
+    habitCompletedFor,
+    (habit, day) => habitIsSkipped(habit, day, today()),
+  );
+  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind);
+  const pushStatus = hasReminders ? getPomodoroPushStatus() : null;
+  const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
+    && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
   const dow = pk(today()).getDay();
   const todays = live.filter((habit) => (habit.status || 'active') === 'active' && habit.days.includes(dow));
   const others = live.filter((habit) => !todays.includes(habit));
@@ -2162,9 +2354,21 @@ function viewHabits() {
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
       : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
-    'reminder-note': live.some((habit) => habit.remind)
-      ? h`<p class="fine habit-reminder-note">Lembretes aparecem enquanto o Aurora está aberto.</p>`.s
+    'reminder-note': hasReminders
+      ? h`<div class="habit-reminder-note">
+        <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede e do serviço de notificações.</p>
+        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos neste dispositivo' : 'Ativar avisos fora do app'}</button>
+        <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
+        <p class="small muted">A inscrição é compartilhada com o Pomodoro neste dispositivo; desativá-la interrompe os avisos de ambos. O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
+      </div>`.s
       : '',
+    'week-overview': h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
+      <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
+        ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
+        : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
+      ${overview.planned ? h`<progress value="${overview.completed}" max="${overview.planned}" aria-label="Consistência dos hábitos nesta semana"></progress>` : ''}
+      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span></summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
+    </section>`.s,
     'other-habits': others.length
       ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
@@ -2264,7 +2468,7 @@ function viewPomodoro() {
           <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p></div>
           <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona</summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e o nome da tarefa ficam neste dispositivo; o serviço recebe somente a inscrição <span class="case-preserve">Push</span> e os horários/fases necessários ao timer.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
+          <details class="pomodoro-push-details"><summary>Quando usar e como funciona</summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
       </details>
       <p class="err" id="standalone-pomo-error" role="alert"></p>
@@ -2372,6 +2576,7 @@ function viewCiclo() {
   const strip = Array.from({ length: 14 }, (_, i) => addDays(tdy, i - 13));
   const dn = cycleDayNumber(sel, st);
   const hasCycleHistory = st.starts.length > 0;
+  const hasCycleRecords = Object.values(S.cycleLog).some(hasAnyLog);
   const selectedPeriodIndex = S.cycle.findIndex((period) => period.start <= sel && cyclePeriodEnd(period) >= sel);
   const selectedPeriod = selectedPeriodIndex >= 0 ? S.cycle[selectedPeriodIndex] : null;
   const cycleMoment = st.set.has(sel)
@@ -2395,7 +2600,9 @@ function viewCiclo() {
   const top = topSymptoms();
   const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
   return h`${areaNav('ciclo')}${pageTitle('Ciclo')}${areaGuideButton('ciclo')}
-    <section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">${icon('calendar', 16)}Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>
+    ${!hasCycleHistory && !hasCycleRecords
+      ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
+      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
       <div class="cycle-day-tools"><button type="button" class="btn sm" data-action="cyc-batch-open">${icon('calendar', 16)}Adicionar sintomas a vários dias</button></div>
@@ -2499,7 +2706,7 @@ function profileSettings(s) {
       <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar</button></div>
       </form>
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading"><h2 id="account-session-title">Sessão da conta<i>.</i></h2><p>Sair encerra sua sessão neste dispositivo. Seus dados continuam salvos na sua conta.</p></div>
+      <div class="settings-section-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2></div>
       <button type="button" class="btn ghost sm" data-account-signout>Sair da conta</button>
     </section>
   </div>`;
@@ -2542,7 +2749,7 @@ function areasNavigationSettings(s) {
     <div class="head areas-navigation-head"><h2>Áreas e navegação<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
     <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
     <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
-    <ol class="areas-navigation-list" aria-label="Áreas e menus principais">${items.map((item) => {
+    <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
       const areaName = item.area ? AREAS[item.area]?.[0] || item.label : item.label;
       const areaDescription = item.area ? AREAS[item.area]?.[1] || '' : item.id === 'inicio' ? 'Página inicial do Aurora' : 'Tarefas, prazos e planejamento';
       const orderIndex = orderedItems.findIndex(({ id }) => id === item.id);
@@ -2693,7 +2900,7 @@ async function applyLegacyImport() {
     return;
   }
   const addedTotal = Object.values(preview.plan.added).reduce((sum, count) => sum + count, 0);
-  if (!window.confirm(`Importar os dados antigos para esta conta? A prévia encontrou ${addedTotal} novo(s) registro(s), além de configurações que possam ser recuperadas. Dados atuais desta conta serão mantidos e não haverá duplicação por ID. Os dados antigos só serão apagados depois de nova confirmação.`)) return;
+  if (!await confirmInDialog(`Importar os dados antigos para esta conta? A prévia encontrou ${addedTotal} novo(s) registro(s), além de configurações que possam ser recuperadas. Dados atuais desta conta serão mantidos e não haverá duplicação por ID. Os dados antigos só serão apagados depois de nova confirmação.`)) return;
   if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
     setLegacyImportError('A conta atual tem dados bloqueados para gravação. Resolva a integridade dos dados antes de importar; nenhuma origem antiga foi alterada.');
     return;
@@ -2797,7 +3004,7 @@ function clearLegacyBrowserData() {
     preview.cleanup = {
       failed: 0,
       changed: 0,
-      message: `${result.removed.length} chave(s) antiga(s) apagadas deste navegador. O cofre antigo e suas tabelas no Supabase continuam preservados.`,
+      message: `${result.removed.length} chave(s) antiga(s) apagadas deste navegador. O cofre antigo e os dados da sua conta continuam preservados.`,
     };
   }
   render();
@@ -2855,10 +3062,10 @@ function legacyImportPanel() {
       <div class="notice data-location" role="status"><span>Importação concluída: os dados foram gravados e lidos novamente da conta. Confira as áreas no Aurora antes de decidir sobre as cópias antigas.</span></div>
       ${snapshotCount ? h`<div class="legacy-import-cleanup">
         <h3>Opcional: apagar cópias deste navegador</h3>
-        <p>Isso remove somente as ${snapshotCount} cópia(s) legada(s) reconhecida(s) e lida(s) neste navegador. Não apaga dados do banco nem o cofre antigo no Supabase. Você também pode deixar essas cópias intactas.</p>
+        <p>Isso remove somente as ${snapshotCount} cópia(s) antiga(s) reconhecida(s) e lida(s) neste navegador. Não apaga os dados da sua conta nem o cofre antigo. Você também pode deixar essas cópias intactas.</p>
         <label class="legacy-import-confirm"><input id="legacy-import-reviewed" type="checkbox" data-change="legacy-import-cleanup-confirm" ${migration.cleanupConfirmed ? raw('checked') : ''}><span>Conferi os dados na conta e quero apagar exatamente estas cópias locais.</span></label>
         <button id="legacy-import-clear" type="button" class="btn danger" data-action="legacy-import-clear" ${migration.busy || !migration.cleanupConfirmed ? raw('disabled') : ''}>${migration.busy ? 'Apagando cópias…' : `Apagar ${snapshotCount} cópia(s) deste navegador`}</button>
-      </div>` : h`<p class="small muted">Não há cópias reconhecidas neste navegador para apagar. O cofre antigo no Supabase continua preservado.</p>`}
+      </div>` : h`<p class="small muted">Não há cópias reconhecidas neste navegador para apagar. O cofre antigo da sua conta continua preservado.</p>`}
     </div>` : ''}
     ${migration.completed && preview?.cleanup ? h`<p class="small ${preview.cleanup.failed || preview.cleanup.changed ? 'err' : 'muted'}" role="${preview.cleanup.failed || preview.cleanup.changed ? 'alert' : 'status'}">${preview.cleanup.message}</p>` : ''}
   </section>`;
@@ -2868,11 +3075,11 @@ function dataSettings(p) {
   const failedSlices = [...ui.persistFailed];
   const trashEntries = p.trash.filter((entry) => !isTrashExpired(entry)).sort((a, b) => b.deletedAt - a.deletedAt);
   return h`<section class="card settings-section-card"><div class="settings-section-heading"><h2>Backup<i>.</i></h2><p>Baixe uma cópia dos seus dados para guardar ou levar para outro navegador. No celular, escolha Arquivos ou Downloads e guarde o <span class="case-preserve">JSON</span> fora dos dados do navegador.</p></div>
-    <div class="notice data-location" role="status">${icon('cloud', 18)}<span>Seus dados ficam no Supabase, protegidos pela sessão da conta, verificação em dois fatores e regras de acesso por usuário. O banco pode processar os dados em formato legível; mantenha a autenticação e os backups protegidos.</span></div>
+    <div class="notice data-location" role="status">${icon('cloud', 18)}<span>Seus dados ficam associados à sua conta e protegidos por autenticação e regras de acesso individuais. O serviço pode processar dados em formato legível; mantenha sua conta e seus backups protegidos.</span></div>
     <div class="notice warn" role="note"><span>O backup exportado continua sendo um arquivo JSON em texto puro e pode conter dados financeiros e de saúde. A exportação pedirá confirmação; proteja o arquivo fora do Aurora.</span></div>
     <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
-    ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível confirmar a gravação no Supabase. As alterações pendentes continuam apenas nesta memória enquanto esta página estiver aberta.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
+    ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="row"><button class="btn" data-action="export">${icon('download', 18)}Exportar backup</button></div></section>
     ${legacyImportPanel()}
     <section class="card settings-section-card"><div class="settings-section-heading"><h2>Restaurar<i>.</i></h2><p>Escolha um backup para conferir o conteúdo antes da confirmação. A restauração substitui os dados relacionais atuais na sua conta.</p></div>
@@ -2899,7 +3106,7 @@ function settingsStorageNotice(selectedTab) {
   }
   const failedSlices = [...ui.persistFailed];
   if (failedSlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Não foi possível confirmar a gravação no Supabase. Algumas alterações continuam apenas na memória.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>`;
+    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Não foi possível salvar. Algumas alterações ainda não foram salvas.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>`;
   }
   return '';
 }
@@ -2967,6 +3174,33 @@ const dlgOpen = (type, d = {}) => {
   if (ui.toast && !ui.toast.undo && ['success', 'info'].includes(ui.toast.tone)) { clearTimeout(ui.toastT); ui.toast = null; }
   render();
 };
+function confirmInDialog(message) {
+  if (ui.confirmResolver) {
+    console.error('Aurora: já existe uma confirmação pendente.');
+    return Promise.resolve(false);
+  }
+  if (ui.dlg?.dirty) {
+    console.error('Aurora: não é possível abrir uma confirmação durante uma edição pendente.');
+    toast('Salve ou feche a edição antes de confirmar esta ação.');
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    ui.confirmPrevious = ui.dlg;
+    ui.confirmResolver = resolve;
+    ui.dlg = createDialog('confirmation', { message });
+    render();
+  });
+}
+function settleDialogConfirmation(confirmed) {
+  const resolve = ui.confirmResolver;
+  if (!resolve) return;
+  ui.confirmResolver = null;
+  ui.dlg = ui.confirmPrevious;
+  ui.confirmPrevious = null;
+  ui.dlgPending = null;
+  render();
+  resolve(confirmed);
+}
 const CONFIRMABLE_ACTIONS = new Set([
   'appearance-reset',
   'clear-sample',
@@ -3008,18 +3242,13 @@ const dlgClose = () => {
     return;
   }
   if (ui.dlg?.type === 'area-tutorial') {
-    const { route, automatic } = ui.dlg.d;
     ui.dlg = null;
     ui.dlgPending = null;
-    if (automatic && AREA_GUIDES[route] && !S.settings.prefs.areaTutorialsSeen.includes(route)) {
-      const snapshot = snapshotSlices(['settings']);
-      S.settings.prefs.areaTutorialsSeen = normalizeAreaTutorialsSeen([
-        ...S.settings.prefs.areaTutorialsSeen,
-        route,
-      ]);
-      saveSlicesWithRollback(['settings'], snapshot, false, 'a visualização do tutorial');
-    }
     render();
+    return;
+  }
+  if (ui.dlg?.type === 'confirmation') {
+    settleDialogConfirmation(false);
     return;
   }
   if (ui.dlg?.type === 'action-confirm') {
@@ -3047,10 +3276,16 @@ function planTitles(d) {
 }
 function dlgActionConfirm() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}<i>.</i></h2></div>${closeBtn}</div>
     <p class="confirmation-copy">${d.message}</p>
     <aside class="confirmation-note" role="alert">${icon('alert', 18)}<span><b>A ação só será executada depois que você confirmar.</b></span></aside>`,
     h`<button type="button" class="btn back" data-action="action-confirm-cancel">Cancelar</button><button type="button" class="btn danger" data-action="action-confirm-accept">${d.confirmLabel}</button>`);
+}
+function dlgConfirmation() {
+  const d = ui.dlg.d;
+  return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">Continuar?</h2></div>${closeBtn}</div>
+    <p class="confirmation-copy">${d.message}</p>`,
+    h`<button type="button" class="btn back" data-action="confirmation-cancel">Cancelar</button><button type="button" class="btn primary" data-action="confirmation-accept">Continuar</button>`);
 }
 function dlgTaskPlan() {
   const d = ui.dlg.d, titles = planTitles(d);
@@ -3151,17 +3386,20 @@ function dlgCycleBatch() {
 }
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
+  const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
+  const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="habit-edit">
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
-      ${d.waterSuggestion ? h`<label class="f full" for="water-weight-kg">Peso para estimativa (kg)<input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Opcional"><span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular a sugestão e não será salvo no perfil.</span></label>
-        <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>
-        <p class="fine full">A idade informada em Ajustes será considerada; sem idade, usamos uma referência adulta. Registre cada volume no hábito; ao atingir a meta, o check-in do dia é concluído.</p>` : ''}
+      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full" for="water-weight-kg">Peso para estimativa (kg)<input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Opcional"><span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
+        <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>` : ''}
+        <label class="f full" for="water-goal-ml">Meta diária de água (mL)<input id="water-goal-ml" name="waterGoalMl" type="number" data-dlg="waterGoalMl" min="500" max="10000" step="50" value="${waterGoal}" required aria-describedby="water-goal-help"><span class="profile-field-help" id="water-goal-help">É uma referência ajustável, não uma recomendação médica. Registre os volumes para acompanhar o dia.</span></label>
+        ${d.waterSuggestion ? h`<p class="fine full">A estimativa considera a idade informada em Ajustes (ou uma referência adulta) e o peso informado acima. Você pode ajustar a meta. Ao atingir o volume, o check-in do dia é concluído.</p>` : ''}` : ''}
       <fieldset class="habit-look full"><legend>Ícone</legend><div class="habit-icon-picker">${HABIT_ICONS.map(([key, label]) => h`<label title="${label}"><input type="radio" name="icon" value="${key}" data-dlg="icon" ${(d.icon || DEFAULT_HABIT_ICON) === key ? raw('checked') : ''}><span>${icon(key, 20)}<i class="sr">${label}</i></span></label>`)}</div></fieldset>
       <fieldset class="habit-look full"><legend>Cor</legend><div class="habit-color-picker">${HABIT_COLORS.map((color, index) => h`<label title="${HABIT_COLOR_NAMES[index]}"><input type="radio" name="color" value="${color}" data-dlg="color" ${(d.color || DEFAULT_HABIT_COLOR).toLowerCase() === color ? raw('checked') : ''}><span style="--c:${color}"><i class="sr">${HABIT_COLOR_NAMES[index]}</i>${icon('check', 16)}</span></label>`)}</div></fieldset>
       <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div class="habit-weekday-picker">${DIAS.map((day, index) => h`<label class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days" value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`)}</div></fieldset>
       <label class="f full">Meta na semana (opcional)<select name="weeklyGoal"><option value="" ${d.weeklyGoal ? '' : raw('selected')}>Todos os dias marcados</option>${[1, 2, 3, 4, 5, 6, 7].map((n) => h`<option value="${n}" ${Number(d.weeklyGoal) === n ? raw('selected') : ''}>${n} ${plural(n, 'vez', 'vezes')} por semana</option>`)}</select><span class="small muted">Com meta, a semana conta como cumprida ao atingir esse número de dias, mesmo sem marcar todos.</span></label>
-      <label class="f full">Lembrete no app (opcional)<input type="time" name="remind" data-dlg="remind" value="${d.remind || ''}"><span class="small muted">Só aparece enquanto o Aurora estiver aberto.</span></label>
+      <label class="f full">Horário do lembrete (opcional)<input type="time" name="remind" data-dlg="remind" value="${d.remind || ''}"><span class="small muted">É uma preferência; avisos fora do app são opcionais e exigem autorização nas permissões do navegador.</span></label>
     </form>
     ${habit ? h`<div class="habit-edit-history">${habitMonthlyHistory(habit)}</div>` : ''}`,
     h`${edit ? h`<button type="button" class="btn danger back" data-action="habit-delete-dialog">${icon('trash', 18)}Excluir</button><button type="button" class="btn back" data-action="${habit?.status === 'archived' ? 'habit-restore' : 'habit-archive'}" data-id="${d.id}">${habit?.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar alterações' : 'Adicionar hábito'}</button>`);
@@ -3174,7 +3412,7 @@ function waterSuggestionPreview(weightInput) {
   const age = currentProfileAge(S.settings);
   const goal = estimateWaterGoal({ weightKg, age });
   const ageText = age == null ? 'a referência adulta (idade não informada)' : `a idade de ${age} anos`;
-  return `Meta diária estimada: ${goal.ml.toLocaleString('pt-BR')} mL, considerando ${ageText} e ${weightKg.toLocaleString('pt-BR')} kg.`;
+  return `Estimativa: ${goal.ml.toLocaleString('pt-BR')} mL, considerando ${ageText} e ${weightKg.toLocaleString('pt-BR')} kg. Você pode ajustar a meta abaixo.`;
 }
 function updateWaterSuggestionWeight(weightInput) {
   const draft = ui.dlg?.d;
@@ -3183,14 +3421,11 @@ function updateWaterSuggestionWeight(weightInput) {
   const goal = weightKg === null
     ? null
     : estimateWaterGoal({ weightKg, age: currentProfileAge(S.settings) });
-  draft.waterGoalMl = goal?.ml ?? null;
+  if (!draft.waterGoalEdited && goal) draft.waterGoalMl = goal.ml;
   const preview = $('#water-goal-preview');
   if (preview) preview.textContent = waterSuggestionPreview(weightInput);
-  if (!draft.waterNameEdited) {
-    draft.name = goal ? `Beber água · ${goal.ml.toLocaleString('pt-BR')} mL/dia` : 'Beber água';
-    const nameInput = $('#f0');
-    if (nameInput) nameInput.value = draft.name;
-  }
+  const goalInput = $('#water-goal-ml');
+  if (goalInput && !draft.waterGoalEdited && goal) goalInput.value = String(goal.ml);
 }
 function globalSearchResults(query) {
   const searchableCycleLogs = areaOn('cycle')
@@ -3230,8 +3465,8 @@ function dlgSearch() {
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgWipe() {
-  return dlgWrap(h`
-    <div class="destructive-summary"><p class="destructive-copy">Isso apaga permanentemente os dados relacionais desta conta no Supabase. Dados antigos de outras áreas ainda não importados serão preservados para a migração.</p>
+  return dlgWrap(h`<div class="head destructive-heading"><span class="destructive-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="destructive-eyebrow">Ação permanente</p><h2 id="dt">Apagar dados relacionais?</h2></div>${closeBtn}</div>
+    <div class="destructive-summary"><p class="destructive-copy">Isso apaga permanentemente os dados relacionais desta conta. Dados antigos de outras áreas ainda não importados serão preservados para a migração.</p>
     <aside class="destructive-note" role="alert">${icon('alert', 18)}<span><b>Faça um backup antes</b><small>Exporte uma cópia agora se quiser guardar seus dados.</small></span></aside></div>`,
     h`<button type="button" class="btn back" data-action="dlg-close">Cancelar e manter dados</button><button type="button" class="btn danger" data-action="wipe">Apagar permanentemente</button>`,
     'destructive-dialog');
@@ -3245,18 +3480,15 @@ function dlgWipeComplete() {
 
 /* ---- Personalização inicial ---- */
 const ONBOARDING_NEEDS = [
-  { id: 'organization', icon: 'calendarCheck', title: 'Organizar meu dia', description: 'Lembrar tarefas, prazos e prioridades.', areas: [] },
-  { id: 'focus', icon: 'clock', title: 'Manter o foco', description: 'Usar ciclos de foco e pausa em qualquer atividade.', areas: ['pomodoro'] },
-  { id: 'routine', icon: 'check', title: 'Manter uma rotina', description: 'Criar hábitos e acompanhar minha constância.', areas: ['habits'] },
-  { id: 'hydration', icon: 'droplet', title: 'Beber mais água', description: 'Registrar os mL consumidos e acompanhar a meta diária.', areas: ['habits'] },
-  { id: 'movement', icon: 'dumbbell', title: 'Me movimentar mais', description: 'Registrar treinos e acompanhar minha evolução.', areas: ['gym'] },
-  { id: 'finances', icon: 'wallet', title: 'Organizar meu dinheiro', description: 'Acompanhar gastos, receitas e objetivos.', areas: ['finances'] },
-  { id: 'cycle', icon: 'heart', title: 'Acompanhar meu ciclo menstrual', description: 'Registrar sinais e consultar estimativas.', areas: ['cycle'] },
+  { id: 'organization', icon: 'calendarCheck', title: 'Organizar meu dia', description: 'Tarefas, prazos e prioridades.', areas: [] },
+  { id: 'focus', icon: 'clock', title: 'Manter o foco', description: 'Sessões de foco e pausas no seu ritmo.', areas: ['pomodoro'] },
+  { id: 'habits', icon: 'check', title: 'Criar bons hábitos', description: 'Água, leitura, movimento e outros hábitos.', areas: ['habits'] },
+  { id: 'finances', icon: 'wallet', title: 'Organizar meu dinheiro', description: 'Receitas, gastos e objetivos.', areas: ['finances'] },
+  { id: 'cycle', icon: 'heart', title: 'Acompanhar meu ciclo', description: 'Registrar sinais e consultar estimativas.', areas: ['cycle'] },
 ];
 const ONBOARDING_AREAS = [
   { id: 'pomodoro', icon: 'clock', title: 'Pomodoro', description: 'Alterne períodos de foco e pausas.' },
   { id: 'habits', icon: 'check', title: 'Hábitos', description: 'Crie uma rotina e acompanhe sua constância.' },
-  { id: 'gym', icon: 'dumbbell', title: 'Academia', description: 'Registre treinos e acompanhe sua evolução.' },
   { id: 'finances', icon: 'wallet', title: 'Finanças', description: 'Organize contas, gastos, receitas e objetivos.' },
   { id: 'cycle', icon: 'heart', title: 'Ciclo', description: 'Registre sinais e acompanhe estimativas do ciclo.' },
 ];
@@ -3276,8 +3508,8 @@ function dlgOnboard() {
   const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 3">${[0, 1, 2].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
   let body, foot;
   if (st === 0) {
-    body = h`${dots}<div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Personalização inicial</span><h2 id="dt">O que você quer melhorar no seu dia a dia?</h2><p>Escolha uma ou mais opções. Vamos sugerir ferramentas do Aurora para ajudar — você pode mudar tudo depois.</p></div></div>
-      <fieldset class="onboard-fieldset"><legend>O que faz mais sentido para você agora?</legend><div class="onboard-options">${ONBOARDING_NEEDS.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
+    body = h`${dots}<div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Personalização inicial</span><h2 id="dt">O que você quer melhorar no seu dia a dia?</h2><p>Escolha uma ou mais opções; você pode mudar depois.</p></div></div>
+      <fieldset class="onboard-fieldset"><legend>Escolha o que faz sentido para você agora.</legend><div class="onboard-options">${ONBOARDING_NEEDS.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
       <p class="fine">${icon('info', 15)} Suas tarefas e seu planejamento já ficam disponíveis; não é preciso ativar uma área para começar a se organizar.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Ver sugestões</button>`;
   } else if (st === 1) {
@@ -3285,14 +3517,15 @@ function dlgOnboard() {
     const hasOrganizationNeed = d.needs.includes('organization');
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
       ${hasOrganizationNeed ? h`<article class="onboard-solution-note"><span class="mk">${icon('calendarCheck', 22)}</span><span class="tx"><b>Planejar</b><span>Tarefas, prazos e prioridades já estão disponíveis para organizar seu dia.</span></span><span class="onboard-always-on">Sempre disponível</span></article>` : ''}
-      ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}`;
+      ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
+      <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e navegação.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
       <div class="onboard-theme"><span class="f-label">Cor do app</span><div class="swatches">${Object.entries(PALETTES).map(([key, [name, color]]) => h`<button type="button" class="swatch" aria-pressed="${d.theme === key}" data-action="ob-theme" data-v="${key}"><i style="background:${color}"></i>${name}</button>`)}</div></div>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-finish">Concluir</button>`;
   }
-  return dlgWrap(body, foot);
+  return dlgWrap(body, foot, st === 0 ? 'onboard-needs-dialog' : '');
 }
 function dlgExport() {
   if (Object.keys(ui.integrityIssues).length) {
@@ -3306,8 +3539,7 @@ function dlgExport() {
 }
 function dlgImport() {
   const p = ui.dlg.d.parsed;
-  return dlgWrap(h`<h2 id="dt">Importar este backup?</h2>
-    <p>Prévia do conteúdo validado deste arquivo:</p>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Importar este backup?</h2><p class="small muted">Prévia do conteúdo validado deste arquivo:</p></div>${closeBtn}</div>
     <ul class="backup-preview">
       <li><span>Tarefas</span><b>${p.tasks.length}</b></li>
       <li><span>Hábitos e contas financeiras</span><b>${p.habits.length} · ${p.finance.accounts.length}</b></li>
@@ -3323,8 +3555,9 @@ function dlgAreaTutorial() {
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}<i>.</i></h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
-    <video class="area-tutorial-video" controls autoplay muted playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
+    <video class="area-tutorial-video" controls playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
       <source src="${guide.video}" type="video/webm">
+      <source src="${guide.fallbackVideo}" type="video/mp4">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
@@ -3343,7 +3576,7 @@ function resolveNew(g, d, key) {
   if (!n) { toast('Dê um nome para a nova opção.'); return false; }
   d[key] = addItem(g, n); d.newName = ''; commit('settings'); return true;
 }
-const DLG = { taskplan: dlgTaskPlan, task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-batch': dlgCycleBatch, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { taskplan: dlgTaskPlan, task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-batch': dlgCycleBatch, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -3410,12 +3643,12 @@ function loadSample() {
     mkTask({ title: 'Comprar um caderno novo', ...sm }),
     mkTask({ title: 'Arrumar a mesa de trabalho', done: true, doneAt: new Date().toISOString(), dueDate: t, priority: 'low', ...sm }));
   for (let i = 0; i < 4; i++) S.water.push({ id: newId(), ml: [300, 500, 200, 300][i], at: new Date(Date.now() - i * 36e5).toISOString(), ...sm });
-  const acc = { id: newId(), name: 'Conta principal', type: 'checking', initialCents: 150000, ...sm }, cash = { id: newId(), name: 'Carteira', type: 'cash', initialCents: 12000, ...sm }, card = { id: newId(), name: 'Cartão', type: 'credit', initialCents: 0, limitCents: 300000, closingDay: 20, dueDay: 28, ...sm };
-  S.finance.accounts.push(acc, cash, card);
+  const acc = { id: newId(), name: 'Conta principal', type: 'checking', initialCents: 150000, ...sm }, investment = { id: newId(), name: 'Investimentos', type: 'investment', initialCents: 12000, ...sm }, card = { id: newId(), name: 'Cartão', type: 'credit', initialCents: 0, limitCents: 300000, closingDay: 20, dueDay: 28, ...sm };
+  S.finance.accounts.push(acc, investment, card);
   const mo = (n, day) => { const ym = shiftMonth(t.slice(0, 7), n); return `${ym}-${pad(day)}`; }, tt = (type, accountId, cents, category, desc, date, paid = true) => ({ id: newId(), type, accountId, cents, category, desc, date, paid, createdAt: Date.now(), ...sm });
   S.finance.tx.push(
     tt('in', acc.id, 320000, 'Salário', 'Salário', mo(0, 5)), tt('out', acc.id, 95000, 'Moradia', 'Aluguel', mo(0, 8)), tt('out', acc.id, 28990, 'Assinaturas', 'Internet', mo(0, 12)),
-    tt('out', card.id, 32050, 'Alimentação', 'Mercado', addDays(t, -1)), tt('out', card.id, 8900, 'Lazer', 'Cinema', addDays(t, -3)), tt('out', cash.id, 2500, 'Transporte', 'Ônibus', addDays(t, -2)),
+    tt('out', card.id, 32050, 'Alimentação', 'Mercado', addDays(t, -1)), tt('out', card.id, 8900, 'Lazer', 'Cinema', addDays(t, -3)), tt('out', investment.id, 2500, 'Transporte', 'Ônibus', addDays(t, -2)),
     tt('out', acc.id, 18000, 'Saúde', 'Farmácia', addDays(t, 3), false), tt('in', acc.id, 45000, 'Renda extra', 'Freelance', addDays(t, 6), false),
     tt('in', acc.id, 320000, 'Salário', 'Salário', mo(-1, 5)), tt('out', acc.id, 95000, 'Moradia', 'Aluguel', mo(-1, 8)), tt('out', card.id, 61000, 'Compras', 'Roupas', mo(-1, 14)), tt('out', acc.id, 54000, 'Alimentação', 'Mercado do mês', mo(-1, 20)),
     tt('in', acc.id, 320000, 'Salário', 'Salário', mo(-2, 5)), tt('out', acc.id, 95000, 'Moradia', 'Aluguel', mo(-2, 8)), tt('out', acc.id, 47000, 'Alimentação', 'Mercado do mês', mo(-2, 21)));
@@ -3450,7 +3683,7 @@ function buildBackup() {
       preferredName: (s.profile.preferredName || s.profile.name).slice(0, 50),
     },
     tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
-    areas: s.areas, theme: s.theme === 'custom' ? 'rose' : s.theme, weightTracking: s.weightTracking, accountTypes: s.accountTypes, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
+    areas: s.areas, theme: s.theme === 'custom' ? 'rose' : s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
     extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: s.prefs, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
 async function doExport() {
@@ -3458,7 +3691,7 @@ async function doExport() {
     toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.');
     return;
   }
-  if (!window.confirm('O arquivo de backup é JSON em texto puro, sem criptografia. Ele pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
+  if (!await confirmInDialog('O arquivo de backup é JSON em texto puro, sem criptografia. Ele pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
   const json = buildBackup(), name = `aurora-backup-${today()}.json`;
   downloadFile(name, json, 'application/json;charset=utf-8');
   S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
@@ -3470,12 +3703,12 @@ function downloadFile(name, contents, type) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function exportRecoveryData() {
+async function exportRecoveryData() {
   if (!Persist.rawTables || !Object.keys(Persist.rawTables).length) {
     toast('Não há dados bloqueados disponíveis para exportar.');
     return;
   }
-  if (!window.confirm('A cópia de recuperação contém registros relacionais da conta em JSON sem criptografia, inclusive dados de saúde e finanças. Proteja o arquivo e não o compartilhe. Deseja continuar?')) return;
+  if (!await confirmInDialog('A cópia de recuperação contém registros relacionais da conta em JSON sem criptografia, inclusive dados de saúde e finanças. Proteja o arquivo e não o compartilhe. Deseja continuar?')) return;
   const recovery = JSON.stringify({
     app: 'aurora-recovery',
     version: 1,
@@ -3531,7 +3764,6 @@ function parseBackup(text) {
     lists: ex.lists,
     cats: ex.cats,
     weightTracking: d.weightTracking,
-    accountTypes: d.accountTypes,
     onboardingComplete,
     introSeen: typeof d.introSeen === 'boolean' ? d.introSeen : onboardingComplete,
     prefs: ex.prefs,
@@ -3586,8 +3818,9 @@ const ACTIONS = {
       || Boolean(ui.profileDraft)
       || Boolean(ui.dlg?.dirty)
       || ui.persistFailed.size > 0;
-    if (hasUnsavedChanges && !window.confirm('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?')) return;
-    window.location.reload();
+    if (!hasUnsavedChanges) return window.location.reload();
+    void confirmInDialog('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?')
+      .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
   'areas-nav-open': () => nav('config?section=areas-navigation'),
@@ -3598,7 +3831,7 @@ const ACTIONS = {
       toast('Não foi possível abrir o tutorial desta área.');
       return;
     }
-    dlgOpen('area-tutorial', { route, automatic: false });
+    dlgOpen('area-tutorial', { route });
   },
   'discard-settings': () => {
     ui.settingsDraft = null;
@@ -3613,6 +3846,12 @@ const ACTIONS = {
     if (!input) return openTaskDialog(today());
     input.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => input.focus(), 250);
+  },
+  'first-steps-dismiss': () => {
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.firstStepsDismissed = true;
+    if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a dispensa dos primeiros passos')) return;
+    render();
   },
   'task-new': (el) => openTaskDialog(isDay(el.dataset.due) ? el.dataset.due : ''),
   'toggle': (el) => { const t = findTask(el.dataset.id); if (!t) return; t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : undefined;
@@ -3746,7 +3985,7 @@ const ACTIONS = {
       weeklyGoal: '',
       icon: idea.icon,
       color: idea.color,
-      ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: null, waterNameEdited: false } : {}),
+      ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: S.settings.prefs.waterGoalMl, waterGoalEdited: false } : {}),
     });
   },
   'tcal-month': (el) => { ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n)); render(); },
@@ -3834,7 +4073,7 @@ const ACTIONS = {
   },
   'habit-edit-open': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
-    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], remind: habit.remind || '', weeklyGoal: habit.weeklyGoal || '', icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
+    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], remind: habit.remind || '', weeklyGoal: habit.weeklyGoal || '', ...(isWaterHabit(habit) ? { waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) } : {}), icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
   },
   'habit-toggle-pause': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -3924,6 +4163,13 @@ const ACTIONS = {
     requestActionConfirmation('del-task', { id }, 'Excluir tarefa?', `A tarefa "${task.title}" irá para a lixeira por 30 dias.`, 'Excluir tarefa');
   },
   'set-filter': (el) => { ui.filters.f = el.dataset.f; render(); },
+  'task-filters-clear': () => {
+    ui.filters.f = 'todas';
+    ui.filters.q = '';
+    const search = $('#q');
+    if (search) search.value = '';
+    render();
+  },
   'settings-section': (el, event) => {
     const tab = el.dataset.settingsTab;
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
@@ -3991,6 +4237,7 @@ const ACTIONS = {
   'finish-free-timer': () => finishPomodoro(),
   'discard-free-timer': () => discardPomodoro(),
   'pomodoro-push-toggle': () => togglePomodoroPush(),
+  'habit-push-toggle': () => toggleHabitPush(),
   'preview-pomodoro-sound': () => {
     activatePomodoroAudio();
     playPomodoroSound(settingsView().prefs.pomodoro);
@@ -4006,6 +4253,8 @@ const ACTIONS = {
   'load-sample': () => { loadSample(); toast('Dados de exemplo adicionados.'); },
   'undo': () => { const u = ui.toast && ui.toast.undo; ui.toast = null; if (u) u(); renderToast(); },
   'action-confirm-cancel': () => dlgClose(),
+  'confirmation-cancel': () => settleDialogConfirmation(false),
+  'confirmation-accept': () => settleDialogConfirmation(true),
   'action-confirm-accept': () => {
     const d = ui.dlg?.type === 'action-confirm' ? ui.dlg.d : null;
     if (!d || !CONFIRMABLE_ACTIONS.has(d.action) || !ACTIONS[d.action]) {
@@ -4182,12 +4431,8 @@ const ACTIONS = {
     });
   },
   'look-cycle': cycleThemeMode,
-  'toggle-acc': (el) => updateSettingsDraft((settings) => {
-    const k = el.dataset.v, types = settings.accountTypes;
-    settings.accountTypes = types.includes(k) ? types.filter((x) => x !== k) : [...types, k];
-  }),
-  'export': () => doExport(),
-  'recovery-export': () => exportRecoveryData(),
+  'export': () => { void doExport(); },
+  'recovery-export': () => { void exportRecoveryData(); },
   'persist-retry': () => Persist.retryPending(),
   'legacy-import-discover': () => { void discoverLegacyImport(); },
   'legacy-import-unlock': () => { void unlockLegacyImport(); },
@@ -4195,7 +4440,7 @@ const ACTIONS = {
   'legacy-import-clear': () => clearLegacyBrowserData(),
   'copy-export': async () => {
     if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.');
-    if (!window.confirm('O backup copiado é JSON em texto puro e pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
+    if (!await confirmInDialog('O backup copiado é JSON em texto puro e pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
     const ta = $('#exp');
     try {
       await navigator.clipboard.writeText(ta.value);
@@ -4309,6 +4554,7 @@ const ACTIONS = {
     syncState.conflicts.clear();
     ui.dlg = createDialog('wipe-complete', {});
     ui.dlgPending = null;
+    resetSettingsTabBeforeLeaving();
     location.hash = 'inicio';
     render();
   },
@@ -4374,7 +4620,7 @@ const FORMS = {
     if (amount === null) return fieldError('Informe um volume inteiro entre 1 e 10.000 mL.', '[name="amount"]');
     const day = today();
     S.water.push({ id: newId(), ml: amount, at: new Date().toISOString() });
-    const target = waterGoalFromName(habit.name, S.settings.prefs.waterGoalMl);
+    const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
     const reached = waterGoalReached(waterMlForDay(S.water, day), target);
     const completing = reached && habit.days.includes(pk(day).getDay())
       && !habitIsSkipped(habit, day, day) && !habit.completions.includes(day);
@@ -4464,14 +4710,21 @@ const FORMS = {
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
+    const tracksWater = Boolean(draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
+    const waterGoalMl = tracksWater
+      ? Number(d.get('waterGoalMl') || (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
+      : null;
+    if (tracksWater && !isValidWaterGoalMl(waterGoalMl)) {
+      return fieldError('A meta deve ser um valor inteiro entre 500 e 10.000 mL.', '[data-dlg="waterGoalMl"]');
+    }
     if (habit) {
-      Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(isWaterHabit(habit) || draft?.waterSuggestion ? { tracking: 'water' } : {}) });
+      Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}) });
       if (remind) habit.remind = remind;
       else delete habit.remind;
       if (weeklyGoal) habit.weeklyGoal = weeklyGoal;
       else delete habit.weeklyGoal;
     } else {
-      S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...look, ...(draft?.waterSuggestion ? { tracking: 'water' } : {}), ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
+      S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
     }
     ui.dlg = null;
     const saved = saveSlices('habits');
@@ -4573,6 +4826,34 @@ const FORMS = {
     const saved = saveSlices('cycleLog');
     render();
     if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`);
+  },
+  'planning-quick-task': async (form, data) => {
+    const parsed = parseQuickTaskText(String(data.get('title') || ''), today());
+    if (parsed.error) {
+      toast(parsed.error);
+      $('#planning-quick-task')?.focus();
+      return;
+    }
+    if (!parsed.title) {
+      toast('Digite o título da tarefa.');
+      $('#planning-quick-task')?.focus();
+      return;
+    }
+    const deadline = parsed.hasDeadline
+      ? `${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`
+      : 'sem prazo identificado';
+    if (!await confirmInDialog(`Prazo interpretado: ${deadline}. Criar a tarefa “${parsed.title}”?`)) return;
+    const snapshot = snapshotSlices(['tasks']);
+    S.tasks.push(mkTask({
+      title: parsed.title.slice(0, 120),
+      dueDate: parsed.dueDate,
+      time: parsed.time,
+    }));
+    if (!saveSlicesWithRollback(['tasks'], snapshot, false, 'a tarefa')) return;
+    form.reset();
+    render();
+    toast('Tarefa adicionada.');
+    $('#planning-quick-task')?.focus();
   },
 };
 const CHANGES = {
@@ -4764,9 +5045,18 @@ function tick() {
 }
 
 /* ---- Eventos globais ---- */
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
   syncPomodoroTimer();
+  if (!Persist.store || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
+    if (ui.route === 'pomodoro') render();
+    return;
+  }
+  try {
+    await loadAccountData();
+  } catch (error) {
+    console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
+  }
   if (ui.route === 'pomodoro') render();
 });
 window.addEventListener('pageshow', () => {
@@ -4839,6 +5129,16 @@ document.addEventListener('submit', (e) => {
 });
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el instanceof HTMLInputElement && el.matches('.money-input')) {
+    const formattedValue = formatMoneyInput(el.value);
+    if (formattedValue !== el.value) {
+      el.value = formattedValue;
+      el.setSelectionRange(formattedValue.length, formattedValue.length);
+    }
+  }
+  if (el instanceof HTMLInputElement && el.matches('[data-input="planning-quick-task"]')) {
+    updatePlanningQuickPreview(el);
+  }
   if (el.matches('[data-dlg="waterWeightKg"]')) {
     const value = el.value;
     const cursor = el.selectionStart;
@@ -4868,8 +5168,8 @@ document.addEventListener('input', (e) => {
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
   }
   if (el.dataset.dlg && ui.dlg) {
-    if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'name') {
-      ui.dlg.d.waterNameEdited = true;
+    if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
+      ui.dlg.d.waterGoalEdited = true;
     }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterWeightKg') {
@@ -4887,6 +5187,12 @@ document.addEventListener('input', (e) => {
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
   if (el.dataset.input === 'search') { ui.filters.q = el.value; const r = $('#task-results'); if (r) r.innerHTML = taskListHtml().s; }
+});
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (el instanceof HTMLInputElement && el.matches('.money-input') && el.value === '00,00') {
+    el.select();
+  }
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
@@ -4943,7 +5249,7 @@ const catMeta = (t) => {
   return { ...meta, c: FINANCE_TONES[financeTone(t.category)] };
 };
 const outMeta = (n) => catInfo('out', n);
-const ACC_ICON = { checking: 'bank', savings: 'trendUp', cash: 'wallet', credit: 'card' };
+const ACC_ICON = { checking: 'bank', savings: 'trendUp', investment: 'trendUp', credit: 'card' };
 const isPaid = transactionIsPaid;
 const isCredit = isCreditAccount;
 const accById = (id) => S.finance.accounts.find((a) => a.id === id);
@@ -4958,6 +5264,8 @@ const accountDisplayName = (account) => {
     ? bank.name + name.slice(bank.name.length)
     : name ? name[0].toLocaleUpperCase('pt-BR') + name.slice(1) : name;
 };
+const accountTypeLabel = (account) => ACCOUNT_TYPES[account.type] || account.type;
+const accountOptionLabel = (account) => `${accountDisplayName(account)} · ${accountTypeLabel(account)}`;
 const accName = (id) => { const account = accById(id); return account ? accountDisplayName(account) : 'Conta removida'; };
 const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const ymLabel = (ym) => { const [y, m] = ym.split('-').map(Number); return `${MESES_L[m - 1]} de ${y}`; };
@@ -5019,7 +5327,7 @@ function finRow(t, { showDate = false } = {}) {
   </li>`;
 }
 const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><button class="mlabel" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual">${cap(ymLabel(ui.finMonth))}</button><button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
-const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
+const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
 const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
   return h`<div class="fin-section-menu" role="group" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="fin-section-option ${id === key ? 'is-active' : ''}" data-action="fin-tab" data-t="${id}" aria-pressed="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
@@ -5074,7 +5382,7 @@ function finResumo() {
       <section class="card"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : empty('Sem despesas neste mês', 'Registre uma despesa para ver a divisão por categoria.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie')}</section></div>
       ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
-        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}</div>
+        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}</div>
     ${finFixas()}
     <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">Os mais recentes, com data e situação.</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>`;
 }
@@ -5101,11 +5409,13 @@ function filteredTx() {
 function txListHtml() {
   const r = filteredTx();
   if (!r.length) {
-    const filtered = !!(ui.finQ || ui.finAcc || ui.finFilter !== 'todos');
+    const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finFilter !== 'todos');
     return empty(
       'Nenhum lançamento aqui',
       filtered ? 'Troque os filtros para ver mais.' : 'Toque em Lançamento para registrar o primeiro deste mês.',
-      filtered ? '' : h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`,
+      filtered
+        ? h`<button class="btn" data-action="fin-filters-clear">Limpar filtros</button>`
+        : h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`,
       filtered ? 'search' : 'list',
     );
   }
@@ -5119,32 +5429,38 @@ function finLancList() {
     <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
       <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Buscar" data-input="fin-search"></label>
         <label style="flex:0 0 130px"><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
-        <label style="flex:0 0 130px"><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountDisplayName(a)}</option>`)}</select></label></div>
+        <label style="flex:0 0 130px"><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
       <p class="small muted">Receitas <b style="color:var(--ok)">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
       <div class="row" style="justify-content:space-between"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
       <div id="tx-results">${txListHtml()}</div></section>`;
 }
 
 /* ---- Contas e cartões ---- */
-function financeAccountTypeSettings() {
-  const settings = settingsView();
-  return h`<form class="card finance-account-type-settings" data-form="settings-save" aria-labelledby="finance-account-types-title">
-    <div class="settings-section-heading"><h2 id="finance-account-types-title">Tipos de conta<i>.</i></h2><p>Escolha os tipos disponíveis ao cadastrar contas e cartões. Os registros existentes não serão alterados.</p></div>
-    <div class="chips" role="group" aria-label="Tipos de conta disponíveis">${Object.entries(ACCOUNT_TYPES).map(([key, label]) => h`<button type="button" class="chip" aria-pressed="${settings.accountTypes.includes(key)}" data-action="toggle-acc" data-v="${key}">${label}</button>`)}</div>
-    ${settingsSaveButton()}
-  </form>`;
+function creditCardCard(card, paymentAccounts) {
+  const info = cardInfo(card), percent = card.limitCents ? Math.min(100, Math.round(info.used / card.limitCents * 100)) : 0;
+  const bankName = card.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, card.bank) ? BANKS[card.bank].name : card.bank;
+  const paymentAccount = paymentAccounts.find((account) => account.id === card.linkedAccountId);
+  const name = accountDisplayName(card);
+  return h`<li class="cc"><div class="cc-top">${card.bank ? accountChip(card) : catChip({ c: '#7c8fd4', i: 'card' })}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${bankName ? h`<span class="user-value">${bankName}</span> · ` : ''}${card.closingDay ? 'Fecha dia ' + card.closingDay : ''}${card.dueDay ? ' · vence dia ' + card.dueDay : ''}</span>${cardDueLabel(info.due)}</span><button class="ibtn" data-action="acct-edit" data-id="${card.id}" aria-label="Editar cartão ${name}${bankName ? ', ' + bankName : ''}">${icon('pencil', 18)}</button></div>
+    <div class="cc-inv"><span class="small muted">Compras no ciclo ${MESES_L[Number(info.ym.slice(5)) - 1]}${info.due ? ' · vence ' + shortDate(info.due) : ''}</span><b class="cc-v">${money(info.total)}</b></div>
+    ${card.limitCents ? h`<div class="bar ${percent >= 100 ? 'over' : percent >= 80 ? 'near' : ''}" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado do cartão ${name}"><span style="width:${percent}%"></span></div><p class="small muted">Usado ${money(info.used)} de ${money(card.limitCents)} · disponível ${money(info.avail)}</p>` : ''}
+    ${paymentAccount ? h`<p class="small muted">Conta preferencial para pagamento: <span class="user-value">${accountOptionLabel(paymentAccount)}</span></p>` : ''}
+    <button class="btn sm" data-action="pay-inv" data-id="${card.id}" ${info.used > 0 && paymentAccounts.length ? '' : raw('disabled')}>Pagar fatura</button></li>`;
 }
 function finContas() {
-  const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a)), cards = F.accounts.filter(isCredit);
-  const debt = cards.reduce((s, c) => s + cardInfo(c).used, 0);
-  return h`<section class="card flat"><div class="row" style="justify-content:space-between"><div><p class="small muted">Saldo das contas (sem cartões)</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p></div>${cards.length ? h`<div style="text-align:right"><p class="small muted">Dívida nos cartões</p><b>${money(debt)}</b></div>` : ''}</div></section>
+  const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
+  return h`<section class="card flat"><div><p class="small muted">Saldo das contas (sem cartões)</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p></div></section>
     <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
-    ${financeAccountTypeSettings()}
-    ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${empty('Nenhuma conta ainda', 'Cadastre uma conta, a carteira ou a poupança. O Aurora não se conecta a bancos: tudo é digitado por você.', h`<button class="btn primary" data-action="acct-new">Criar conta</button>`, 'wallet')}</div>`}
-    ${cards.length ? h`<div class="head"><h2>Cartões de crédito<i>.</i></h2></div><ul class="cards">${cards.map((c) => { const i = cardInfo(c), pc = c.limitCents ? Math.min(100, Math.round(i.used / c.limitCents * 100)) : 0, bankName = c.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, c.bank) ? BANKS[c.bank].name : c.bank, name = accountDisplayName(c); return h`<li class="cc"><div class="cc-top">${c.bank ? accountChip(c) : catChip({ c: '#7c8fd4', i: 'card' })}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${bankName ? h`<span class="user-value">${bankName}</span> · ` : ''}${c.closingDay ? 'Fecha dia ' + c.closingDay : ''}${c.dueDay ? ' · vence dia ' + c.dueDay : ''}</span>${cardDueLabel(i.due)}</span><button class="ibtn" data-action="acct-edit" data-id="${c.id}" aria-label="Editar cartão ${name}${bankName ? ', ' + bankName : ''}">${icon('pencil', 18)}</button></div>
-        <div class="cc-inv"><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span><b class="cc-v">${money(i.total)}</b></div>
-        ${c.limitCents ? h`<div class="bar ${pc >= 100 ? 'over' : pc >= 80 ? 'near' : ''}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado"><span style="width:${pc}%"></span></div><p class="small muted">Usado ${money(i.used)} de ${money(c.limitCents)} · disponível ${money(i.avail)}</p>` : ''}
-        <button class="btn sm" data-action="pay-inv" data-id="${c.id}" ${i.used > 0 && accs.length ? '' : raw('disabled')}>Pagar fatura</button></li>`; })}</ul>` : ''}`;
+    ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${empty('Nenhuma conta ainda', 'Cadastre uma conta corrente, poupança ou investimento. O Aurora não se conecta a bancos: tudo é digitado por você.', h`<button class="btn primary" data-action="acct-new">Criar conta</button>`, 'wallet')}</div>`}
+    <p class="small muted">Cartões de crédito ficam na seção Cartões para separar faturas e limites do saldo das contas.</p>`;
+}
+function finCartoes() {
+  const cards = S.finance.accounts.filter(isCredit);
+  const paymentAccounts = S.finance.accounts.filter((account) => !isCredit(account));
+  const outstanding = cards.reduce((sum, card) => sum + cardInfo(card).used, 0);
+  return h`<section class="card flat"><p class="small muted">Total em aberto nos cartões</p><p class="fh-v">${money(outstanding)}</p><p class="fh-context">Esse valor não faz parte do saldo disponível das contas.</p></section>
+    <div class="head"><div><h2>Cartões de crédito<i>.</i></h2><p class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${cards.length ? h`<button class="btn sm" data-action="acct-new-card">${icon('plus', 16)}Novo cartão</button>` : ''}</div>
+    ${cards.length ? h`<ul class="cards">${cards.map((card) => creditCardCard(card, paymentAccounts))}</ul>` : h`<section class="card">${empty('Nenhum cartão de crédito', 'Cadastre um cartão para acompanhar o valor em aberto, o limite e o vencimento da fatura.', h`<button class="btn primary" data-action="acct-new-card">${icon('plus', 16)}Cadastrar cartão</button>`, 'card')}</section>`}`;
 }
 
 /* ---- Orçamento e objetivos ---- */
@@ -5183,11 +5499,12 @@ function finRel() {
 
 function viewFinancas() {
   const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${pageTitle('Finanças')}${financePrivacyNotice()}${areaGuideButton('financas')}${g}`;
-  const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
+  const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
   const noAcc = !S.finance.accounts.length;
   const createAction = noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`;
+  const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
   return h`${areaNav('financas')}${pageTitle('Finanças', createAction)}${financePrivacyNotice()}${areaGuideButton('financas')}
-    ${noAcc ? h`<div class="fin-section-content"><section class="card guided-empty finance-guided-empty"><span class="guided-empty-mark">${icon('wallet', 24)}</span><div class="guided-empty-copy"><span>Primeiro passo</span><h2>Comece por uma conta<i>.</i></h2><p>Cadastre a conta, carteira ou poupança onde seu dinheiro fica. Depois, receitas e despesas passam a aparecer no seu resumo.</p></div><ol class="guided-empty-steps"><li class="is-current"><b>1</b><span>Cadastre uma conta</span></li><li><b>2</b><span>Registre um lançamento</span></li><li><b>3</b><span>Acompanhe seu mês</span></li></ol><button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button></section>${financeAccountTypeSettings()}</div>` : h`<div class="fin-section-content">${finSectionPicker()}${panel()}</div>${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
+    <div class="fin-section-content">${noAcc ? h`${finSectionPicker()}${ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts}` : h`${finSectionPicker()}${panel()}`}</div>${noAcc ? '' : h`${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
 }
 
 /* ========== Diálogos de Finanças ========== */
@@ -5204,11 +5521,11 @@ function dlgTx() {
     ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
     <div class="seg" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
     <form id="dlgform" class="form" data-form="dlg-tx">
-      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in" type="text" inputmode="decimal" data-dlg="amount" value="${d.amount}" placeholder="0,00" required autocomplete="off">`, 'full')}
+      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
       ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>＋ Nova categoria…</option></select>`, 'full')}${!tr && d.category === '__new' ? dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full') : ''}
-      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountDisplayName(a)}</option>`)}</select>`)}
-      ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountDisplayName(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
+      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
+      ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
       ${tr ? dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : ''}
       ${!tr && !isCredit(acc) ? h`<label class="row full" style="gap:12px;min-height:44px"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><br><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'}</span></span></label>` : ''}
       ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`)}<p class="fine">${d.kind === 'in' ? 'Usada nos relatórios por caixa.' : 'Usada nos relatórios por caixa. Compras no cartão continuam vinculadas ao ciclo da fatura.'}</p>` : ''}
@@ -5236,7 +5553,14 @@ function dlgCategoryNew() {
     h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">Adicionar</button>`);
 }
 function dlgAccount() {
-  const d = ui.dlg.d, edit = !!d.id, types = Object.entries(ACCOUNT_TYPES);
+  const d = ui.dlg.d, edit = !!d.id, card = d.type === 'credit';
+  const types = Object.entries(ACCOUNT_TYPES).filter(([key]) => key !== 'credit');
+  const paymentAccounts = S.finance.accounts.filter((account) => !isCredit(account));
+  const typeDetails = {
+    checking: 'Uso diário: pagar e receber.',
+    savings: 'Dinheiro guardado e separado.',
+    investment: 'Investimentos acompanhados junto ao saldo total.',
+  };
   const bankOption = (key, name) => {
     const logo = key && Object.hasOwn(BANKS, key)
       ? accountChip({ bank: key, type: 'checking' })
@@ -5249,14 +5573,15 @@ function dlgAccount() {
     [OTHER_BANK, 'Outro / não listado'],
     ...(d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) ? [[d.bank, d.bank]] : []),
   ];
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? 'Editar conta' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
-      ${dlgField('Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="Ex.: Nubank 1" autocomplete="off">`, 'full')}
+      ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
+      ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
       <fieldset class="f full bank-field"><legend class="f-label">Banco ou instituição</legend><div class="bank-picker" role="radiogroup" aria-label="Banco ou instituição">${bankOptions.map(([key, name]) => bankOption(key, name))}</div></fieldset>
       <p class="small muted full">O nome da conta pode ser personalizado. Os logotipos identificam as instituições; o Aurora não se conecta a bancos.</p>
-      ${dlgField('Tipo', h`<select data-dlg="type">${types.map(([k, v]) => h`<option value="${k}" ${k === d.type ? raw('selected') : ''}>${v}</option>`)}</select>`)}
-      ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" inputmode="decimal" data-dlg="balance" value="${d.balance}" placeholder="0,00">`)}
-      ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" inputmode="decimal" data-dlg="limit" value="${d.limit}" placeholder="0,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
+      ${card ? h`${dlgField('Conta para pagar a fatura (opcional)', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select>`, 'full')}<p class="small muted full">Essa conta será pré-selecionada no pagamento. Você ainda poderá escolher outra antes de confirmar.</p>` : ''}
+      ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
+      ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">Salvar</button>`);
 }
@@ -5275,27 +5600,27 @@ function dlgBudget() {
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span><i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Quanto você quer gastar por mês nesta categoria? O Aurora avisa quando chegar perto.</p>
     ${d.confirmClear ? h`<p class="notice warn" role="alert">O orçamento irá para a lixeira por 30 dias. Confirme para continuar.</p>` : ''}
-    <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in" type="text" inputmode="decimal" data-dlg="limit" value="${d.limit}" placeholder="0,00">`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}</form>`,
     h`${d.confirmClear ? h`<button type="button" class="btn back" data-action="budget-clear-cancel">Cancelar remoção</button><button type="button" class="btn danger" data-action="budget-clear">Confirmar remoção</button>` : h`${d.limit ? h`<button type="button" class="btn back" data-action="budget-clear">Remover limite</button>` : h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
 function dlgGoal() {
   const d = ui.dlg.d;
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Novo objetivo<i>.</i></h2>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-goal">${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" inputmode="decimal" data-dlg="target" value="${d.target}" placeholder="0,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" inputmode="decimal" data-dlg="saved" value="${d.saved}" placeholder="0,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-goal">${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Criar objetivo</button>`);
 }
 function dlgDeposit() {
   const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id);
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span><i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Este valor atualiza apenas o acompanhamento do objetivo; não altera o saldo de uma conta nem cria um lançamento. Para retirar, informe um valor negativo.</p>
-    <form id="dlgform" class="form" data-form="dlg-deposit">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in" type="text" inputmode="decimal" data-dlg="amount" value="${d.amount}" placeholder="0,00" required>`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-deposit">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Confirmar</button>`);
 }
 function dlgPayInv() {
   const d = ui.dlg.d, card = accById(d.cardId), srcs = S.finance.accounts.filter((a) => !isCredit(a));
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Pagar fatura<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">${card ? h`<span class="user-value">${accountDisplayName(card)}</span>` : ''}: o pagamento sai da conta escolhida e reduz o valor em aberto do cartão.</p>
-    <form id="dlgform" class="form" data-form="dlg-payinv">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in" type="text" inputmode="decimal" data-dlg="amount" value="${d.amount}" required>`, 'full')}${dlgField('Pagar com', h`<select data-dlg="from">${srcs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.from ? raw('selected') : ''}>${accountDisplayName(a)} · ${money(accBalance(a))}</option>`)}</select>`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-payinv">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`, 'full')}${dlgField('Pagar com', h`<select data-dlg="from">${srcs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.from ? raw('selected') : ''}>${accountOptionLabel(a)} · ${money(accBalance(a))}</option>`)}</select>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Pagar</button>`);
 }
 function dlgTxDel() {
@@ -5320,6 +5645,15 @@ Object.assign(ACTIONS, {
   },
   'fin-go': (el) => { ui.finTab = el.dataset.t; if (el.dataset.f) ui.finFilter = el.dataset.f; render(); window.scrollTo(0, 0); },
   'fin-filter': (el) => { ui.finFilter = el.dataset.f; render(); },
+  'fin-filters-clear': () => {
+    ui.finFilter = 'todos';
+    ui.finQ = '';
+    ui.finAcc = '';
+    ui.finCat = '';
+    const search = $('#fq');
+    if (search) search.value = '';
+    render();
+  },
   'fin-month': (el) => { const n = Number(el.dataset.n); ui.finMonth = n === 0 ? today().slice(0, 7) : shiftMonth(ui.finMonth, n); render(); },
   'rep-kind': (el) => { ui.repKind = el.dataset.k; render(); },
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },
@@ -5368,8 +5702,9 @@ Object.assign(ACTIONS, {
   'category-manager': () => dlgOpen('category-manager', {}),
   'category-new': (el) => { const kind = el.dataset.kind; if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.'); dlgOpen('category-new', { kind, name: '' }); },
   'fin-csv': () => finCsv(),
-  'acct-new': () => dlgOpen('account', { name: '', bank: '', type: (S.settings.accountTypes[0] || 'checking'), balance: '', limit: '', closing: '', due: '' }),
-  'acct-edit': (el) => { const a = accById(el.dataset.id); if (a) dlgOpen('account', { id: a.id, name: accountDisplayName(a), bank: a.bank || '', type: a.type, balance: moneyIn(accBalance(a)), cur0: accBalance(a), limit: moneyIn(a.limitCents), closing: a.closingDay || '', due: a.dueDay || '' }); },
+  'acct-new': () => dlgOpen('account', { name: '', bank: '', type: 'checking', balance: '', limit: '', closing: '', due: '' }),
+  'acct-new-card': () => dlgOpen('account', { name: '', bank: '', type: 'credit', linkedAccountId: '', balance: '', limit: '', closing: '', due: '' }),
+  'acct-edit': (el) => { const a = accById(el.dataset.id); if (a) dlgOpen('account', { id: a.id, name: accountDisplayName(a), bank: a.bank || '', type: a.type, linkedAccountId: a.linkedAccountId || '', balance: moneyIn(accBalance(a)), cur0: accBalance(a), limit: moneyIn(a.limitCents), closing: a.closingDay ? String(a.closingDay) : '', due: a.dueDay ? String(a.dueDay) : '' }); },
   'acct-del': () => { const a = accById(ui.dlg.d.id); if (a) dlgOpen('acctdelete', { id: a.id }); },
   'acct-del-confirm': () => {
     const account = accById(ui.dlg.d.id);
@@ -5431,7 +5766,17 @@ Object.assign(ACTIONS, {
     ], ['finance'], () => { S.finance.goals.splice(i, 1); });
     if (entry) toast('Objetivo movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
-  'pay-inv': (el) => { const c = accById(el.dataset.id), i = cardInfo(c), from = S.finance.accounts.find((a) => !isCredit(a)); if (c && from) dlgOpen('payinv', { cardId: c.id, amount: moneyIn(Math.min(i.total || i.used, i.used) || i.used), from: from.id }); },
+  'pay-inv': (el) => {
+    const card = accById(el.dataset.id);
+    if (!card || !isCredit(card)) return;
+    const info = cardInfo(card), sources = S.finance.accounts.filter((account) => !isCredit(account));
+    const source = sources.find((account) => account.id === card.linkedAccountId) || sources[0];
+    if (source) dlgOpen('payinv', {
+      cardId: card.id,
+      amount: moneyIn(Math.min(info.total || info.used, info.used) || info.used),
+      from: source.id,
+    });
+  },
 });
 Object.assign(FORMS, {
   'dlg-tx': () => {
@@ -5490,13 +5835,19 @@ Object.assign(FORMS, {
   'dlg-account': () => {
     const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.');
     if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.');
+    const linkedAccount = d.type === 'credit' && d.linkedAccountId ? accById(d.linkedAccountId) : null;
+    if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.');
     if (d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) && (!current || current.bank !== d.bank)) return toast('Escolha um banco ou instituição válido.');
     const bal = d.balance.trim() ? parseMoney(d.balance) : 0, lim = d.limit && d.limit.trim() ? parseMoney(d.limit) : 0;
     if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.');
     const cl = d.closing.trim() ? Number(d.closing) : 0, du = d.due.trim() ? Number(d.due) : 0;
     if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.');
     const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank: d.bank || '' }), type: d.type, bank: d.bank || '', initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
-    if (d.id) Object.assign(current, patch); else S.finance.accounts.push({ id: newId(), ...patch });
+    if (linkedAccount) patch.linkedAccountId = linkedAccount.id;
+    if (d.id) {
+      Object.assign(current, patch);
+      if (d.type === 'credit' && !linkedAccount) delete current.linkedAccountId;
+    } else S.finance.accounts.push({ id: newId(), ...patch });
     ui.dlg = null; commit('finance');
   },
   'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
@@ -5611,8 +5962,8 @@ function dlgRecur() {
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Editar fixa<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-recur">
       ${dlgField('Descrição', h`<input id="f0" type="text" data-dlg="desc" value="${d.desc}" maxlength="80" autocomplete="off">`, 'full')}
-      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input type="text" class="amt-in" inputmode="decimal" data-dlg="amount" value="${d.amount}" required>`)}${dlgField('Dia do mês', h`<input type="number" min="1" max="31" data-dlg="day" value="${d.day}" inputmode="numeric">`)}
-      ${dlgField('Categoria', h`<select data-dlg="category">${cl.map((c) => h`<option class="${kind === 'out' ? 'expense-name' : 'user-value'}" value="${c}" ${c === d.category ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(c) : c}</option>`)}</select>`)}${dlgField('Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountDisplayName(a)}</option>`)}</select>`)}
+      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input type="text" class="amt-in money-input" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`)}${dlgField('Dia do mês', h`<input type="number" min="1" max="31" data-dlg="day" value="${d.day}" inputmode="numeric">`)}
+      ${dlgField('Categoria', h`<select data-dlg="category">${cl.map((c) => h`<option class="${kind === 'out' ? 'expense-name' : 'user-value'}" value="${c}" ${c === d.category ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(c) : c}</option>`)}</select>`)}${dlgField('Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="future" ${d.future ? raw('checked') : ''}><span class="small"><b>Aplicar aos próximos já criados</b><br><span class="muted">Atualiza os meses futuros que ainda não foram pagos.</span></span></label>
       <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="paused" ${d.paused ? raw('checked') : ''}><span class="small"><b>Pausar</b><br><span class="muted">Para de criar novos meses.</span></span></label>
       ${d.confirmDel ? h`<p class="notice warn full" role="alert">A fixa e os próximos meses ainda não pagos irão para a lixeira por 30 dias. Os meses já pagos ficam. Toque em "Confirmar exclusão".</p>` : ''}
@@ -5642,7 +5993,7 @@ function dlgImport2() {
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
     <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} parecem já existir (desmarcados)` : ''}. Confira as categorias antes de importar.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
-    <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountDisplayName(a)}</option>`)}</select>`, 'full')}
+    <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
       <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
     <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row" style="gap:10px;flex-wrap:nowrap;align-items:flex-start;cursor:pointer;width:100%"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow" style="min-width:0"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · possível duplicado' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
       <select class="impcat" data-dlg="rows.${i}.cat" aria-label="Categoria de ${r.desc}">${catNames(r.kind).map((c) => h`<option class="user-value" ${c === r.cat ? raw('selected') : ''}>${c}</option>`)}</select></li>`)}</ul>`,
@@ -5754,31 +6105,68 @@ function renderAccountLoading(root) {
   root.replaceChildren(page);
 }
 
-async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
-  const { requireAccount, showAccountError } = await import('./services/account-auth.js');
-  renderAccountLoading(root);
-  let returnedToPublic = false;
-  accountSession = await requireAccount(root, initialMode, {
-    allowPublicReturn,
-    onPublicReturn: () => { returnedToPublic = true; },
-    onAccountDeleted: () => {
-      returnedToPublic = true;
-      history.replaceState(null, '', postSignOutPath(location));
-    },
+function showAccountDataLoadError(root, error, user) {
+  root.replaceChildren();
+  const layout = document.createElement('div');
+  layout.className = 'account-page';
+  const page = document.createElement('main');
+  page.className = 'account-gate';
+  const card = document.createElement('section');
+  card.className = 'account-card';
+  const heading = document.createElement('h1');
+  heading.textContent = 'Não foi possível carregar seus dados';
+  const detail = document.createElement('p');
+  detail.className = 'account-description';
+  detail.setAttribute('role', 'alert');
+  detail.textContent = `${error instanceof Error && error.message
+    ? error.message
+    : 'Os dados da conta não puderam ser carregados.'} Nenhum dado local foi usado como substituto.`;
+  const actions = document.createElement('div');
+  actions.className = 'row';
+  const retry = document.createElement('button');
+  retry.className = 'btn primary';
+  retry.type = 'button';
+  retry.textContent = 'Tentar novamente';
+  retry.addEventListener('click', () => {
+    retry.disabled = true;
+    retry.textContent = 'Carregando…';
+    void continueAuthenticatedAurora(root, user);
   });
-  if (!accountSession) {
-    if (returnedToPublic) renderLanding(root);
-    return;
-  }
-  Persist.attach(accountSession);
+  const exit = document.createElement('button');
+  exit.className = 'btn ghost';
+  exit.type = 'button';
+  exit.textContent = 'Sair';
+  exit.addEventListener('click', async () => {
+    exit.disabled = true;
+    try {
+      const { error: signOutError } = await accountSession.client.auth.signOut({ scope: 'local' });
+      if (signOutError) throw signOutError;
+      Persist.wipe();
+      accountSession = null;
+      history.replaceState(null, '', postSignOutPath(location));
+      location.reload();
+    } catch (signOutError) {
+      console.error('Aurora: não foi possível encerrar a sessão após falha ao carregar os dados.', signOutError);
+      detail.textContent = 'Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.';
+      exit.disabled = false;
+    }
+  });
+  actions.append(retry, exit);
+  card.append(heading, detail, actions);
+  page.append(card);
+  layout.append(page);
+  root.append(layout);
+  heading.focus({ preventScroll: true });
+}
 
+async function continueAuthenticatedAurora(root, user) {
   try {
-    purgeRemovedStudyDataFromBrowserStorage(window.localStorage, accountSession.user.id);
+    purgeRemovedStudyDataFromBrowserStorage(window.localStorage, user.id);
     await loadAccountData();
-    initializeBirthdayFromMetadata(accountSession.user);
+    initializeBirthdayFromMetadata(user);
   } catch (error) {
     console.error('Aurora: a conta foi autenticada, mas os dados protegidos não puderam ser carregados.', error);
-    showAccountError(root, error instanceof Error ? error.message : 'Os dados da conta não puderam ser carregados. Nenhum dado local foi usado como substituto.');
+    showAccountDataLoadError(root, error, user);
     return;
   }
 
@@ -5790,11 +6178,13 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
   window.addEventListener('hashchange', onRoute);
   onRoute();
   if (!profileSetupComplete()) openProfileSetup();
+  setInterval(tick, 1000);
   if ('serviceWorker' in navigator) {
     try {
       await navigator.serviceWorker.register('/service-worker.js');
       await navigator.serviceWorker.ready;
       await initializePomodoroPush();
+      await syncHabitReminderSchedule();
     } catch (error) {
       console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
       ui.pushNotice = pomodoroPushErrorMessage(error);
@@ -5803,7 +6193,25 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
   }
   if (S.pomodoro.startedAt !== null && getPomodoroPushStatus().enabled) syncPomodoroPushSchedule(S.pomodoro);
   Persist.retryPending();
-  setInterval(tick, 1000);
+}
+
+async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
+  const { requireAccount } = await import('./services/account-auth.js');
+  renderAccountLoading(root);
+  let returnedToPublic = false;
+  accountSession = await requireAccount(root, initialMode, {
+    allowPublicReturn,
+    onPublicReturn: () => { returnedToPublic = true; },
+    onAccountDeleted: () => {
+      redirectToPublicLanding(location);
+    },
+  });
+  if (!accountSession) {
+    if (returnedToPublic) renderLanding(root);
+    return;
+  }
+  Persist.attach(accountSession);
+  await continueAuthenticatedAurora(root, accountSession.user);
 }
 
 function showAccountStartupError(root, message) {
@@ -5898,28 +6306,6 @@ document.addEventListener('click', async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
 
-  const consentConfirm = target.closest('[data-legal-consent-confirm]');
-  if (consentConfirm) {
-    const dialog = consentConfirm.closest('dialog[data-legal-modal]');
-    const consentForm = document.querySelector('form[data-legal-consent]');
-    const accepted = consentForm?.elements.termsAccepted;
-    const checkbox = dialog?.querySelector('[data-legal-consent-checkbox]');
-    if (
-      !(dialog instanceof HTMLDialogElement)
-      || !(accepted instanceof HTMLInputElement)
-      || !(checkbox instanceof HTMLInputElement)
-      || checkbox.disabled
-      || !checkbox.checked
-    ) return;
-
-    accepted.checked = true;
-    accepted.dispatchEvent(new Event('change', { bubbles: true }));
-    consentForm.querySelector('[data-legal-reading-status]').textContent =
-      'Aceite confirmado. Você pode concluir o cadastro.';
-    dialog.close();
-    return;
-  }
-
   const closeButton = target.closest('[data-legal-modal-close]');
   if (closeButton) {
     closeButton.closest('dialog[data-legal-modal]')?.close();
@@ -5929,18 +6315,6 @@ document.addEventListener('click', async (event) => {
   const dialog = target.closest('dialog[data-legal-modal]');
   if (dialog && target === dialog) {
     dialog.close();
-    return;
-  }
-
-  const consentTrigger = target.closest('[data-legal-consent-open]');
-  if (consentTrigger) {
-    const modal = document.querySelector('dialog[data-legal-modal]');
-    if (!(modal instanceof HTMLDialogElement)) {
-      console.error('Aurora: o diálogo de documentos legais não está disponível.');
-      return;
-    }
-    event.preventDefault();
-    if (await showLegalConsentDocuments(modal)) updateLegalConsentReading(modal);
     return;
   }
 
@@ -5959,39 +6333,8 @@ document.addEventListener('click', async (event) => {
     return;
   }
   event.preventDefault();
-  if (await showLegalDocument(modal, documentName)) updateLegalConsentReading(modal);
+  await showLegalDocument(modal, documentName);
 });
-
-function updateLegalConsentReading(dialog) {
-  if (dialog.dataset.legalConsent !== 'true') return;
-  const content = dialog.querySelector('[data-legal-dialog-content]');
-  const checkbox = dialog.querySelector('[data-legal-consent-checkbox]');
-  const confirm = dialog.querySelector('[data-legal-consent-confirm]');
-  const status = dialog.querySelector('[data-legal-dialog-status]');
-  if (!content || !(checkbox instanceof HTMLInputElement) || !confirm || !status) return;
-
-  checkbox.disabled = !isLegalDocumentAtEnd(content);
-  confirm.disabled = checkbox.disabled || !checkbox.checked;
-  if (!checkbox.disabled) status.hidden = true;
-}
-
-document.addEventListener('change', (event) => {
-  const checkbox = event.target instanceof Element
-    ? event.target.closest('[data-legal-consent-checkbox]')
-    : null;
-  if (!checkbox) return;
-  const dialog = checkbox.closest('dialog[data-legal-modal]');
-  const content = dialog?.querySelector('[data-legal-dialog-content]');
-  const confirm = dialog?.querySelector('[data-legal-consent-confirm]');
-  if (!dialog || !content || !confirm) return;
-  confirm.disabled = !isLegalDocumentAtEnd(content) || !checkbox.checked;
-});
-
-document.addEventListener('scroll', (event) => {
-  if (!(event.target instanceof Element) || !event.target.matches('[data-legal-dialog-content]')) return;
-  const dialog = event.target.closest('dialog[data-legal-modal]');
-  if (dialog) updateLegalConsentReading(dialog);
-}, true);
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
@@ -6011,14 +6354,15 @@ document.addEventListener('click', async (event) => {
   }
   button.disabled = true;
   const synchronized = await Persist.flush();
-  if (!synchronized && !window.confirm('Ainda há alterações que não foram confirmadas pela nuvem. Elas podem ser descartadas ao sair. Deseja sair mesmo assim?')) {
+  if (!synchronized && !await confirmInDialog('Ainda há alterações que não foram confirmadas pela nuvem. Elas podem ser descartadas ao sair. Deseja sair mesmo assim?')) {
     button.disabled = false;
     return;
   }
   try {
     await cancelPomodoroPushSchedule();
+    await cancelHabitPushReminders();
   } catch {
-    if (!window.confirm('Não foi possível cancelar os avisos Push do Pomodoro. Eles podem continuar neste dispositivo. Deseja sair mesmo assim?')) {
+    if (!await confirmInDialog('Não foi possível cancelar todos os avisos Push de Pomodoro e Hábitos. Eles podem continuar neste dispositivo. Deseja sair mesmo assim?')) {
       button.disabled = false;
       return;
     }
