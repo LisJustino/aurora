@@ -5,6 +5,9 @@
 - A demonstração pública usa dados fictícios e interações somente em memória;
   não autentica, não faz requisições nem persiste dados. Dados pessoais exigem
   autenticação e permanecem isolados por usuário no banco.
+- A landing deve distinguir recursos existentes da demonstração interativa,
+  descrever com precisão o cadastro e o tratamento de dados e não publicar
+  depoimentos, avaliações ou perfis de usuários fictícios como prova social.
 - A aplicação preserva a compatibilidade de dados e backups existentes.
   Importações e exclusões de dados legados exigem ação e confirmação explícitas.
 - Backups exportados são arquivos JSON sem criptografia; a interface deve
@@ -13,6 +16,14 @@
   contraceptivo. Datas e dados de saúde são tratados como informação pessoal.
 - O hábito “Beber água” permite registrar cada volume em mL e acompanhar a meta
   diária; os registros usam a fatia de água compatível com os backups existentes.
+- A revisão semanal de Hábitos resume check-ins por hábito até o dia atual,
+  respeita dias pulados e metas semanais e permite abrir o editor existente
+  para ajustar o plano. Ela não cria um histórico ou formato de persistência
+  adicional e mantém linguagem sem pressão.
+- As ideias de Hábitos podem ser buscadas por nome, descrição ou categoria e
+  filtradas por categoria. Escolher uma ideia continua abrindo o editor para
+  personalização antes de gravar o hábito; busca e filtro são apenas estado
+  temporário da interface.
 - Notificações Push do Pomodoro e dos lembretes de Hábitos são opcionais,
   ativadas por ação explícita da pessoa e limitadas aos dados necessários ao
   agendamento; nomes e conteúdo dos hábitos não são enviados ao Worker. A
@@ -20,9 +31,20 @@
   ambos os recursos.
 - A interface mantém suporte a teclado, leitores de tela, layouts responsivos
   e temas claro e escuro.
+- Enquanto um diálogo modal ou os painéis de notificações e acessibilidade
+  estiverem abertos, o scroll do conteúdo externo fica bloqueado; ao fechá-los,
+  a posição anterior da página é restaurada e o cabeçalho permanece visível.
+- Rolagens iniciadas pela interface respeitam tanto a preferência de movimento
+  reduzido do sistema quanto a opção salva no Aurora. O painel público de
+  acessibilidade é uma seção expansível, fecha com Escape e devolve o foco ao
+  acionador.
 - O onboarding inicial recomenda áreas conforme as necessidades escolhidas,
   permite revisar as ativações e informa que elas podem ser alteradas depois
   em Ajustes → Áreas e navegação. Planejar permanece sempre disponível.
+- No Pomodoro, os tempos de foco e pausa são editáveis entre sessões; ritmos
+  prontos são atalhos que preenchem os campos. Uma sessão iniciada ou com
+  progresso bloqueia alterações de duração até ser concluída ou descartada.
+  Os minutos permanecem nas preferências existentes e nos backups atuais.
 - O cadastro e cada atualização de documentos exigem aceite explícito dos
   Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
   autenticada oferece exclusão permanente da conta, com confirmação digitada;

@@ -54,6 +54,7 @@
 }
 .dlg-body {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
   gap: var(--space-4);
@@ -61,6 +62,10 @@
   padding: var(--dialog-padding) max(var(--dialog-padding), env(safe-area-inset-right, 0px)) 12px max(var(--dialog-padding), env(safe-area-inset-left, 0px));
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-block: 12px;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
 }
 .dlg-body > .head {
   padding-bottom: 4px;
@@ -89,6 +94,7 @@
 }
 .dlg-foot {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
@@ -361,18 +367,10 @@
   list-style: none;
 }
 .task-dialog .task-notes summary::-webkit-details-marker { display: none; }
-.task-dialog .task-notes summary::before {
-  width: 8px;
-  height: 8px;
-  margin-right: 8px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  content: "";
-  transform: rotate(-45deg);
-  transition: transform var(--duration-fast) var(--ease-standard);
-}
-.task-dialog .task-notes[open] summary::before { transform: rotate(45deg); }
+.task-dialog .task-notes summary > span:first-child { margin-right: auto; }
 .task-dialog .task-notes summary span { color: var(--muted); font-size: var(--text-2xs); font-weight: 500; }
+.task-dialog .task-notes summary .task-notes-disclosure { display: grid; width: var(--control-sm); height: var(--control-sm); flex: none; place-items: center; transition: transform var(--duration-fast) var(--ease-standard); }
+.task-dialog .task-notes[open] summary .task-notes-disclosure { transform: rotate(180deg); }
 .task-dialog .task-notes textarea { min-height: 72px; margin-top: 9px; }
 .task-field-help {
   margin-top: 1px;
@@ -713,17 +711,20 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
   }
 }
 
-/* Scrollbars discretas preservam a indicação de que o formulário continua. */
-.dlg-body {
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
-}
+/* A barra visível sinaliza que o conteúdo do modal continua rolável. */
 .dlg-body::-webkit-scrollbar { width: 8px; }
-.dlg-body::-webkit-scrollbar-track { background: transparent; }
+.dlg-body::-webkit-scrollbar-track {
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
 .dlg-body::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: var(--r-pill);
   background: var(--line-strong);
+  background-clip: padding-box;
+}
+.dlg-body::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
   background-clip: padding-box;
 }
 

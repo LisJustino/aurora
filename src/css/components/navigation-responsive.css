@@ -157,7 +157,7 @@
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
 }
 
-/* Navegação compacta: atalhos essenciais permanecem visíveis e as áreas extras ficam em “mais”. */
+/* O menu secundário é reservado ao dock móvel. */
 .nav-more-trigger {
   display: none;
   min-width: 0;
@@ -173,7 +173,7 @@
 .nav-more-trigger[aria-expanded="true"] { color: var(--accent); }
 .nav-more-menu { z-index: calc(var(--z-nav) + 1); }
 
-@media (min-width: 1440px) {
+@media (min-width: 900px) {
   .topbar .nav .nav-secondary { display: flex !important; }
   .topbar .nav .nav-more-trigger,
   .topbar .nav .nav-more-menu { display: none !important; }
@@ -197,34 +197,40 @@
 }
 
 @media (min-width: 900px) and (max-width: 1439px) {
-  .topbar .nav { position: relative; overflow: visible; }
-  .topbar .nav .nav-secondary { display: none !important; }
-  .topbar .nav .nav-more-trigger {
-    display: inline-flex;
-    min-height: var(--control-sm);
-    align-items: center;
-    gap: 5px;
-    padding: 0 10px;
-    font-size: var(--text-meta);
+  .topbar {
+    display: flex;
+    justify-content: space-between;
   }
-  .topbar .nav .nav-more-trigger .ni { display: grid; width: 24px; height: 24px; place-items: center; }
-  .topbar .nav .nav-more-menu {
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
+  .topbar .nav {
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    margin-inline: clamp(12px, 2vw, 24px);
+  }
+  .topbar .nav > a {
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1099px) {
+  .topbar {
     display: grid;
-    min-width: 188px;
-    gap: 3px;
-    padding: 7px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-group);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 4px 12px;
+    padding-block: 8px;
   }
-  .topbar .nav .nav-more-menu[hidden] { display: none; }
-  .topbar .nav .nav-more-link { min-height: var(--control-sm); justify-content: flex-start; padding-inline: 10px; border-radius: var(--r-sm); }
+  .topbar .brand { grid-column: 1; grid-row: 1; }
+  .topbar .header-actions { grid-column: 2; grid-row: 1; }
+  .topbar .nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    flex: none;
+    justify-content: center;
+    overflow: visible;
+    margin: 0;
+  }
 }
 
 @media (max-width: 899px) {

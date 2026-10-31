@@ -51,6 +51,17 @@ Os valores-base estão em `src/css/design-system/tokens.css`. O tema claro é pa
 
 A ordem dos imports em `src/css/main.css` é parte do desenho: estilos-base de campos entram cedo para que as páginas possam ajustá-los, e a aparência final entra tarde. Cartões, diálogos, navegação e páginas continuam em `components/` e `pages/`, mas usam os mesmos tokens.
 
+## Ícones
+
+O catálogo em `src/js/utils/icons.js` é a fonte única dos ícones de interface. O helper `iconSvg` gera marcação SVG para composição em HTML e `icon` a envolve como conteúdo seguro para o template `h`. Os dois compartilham o mesmo catálogo e os mesmos padrões; não replique o renderer em telas, serviços ou controles públicos.
+
+- Use o viewBox 24×24, traço de 1,9 com pontas/junções arredondadas e `currentColor`. Ícones acompanham o texto e a cor semântica do contexto; não atribua cores arbitrárias ao desenho.
+- Prefira os tamanhos nomeados em `ICON_SIZES`: compacto 12 px para detalhes densos, inline 16 px junto ao texto, padrão 18 px para ações gerais, navegação 20 px e destaque 24 px. Tamanhos intermediários só quando a composição existente exigir.
+- Os SVGs são decorativos e saem com `aria-hidden="true"` e `focusable="false"`. Ações representadas apenas por ícone precisam de `aria-label` no botão/link. Não inclua texto acessível duplicado no SVG.
+- Indicadores de `<details>` usam `chevDown` do catálogo e giram quando o conteúdo está aberto; não substitua por glifos ou desenhos em pseudo-elementos.
+- Reutilize chaves do catálogo antes de criar um desenho; nomes desconhecidos e tamanhos inválidos falham explicitamente. SVGs locais específicos continuam adequados para gráficos e ilustrações que não são ícones.
+- Consulte a galeria completa e a escala na página viva `docs/design-system.html`.
+
 ## Regras para novos estilos
 
 1. Use tokens: tamanho de fonte (`--text-*`), raio (`--r-*`), altura de controle (`--control-*`), espaço (`--space-*`, `--card-*`, `--button-*`, `--list-*`) e cor (`--accent`, `--ink`, `--on-solid` etc.).

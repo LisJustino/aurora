@@ -18,7 +18,7 @@ O shell, os menus e os modais são compartilhados e renderizados no elemento `#a
 - `src/js/services/crypto-vault.js`: leitor legado temporário, chamado somente quando a pessoa informa a senha do cofre na tela de importação; não participa do login ou persistência relacional.
 - `src/js/features/finance/calculations.js`: cálculos puros de saldo, totais mensais, categorias e cartão; recebe os dados e dependências explicitamente. `src/js/features/finance/accounts.js` centraliza tipos de conta e compatibilidade com o tipo legado `cash`. A composição em `main.js` mantém seções separadas para contas e cartões; o vínculo opcional de um cartão somente pré-seleciona a conta no pagamento da fatura.
 - `src/js/features/finance/statement.js`: leitura pura de extratos CSV/OFX, com limite de prévia informado pela interface.
-- `src/js/features/landing/view.js`: landing pública com passos iniciais e demonstração fictícia interativa em memória; a demonstração cobre uma tarefa, um hábito e o Pomodoro, e as ações de cadastro/login usam o fluxo de conta existente.
+- `src/js/features/landing/view.js`: landing pública que apresenta as áreas do produto, diferencia a demonstração das funções disponíveis em conta e usa exemplos fictícios somente em memória; a demonstração cobre uma tarefa, um hábito e o Pomodoro, e as ações de cadastro/login usam o fluxo de conta existente.
 - `src/js/features/footer/view.js`: conteúdo compartilhado do footer público, do fluxo de conta e do shell autenticado; ações de conta seguem o contexto da tela e o FAQ é estático.
 - `src/js/features/footer/legal-dialog.js`: carrega os documentos legais públicos no diálogo compartilhado do footer e oferece link de fallback se o carregamento falhar.
 - `supabase/functions/delete-account/`: exclusão autenticada da conta após recusa confirmada dos documentos, limpando Push remoto antes da exclusão Admin.
@@ -28,7 +28,7 @@ O shell, os menus e os modais são compartilhados e renderizados no elemento `#a
 - `src/js/features/pomodoro/`: lógica e áudio do timer independente; não cria matérias ou sessões. `src/js/features/habits/` mantém o fragmento HTML e o modelo de hábitos; estado e handlers continuam compostos em `main.js`. A sugestão de água registra volumes por dia na fatia `water` existente e conclui o hábito ao atingir a meta.
 - `src/js/services/pomodoro-push.js`: inscrição opt-in do timer independente e sincronização mínima de fase/horário com a API de Push. A inscrição e a credencial-capacidade ficam em `push_subscriptions`; `PushManager` mantém a inscrição do navegador.
 - `src/js/services/local-search.js`: busca local determinística.
-- `src/js/utils/`: DOM e interpolação HTML escapada, ícones SVG (`icons.js`), datas civis locais, valores monetários em centavos e geração de IDs.
+- `src/js/utils/`: DOM e interpolação HTML escapada, catálogo e renderer SVG compartilhado (`icons.js`), datas civis locais, valores monetários em centavos e geração de IDs. Os pontos de composição de conta, controles públicos e landing usam o mesmo renderer.
 - `src/css/design-system/`: tokens (cor, tipografia, espaço, raios, controles) e componentes-base (botões, campos, seletores, selos e estado vazio); regras e critérios em [design-system.md](./design-system.md), referência visual em [design-system.html](./design-system.html).
 - `src/css/base.css`, `layout.css`: elementos básicos e estrutura responsiva.
 - `src/css/components/` e `src/css/pages/`: estilos de componentes e áreas.
@@ -68,3 +68,7 @@ Ciclo; a ação “Como usar?” permite revê-lo. Ajustes não oferece tutorial
 criar uma tabela ou serviço. Finanças também exibe um aviso de que não há
 conexão bancária e de que os registros adicionados ficam associados à conta
 Aurora.
+
+A revisão semanal de Hábitos é calculada a partir dos dias programados,
+check-ins e pulos já existentes; o botão “Ajustar” abre o editor atual do
+hábito. A revisão não cria dados persistidos nem altera o formato dos backups.

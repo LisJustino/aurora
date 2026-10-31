@@ -16,6 +16,12 @@
     .ds-box { display: grid; place-items: center; height: 64px; border: 1px solid var(--line-strong); background: var(--surface); font-size: var(--text-xs); color: var(--muted); }
     .ds-note { color: var(--muted); font-size: var(--text-sm); margin: 0; }
     .ds-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+    .ds-icon-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--space-2); }
+    .ds-icon-item { display: grid; min-width: 0; min-height: 72px; place-items: center; gap: var(--space-1); padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--accent); }
+    .ds-icon-item code { max-width: 100%; overflow-wrap: anywhere; color: var(--muted); font-size: var(--text-xs); }
+    .ds-icon-sizes { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .ds-icon-size { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--accent); }
+    .ds-icon-size code { color: var(--muted); font-size: var(--text-xs); }
     .card h2 { margin: 0; }
   </style>
 </head>
@@ -69,32 +75,39 @@
     <div class="ds-row"><button class="btn primary">Primário</button><button class="btn">Padrão</button><button class="btn back">Voltar</button><button class="btn ghost">Fantasma</button><button class="btn danger">Excluir</button></div>
     <div class="ds-row"><button class="btn primary sm">Pequeno</button><button class="btn sm">Pequeno</button><button class="btn primary">Médio</button><button class="btn primary large">Grande</button></div>
     <div class="ds-row"><button class="btn primary" disabled>Desabilitado</button><button class="btn" disabled>Desabilitado</button></div>
-    <div class="ds-row"><button class="ibtn" aria-label="Mais"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg></button><button class="iconbtn" aria-label="Adicionar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="ds-note">.ibtn e .iconbtn (44 px)</span></div>
+    <div class="ds-row"><button class="ibtn" aria-label="Mais" data-icon-name="more" data-icon-size="20"></button><button class="iconbtn" aria-label="Adicionar" data-icon-name="plus" data-icon-size="20"></button><span class="ds-note">.ibtn e .iconbtn (44 px)</span></div>
     <button class="btn primary block">Largura total (.block)</button>
+  </section>
+
+  <section class="card" aria-labelledby="ds-icons"><h2 id="ds-icons">Ícones</h2>
+    <p class="ds-note">Catálogo compartilhado em <code>src/js/utils/icons.js</code>: SVGs em grade 24×24, traço de 1,9, pontas e junções arredondadas. O traço herda <code>currentColor</code>; use a cor do texto ou o token semântico do contexto, sem colorir ícones isoladamente. Tamanhos de referência: compacto 12, inline 16, padrão 18, navegação 20 e destaque 24 px.</p>
+    <div class="ds-icon-sizes" data-icon-sizes aria-label="Escala de tamanhos de ícone"></div>
+    <p class="ds-note">Galeria completa do catálogo. Ícones são decorativos: controles apenas com ícone precisam de nome acessível no próprio botão ou link. Não use emoji como substituto; para gráficos e ilustrações únicos, mantenha SVG específico do componente.</p>
+    <div class="ds-icon-gallery" data-icon-gallery aria-label="Catálogo de ícones"></div>
   </section>
 
   <section class="card" aria-labelledby="ds-shortcuts"><h2 id="ds-shortcuts">Atalhos compactos</h2>
     <p class="ds-note">Use <code>.compact-card-grid</code> ou <code>.shortcut-grid</code> para opções e destinos com pouco conteúdo. Em telas largas, os cartões ficam entre <code>--card-compact-min-width</code> e <code>--card-compact-max-width</code> (240–320 px); a última linha não se estica. Em telas estreitas, a grade vira uma coluna. Cada <code>.shortcut-card</code> é um único link, sem controles interativos aninhados.</p>
     <nav class="shortcut-grid compact-card-grid" aria-label="Exemplo de atalhos">
       <a class="shortcut-card" href="../pages/planejar.html">
-        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18M8 16l2 2 4-4"/></svg></span>
+        <span class="shortcut-card-icon" data-icon-name="calendarCheck" data-icon-size="20"></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Planejar</span><span class="shortcut-card-description">Tarefas, prazos e calendário.</span></span>
-        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+        <span class="shortcut-card-arrow" data-icon-name="chevRight" data-icon-size="20"></span>
       </a>
       <a class="shortcut-card" href="../pages/pomodoro.html">
-        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M12 3v2m-3-2h6"/></svg></span>
+        <span class="shortcut-card-icon" data-icon-name="clock" data-icon-size="20"></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Pomodoro</span><span class="shortcut-card-description">Ciclos de foco e pausa para organizar seu tempo.</span></span>
-        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+        <span class="shortcut-card-arrow" data-icon-name="chevRight" data-icon-size="20"></span>
       </a>
       <a class="shortcut-card" href="../pages/financas.html">
-        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="15" rx="3"/><path d="M3 9V6a2 2 0 0 1 2-2h13m-1 9h.01"/></svg></span>
+        <span class="shortcut-card-icon" data-icon-name="wallet" data-icon-size="20"></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Finanças</span><span class="shortcut-card-description">Contas, entradas e saídas.</span></span>
-        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+        <span class="shortcut-card-arrow" data-icon-name="chevRight" data-icon-size="20"></span>
       </a>
       <a class="shortcut-card" href="../pages/ciclo.html">
-        <span class="shortcut-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg></span>
+        <span class="shortcut-card-icon" data-icon-name="heart" data-icon-size="20"></span>
         <span class="shortcut-card-copy"><span class="shortcut-card-title">Ciclo</span><span class="shortcut-card-description">Registro e estimativas.</span></span>
-        <span class="shortcut-card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+        <span class="shortcut-card-arrow" data-icon-name="chevRight" data-icon-size="20"></span>
       </a>
     </nav>
   </section>
@@ -103,19 +116,19 @@
     <p class="ds-note">Em Ajustes, cada área usa um cartão curto com ativação e descrição na primeira linha; visibilidade e ordenação ficam agrupadas abaixo. A grade respeita <code>--card-compact-max-width</code> e vira uma coluna em telas estreitas.</p>
     <ol class="areas-navigation-list compact-card-grid" aria-label="Exemplo de opções de áreas">
       <li class="areas-navigation-item">
-        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <span class="areas-navigation-icon" aria-hidden="true" data-icon-name="droplet" data-icon-size="20"></span>
         <label class="areas-navigation-toggle"><input type="checkbox" checked aria-label="Ativar Hábitos"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Hábitos</b><small class="area-status is-active">Ativa</small></span><span>Registre práticas que fazem sentido para a sua rotina.</span></span></label>
-        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">2º</span><button type="button" class="ibtn" aria-label="Mover Hábitos para baixo">↓</button></span></span>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">2º</span><button type="button" class="ibtn" aria-label="Mover Hábitos para baixo" data-icon-name="arrowDown"></button></span></span>
       </li>
       <li class="areas-navigation-item">
-        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <span class="areas-navigation-icon" aria-hidden="true" data-icon-name="wallet" data-icon-size="20"></span>
         <label class="areas-navigation-toggle"><input type="checkbox" aria-label="Ativar Finanças"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Finanças</b><small class="area-status">Desativada</small></span><span>Acompanhe contas, receitas e despesas.</span></span></label>
-        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox">Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">3º</span><button type="button" class="ibtn" aria-label="Mover Finanças para cima">↑</button><button type="button" class="ibtn" aria-label="Mover Finanças para baixo">↓</button></span></span>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox">Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">3º</span><button type="button" class="ibtn" aria-label="Mover Finanças para cima" data-icon-name="arrowUp"></button><button type="button" class="ibtn" aria-label="Mover Finanças para baixo" data-icon-name="arrowDown"></button></span></span>
       </li>
       <li class="areas-navigation-item">
-        <span class="areas-navigation-icon" aria-hidden="true">•</span>
+        <span class="areas-navigation-icon" aria-hidden="true" data-icon-name="calendarCheck" data-icon-size="20"></span>
         <label class="areas-navigation-toggle"><input type="checkbox" checked aria-label="Ativar Ciclo"><span class="setting-toggle-copy"><span class="areas-navigation-name"><b>Ciclo</b><small class="area-status is-active">Ativa</small></span><span>Registre períodos, sintomas e observações.</span></span></label>
-        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">4º</span><button type="button" class="ibtn" aria-label="Mover Ciclo para cima">↑</button></span></span>
+        <span class="areas-navigation-controls"><label class="menu-visibility"><input type="checkbox" checked>Mostrar no menu</label><span class="areas-navigation-order"><span class="areas-navigation-position">4º</span><button type="button" class="ibtn" aria-label="Mover Ciclo para cima" data-icon-name="arrowUp"></button></span></span>
       </li>
     </ol>
   </section>
@@ -176,13 +189,13 @@
       <div><h1>Planeje sua rotina<span>.</span></h1><p class="public-lead">Tarefas, hábitos e finanças em um só lugar.</p><div class="public-actions"><button class="btn primary">Criar minha conta</button><button class="btn">Ver demonstração</button></div></div>
       <img class="preview-capture" src="../src/assets/landing-desktop.png" alt="Captura da tela inicial do Aurora" width="1440" height="900" loading="lazy">
     </div>
-    <details class="card public-faq-item"><summary>Onde ficam meus dados?<span aria-hidden="true">+</span></summary><p>As respostas do FAQ devem refletir as decisões atuais do produto e as informações de privacidade publicadas.</p></details>
+    <details class="card public-faq-item"><summary>Onde ficam meus dados?<span class="ic" aria-hidden="true" data-icon-name="chevDown" data-icon-size="16"></span></summary><p>As respostas do FAQ devem refletir as decisões atuais do produto e as informações de privacidade publicadas.</p></details>
   </section>
 
   <section class="card" aria-labelledby="ds-hab"><h2 id="ds-hab">Linha de hábito</h2>
     <ul class="habit-list">
-      <li class="habit-row is-done" style="--hc:#7c8fd4"><button class="habit-circle" aria-pressed="true" aria-label="Desmarcar: Ler por 10 minutos"><span class="habit-circle-icon"></span><span class="habit-circle-check"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Ler por 10 minutos</span><span class="habit-sub">3 dias seguidos</span></div></li>
-      <li class="habit-row" style="--hc:#5fa68a"><button class="habit-circle" aria-pressed="false" aria-label="Marcar como feito: Caminhar"><span class="habit-circle-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-9 5-14 14-14 0 9-5 14-14 14Z"/></svg></span><span class="habit-circle-check"></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Caminhar ao ar livre</span><span class="habit-sub">Comece hoje</span></div></li>
+      <li class="habit-row is-done" style="--hc:#7c8fd4"><button class="habit-circle" aria-pressed="true" aria-label="Desmarcar: Ler por 10 minutos"><span class="habit-circle-icon" data-icon-name="book" data-icon-size="22"></span><span class="habit-circle-check" data-icon-name="check" data-icon-size="22"></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Ler por 10 minutos</span><span class="habit-sub">3 dias seguidos</span></div></li>
+      <li class="habit-row" style="--hc:#5fa68a"><button class="habit-circle" aria-pressed="false" aria-label="Marcar como feito: Caminhar"><span class="habit-circle-icon" data-icon-name="leaf" data-icon-size="22"></span><span class="habit-circle-check" data-icon-name="check" data-icon-size="22"></span></button><div class="habit-main" style="padding-top:6px"><span class="habit-title">Caminhar ao ar livre</span><span class="habit-sub">Comece hoje</span></div></li>
     </ul>
   </section>
 

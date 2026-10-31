@@ -19,6 +19,7 @@ import {
   MESES, MESES_L, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
+import { lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
   isPublicLandingHash,
@@ -57,6 +58,7 @@ import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/temp
 import { backupReminderStatus } from './features/backup/reminder.js';
 import {
   advancePomodoro,
+  customPomodoroSettings,
   effectivePomodoroSettings,
   longBreakMinutes,
   normalizePomodoroHistory,
@@ -88,7 +90,8 @@ import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { renderFooterContent } from './features/footer/view.js';
 import { showLegalDocument } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
-import { handlePublicControl, initializePublicAppearance } from './features/appearance/public-controls.js';
+import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
+import { prefersReducedMotion } from './utils/motion.js';
 import {
   createCyclePeriod,
   cycleLogDays,
@@ -106,7 +109,9 @@ import { PROFILE_SEX } from './features/profile/model.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
 import {
   habitWeeklyTarget,
+  habitWeekReview,
   habitIsComplete,
+  filterSuggestedHabits,
   habitMonthDays,
   habitMonthStats,
   habitStats,
@@ -304,7 +309,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaQuery: '', habitIdeaCategory: 'all', profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -415,7 +420,7 @@ function normalizeSettings(s) {
   o.prefs.homeLayout = normalizeHomeLayout(prefs.homeLayout);
   o.prefs.pomodoro = { ...d.prefs.pomodoro, ...pomodoro };
   o.prefs.pomodoro.on = typeof pomodoro.on === 'boolean' ? pomodoro.on : d.prefs.pomodoro.on;
-  o.prefs.pomodoro.preset = ['classic', 'custom'].includes(pomodoro.preset)
+  o.prefs.pomodoro.preset = (Object.hasOwn(POMODORO_PRESETS, pomodoro.preset) || pomodoro.preset === 'custom')
     ? pomodoro.preset
     : Object.hasOwn(pomodoro, 'focusMin') || Object.hasOwn(pomodoro, 'breakMin')
       ? 'custom'
@@ -1235,13 +1240,32 @@ function closeNotifications(restoreFocus = true) {
   render();
   if (restoreFocus) {
     const trigger = $$('.notification-trigger').find((el) => el.getClientRects().length);
-    if (trigger) trigger.focus();
+    if (trigger) trigger.focus({ preventScroll: true });
   }
 }
 function closeAccessibility(restoreFocus = true) {
   ui.accessibilityOpen = false;
   render();
-  if (restoreFocus) $('#accessibility-trigger')?.focus();
+  if (restoreFocus) $('#accessibility-trigger')?.focus({ preventScroll: true });
+}
+let releaseNotificationScroll = null;
+let releaseAccessibilityScroll = null;
+function syncPanelScrollLocks() {
+  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
+  else if (!ui.notificationsOpen && releaseNotificationScroll) {
+    releaseNotificationScroll();
+    releaseNotificationScroll = null;
+  }
+  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
+  else if (!ui.accessibilityOpen && releaseAccessibilityScroll) {
+    releaseAccessibilityScroll();
+    releaseAccessibilityScroll = null;
+  }
+}
+function acquireActiveScrollLocks() {
+  if (ui.dlg && !releaseDialogScroll) releaseDialogScroll = lockPageScroll();
+  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
+  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
 }
 /* Erro junto ao campo: marca o campo, escreve a mensagem logo abaixo e leva o foco até ele.
    Só mexe no DOM do diálogo aberto; some quando a pessoa volta a digitar. Cai para o aviso se não achar o campo. */
@@ -1303,7 +1327,7 @@ function shell(body) {
   const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}<button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Busca global" title="Buscar (Ctrl+K)">${icon('search', 20)}</button>${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-haspopup="true" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}<button class="iconbtn global-search-trigger" data-action="search-open" aria-label="Busca global" title="Buscar (Ctrl+K)">${icon('search', 20)}</button>${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}<span class="accessibility-trigger-label">Acessibilidade</span></button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
@@ -1542,6 +1566,7 @@ function accessibilityPanel() {
       ${toggle('accessibility-readable', 'accessibility-readable', 'Legibilidade aprimorada', 'Usa fonte simples e aumenta o espaçamento entre linhas.', look.readable)}
       ${toggle('accessibility-links', 'accessibility-links', 'Destacar links', 'Sublinha os links para identificá-los com mais facilidade.', look.highlightLinks)}
       ${toggle('accessibility-spacing', 'accessibility-spacing', 'Espaçamento confortável', 'Aumenta o respiro e as áreas para toque.', look.density === 'comfy')}
+      ${toggle('accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Evita rolagens animadas e reduz animações da interface.', look.reduceMotion)}
     </div>
     <a class="btn accessibility-more" id="accessibility-more" href="#config?section=personalization" data-action="accessibility-more">Mais opções de aparência</a>
     <button type="button" class="btn accessibility-reset" id="accessibility-reset" data-action="accessibility-reset">Restaurar configurações visuais</button>
@@ -1577,6 +1602,7 @@ function restoreDialogOpener(opener) {
   target?.focus({ preventScroll: true });
 }
 function render() {
+  acquireActiveScrollLocks();
   ui.dirty = false;
   applyTheme();
   const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
@@ -1599,6 +1625,7 @@ function render() {
   const dc = $('.dchip.on'); if (dc && dc.parentElement) { const sx = dc.parentElement; sx.scrollLeft = dc.offsetLeft - sx.clientWidth / 2 + dc.offsetWidth / 2; }
   $$('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; });
   renderDialog();
+  syncPanelScrollLocks();
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
   tick();
@@ -2105,7 +2132,7 @@ function viewInicio() {
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map(taskRow)}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map(taskRow)}</ul></section>` : ''}
-            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span>${completed.length}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
+            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
           </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="#planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
       </div>
@@ -2241,7 +2268,7 @@ function habitMonthlyHistory(habit) {
   const days = habitMonthDays(ui.habitMonth, weekStartDay());
   const stats = habitMonthStats(habit, ui.habitMonth, today(), (day) => habitCompletedFor(habit, day));
   return h`<details class="habit-month">
-    <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}</summary>
+    <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <div class="mnav"><button class="ibtn" type="button" data-action="habit-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 18)}</button><b>${cap(ymLabel(ui.habitMonth))}</b><button class="ibtn" type="button" data-action="habit-month" data-n="1" aria-label="Próximo mês" ${ui.habitMonth >= today().slice(0, 7) ? raw('disabled') : ''}>${icon('chevRight', 18)}</button></div>
     <p class="small muted">${stats.completed} de ${stats.scheduled} dias programados concluídos até hoje neste mês.</p>
     <div class="habit-month-grid" role="group" aria-label="Calendário de ${habit.name} em ${ymLabel(ui.habitMonth)}">
@@ -2278,7 +2305,7 @@ function habitYearHeat(habit) {
     return { day, scheduled, completed, skipped };
   });
   return h`<details class="habit-year" id="d-year-${habit.id}" ${ui.openDetails[`year-${habit.id}`] ? raw('open') : ''}>
-    <summary>Ano em calendário</summary>
+    <summary>Ano em calendário${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <p class="small muted">${done} de ${planned} ${plural(planned, 'dia programado concluído', 'dias programados concluídos')} nos últimos 12 meses.</p>
     <div class="habit-year-grid" role="img" aria-label="Calendário de 12 meses de ${habit.name}: ${done} de ${planned} dias programados concluídos">${cells.map((cell) => h`<span class="habit-year-cell${cell.completed ? ' is-done' : cell.skipped ? ' is-skipped' : cell.scheduled ? ' is-missed' : ''}" title="${longDate(cell.day)}${cell.skipped ? ' · pulado' : ''}"></span>`)}</div>
     <p class="habit-year-legend small muted"><span class="habit-year-cell"></span>não programado <span class="habit-year-cell is-missed"></span>não feito <span class="habit-year-cell is-skipped"></span>pulado <span class="habit-year-cell is-done"></span>feito</p>
@@ -2291,6 +2318,27 @@ function remainingHabitSuggestions() {
     !names.has(norm(suggestion.name))
     && !(suggestion.id === 'water' && hasWaterHabit)
   ));
+}
+function updateHabitIdeaFilters() {
+  const suggestions = filterSuggestedHabits(
+    remainingHabitSuggestions(),
+    ui.habitIdeaQuery,
+    ui.habitIdeaCategory,
+  );
+  const visibleIds = new Set(suggestions.map((suggestion) => suggestion.id));
+  document.querySelectorAll('[data-habit-idea]').forEach((button) => {
+    button.hidden = !visibleIds.has(button.dataset.id);
+  });
+  document.querySelectorAll('.habit-idea-section').forEach((section) => {
+    section.hidden = !section.querySelector('[data-habit-idea]:not([hidden])');
+  });
+  document.querySelectorAll('[data-habit-idea-filter]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.id === ui.habitIdeaCategory));
+  });
+  const count = document.querySelector('[data-habit-idea-count]');
+  if (count) count.textContent = `${suggestions.length} ${plural(suggestions.length, 'ideia encontrada', 'ideias encontradas')}`;
+  const emptyState = document.querySelector('[data-habit-idea-empty]');
+  if (emptyState) emptyState.hidden = suggestions.length > 0;
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
 function habitWaterTracker(habit) {
@@ -2366,6 +2414,13 @@ function viewHabits() {
     habitCompletedFor,
     (habit, day) => habitIsSkipped(habit, day, today()),
   );
+  const weekReview = habitWeekReview(
+    live,
+    today(),
+    weekStartDay(),
+    habitCompletedFor,
+    (habit, day) => habitIsSkipped(habit, day, today()),
+  );
   const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind);
   const pushStatus = hasReminders ? getPomodoroPushStatus() : null;
   const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
@@ -2387,6 +2442,19 @@ function viewHabits() {
       habits: suggestions.filter((suggestion) => suggestion.category === category.id),
     }))
     .filter((category) => category.habits.length);
+  const matchingIdeaIds = new Set(filterSuggestedHabits(
+    suggestions,
+    ui.habitIdeaQuery,
+    ui.habitIdeaCategory,
+  ).map((suggestion) => suggestion.id));
+  const ideaCategoryFilters = [
+    { id: 'all', title: 'Todas', count: suggestions.length },
+    ...suggestionGroups.map((category) => ({
+      id: category.id,
+      title: category.title,
+      count: category.habits.length,
+    })),
+  ];
   const slots = {
     'page-title': h`${pageTitle('Hábitos')}`.s,
     'area-guide-button': areaGuideButton('habitos').s,
@@ -2411,15 +2479,41 @@ function viewHabits() {
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
         : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
       ${overview.planned ? h`<progress value="${overview.completed}" max="${overview.planned}" aria-label="Consistência dos hábitos nesta semana"></progress>` : ''}
-      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span></summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
+      ${weekReview.length ? h`<details class="habit-review" id="d-habit-review" ${ui.openDetails['habit-review'] ? raw('open') : ''}>
+        <summary><span><b>Revisar cada hábito</b><small>Veja seu ritmo e ajuste o plano quando precisar.</small></span><span class="habit-count">${weekReview.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+        <ul aria-label="Resumo semanal por hábito">${weekReview.map(({ habit, completed, planned, weeklyTarget, goalMet }) => {
+          const target = weeklyTarget ?? planned;
+          const progress = target ? Math.min(completed, target) : 0;
+          const summary = weeklyTarget !== null
+            ? `${completed} de ${weeklyTarget} na meta semanal · ${planned} ${plural(planned, 'dia programado', 'dias programados')} até hoje`
+            : planned
+              ? `${completed} de ${planned} ${plural(planned, 'dia programado', 'dias programados')} até hoje`
+              : 'Ainda sem dias programados nesta semana.';
+          return h`<li style="--hc:${habitColor(habit)}">
+            <span class="home-habit-icon">${icon(habitIconKey(habit), 18)}</span>
+            <div class="habit-review-copy"><b>${habit.name}</b><p>${summary}</p>
+              ${target ? h`<progress value="${progress}" max="${target}" aria-label="Progresso de ${habit.name} na meta semanal"></progress>` : ''}
+              ${goalMet ? h`<small>Meta semanal alcançada</small>` : ''}
+            </div>
+            <button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Ajustar ${habit.name}">Ajustar</button>
+          </li>`;
+        })}</ul>
+      </details>` : ''}
+      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
     </section>`.s,
     'other-habits': others.length
       ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
     'habit-ideas': suggestions.length
       ? h`<details class="card habit-ideas" id="d-ideas" ${ideasOpen}>
-        <summary><span><b>Ideias de hábitos</b><small>Toque para criar com ícone e cor já escolhidos.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
-        <div class="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}"><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-action="habit-idea" data-id="${idea.id}" style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><b>${idea.name}</b></button>`)}</div></section>`)}</div>
+        <summary><span><b>Ideias de hábitos</b><small>Encontre uma ideia e personalize antes de adicionar.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
+        <div class="habit-idea-tools">
+          <label class="search habit-idea-search"><span class="sr">Buscar ideias de hábitos</span>${icon('search', 18)}<input type="search" data-input="habit-ideas" value="${ui.habitIdeaQuery}" placeholder="Buscar por nome ou objetivo"></label>
+          <div class="habit-idea-filters" role="group" aria-label="Filtrar ideias por categoria">${ideaCategoryFilters.map((category) => h`<button type="button" class="habit-idea-filter" data-action="habit-idea-filter" data-id="${category.id}" aria-pressed="${ui.habitIdeaCategory === category.id}">${category.title}<span>${category.count}</span></button>`)}</div>
+          <p class="small muted" data-habit-idea-count role="status" aria-live="polite">${matchingIdeaIds.size} ${plural(matchingIdeaIds.size, 'ideia encontrada', 'ideias encontradas')}</p>
+        </div>
+        <p class="habit-idea-empty small muted" data-habit-idea-empty ${matchingIdeaIds.size ? raw('hidden') : ''}>Nenhuma ideia encontrada. Tente outra busca ou categoria.</p>
+        <div class="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-action="habit-idea" data-id="${idea.id}" ${matchingIdeaIds.has(idea.id) ? '' : raw('hidden')} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small><span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
       </details>`.s
       : '',
     'archived-habits': archived.length
@@ -2451,6 +2545,7 @@ function viewPomodoro() {
   if (g) return h`${areaNav('pomodoro')}${pageTitle('Pomodoro')}${areaGuideButton('pomodoro')}${g}`;
   const timer = S.pomodoro, preferences = settingsView().prefs.pomodoro;
   const pom = effectivePomodoroSettings(preferences);
+  const presetLabels = { short: 'Rápido', classic: 'Clássico', extended: 'Estendido', deep: 'Foco profundo' };
   const running = timer.startedAt !== null;
   const elapsed = phaseElapsedSeconds(timer);
   const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
@@ -2466,28 +2561,34 @@ function viewPomodoro() {
     <section class="card focus-timer free-pomodoro" data-phase="${timer.phase}" aria-labelledby="standalone-pomodoro-title">
       <header class="focus-timer-head"><div><span class="focus-eyebrow">${standalonePomodoroPhaseName(timer.phase)}</span><h2 id="standalone-pomodoro-title">Foque em uma coisa por vez<i>.</i></h2><p class="free-pomodoro-subtitle">${focusTask ? h`Tarefa vinculada: <b class="user-value">${focusTask.title}</b> · ${dur(focusedSeconds)} focados` : timer.focusLabel ? h`Foco em: <b class="user-value">${timer.focusLabel}</b>` : 'Defina um foco opcional e comece seu primeiro bloco.'}</p></div></header>
       <div class="focus-timer-body">
-        <div class="focus-dial" aria-hidden="true"><svg viewBox="0 0 112 112"><circle class="focus-dial-track" cx="56" cy="56" r="50"/><circle class="focus-dial-progress" id="standalone-pomo-progress" cx="56" cy="56" r="50" style="stroke-dasharray:314.2;stroke-dashoffset:${(circumference * (1 - Math.min(1, elapsed / duration))).toFixed(1)}"/></svg><div class="focus-clock"><div class="timer" id="standalone-pomo-clock" role="timer" aria-live="off">${clock(remaining)}</div><span class="small muted" id="standalone-pomo-state">${standalonePomodoroPhaseLabel(timer.phase, running, hasProgress)}</span></div></div>
-        <div class="focus-timer-actions">
-          <label class="f free-pomodoro-label">Em que você vai focar? <span class="muted small">${timer.focusTaskId ? '(tarefa vinculada)' : '(opcional)'}</span><input type="text" id="pomo-focus-label" data-change="pomo-label" maxlength="40" autocomplete="off" placeholder="Ex.: estudar inglês" value="${timer.focusLabel || ''}" ${timer.focusTaskId ? raw('disabled') : ''}></label>
+        <div class="focus-dial-column">
+          <div class="focus-dial" aria-hidden="true"><svg viewBox="0 0 112 112"><circle class="focus-dial-track" cx="56" cy="56" r="50"/><circle class="focus-dial-progress" id="standalone-pomo-progress" cx="56" cy="56" r="50" style="stroke-dasharray:314.2;stroke-dashoffset:${(circumference * (1 - Math.min(1, elapsed / duration))).toFixed(1)}"/></svg><div class="focus-clock"><div class="timer" id="standalone-pomo-clock" role="timer" aria-live="off">${clock(remaining)}</div><span class="small muted" id="standalone-pomo-state">${standalonePomodoroPhaseLabel(timer.phase, running, hasProgress)}</span></div></div>
           <div class="focus-controls">
             <button type="button" class="btn primary" data-action="toggle-free-timer" aria-keyshortcuts="Space" title="Atalho: barra de espaço">${icon(running ? 'pause' : 'play', 18)}${running ? 'Pausar' : hasProgress ? 'Retomar' : 'Começar foco'}</button>
             ${timer.phase !== 'focus' ? h`<button type="button" class="btn" data-action="skip-free-break">Pular pausa</button>` : ''}
           </div>
-          ${hasProgress || running ? h`<details class="pomodoro-end-actions" id="d-pomodoro-end-actions" ${ui.openDetails['pomodoro-end-actions'] ? raw('open') : ''}><summary>Encerrar antes do tempo</summary><div><button type="button" class="btn" data-action="finish-free-timer">${icon('check', 18)}Encerrar sessão</button><button type="button" class="btn ghost" data-action="discard-free-timer">Descartar sessão</button></div></details>` : ''}
+        </div>
+        <div class="focus-timer-actions">
+          <label class="f free-pomodoro-label"><span>Em que você vai focar?</span><small class="muted">${timer.focusTaskId ? '(tarefa vinculada)' : '(opcional)'}</small><input type="text" id="pomo-focus-label" data-change="pomo-label" maxlength="40" autocomplete="off" placeholder="Ex.: estudar inglês" value="${timer.focusLabel || ''}" ${timer.focusTaskId ? raw('disabled') : ''}></label>
+          ${hasProgress || running ? h`<details class="pomodoro-end-actions" id="d-pomodoro-end-actions" ${ui.openDetails['pomodoro-end-actions'] ? raw('open') : ''}><summary>Encerrar antes do tempo<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><div><button type="button" class="btn" data-action="finish-free-timer">${icon('check', 18)}Encerrar sessão</button><button type="button" class="btn ghost" data-action="discard-free-timer">Descartar sessão</button></div></details>` : ''}
           <p class="focus-prompt" id="standalone-pomo-copy">${timerPhaseMessage(timer.phase, pom)}</p>
-          <details class="free-pomodoro-settings" id="d-pomodoro-settings" ${ui.openDetails['pomodoro-settings'] ? raw('open') : ''}>
-            <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b></summary>
+        </div>
+      </div>
+      <p class="err" id="standalone-pomo-error" role="alert"></p>
+    </section>
+    <details class="card free-pomodoro-settings" id="d-pomodoro-options" ${ui.openDetails['pomodoro-options'] ? raw('open') : ''}>
+            <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
             <form class="free-pomodoro-settings-form" data-form="settings-save" novalidate>
-            <div class="free-pomodoro-settings-head"><div><span>Configuração</span><h3>Bloco de tempo</h3></div><b>${pom.focusMin} / ${pom.breakMin} min</b></div>
+            <div class="free-pomodoro-settings-head"><div><span>PERSONALIZE</span><h3>Tempo de cada fase</h3></div><b>${pom.focusMin} / ${pom.breakMin} min</b></div>
             <div class="free-pomodoro-presets" role="group" aria-label="Bloco de tempo">
-              <button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="classic" aria-pressed="${preferences.preset === 'classic' ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>Clássico · ${POMODORO_PRESETS.classic.focusMin}/${POMODORO_PRESETS.classic.breakMin} min</button>
-              <button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="custom" aria-pressed="${preferences.preset === 'custom' ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>Personalizado · ${preferences.focusMin}/${preferences.breakMin} min</button>
+              ${Object.entries(POMODORO_PRESETS).map(([preset, times]) => h`<button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="${preset}" aria-pressed="${preferences.preset === preset ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>${presetLabels[preset]} · ${times.focusMin}/${times.breakMin} min</button>`)}
             </div>
-            <p class="small muted free-pomodoro-hint">${presetDisabled ? 'Conclua ou descarte o Pomodoro atual para trocar o bloco ou editar os tempos.' : preferences.preset === 'custom' ? 'Edite os tempos de foco e pausa.' : 'Selecione Personalizado para definir outros tempos.'}</p>
-            ${preferences.preset === 'custom' ? h`<div class="form free-pomodoro-durations">
-              <label class="f">Foco (min)<input type="number" inputmode="numeric" data-change="free-pomo-focus" min="5" max="120" step="1" value="${preferences.focusMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-              <label class="f">Pausa (min)<input type="number" inputmode="numeric" data-change="free-pomo-break" min="1" max="60" step="1" value="${preferences.breakMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-            </div>` : ''}
+            <p class="small muted free-pomodoro-hint">${presetDisabled ? 'Conclua ou descarte a sessão para editar os tempos.' : 'Escolha um ritmo pronto ou digite seus próprios minutos.'}</p>
+            <div class="form free-pomodoro-durations">
+              <label class="f">Foco (min)<input type="number" inputmode="numeric" data-change="free-pomo-focus" min="5" max="120" step="1" value="${pom.focusMin}" ${presetDisabled ? raw('disabled') : ''}></label>
+              <label class="f">Pausa (min)<input type="number" inputmode="numeric" data-change="free-pomo-break" min="1" max="60" step="1" value="${pom.breakMin}" ${presetDisabled ? raw('disabled') : ''}></label>
+            </div>
+            ${settingsSaveButton('Salvar tempos')}
             <label class="check free-pomodoro-auto"><input type="checkbox" data-change="free-pomo-auto" ${preferences.autoAdvance !== false ? raw('checked') : ''} ${presetDisabled ? raw('disabled') : ''}><span><b>Avançar fases automaticamente</b><small class="muted">Quando uma fase termina, a próxima começa sozinha.</small></span></label>
             <div class="form free-pomodoro-durations">
               <label class="f">Toque do alerta
@@ -2501,22 +2602,17 @@ function viewPomodoro() {
               </label>
               <button type="button" class="btn" data-action="preview-pomodoro-sound">Ouvir toque</button>
             </div>
-            ${settingsSaveButton()}
           </form>
-          </details>
-        </div>
-      </div>
-      <details class="pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
-        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</small></summary>
+    </details>
+    <details class="card pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
+        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</small><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
         <div class="pomodoro-push-content">
           <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p></div>
           <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona</summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
+          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
-      </details>
-      <p class="err" id="standalone-pomo-error" role="alert"></p>
-    </section>
+    </details>
     ${pomodoroHistoryCard(timer)}`;
 }
 function pomodoroHistoryCard(timer) {
@@ -2611,7 +2707,10 @@ function cycleCalendarPhase(day, stats) {
 function topSymptoms() {
   const from = addDays(today(), -90), cnt = {};
   Object.entries(S.cycleLog).forEach(([k, l]) => { if (k < from) return; ['pain', 'mood', 'digestion', 'skin'].forEach((c) => (l[c] || []).forEach((v) => { const key = c + ':' + v; cnt[key] = (cnt[key] || 0) + 1; })); ['energy', 'sleep'].forEach((c) => { if (l[c]) { const key = c + ':' + l[c]; cnt[key] = (cnt[key] || 0) + 1; } }); });
-  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, n]) => { const [c, v] = key.split(':'); return [cycLabel(c, v), n]; });
+  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, count]) => {
+    const [category, value] = key.split(':');
+    return { category, value, label: cycLabel(category, value), count };
+  });
 }
 function viewCiclo() {
   const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${pageTitle('Ciclo')}${areaGuideButton('ciclo')}${g}`;
@@ -2649,7 +2748,7 @@ function viewCiclo() {
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
-      <div class="cycle-day-tools"><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar sintomas deste dia</button></div>
+      <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
       <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
     <section class="card cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
       <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
@@ -2660,7 +2759,7 @@ function viewCiclo() {
         <span><i class="lg p"></i>Próximo início estimado</span>
         <span><i class="lg l"></i>Dia com registro</span>
       </div></section>
-    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(([l, n]) => h`<li><span class="grow ttl">${l}</span><span class="badge">${n} ${plural(n, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
+    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
     <details class="card cycle-health-card" open>
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Saúde menstrual e sexual</strong><small>Entenda mudanças do ciclo, cuidados nas relações e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">
@@ -3067,12 +3166,12 @@ function legacyImportPanel() {
     ['Revisar e importar', 'Confira o resumo antes de gravar'],
     ['Conferir e limpar', 'Apagar cópias locais é opcional'],
   ];
-  return h`<section class="card settings-section-card" aria-labelledby="legacy-import-title">
+  return h`<section class="card settings-section-card settings-data-migration" aria-labelledby="legacy-import-title">
     <div class="settings-section-heading"><h2 id="legacy-import-title">Trazer dados antigos para esta conta<i>.</i></h2><p>Este roteiro encontra cópias neste navegador e no cofre antigo. Primeiro apenas localiza; você revisa antes de importar. Nada é apagado automaticamente.</p></div>
     <ol class="legacy-import-steps" aria-label="Etapas para trazer dados antigos">${steps.map(([title, detail], index) => {
       const step = index + 1;
       const state = step < activeStep ? 'is-complete' : step === activeStep ? 'is-current' : '';
-      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? '✓' : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
+      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? icon('check', 16) : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
     })}</ol>
     <div class="notice warn" role="note"><span>Antes de continuar, confirme que entrou na conta correta. Os dados já existentes serão mantidos; itens com o mesmo ID não serão duplicados.</span></div>
     ${migration.error ? h`<p class="err" role="alert">${migration.error}</p>` : ''}
@@ -3117,29 +3216,53 @@ function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const failedSlices = [...ui.persistFailed];
   const trashEntries = p.trash.filter((entry) => !isTrashExpired(entry)).sort((a, b) => b.deletedAt - a.deletedAt);
-  return h`<section class="card settings-section-card"><div class="settings-section-heading"><h2>Backup<i>.</i></h2><p>Baixe uma cópia dos seus dados para guardar ou levar para outro navegador. No celular, escolha Arquivos ou Downloads e guarde o <span class="case-preserve">JSON</span> fora dos dados do navegador.</p></div>
-    <div class="notice data-location" role="status">${icon('cloud', 18)}<span>Seus dados ficam associados à sua conta e protegidos por autenticação e regras de acesso individuais. O serviço pode processar dados em formato legível; mantenha sua conta e seus backups protegidos.</span></div>
-    <div class="notice warn" role="note"><span>O backup exportado continua sendo um arquivo JSON em texto puro e pode conter dados financeiros e de saúde. A exportação pedirá confirmação; proteja o arquivo fora do Aurora.</span></div>
-    <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
+  return h`<section class="card settings-section-card settings-backup-card">
+    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>Seus dados são protegidos por autenticação e regras individuais. O backup baixado é um arquivo <span class="case-preserve">JSON</span> em texto puro e pode conter informações financeiras e de saúde; a exportação pedirá confirmação. Proteja o arquivo fora do Aurora.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
-    <div class="row"><button class="btn" data-action="export">${icon('download', 18)}Exportar backup</button></div></section>
+    <div class="settings-data-actions">
+      <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
+        <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
+        <h3 id="settings-export-title">Guardar uma cópia</h3>
+        <p>Baixe seus dados em JSON. No celular, escolha Arquivos ou Downloads e guarde o arquivo fora dos dados do navegador.</p>
+        <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
+        <button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button>
+      </section>
+      <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
+        <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
+        <h3 id="settings-restore-title">Usar uma cópia salva</h3>
+        <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
+        <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2.</p>
+        <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
+        <p class="err" id="imperr" role="alert"></p>
+      </section>
+    </div>
+  </section>
     ${legacyImportPanel()}
-    <section class="card settings-section-card"><div class="settings-section-heading"><h2>Restaurar<i>.</i></h2><p>Escolha um backup para conferir o conteúdo antes da confirmação. A restauração substitui os dados relacionais atuais na sua conta.</p></div>
-    <div class="row"><label class="btn backup-file-label">${icon('upload', 18)}Escolher backup<input type="file" accept="application/json,.json" data-change="import" class="sr"></label></div>
-    <p class="err" id="imperr" role="alert"></p>
-    <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2.</p></section>
-    <section class="card settings-section-card" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira<i>.</i></h2><p>Itens excluídos ficam disponíveis para restauração por 30 dias. Depois, são removidos automaticamente. A lixeira também acompanha os backups exportados.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span><i>.</i></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Depois, são removidos automaticamente. A lixeira também acompanha os backups.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
-          return h`<li><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))} · ${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
+          return h`<li><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span class="settings-trash-expiry">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
         })}</ul>`
-        : h`<p class="small muted">A lixeira está vazia.</p>`}
+        : h`<div class="settings-trash-empty"><span aria-hidden="true">${icon('trash', 20)}</span><p><b>A lixeira está vazia</b><small>Quando você excluir itens, eles aparecerão aqui por até 30 dias.</small></p></div>`}
     </section>
-    <section class="card settings-section-card"><div class="settings-section-heading"><h2>Zona de cuidado<i>.</i></h2><p>Experimente a plataforma com exemplos ou apague permanentemente os dados relacionais desta conta.</p></div>
-    <div class="row"><button class="btn" data-action="load-sample">Explorar com exemplos</button>
-    <button class="btn danger" data-action="wipe-ask">${icon('trash', 18)}Apagar dados relacionais</button></div></section>`;
+    <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
+      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Gerencie dados de demonstração ou remova os dados relacionais desta conta.</p></div>
+      <div class="settings-data-care-actions">
+        <section class="settings-data-action" aria-labelledby="settings-sample-title">
+          <h3 id="settings-sample-title">Explorar com exemplos</h3>
+          <p>Adicione registros fictícios para conhecer as áreas do Aurora. Eles são identificados como exemplos e não substituem seus dados pessoais.</p>
+          <button type="button" class="btn" data-action="load-sample">Carregar exemplos</button>
+        </section>
+        <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
+          <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
+          <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
+          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados relacionais</button>
+        </section>
+      </div>
+    </section>`;
 }
 function settingsStorageNotice(selectedTab) {
   if (selectedTab === 'data') return '';
@@ -3280,6 +3403,7 @@ const dlgDiscardChanges = () => {
   if (pending?.onDiscard) pending.onDiscard();
 }
 const dlgClose = () => {
+  if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   if (ui.dlg?.type === 'onboard') {
     finishOnboard(true);
     return;
@@ -3301,7 +3425,6 @@ const dlgClose = () => {
     return;
   }
   if (ui.dlg?.type === 'discard') { dlgKeepEditing(); return; }
-  if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   ui.dlg = null;
   ui.dlgPending = null;
   render();
@@ -3332,7 +3455,7 @@ function dlgTask() {
       ${dlgField('Repetir', h`<select data-dlg="repeat">${Object.entries(REPEATS).map(([k, v]) => h`<option value="${k}" ${k === (d.repeat || 'none') ? raw('selected') : ''}>${v}</option>`)}</select>`)}
       ${dlgField('Lembrete', h`<select data-dlg="remind" ${d.time ? '' : raw('disabled')}>${REMINDS.map(([k, v]) => h`<option value="${k}" ${String(d.remind == null ? '' : d.remind) === k ? raw('selected') : ''}>${v}</option>`)}</select>${d.time ? '' : h`<span class="task-field-help">Escolha uma hora para ativar.</span>`}`)}
       ${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}
-      <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary>Adicionar notas <span>opcional</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
+      <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary><span>Adicionar notas</span><span>opcional</span><span class="task-notes-disclosure" aria-hidden="true">${icon('chevDown', 16)}</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
     <div class="f"><span class="lbl">Etiquetas</span>
       ${(d.tags || []).length ? h`<div class="chips">${d.tags.map((g, i) => h`<span class="chip on tgchip">#${g}<button type="button" class="ibtn" data-action="tg-del" data-i="${i}" aria-label="Remover etiqueta ${g}">${icon('close', 14)}</button></span>`)}</div>` : ''}
       <form class="aibar" data-form="tg-add" style="border-radius:14px"><label class="sr" for="tgn">Nova etiqueta</label><input type="text" id="tgn" name="tg" maxlength="24" placeholder="Adicionar etiqueta" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form>
@@ -3346,26 +3469,37 @@ function dlgTask() {
     'task-dialog');
 }
 function dlgCycleLog() {
-  const { day, log } = ui.dlg.d;
+  const { day, log, quickFlow } = ui.dlg.d;
   const flow = CYC.find(({ id }) => id === 'flow');
   const groups = CYC.filter(({ id }) => id !== 'flow');
+  const frequentSymptoms = topSymptoms();
   const choiceStatus = (count, single) => count
     ? `${count} selecionado${count === 1 ? '' : 's'}`
     : `Opcional · ${single ? 'Escolha 1' : 'várias opções'}`;
-  const choiceButton = (category, value, label, selected, id = '') => h`<button type="button" ${id ? raw(`id="${id}"`) : ''} class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${label}" title="${label}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}" data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol" aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? ({ spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18) : 18)}</span><span class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}</span><span class="cycle-choice-mark" aria-hidden="true">${icon('check', 14)}</span></button>`;
+  const choiceButton = (category, value, label, selected, id = '', count = 0) => {
+    const accessibleLabel = count ? `${label}, registrado ${count} ${plural(count, 'dia', 'dias')} nos últimos 90 dias` : label;
+    return h`<button type="button" ${id ? raw(`id="${id}"`) : ''} class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${accessibleLabel}" title="${accessibleLabel}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}" data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol" aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? ({ spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18) : 18)}</span><span class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}${count ? h`<small class="cycle-choice-frequency">${count} ${plural(count, 'dia', 'dias')}</small>` : ''}</span><span class="cycle-choice-mark" aria-hidden="true">${icon('check', 14)}</span></button>`;
+  };
   return dlgWrap(h`<form id="dlgform" class="cycle-log-form" data-form="cycle-log">
-    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">Registro do ciclo</span><h2 id="dt">${longDate(day)}</h2><p>Marque o que se aplica a este dia. O preenchimento é opcional.</p></div>${closeBtn}</div>
+    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">${quickFlow ? 'Registro rápido' : 'Registro do ciclo'}</span><h2 id="dt">${longDate(day)}</h2><p>${quickFlow ? 'Escolha o fluxo deste dia. Os demais dados registrados serão mantidos.' : 'Registre só o que fizer sentido. Abra as categorias para ver as opções; tudo é opcional.'}</p></div>${closeBtn}</div>
     <section class="cycle-flow-group" data-category="flow" role="group" aria-labelledby="cycle-flow-title">
       <div class="cycle-group-heading"><div><h3 id="cycle-flow-title">${icon(CYC_ICON.flow, 16)}Fluxo menstrual</h3><p>Leve, médio ou intenso entram nas estimativas; escape, não.</p></div><span class="cycle-group-mode">${log.flow ? `Selecionado: ${cycLabel('flow', log.flow)}` : 'Opcional · escolha 1'}</span></div>
       <div class="chips" role="group" aria-label="Intensidade do fluxo">${flow.opts.map(([value, label], index) => choiceButton('flow', value, label, log.flow === value, index === 0 ? 'f0' : ''))}</div>
     </section>
-    <div class="cycle-symptoms-heading"><h3 id="cycle-symptoms-title">Sintomas e sinais</h3><p>Múltipla escolha, exceto em energia, sono e corrimento.</p></div>
+    ${quickFlow ? '' : h`<div class="cycle-symptoms-heading"><h3 id="cycle-symptoms-title">Sintomas e sinais</h3><p>Múltipla escolha, exceto em energia, sono e corrimento.</p></div>
+    ${frequentSymptoms.length ? h`<section class="cycle-frequent" aria-label="Atalhos para sintomas frequentes"><div><h3>Seus mais frequentes</h3><p>Nos últimos 90 dias · toque para marcar ou desmarcar</p></div><div class="cycle-frequent-options">${frequentSymptoms.map(({ category, value, label, count }) => {
+      const definition = CYC.find((item) => item.id === category);
+      const selected = definition?.single ? log[category] === value : (log[category] || []).includes(value);
+      return choiceButton(category, value, label, selected, '', count);
+    })}</div></section>` : ''}
     <div class="cycle-symptom-grid" role="group" aria-labelledby="cycle-symptoms-title">${groups.map((group) => {
       const current = group.single ? (log[group.id] ? [log[group.id]] : []) : (log[group.id] || []);
-      return h`<section class="sym cycle-symptom-group" data-category="${group.id}" role="group" aria-labelledby="cycle-group-${group.id}">
-        <div class="cycle-group-heading"><h3 id="cycle-group-${group.id}">${icon(CYC_ICON[group.id], 16)}${group.title}</h3><span class="cycle-group-mode">${choiceStatus(current.length, group.single)}</span></div>
-        <div class="chips">${group.opts.map(([value, label]) => choiceButton(group.id, value, label, current.includes(value)))}</div>
-      </section>`;
+      const openGroups = ui.dlg.d.openGroups || [];
+      const closedGroups = ui.dlg.d.closedGroups || [];
+      return h`<details class="sym cycle-symptom-group" data-category="${group.id}" ${openGroups.includes(group.id) || (current.length && !closedGroups.includes(group.id)) ? raw('open') : ''}>
+        <summary class="cycle-group-heading"><h3 id="cycle-group-${group.id}">${icon(CYC_ICON[group.id], 16)}${group.title}</h3><span class="cycle-group-mode">${current.length ? choiceStatus(current.length, group.single) : 'Toque para escolher'}</span><span class="cycle-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+        <div class="chips" role="group" aria-labelledby="cycle-group-${group.id}">${group.opts.map(([value, label]) => choiceButton(group.id, value, label, current.includes(value)))}</div>
+      </details>`;
     })}</div>
     ${dlgField('Anotações do dia', h`<textarea data-dlg="log.note" maxlength="500" rows="3" placeholder="Algo que você queira lembrar…">${log.note || ''}</textarea>`, 'full')}
     <section class="cycle-sexual-group" role="group" aria-labelledby="cycle-sexual-title">
@@ -3374,9 +3508,9 @@ function dlgCycleLog() {
       ${log.sexualActivity ? h`<p class="fine" id="cycle-sexual-note">Opcional. Você pode selecionar mais de um método. “Nenhum método” e “Prefiro não informar” são opções exclusivas.</p>
         <div class="chips cycle-contraception-options" role="group" aria-label="Métodos contraceptivos usados">${CYCLE_CONTRACEPTION_METHODS.map(({ id, label }) => h`<button type="button" class="chip" aria-pressed="${(log.contraceptionMethods || []).includes(id) ? 'true' : 'false'}" data-action="cyc-method" data-v="${id}">${label}</button>`)}</div>
         <p class="fine">Os registros ficam na conta Aurora. Backups podem incluir esses dados em JSON sem criptografia; guarde o arquivo com cuidado.</p>` : h`<p class="fine" id="cycle-sexual-note">Opcional. Não registramos essa informação se você não marcar a opção. Os registros ficam na conta Aurora; backups podem incluí-los em JSON sem criptografia.</p>`}
-    </section>
+    </section>`}
   </form>`,
-  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">Salvar registro</button>`);
+  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">${quickFlow ? 'Salvar fluxo' : 'Salvar registro'}</button>`);
 }
 function dlgCyclePeriod() {
   const { start, end, index } = ui.dlg.d;
@@ -3571,7 +3705,7 @@ function dlgAreaTutorial() {
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
-    <details class="area-tutorial-script"><summary>Ver roteiro do vídeo</summary><ol>${guide.steps.map((step) => h`<li><strong>${step.title}</strong> — ${step.text}</li>`)}</ol>${guide.note ? h`<p>${guide.note}</p>` : ''}</details>`,
+    <details class="area-tutorial-script"><summary>Ver roteiro do vídeo${icon('chevDown', 16, 'tutorial-disclosure-indicator')}</summary><ol>${guide.steps.map((step) => h`<li><strong>${step.title}</strong> — ${step.text}</li>`)}</ol>${guide.note ? h`<p>${guide.note}</p>` : ''}</details>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`,
     'area-tutorial-body');
 }
@@ -3611,6 +3745,7 @@ DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alter
    seguem a área visível; a largura nunca muda (o deslocamento horizontal do iOS fazia o painel andar para os lados),
    e as mudanças são agrupadas para o painel não acompanhar a animação do teclado quadro a quadro. */
 let fitTimer = 0;
+let releaseDialogScroll = null;
 function applyFitDlg() {
   const el = $('#dlg'), v = window.visualViewport; if (!el) return;
   const keyboard = v && window.innerHeight - v.height > 120;
@@ -3630,14 +3765,25 @@ window.addEventListener('resize', fitDlgSoon);
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
-  if (!ui.dlg) { if (el) { el.remove(); document.documentElement.style.overflow = ''; $('#app').inert = false; const lf = ui.lastFocus; ui.lastFocus = null; restoreDialogOpener(lf); } return; }
+  if (!ui.dlg) {
+    if (el) {
+      el.remove();
+      $('#app').inert = false;
+      const lf = ui.lastFocus;
+      ui.lastFocus = null;
+      restoreDialogOpener(lf);
+    }
+    releaseDialogScroll?.();
+    releaseDialogScroll = null;
+    return;
+  }
   const isIntro = ui.dlg.type === 'intro', isCycleLog = ui.dlg.type === 'cycle-log';
   const isCyclePeriod = ui.dlg.type === 'cycle-period';
   const opening = !el, typeChanged = Boolean(el && el.dataset.dialogType !== ui.dlg.type);
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
   const afSel = af ? { id: af.id, data: af.dataset.dlg, action: af.dataset.action, v: af.dataset.v, c: af.dataset.c } : null;
   const prevScroll = !opening ? (el.querySelector('.dlg-body') || {}).scrollTop : 0;
-  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); document.documentElement.style.overflow = 'hidden'; }
+  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll(); }
   el.classList.toggle('is-intro', isIntro);
   fitDlg();
   el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">${DLG[ui.dlg.type]().s}</div>`;
@@ -3835,7 +3981,7 @@ function importFile(file) {
 /* ---- Ações por clique ---- */
 const ACTIONS = {
   'footer-scroll-top': () => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion(settingsView().look.reduceMotion)) {
       window.scrollTo(0, 0);
       return;
     }
@@ -3872,8 +4018,10 @@ const ACTIONS = {
   'home-quick-focus': () => {
     const input = $('#home-quick-title-input');
     if (!input) return openTaskDialog(today());
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => input.focus(), 250);
+    const reduceMotion = prefersReducedMotion(settingsView().look.reduceMotion);
+    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    if (reduceMotion) input.focus();
+    else setTimeout(() => input.focus(), 250);
   },
   'first-steps-dismiss': () => {
     const snapshot = snapshotSlices(['settings']);
@@ -3909,9 +4057,9 @@ const ACTIONS = {
   'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
   'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
   'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.'); },
-  'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus(); },
+  'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
-  'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus(); },
+  'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus({ preventScroll: true }); },
   'accessibility-close': () => closeAccessibility(),
   'accessibility-font': (el) => {
     const fonts = ['s', 'm', 'l'];
@@ -3950,6 +4098,7 @@ const ACTIONS = {
   'accessibility-readable': (el) => updateAccessibilityLook({ readable: !settingsView().look.readable }, el.id),
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
+  'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
   'accessibility-reset': () => { ui.accessibilityOpen = false; ACTIONS['appearance-reset'](); },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-result': (el) => {
@@ -4015,6 +4164,10 @@ const ACTIONS = {
       color: idea.color,
       ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: S.settings.prefs.waterGoalMl, waterGoalEdited: false } : {}),
     });
+  },
+  'habit-idea-filter': (el) => {
+    ui.habitIdeaCategory = el.dataset.id || 'all';
+    updateHabitIdeaFilters();
   },
   'tcal-month': (el) => { ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n)); render(); },
   'tcal-day': (el) => { ui.taskDay = el.dataset.d; render(); },
@@ -4254,7 +4407,7 @@ const ACTIONS = {
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'set-free-pomodoro-preset': (el) => {
     const preset = el.dataset.preset, timer = S.pomodoro;
-    if (!['classic', 'custom'].includes(preset)) return;
+    if (preset !== 'custom' && !Object.hasOwn(POMODORO_PRESETS, preset)) return;
     if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
       return toast('Conclua ou descarte o Pomodoro atual para trocar o bloco.');
     }
@@ -4313,6 +4466,10 @@ const ACTIONS = {
     const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
     dlgOpen('cycle-log', { day, log: cycleLogDraft(dayLog(day)) });
   },
+  'cyc-flow-open': () => {
+    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
+    dlgOpen('cycle-log', { day, log: cycleLogDraft(dayLog(day)), quickFlow: true });
+  },
   'cyc-period-open': () => {
     const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
     dlgOpen('cycle-period', { start: day, end: day });
@@ -4362,6 +4519,11 @@ const ACTIONS = {
     const c = CYC.find((x) => x.id === el.dataset.c), v = el.dataset.v, l = ui.dlg.d.log;
     if (!c || !c.opts.some(([value]) => value === v)) return;
     if (c.single) l[c.id] = l[c.id] === v ? '' : v; else { const a = l[c.id] || []; l[c.id] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; }
+    ui.dlg.dirty = true;
+    if (c.id !== 'flow') {
+      ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), c.id])];
+      ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== c.id);
+    }
     render();
   },
   'cyc-method': (el) => {
@@ -4865,8 +5027,10 @@ const CHANGES = {
       return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
     }
     updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro.focusMin = clamp(Math.round(num(el.value)) || 25, 5, 120);
-      settings.prefs.pomodoro.preset = 'custom';
+      settings.prefs.pomodoro = {
+        ...customPomodoroSettings(settings.prefs.pomodoro),
+        focusMin: clamp(Math.round(num(el.value)) || 25, 5, 120),
+      };
     }, false);
   },
   'free-pomo-auto': (el) => {
@@ -4877,7 +5041,6 @@ const CHANGES = {
     }
     updateSettingsDraft((settings) => {
       settings.prefs.pomodoro.autoAdvance = el.checked;
-      settings.prefs.pomodoro.preset = 'custom';
     }, false);
   },
   'free-pomo-break': (el) => {
@@ -4886,8 +5049,10 @@ const CHANGES = {
       return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
     }
     updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro.breakMin = clamp(Math.round(num(el.value)) || 5, 1, 60);
-      settings.prefs.pomodoro.preset = 'custom';
+      settings.prefs.pomodoro = {
+        ...customPomodoroSettings(settings.prefs.pomodoro),
+        breakMin: clamp(Math.round(num(el.value)) || 5, 1, 60),
+      };
     }, false);
   },
   'free-pomo-sound-tone': (el) => {
@@ -5080,6 +5245,7 @@ document.addEventListener('click', (e) => {
   const trigger = $('#accessibility-trigger');
   if (panel) panel.hidden = true;
   if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  syncPanelScrollLocks();
 });
 document.addEventListener('submit', (e) => {
   if (e.target instanceof HTMLFormElement && e.target.matches('[data-footer-suggestion]')) {
@@ -5153,6 +5319,10 @@ document.addEventListener('input', (e) => {
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
   if (el.dataset.input === 'search') { ui.filters.q = el.value; const r = $('#task-results'); if (r) r.innerHTML = taskListHtml().s; }
+  if (el.dataset.input === 'habit-ideas') {
+    ui.habitIdeaQuery = el.value;
+    updateHabitIdeaFilters();
+  }
 });
 document.addEventListener('focusin', (e) => {
   const el = e.target;
@@ -5166,8 +5336,20 @@ document.addEventListener('change', (e) => {
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
   const fn = key && !SETTINGS_INPUT_CHANGES.has(key) && CHANGES[key]; if (fn) fn(el);
 });
-document.addEventListener('toggle', (e) => { const el = e.target; if (el.tagName === 'DETAILS' && el.id) { ui.openDetails[el.id.replace('d-', '')] = el.open; if (el.open) el.querySelectorAll('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; }); } }, true);
+document.addEventListener('toggle', (e) => {
+  const el = e.target;
+  if (el.matches?.('.cycle-symptom-group') && ui.dlg?.type === 'cycle-log') {
+    const openGroups = new Set(ui.dlg.d.openGroups || []);
+    const closedGroups = new Set(ui.dlg.d.closedGroups || []);
+    if (el.open) { openGroups.add(el.dataset.category); closedGroups.delete(el.dataset.category); }
+    else { openGroups.delete(el.dataset.category); closedGroups.add(el.dataset.category); }
+    ui.dlg.d.openGroups = [...openGroups];
+    ui.dlg.d.closedGroups = [...closedGroups];
+  }
+  if (el.tagName === 'DETAILS' && el.id) { ui.openDetails[el.id.replace('d-', '')] = el.open; if (el.open) el.querySelectorAll('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; }); }
+}, true);
 document.addEventListener('keydown', (e) => {
+  if (handlePublicKeydown(e)) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     if (ui.dlg?.type === 'onboard') return;
     e.preventDefault();
@@ -5196,7 +5378,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('mousedown', (e) => {
-  if (e.target.id === 'dlg' && ui.dlg && ui.dlg.type !== 'onboard') dlgClose();
+  if (e.target.id === 'dlg' && ui.dlg) dlgClose();
 });
 
 
@@ -5489,7 +5671,7 @@ function dlgTx() {
     <form id="dlgform" class="form" data-form="dlg-tx">
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>＋ Nova categoria…</option></select>`, 'full')}      ${!tr && d.category === '__new' ? h`${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}` : ''}      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
+      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}      ${!tr && d.category === '__new' ? h`${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}` : ''}      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
       ${tr ? dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : ''}
       ${!tr && !isCredit(acc) ? h`<label class="row full" style="gap:12px;min-height:44px"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><br><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'}</span></span></label>` : ''}

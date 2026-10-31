@@ -110,12 +110,14 @@
 .home-task-groups { display: grid; gap: 18px; }
 .home-task-group { display: grid; gap: 8px; }
 .home-task-group h3, .home-completed summary { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: var(--text-meta); font-weight: 800; letter-spacing: .04em; }
-.home-task-group h3 span, .home-completed summary span { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: var(--r-pill); background: var(--soft2); font-size: var(--text-2xs); letter-spacing: 0; }
+.home-task-group h3 span, .home-completed-count { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: var(--r-pill); background: var(--soft2); font-size: var(--text-2xs); letter-spacing: 0; }
 .home-task-group.is-overdue h3 { color: var(--bad); }
 .home-task-group.is-overdue h3 span { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
 .home-completed { border-top: 1px solid var(--line); padding-top: 14px; }
 .home-completed summary { cursor: pointer; list-style: none; }
 .home-completed summary::-webkit-details-marker { display: none; }
+.home-completed .home-disclosure-indicator { display: grid; width: var(--control-sm); height: var(--control-sm); flex: none; place-items: center; margin-left: auto; color: var(--muted); transition: transform var(--duration-fast) var(--ease-standard); }
+.home-completed[open] .home-disclosure-indicator { transform: rotate(180deg); }
 .home-completed .list { margin-top: 10px; opacity: .72; }
 .home-dashboard .strip { gap: 10px; }
 .home-dashboard .strip > * { padding: var(--space-4); }
@@ -245,7 +247,9 @@
   .home-today-card > .empty .empty-action { width: 100%; }
   .home-tool-grid { grid-template-columns: minmax(0, 1fr); }
   .home-habit-row { align-items: flex-start; }
+  .home-habit-checkins .home-habit-row { flex-wrap: wrap; }
   .home-habit-row > .btn { flex: none; }
+  .home-habit-checkins .home-habit-row > .btn { margin-left: auto; }
   .home-quick-form { flex-direction: column; }
   .home-quick-form .btn { width: 100%; }
   .home-next-action { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: start; }

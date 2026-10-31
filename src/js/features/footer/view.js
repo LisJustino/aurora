@@ -1,3 +1,5 @@
+import { iconSvg } from '../../utils/icons.js';
+
 const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
 
 export function renderFooterContent({
@@ -34,22 +36,22 @@ export function renderFooterContent({
         </div>
       </nav>
       <details class="footer-faq">
-        <summary>Perguntas frequentes <span aria-hidden="true">+</span></summary>
+        <summary>Perguntas frequentes <span aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
         <div class="footer-faq-content">
           <details>
-            <summary>A demonstração usa meus dados?</summary>
+            <summary>A demonstração usa meus dados?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>Não. Ela usa apenas informações fictícias, não acessa sua conta e não salva alterações.</p>
           </details>
           <details>
-            <summary>Preciso de uma conta?</summary>
+            <summary>Preciso de uma conta?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>Você pode explorar a demonstração sem cadastro. Para guardar seus próprios registros, crie uma conta.</p>
           </details>
           <details>
-            <summary>O que acontece sem conexão?</summary>
+            <summary>O que acontece sem conexão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>O Aurora avisa quando está sem conexão e bloqueia gravações. Alterações offline não são sincronizadas automaticamente.</p>
           </details>
           <details>
-            <summary>Como envio uma sugestão?</summary>
+            <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas ou informações pessoais sensíveis.</p>
             <form class="footer-suggestion-form" data-footer-suggestion>
               <label for="footer-suggestion-name">Seu nome (opcional)</label>
@@ -62,7 +64,7 @@ export function renderFooterContent({
             </form>
           </details>
           <details>
-            <summary>Como entro em contato com a responsável?</summary>
+            <summary>Como entro em contato com a responsável?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
           </details>
         </div>
@@ -74,7 +76,7 @@ export function renderFooterContent({
       <dialog class="dlg legal-modal" data-legal-modal aria-labelledby="legal-modal-title">
         <header class="head legal-modal-header">
           <h2 id="legal-modal-title" data-legal-dialog-title>Documento legal</h2>
-          <button class="ibtn dlg-close" type="button" data-legal-modal-close aria-label="Fechar documento legal">×</button>
+          <button class="ibtn dlg-close" type="button" data-legal-modal-close aria-label="Fechar documento legal">${iconSvg('close', 18)}</button>
         </header>
         <p class="legal-modal-status" data-legal-dialog-status role="status" aria-live="polite" hidden></p>
         <div class="dlg-body legal-modal-content" data-legal-dialog-content role="region" aria-busy="false" tabindex="0"></div>

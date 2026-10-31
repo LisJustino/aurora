@@ -1,11 +1,14 @@
 import { LOOK_DEFAULT, paletteColors } from './palettes.js';
-import { IC } from '../../utils/icons.js';
+import { iconSvg } from '../../utils/icons.js';
+import { prefersReducedMotion } from '../../utils/motion.js';
+import { lockPageScroll } from '../../utils/scroll-lock.js';
 
 const publicLook = { ...LOOK_DEFAULT };
 let accessibilityOpen = false;
+let releaseAccessibilityScroll = null;
 let systemThemeQuery = null;
 
-const icon = (name, size = 18) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name] || ''}</svg>`;
+const icon = iconSvg;
 const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
 const button = (label, action, pressed, description) => `
   <button type="button" class="accessibility-option" data-public-control="${action}" aria-pressed="${String(pressed)}">
@@ -40,9 +43,20 @@ function accessibilityPanel() {
         ${button('Legibilidade aprimorada', 'readable', publicLook.readable, 'Usa fonte simples e aumenta o espaçamento entre linhas.')}
         ${button('Destacar links', 'links', publicLook.highlightLinks, 'Sublinha os links para identificá-los com mais facilidade.')}
         ${button('Espaçamento confortável', 'spacing', publicLook.density === 'comfy', 'Aumenta o respiro e as áreas para toque.')}
+        ${button('Reduzir movimento', 'motion', publicLook.reduceMotion, 'Evita rolagens animadas e reduz animações da interface.')}
       </div>
       <button type="button" class="btn accessibility-reset" data-public-control="reset">Restaurar configurações visuais</button>
     </section>`;
+}
+
+function setAccessibilityOpen(open) {
+  if (open === accessibilityOpen) return;
+  if (open) releaseAccessibilityScroll = lockPageScroll();
+  accessibilityOpen = open;
+  if (!open) {
+    releaseAccessibilityScroll?.();
+    releaseAccessibilityScroll = null;
+  }
 }
 
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
@@ -74,7 +88,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
           <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="Alternar tema: ${themeName}" title="Alternar tema">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
           <span class="accessibility-control">
-            <button type="button" id="public-accessibility-trigger" class="iconbtn" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-haspopup="true" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>
+            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}<span class="accessibility-trigger-label">Acessibilidade</span></button>
             ${accessibilityPanel()}
           </span>
           ${isLanding ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
@@ -118,6 +132,7 @@ function syncPublicControls() {
       readable: publicLook.readable,
       links: publicLook.highlightLinks,
       spacing: publicLook.density === 'comfy',
+      motion: publicLook.reduceMotion,
     };
     Object.entries(pressed).forEach(([key, value]) => {
       const item = panel.querySelector(`[data-public-control="${key}"]`);
@@ -148,7 +163,7 @@ export function initializePublicAppearance() {
   publicLook.readable = LOOK_DEFAULT.readable;
   publicLook.highlightLinks = LOOK_DEFAULT.highlightLinks;
   publicLook.reduceMotion = LOOK_DEFAULT.reduceMotion;
-  accessibilityOpen = false;
+  setAccessibilityOpen(false);
   if (!systemThemeQuery && typeof window.matchMedia === 'function') {
     systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const updateSystemTheme = () => {
@@ -158,6 +173,15 @@ export function initializePublicAppearance() {
     else systemThemeQuery.addListener(updateSystemTheme);
   }
   applyPublicLook();
+}
+
+export function handlePublicKeydown(event) {
+  if (event.key !== 'Escape' || !accessibilityOpen) return false;
+  event.preventDefault();
+  setAccessibilityOpen(false);
+  syncPublicControls();
+  document.getElementById('public-accessibility-trigger')?.focus({ preventScroll: true });
+  return true;
 }
 
 export function handlePublicControl(event, root) {
@@ -172,14 +196,14 @@ export function handlePublicControl(event, root) {
       window.location.reload();
       return true;
     case 'accessibility-toggle':
-      accessibilityOpen = !accessibilityOpen;
+      setAccessibilityOpen(!accessibilityOpen);
       syncPublicControls();
-      if (accessibilityOpen) document.getElementById('public-accessibility-trigger')?.focus();
+      if (accessibilityOpen) document.getElementById('public-accessibility-trigger')?.focus({ preventScroll: true });
       return true;
     case 'accessibility-close':
-      accessibilityOpen = false;
+      setAccessibilityOpen(false);
       syncPublicControls();
-      document.getElementById('public-accessibility-trigger')?.focus();
+      document.getElementById('public-accessibility-trigger')?.focus({ preventScroll: true });
       return true;
     case 'theme-cycle':
       publicLook.mode = { auto: 'light', light: 'dark', dark: 'auto' }[publicLook.mode];
@@ -205,6 +229,9 @@ export function handlePublicControl(event, root) {
       break;
     case 'spacing':
       publicLook.density = publicLook.density === 'comfy' ? 'compact' : 'comfy';
+      break;
+    case 'motion':
+      publicLook.reduceMotion = !publicLook.reduceMotion;
       break;
     case 'reset':
       Object.assign(publicLook, LOOK_DEFAULT);

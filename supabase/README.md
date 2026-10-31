@@ -68,7 +68,7 @@ O repositório não publica a função, define secrets nem altera projetos Supab
 - Planejamento: `task_lists`, `tags`, `tasks`, `subtasks`, `task_tag_assignments` e `weekly_reflections`.
 - Foco: `timer_state` (somente Pomodoro) e `pomodoro_daily_stats`.
 - Hábitos e bem-estar: `habits`, `habit_logs`, `water_logs`, `gym_templates`, `gym_template_exercises`, `gym_logs`, `cycle_periods`, `cycle_days` e `weight_logs`.
-- Finanças: `finance_accounts`, `finance_transactions`, `finance_budgets`, `finance_goals` e `finance_recurrences`; todos os valores monetários são centavos inteiros.
+- Finanças: `finance_accounts`, `finance_recurrences`, `finance_transactions`, `finance_budgets` e `finance_goals`; todos os valores monetários são centavos inteiros.
 - Push: `push_subscriptions`, protegida pelo mesmo isolamento de usuário.
 
 Datas civis (por exemplo, vencimentos e registros diários) são `date`; instantes são `timestamptz`. Tabelas de conteúdo têm `is_test_data`; registros recuperáveis usam `deleted_at`. Listas de dias e seleções categóricas usam arrays de tipos nativos; `jsonb` fica restrito a aparência e preferências realmente configuráveis.

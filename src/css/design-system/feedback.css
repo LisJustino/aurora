@@ -51,11 +51,11 @@
 .empty-action > .btn { min-width: 188px; }
 .empty-action > .btn:not(.danger) {
   border-color: transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 92%, white), var(--btn)) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn)) !important;
   color: var(--on-btn);
   box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 88%, transparent);
 }
-.empty-action > .btn:not(.danger):hover { background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 92%, white), var(--btn)); }
+.empty-action > .btn:not(.danger):hover { background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn)); }
 @media (max-width: 480px) {
   .empty { min-height: 190px; flex-direction: column; padding: 28px 16px; }
   .empty-copy { width: 100%; min-width: 0; }

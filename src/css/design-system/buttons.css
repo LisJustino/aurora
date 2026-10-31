@@ -40,7 +40,7 @@
 /* Primário */
 .btn.primary {
   border-color: transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 92%, white), var(--btn));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn));
   color: var(--on-btn);
   box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 90%, transparent);
 }

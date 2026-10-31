@@ -12,7 +12,28 @@ autenticação. Com ambos projetos configurados, use o mesmo e-mail para criar
 uma conta em cada um e confirme os dois usuários nos respectivos painéis
 Supabase; não reutilize dados de produção durante a validação.
 
+Na landing, confirme que criar conta é o CTA principal e a demonstração é a
+alternativa; o texto deve informar que finanças são registradas manualmente e
+que a demonstração usa exemplos fictícios sem salvar alterações. Não deve
+haver depoimentos fictícios, nem promessas vagas de preço ou privacidade. Em
+320 px, mobile e desktop, confira a grade de áreas, o FAQ e a ausência de
+overflow horizontal. A demonstração interativa cobre uma tarefa, um hábito e
+o Pomodoro; finanças e ciclo são apresentados, mas não simulados nela.
+
 Ao navegar para outra área a partir de Ajustes e retornar pelo histórico ou pelo menu, confirme que “Seu perfil” é selecionado. Recarregue enquanto outra aba de Ajustes estiver aberta e confirme que essa aba permanece selecionada.
+
+Na navegação, confira todas as áreas no cabeçalho desktop sem o botão “Mais” entre 900 e 1439 px e sem rolagem horizontal dos links; entre 900 e 1099 px, a navegação ocupa uma segunda linha. No móvel, o dock deve manter quatro atalhos e “Mais” deve abrir as opções restantes; toque fora e Esc devem fechá-lo.
+
+Em Hábitos, abra “Revisar cada hábito” e confira o resumo até a data atual,
+excluindo dias pulados e sem contar dias futuros. “Ajustar” deve abrir o editor
+do hábito correspondente, preservar os check-ins e permitir salvar dias/meta;
+os hábitos pausados devem continuar disponíveis na ação de retomada. Confira
+também em largura móvel e com tema escuro.
+
+Nas “Ideias de hábitos”, confira busca por nome e descrição, busca sem
+diferenciação de acentos, filtros por categoria, contagem e estado sem
+resultados. Selecionar uma ideia deve continuar abrindo o editor sem gravar
+antes da confirmação; verifique foco/teclado e largura móvel.
 
 No cadastro, valide que erros de e-mail já associado (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) explicam que uma exclusão confirmada permite criar uma conta nova, sem restaurar dados antigos. A exclusão só é considerada concluída com a confirmação explícita da Edge Function, que chama a Admin API em modo de exclusão definitiva; erros desconhecidos mantêm uma mensagem segura e genérica.
 
@@ -59,11 +80,16 @@ Abra `http://localhost:5173/`. O runner de verificações de interface fica em
 `http://localhost:5173/tests/`.
 
 Os testes E2E opcionais usam Playwright:
+para `auth-preview-boundary.cjs`, mantenha o servidor de desenvolvimento na
+porta 5173 e, depois do build, sirva a versão de produção na porta 4173 em
+outro terminal. O cenário usa somente dados fictícios e bloqueia conexões
+externas.
 
 ```powershell
 npx playwright install chromium
 node tests/e2e/dialog-mobile.cjs http://127.0.0.1:5173
 node tests/e2e/legal-dialog-mobile.cjs http://127.0.0.1:5173
+node tests/e2e/modal-scroll-lock.cjs http://127.0.0.1:5173
 node tests/e2e/close-buttons.cjs http://127.0.0.1:5173
 node tests/e2e/legal-consent-flow.cjs http://127.0.0.1:5173
 node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5173
@@ -74,6 +100,8 @@ node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
 node tests/e2e/custom-select.cjs http://127.0.0.1:5173
+node tests/e2e/accessibility.cjs http://127.0.0.1:5173
+node tests/e2e/auth-preview-boundary.cjs http://127.0.0.1:5173 http://127.0.0.1:4173
 ```
 
 O cenário de notificações confirma que lembretes novos não abrem o painel
@@ -81,12 +109,14 @@ automaticamente, que o indicador do sino permite encontrá-los e que abrir,
 adiar e dispensar continuam funcionando em mobile e desktop.
 - `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
 - `node tests/e2e/custom-select.cjs` valida o menu padronizado em desktop e mobile, navegação por teclado, sincronização de valor/eventos, rótulo acessível, campo desabilitado e posicionamento dentro da viewport.
+- `node tests/e2e/accessibility.cjs` valida os painéis público e autenticado (Escape, retorno de foco e semântica disclosure), movimento reduzido do sistema e preferência salva, ampliação do texto, foco visível, contraste de componentes reais nas 14 paletas e reflow em viewports de 640 e 320 CSS px. As larguras simulam a condição de reflow; não substituem teste manual de zoom do navegador.
 - `node tests/e2e/legal-consent-flow.cjs` valida o painel Aurora de reaceite, os links acessíveis dos documentos, o aceite obrigatório e os layouts mobile/desktop.
 - **Aprovado (2026-10-29):** `node tests/e2e/notifications.cjs http://127.0.0.1:5173` — fluxo mobile/desktop, sem overflow horizontal nem erros no console.
 
 ## Prévia visual local
 
 - `node tests/e2e/dialog-mobile.cjs http://127.0.0.1:5173` — verifica diálogos móveis e desktop sem abrir o teclado automaticamente.
+- `node tests/e2e/modal-scroll-lock.cjs http://127.0.0.1:5173` — verifica que notificações, pesquisa, acessibilidade pública/autenticada e modais bloqueiam o scroll externo, mantêm o cabeçalho visível e restauram a posição ao fechar em mobile/desktop.
 - **Aprovado:** `node tests/e2e/close-buttons.cjs http://127.0.0.1:5173` — os controles medem 40×40 px e mantêm raio consistente em celular e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
@@ -193,6 +223,7 @@ capturas de tela ou logs.
 
 ## Remoção de Estudos e Pomodoro
 
+- **Pomodoro:** a tela inicial mostra o botão logo abaixo do relógio e mantém “Tempos e som” fechado; abra os ajustes para conferir os presets Rápido (15/3), Clássico (25/5), Estendido (50/10) e Foco profundo (90/20). Edite foco/pausa manualmente, use “Salvar tempos” e confirme a persistência após recarregar. Os tempos não podem ser alterados durante uma sessão em andamento ou com progresso não encerrado.
 - **Aprovado:** `npm test` — 71/71 testes base e verificações de conta, cofre, persistência relacional e importação legada; inclui a remoção das fatias locais, rejeição de backups antigos e schema sem tabelas de Estudos.
 - **Aprovado:** `npm run build` — compilação de produção concluída; as entradas removidas `pages/estudos.html` e `pages/foco.html` não fazem parte do build.
 - **Aprovado:** `node --check` nos arquivos JavaScript alterados e `git diff --check`.
