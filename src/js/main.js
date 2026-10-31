@@ -53,7 +53,6 @@ import {
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
-import { parseQuickTaskText } from './features/planning/quick-entry.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import {
@@ -116,6 +115,7 @@ import {
   isValidHabit,
   normalizeHabits,
   SUGGESTED_HABITS,
+  SUGGESTED_HABIT_CATEGORIES,
   HABIT_ICONS,
   HABIT_ICON_KEYS,
   HABIT_COLORS,
@@ -304,7 +304,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, persistSavedAt: null, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -881,7 +881,6 @@ const Persist = {
           syncState.conflicts.clear();
           ui.persistFailed.clear();
           ui.persistError = '';
-          ui.persistSavedAt = new Date();
         } catch (error) {
           if (!this.pendingSnapshot) {
             this.pendingSnapshot = snapshot;
@@ -1293,9 +1292,7 @@ function shell(body) {
         ? 'Falha ao salvar; tente novamente'
         : syncState.pending.size
           ? 'Salvando…'
-          : ui.persistSavedAt
-            ? `Salvo às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(ui.persistSavedAt)}`
-            : '';
+          : '';
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const compactItems = menuItems.slice(0, 4);
   const secondaryItems = menuItems.slice(4);
@@ -1359,7 +1356,7 @@ function weeklyReviewView() {
     : '';
   const overdue = S.tasks.filter((task) => !task.done && task.dueDate && task.dueDate < today()).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Fechamento semanal</span><h2>Veja o que avançou<i>.</i></h2><p>${first.getDate()} ${MESES_L[first.getMonth()]}–${last.getDate()} ${MESES_L[last.getMonth()]} · Use este retrato para ajustar a próxima semana.</p></div><div class="weekly-review-actions"><button class="btn primary" data-action="plan-open">${icon('plus', 16)}Planejar próxima semana</button><button class="btn" data-action="weekly-open-finances">${icon('wallet', 16)}Ver finanças</button></div></section>
+    <section class="weekly-review-hero"><div><span>Fechamento semanal</span><h2>Veja o que avançou<i>.</i></h2><p>${first.getDate()} ${MESES_L[first.getMonth()]}–${last.getDate()} ${MESES_L[last.getMonth()]} · Use este retrato para ajustar a próxima semana.</p></div><div class="weekly-review-actions"><button class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button><button class="btn" data-action="weekly-open-finances">${icon('wallet', 16)}Ver finanças</button></div></section>
     <section class="card weekly-review-main"><div class="head"><div><p class="section-kicker">Seu ritmo</p><h2>Revisão da semana<i>.</i></h2></div><span class="small muted">Atualizada hoje</span></div>
       <div class="review-stats">
         <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
@@ -1381,7 +1378,7 @@ function weeklyReviewView() {
     <section class="card"><div class="head"><div><p class="section-kicker">Olhando à frente</p><h2>Prioridades da próxima semana<i>.</i></h2></div><span class="small muted">${nextFirst.getDate()}–${nextLast.getDate()} ${MESES_L[nextLast.getMonth()]}</span></div>
       ${review.nextWeek.tasks.length
         ? h`<ul class="list">${review.nextWeek.tasks.map(taskRow)}</ul>`
-        : empty('Semana livre por enquanto', 'Crie um plano por etapas ou adicione a próxima prioridade.', h`<button class="btn" data-action="plan-open">${icon('plus', 16)}Planejar semana</button>`, 'calendar')}
+        : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
     </section></div>
     <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="#pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
@@ -2109,7 +2106,7 @@ function viewInicio() {
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map(taskRow)}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map(taskRow)}</ul></section>` : ''}
             ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span>${completed.length}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou monte um plano por etapas.', h`<a class="btn" href="#planejar">Montar plano por etapas</a>`, 'calendarCheck')}
+          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="#planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
@@ -2117,7 +2114,7 @@ function viewInicio() {
     ${activeAreaItems.length >= 2 ? h`<section class="home-tools" aria-labelledby="home-tools-title">
       <div class="head"><h2 id="home-tools-title">O que você pode fazer<i>.</i></h2></div>
       <div class="home-tool-grid compact-card-grid">
-        <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos, calendário e planos por etapas.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
+        <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos e calendário.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
         ${activeAreaItems.map(({ id, area, label, icon: iconName }) => h`<a class="home-tool" href="#${id}"><span class="home-tool-icon">${icon(iconName, 20)}</span><span><b>${AREAS[area]?.[0] || label}</b><small>${AREAS[area]?.[1] || label}</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>`)}
       </div>
     </section>` : ''}`;
@@ -2147,10 +2144,10 @@ function taskListHtml() {
       ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
       : hasFilters
         ? h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
-        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="plan-open">${icon('calendar', 16)}Criar plano por etapas</button>`;
+        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button>`;
     return empty(
       hasTasks ? 'Nenhuma tarefa nesse filtro' : 'Ainda não há tarefas',
-      hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa ou monte um plano por etapas.',
+      hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa com prazo, horário e prioridade.',
       actions,
       hasTasks ? 'search' : 'calendarCheck',
     );
@@ -2197,17 +2194,6 @@ function taskWeek() {
     </section>`)}</div>
   </div>`;
 }
-function planningQuickPreview(value) {
-  const parsed = parseQuickTaskText(value, today());
-  if (parsed.error) return parsed.error;
-  if (!parsed.title) return 'Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.';
-  if (!parsed.hasDeadline) return `${parsed.title} · sem prazo identificado`;
-  return `${parsed.title} · ${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`;
-}
-function updatePlanningQuickPreview(input) {
-  const preview = $('#planning-quick-preview');
-  if (preview) preview.textContent = planningQuickPreview(input.value);
-}
 function viewPlanejar() {
   const f = ui.filters;
   const todayKey = today();
@@ -2223,21 +2209,12 @@ function viewPlanejar() {
     ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
     : 'Nenhuma tarefa atrasada';
   return h`${pageTitle('Planejar')}${areaGuideButton('planejar')}
-    <section class="card planning-quick-entry" aria-labelledby="planning-quick-entry-title">
-      <div class="head"><div><p class="section-kicker">Adicionar sem abrir formulário</p><h2 id="planning-quick-entry-title">Tarefa rápida<i>.</i></h2></div></div>
-      <form class="planning-quick-form" data-form="planning-quick-task">
-        <label class="sr" for="planning-quick-task">Nova tarefa</label>
-        <input id="planning-quick-task" name="title" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Enviar proposta sexta 18h" required data-input="planning-quick-task">
-        <button type="submit" class="btn primary">${icon('plus', 16)}Adicionar</button>
-      </form>
-      <p id="planning-quick-preview" class="small muted" aria-live="polite">Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.</p>
-    </section>
     <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
       <div class="planning-overview-copy">
         <span class="section-kicker">Resumo de tarefas</span>
         <h2 id="planning-overview-title">Tarefas por prazo<i>.</i></h2>
         <p>${todaySummary}. ${overdueSummary}.</p>
-        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button><button type="button" class="btn" data-action="plan-open">${icon('calendar', 16)}Plano por etapas</button></div>
+        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
       </div>
       <dl class="planning-overview-stats" aria-label="Resumo das tarefas pendentes">
         <div><dt>Para hoje</dt><dd>${todayPending}</dd></div>
@@ -2404,6 +2381,12 @@ function viewHabits() {
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
   const ideasOpen = ui.openDetails.ideas ?? S.habits.length === 0 ? raw('open') : '';
+  const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
+    .map((category) => ({
+      ...category,
+      habits: suggestions.filter((suggestion) => suggestion.category === category.id),
+    }))
+    .filter((category) => category.habits.length);
   const slots = {
     'page-title': h`${pageTitle('Hábitos')}`.s,
     'area-guide-button': areaGuideButton('habitos').s,
@@ -2436,7 +2419,7 @@ function viewHabits() {
     'habit-ideas': suggestions.length
       ? h`<details class="card habit-ideas" id="d-ideas" ${ideasOpen}>
         <summary><span><b>Ideias de hábitos</b><small>Toque para criar com ícone e cor já escolhidos.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
-        <div class="habit-idea-grid">${suggestions.map((idea) => h`<button type="button" class="habit-idea" data-action="habit-idea" data-id="${idea.id}" style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><b>${idea.name}</b></button>`)}</div>
+        <div class="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}"><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-action="habit-idea" data-id="${idea.id}" style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><b>${idea.name}</b></button>`)}</div></section>`)}</div>
       </details>`.s
       : '',
     'archived-habits': archived.length
@@ -2666,7 +2649,7 @@ function viewCiclo() {
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
-      <div class="cycle-day-tools"><button type="button" class="btn sm" data-action="cyc-batch-open">${icon('calendar', 16)}Adicionar sintomas a vários dias</button></div>
+      <div class="cycle-day-tools"><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar sintomas deste dia</button></div>
       <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
     <section class="card cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
       <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
@@ -3318,8 +3301,6 @@ const dlgClose = () => {
     return;
   }
   if (ui.dlg?.type === 'discard') { dlgKeepEditing(); return; }
-  if (ui.dlg?.type === 'taskplan' && ui.dlg.d.confirm) { ui.dlg = null; render(); return; }
-  if (ui.dlg?.type === 'taskplan' && taskPlanDirty()) { ui.dlg.d.confirm = true; render(); return; }
   if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   ui.dlg = null;
   ui.dlgPending = null;
@@ -3330,10 +3311,6 @@ const dlgField = (label, inner, cls = '') => h`<label class="f ${cls}"><span cla
 const dlgWrap = (body, foot, bodyClass = '') => h`<div class="dlg-body ${bodyClass}">${body}</div><div class="dlg-foot">${foot}</div>`;
 const closeBtn = h`<button type="button" class="ibtn dlg-close" data-action="dlg-close" aria-label="Fechar">${icon('close', 20)}</button>`;
 
-function planTitles(d) {
-  const lines = d.steps.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 12).map((x) => x.slice(0, 120));
-  return lines.length ? lines : [d.goal.trim().slice(0, 120)];
-}
 function dlgActionConfirm() {
   const d = ui.dlg.d;
   return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}<i>.</i></h2></div>${closeBtn}</div>
@@ -3347,25 +3324,11 @@ function dlgConfirmation() {
     <p class="confirmation-copy">${d.message}</p>`,
     h`<button type="button" class="btn back" data-action="confirmation-cancel">Cancelar</button><button type="button" class="btn primary" data-action="confirmation-accept">Continuar</button>`);
 }
-function dlgTaskPlan() {
-  const d = ui.dlg.d, titles = planTitles(d);
-  if (d.confirm) return dlgWrap(h`<div class="wiz-h"><h2 id="dt">Descartar o que você escreveu?</h2><p>Seu objetivo e suas etapas ainda não foram salvos. Se fechar agora, o texto será descartado.</p></div>`,
-    h`<button class="btn" data-action="plan-discard">Descartar</button><button class="btn primary" data-action="plan-keep">Continuar planejando</button>`);
-  const prompts = ['O que você precisa realizar? Conte do seu jeito.', 'Quais passos pequenos levam até lá? Escreva um por linha.', 'Quando você quer começar?', 'Confira o plano. Ao confirmar, as tarefas entram na sua lista.'];
-  const body = d.step === 0 ? dlgField('Seu objetivo', h`<textarea id="f0" data-dlg="goal" maxlength="240" rows="3" placeholder="Ex.: me preparar para a prova de biologia">${d.goal}</textarea>`)
-    : d.step === 1 ? h`${dlgField('Etapas (uma por linha)', h`<textarea id="f0" data-dlg="steps" maxlength="1000" rows="5" placeholder="Revisar os capítulos 1 e 2&#10;Fazer exercícios de genética">${d.steps}</textarea>`)}<p class="fine">Sem etapas? Deixe vazio para criar uma tarefa só com o objetivo.</p>`
-    : d.step === 2 ? h`<div class="form">${dlgField('Começar em', h`<input id="f0" type="date" data-dlg="start" value="${d.start}">`, 'full')}${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}</div><label class="row" style="gap:12px"><input type="checkbox" data-dlg="spread" ${d.spread ? raw('checked') : ''}><span class="small">Distribuir uma etapa por dia, a partir da data escolhida</span></label>`
-    : h`<div class="card flat"><b>${d.goal.trim()}</b><ul class="list">${titles.map((t, i) => h`<li>${icon('check', 16)}<span class="grow">${t}</span>${d.start ? h`<span class="badge">${shortDate(d.spread ? addDays(d.start, i) : d.start)}</span>` : ''}</li>`)}</ul><p class="fine">Prioridade: ${cap(PRIO[d.priority])}${d.start ? '' : ' · sem data (vai para a caixa de entrada)'}</p></div>`;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap;align-items:flex-start"><div class="wiz-h"><h2 id="dt">Plano por etapas<i>.</i></h2><p>${prompts[d.step]}</p></div>${closeBtn}</div>
-    <div class="steps" aria-label="Etapa ${d.step + 1} de 4">${[0, 1, 2, 3].map((i) => h`<i class="${i <= d.step ? 'on' : ''}"></i>`)}</div>${body}${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}
-    <p class="fine">Você pode revisar tudo antes de adicionar as tarefas.</p>`,
-    h`${d.step > 0 ? h`<button class="btn back" data-action="plan-back">Voltar</button>` : ''}${d.step < 3 ? h`<button class="btn primary" data-action="plan-next">Continuar</button>` : h`<button class="btn primary" data-action="plan-create">Adicionar ${titles.length} ${plural(titles.length, 'tarefa', 'tarefas')}</button>`}`);
-}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
-  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento rápido' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
     <form id="dlgform" class="form task-form" data-form="dlg-task">${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
-      ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input type="time" data-dlg="time" value="${d.time || ''}">`)}
+      ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input class="task-time-input" type="time" data-dlg="time" value="${d.time || ''}">`)}
       ${dlgField('Repetir', h`<select data-dlg="repeat">${Object.entries(REPEATS).map(([k, v]) => h`<option value="${k}" ${k === (d.repeat || 'none') ? raw('selected') : ''}>${v}</option>`)}</select>`)}
       ${dlgField('Lembrete', h`<select data-dlg="remind" ${d.time ? '' : raw('disabled')}>${REMINDS.map(([k, v]) => h`<option value="${k}" ${String(d.remind == null ? '' : d.remind) === k ? raw('selected') : ''}>${v}</option>`)}</select>${d.time ? '' : h`<span class="task-field-help">Escolha uma hora para ativar.</span>`}`)}
       ${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}
@@ -3429,21 +3392,6 @@ function dlgCyclePeriod() {
   </form>`,
   h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Atualizar período' : 'Salvar período'}</button>`);
 }
-function dlgCycleBatch() {
-  const { start, end, symptoms } = ui.dlg.d;
-  const categories = CYC.filter(({ id }) => ['pain', 'mood', 'digestion', 'skin'].includes(id));
-  return dlgWrap(h`<form id="dlgform" class="cycle-batch-form" data-form="cycle-batch">
-    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">Registro do ciclo</span><h2 id="dt">Adicionar sintomas a vários dias<i>.</i></h2><p>Escolha um intervalo e os sintomas que deseja incluir em todos esses dias.</p></div>${closeBtn}</div>
-    <div class="cycle-period-fields">
-      ${dlgField('Primeiro dia', h`<input id="f0" type="date" name="start" value="${start}" max="${today()}" aria-describedby="cycle-batch-help" required>`)}
-      ${dlgField('Último dia', h`<input type="date" name="end" value="${end}" max="${today()}" aria-describedby="cycle-batch-help" required>`)}
-    </div>
-    <p class="fine" id="cycle-batch-help">Até ${MAX_CYCLE_LOG_RANGE_DAYS} dias por vez. Os sintomas selecionados serão acrescentados aos registros existentes; fluxo, energia, sono, corrimento, notas e informações sexuais não serão alterados.</p>
-    <div class="cycle-batch-groups">${categories.map((category) => h`<section class="cycle-batch-group" role="group" aria-label="${category.title}"><h3>${icon(CYC_ICON[category.id], 16)}${category.title}</h3><div class="chips">${category.opts.map(([value, label]) => h`<button type="button" class="chip" aria-pressed="${(symptoms[category.id] || []).includes(value)}" data-action="cyc-batch-opt" data-category="${category.id}" data-v="${value}">${label}</button>`)}</div></section>`)}</div>
-  </form>`,
-  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">Adicionar sintomas</button>`,
-  'cycle-batch-dialog');
-}
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
@@ -3451,7 +3399,9 @@ function dlgHabitEdit() {
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="habit-edit">
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
-      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full" for="water-weight-kg">Peso para estimativa (kg)<input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Opcional"><span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
+      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
+        <span class="water-weight-input"><input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
+        <span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
         <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>` : ''}
         <label class="f full" for="water-goal-ml">Meta diária de água (mL)<input id="water-goal-ml" name="waterGoalMl" type="number" data-dlg="waterGoalMl" min="500" max="10000" step="50" value="${waterGoal}" required aria-describedby="water-goal-help"><span class="profile-field-help" id="water-goal-help">É uma referência ajustável, não uma recomendação médica. Registre os volumes para acompanhar o dia.</span></label>
         ${d.waterSuggestion ? h`<p class="fine full">A estimativa considera a idade informada em Ajustes (ou uma referência adulta) e o peso informado acima. Você pode ajustar a meta. Ao atingir o volume, o check-in do dia é concluído.</p>` : ''}` : ''}
@@ -3652,7 +3602,7 @@ function resolveNew(g, d, key) {
   const parentName = String(d.newParent || '').trim();
   d[key] = addItem(g, n, parentName); d.newName = ''; d.newParent = ''; commit('settings'); return true;
 }
-const DLG = { taskplan: dlgTaskPlan, task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-batch': dlgCycleBatch, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -3664,8 +3614,14 @@ let fitTimer = 0;
 function applyFitDlg() {
   const el = $('#dlg'), v = window.visualViewport; if (!el) return;
   const keyboard = v && window.innerHeight - v.height > 120;
-  if (!keyboard) { Object.assign(el.style, { inset: '0', left: '', right: '', top: '', width: '', height: '' }); return; }
-  Object.assign(el.style, { inset: 'auto', left: '0', right: '0', width: 'auto', top: Math.max(0, Math.round(v.offsetTop)) + 'px', height: Math.round(v.height) + 'px' });
+  if (!keyboard) {
+    Object.assign(el.style, { inset: '0', left: '', right: '', top: '', width: '', height: '' });
+    el.style.removeProperty('--dialog-available-height');
+    return;
+  }
+  const height = Math.round(v.height);
+  Object.assign(el.style, { inset: 'auto', left: '0', right: '0', width: 'auto', top: `${Math.max(0, Math.round(v.offsetTop))}px`, height: `${height}px` });
+  el.style.setProperty('--dialog-available-height', `${height}px`);
 }
 function fitDlg() { applyFitDlg(); }
 function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(applyFitDlg, 90); }
@@ -3675,7 +3631,7 @@ function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
   if (!ui.dlg) { if (el) { el.remove(); document.documentElement.style.overflow = ''; $('#app').inert = false; const lf = ui.lastFocus; ui.lastFocus = null; restoreDialogOpener(lf); } return; }
-  const isIntro = ui.dlg.type === 'intro', isCycleLog = ['cycle-log', 'cycle-batch'].includes(ui.dlg.type);
+  const isIntro = ui.dlg.type === 'intro', isCycleLog = ui.dlg.type === 'cycle-log';
   const isCyclePeriod = ui.dlg.type === 'cycle-period';
   const opening = !el, typeChanged = Boolean(el && el.dataset.dialogType !== ui.dlg.type);
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
@@ -3684,19 +3640,15 @@ function renderDialog() {
   if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); document.documentElement.style.overflow = 'hidden'; }
   el.classList.toggle('is-intro', isIntro);
   fitDlg();
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt">${DLG[ui.dlg.type]().s}</div>`;
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">${DLG[ui.dlg.type]().s}</div>`;
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
   applyTheme(ui.dlg.type === 'onboard' ? ui.dlg.d.theme : undefined);
   let target = null;
   if (afSel) target = (afSel.id && document.getElementById(afSel.id)) || (afSel.data && el.querySelector(`[data-dlg="${afSel.data}"]`)) || (afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`));
-  if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('#f0') || el.querySelector('input,textarea,select,button');
-  // Mantém o foco no diálogo ao abrir a configuração; focar o campo de nome pode abrir o teclado antes de um toque.
-  if ((opening || typeChanged) && !afSel && ['intro', 'onboard'].includes(ui.dlg.type)) {
-    target = el.querySelector('.dlg');
-    target.tabIndex = -1;
-  }
+  if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('.dlg');
+  if ((opening || typeChanged) && !afSel) target = el.querySelector('.dlg');
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -4320,7 +4272,6 @@ const ACTIONS = {
   },
   'filter-inbox': () => { ui.filters.f = 'caixa'; },
   'filter-overdue': () => { ui.filters.f = 'atrasadas'; },
-  'plan-open': () => dlgOpen('taskplan', { step: 0, goal: '', steps: '', start: '', spread: false, priority: 'normal', error: '', confirm: false }),
   'enable-area': (el) => { if (setAreaEnabled(S.settings, el.dataset.area, true)) commit('settings'); },
   'clear-sample': () => {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
@@ -4356,15 +4307,6 @@ const ACTIONS = {
   'dlg-keep': () => dlgKeepEditing(),
   'dlg-discard': () => dlgDiscardChanges(),
   'skip': (el, e) => { e.preventDefault(); const m = $('#main'); if (m) { m.focus(); m.scrollIntoView(); } },
-  'plan-keep': () => { ui.dlg.d.confirm = false; render(); },
-  'plan-discard': () => { ui.dlg = null; render(); },
-  'plan-back': () => { ui.dlg.d.step--; ui.dlg.d.error = ''; render(); },
-  'plan-next': () => { const d = ui.dlg.d; if (d.step === 0 && !d.goal.trim()) { d.error = 'Escreva o objetivo para continuar.'; render(); return; } d.error = ''; d.step++; render(); },
-  'plan-create': () => {
-    const d = ui.dlg.d, titles = planTitles(d), gid = newId(), now = Date.now();
-    titles.forEach((title, i) => S.tasks.push(mkTask({ title, priority: d.priority, dueDate: d.start ? (d.spread ? addDays(d.start, i) : d.start) : null, groupId: gid, groupTitle: d.goal.trim().slice(0, 60), createdAt: now + i })));
-    ui.dlg = null; commit('tasks'); toast(`${titles.length} ${plural(titles.length, 'tarefa adicionada', 'tarefas adicionadas')}.`);
-  },
   'cal-month': (el) => { ui.calMonth = shiftMonth(ui.calMonth, Number(el.dataset.n)); render(); },
   'cyc-day': (el) => { ui.cycDay = el.dataset.d; ui.calMonth = el.dataset.d.slice(0, 7); render(); },
   'cyc-open': () => {
@@ -4414,26 +4356,6 @@ const ACTIONS = {
       createTrashRecord('cycle', cyclePeriodKey(period), index, period),
     ], ['cycle'], () => { S.cycle.splice(index, 1); });
     if (entry) toast('Período movido para a lixeira.', () => restoreTrashEntry(entry.id));
-  },
-  'cyc-batch-open': () => {
-    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
-    dlgOpen('cycle-batch', {
-      start: day,
-      end: day,
-      symptoms: { pain: [], mood: [], digestion: [], skin: [] },
-    });
-  },
-  'cyc-batch-opt': (el) => {
-    if (ui.dlg?.type !== 'cycle-batch') return;
-    const category = CYC.find(({ id }) => id === el.dataset.category);
-    const value = el.dataset.v;
-    if (!category || !['pain', 'mood', 'digestion', 'skin'].includes(category.id)
-      || !category.opts.some(([option]) => option === value)) return;
-    const selected = ui.dlg.d.symptoms[category.id];
-    ui.dlg.d.symptoms[category.id] = selected.includes(value)
-      ? selected.filter((item) => item !== value)
-      : [...selected, value];
-    render();
   },
   'cyc-opt': (el) => {
     if (ui.dlg?.type !== 'cycle-log') return;
@@ -4903,34 +4825,6 @@ const FORMS = {
     render();
     if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`);
   },
-  'planning-quick-task': async (form, data) => {
-    const parsed = parseQuickTaskText(String(data.get('title') || ''), today());
-    if (parsed.error) {
-      toast(parsed.error);
-      $('#planning-quick-task')?.focus();
-      return;
-    }
-    if (!parsed.title) {
-      toast('Digite o título da tarefa.');
-      $('#planning-quick-task')?.focus();
-      return;
-    }
-    const deadline = parsed.hasDeadline
-      ? `${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`
-      : 'sem prazo identificado';
-    if (!await confirmInDialog(`Prazo interpretado: ${deadline}. Criar a tarefa “${parsed.title}”?`)) return;
-    const snapshot = snapshotSlices(['tasks']);
-    S.tasks.push(mkTask({
-      title: parsed.title.slice(0, 120),
-      dueDate: parsed.dueDate,
-      time: parsed.time,
-    }));
-    if (!saveSlicesWithRollback(['tasks'], snapshot, false, 'a tarefa')) return;
-    form.reset();
-    render();
-    toast('Tarefa adicionada.');
-    $('#planning-quick-task')?.focus();
-  },
 };
 const CHANGES = {
   'legacy-import-cleanup-confirm': (el) => {
@@ -5150,7 +5044,6 @@ document.addEventListener('keydown', (event) => {
     skipPomodoroBreak();
   }
 });
-const taskPlanDirty = () => ui.dlg.type === 'taskplan' && !ui.dlg.d.confirm && (ui.dlg.d.goal.trim() || ui.dlg.d.steps.trim());
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
   if (ui.legacyImport.busy) return;
@@ -5211,9 +5104,6 @@ document.addEventListener('input', (e) => {
       el.value = formattedValue;
       el.setSelectionRange(formattedValue.length, formattedValue.length);
     }
-  }
-  if (el instanceof HTMLInputElement && el.matches('[data-input="planning-quick-task"]')) {
-    updatePlanningQuickPreview(el);
   }
   if (el.matches('[data-dlg="waterWeightKg"]')) {
     const value = el.value;

@@ -15,8 +15,9 @@ label.f {
   font-weight: 600;
 }
 
-input[type="text"], input[type="number"], input[type="date"], input[type="search"],
-input[type="time"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"],
+input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"],
+input[type="week"], input[type="search"], input[type="tel"], input[type="url"], select, textarea {
   display: block;
   box-sizing: border-box;
   width: 100%;

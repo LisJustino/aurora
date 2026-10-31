@@ -152,13 +152,6 @@
 .cycle-period-dialog .dlg-body { gap: 16px; }
 .cycle-period-form { display: grid; gap: 16px; }
 .cycle-period-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.cycle-batch-form { display: grid; gap: 16px; }
-.cycle-batch-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.cycle-batch-group { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface); }
-.cycle-batch-group h3 { display: flex; align-items: center; gap: 8px; }
-.cycle-batch-group h3 .ic { flex: none; color: var(--area-cycle); }
-.cycle-batch-group .chips { gap: 8px; }
-.cycle-batch-group .chip { min-height: var(--control-field); }
 .cycle-log-form { display: flex; flex-direction: column; gap: 16px; }
 .cycle-sexual-group { display: grid; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--area-cycle) 24%, var(--line)); border-radius: var(--r-group); background: color-mix(in srgb, var(--area-cycle) 5%, var(--surface)); }
 .cycle-sexual-group > h3 { display: flex; align-items: center; gap: 8px; }
@@ -290,7 +283,6 @@
   .cycle-day-tools { justify-content: stretch; }
   .cycle-day-tools .btn { width: 100%; }
   .cycle-period-fields { grid-template-columns: minmax(0, 1fr); }
-  .cycle-batch-groups { grid-template-columns: minmax(0, 1fr); }
   .cycle-log-dialog .dlg-body { padding: 20px; }
   .cycle-group-heading { flex-wrap: wrap; }
   .cycle-group-mode { margin-left: 0; }
