@@ -105,7 +105,33 @@ import {
   isValidBirthdayReference,
 } from './features/profile/birthday.js';
 import { filterWeightInput } from './features/profile/weight.js';
-import { PROFILE_SEX } from './features/profile/model.js';
+import {
+  normalizeProfileAppearance,
+  PROFILE_APPEARANCE_DEFAULT,
+  PROFILE_AVATARS,
+  PROFILE_AVATAR_COLORS,
+  PROFILE_GREETING_STYLES,
+  PROFILE_SEX,
+} from './features/profile/model.js';
+import {
+  defaultHomeLayout as defaultHomeLayoutModel,
+  defaultHomeModes,
+  defaultHomeShortcuts,
+  HOME_AREA_COLORS,
+  HOME_BLOCKS,
+  HOME_BLOCK_IDS,
+  HOME_MESSAGE_MAX_LENGTH,
+  HOME_MODES,
+  HOME_SHORTCUTS,
+  HOME_SHORTCUT_IDS,
+  normalizeHomeAreaColors,
+  normalizeHomeLayout,
+  normalizeHomeMessage,
+  normalizeHomeMode,
+  normalizeHomeModes,
+  normalizeHomeShortcuts,
+  homeAreaColorValue,
+} from './features/home/personalization.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
 import {
   habitWeeklyTarget,
@@ -139,7 +165,7 @@ import {
   waterGoalReached,
   waterMlForDay,
 } from './features/habits/water-goal.js';
-import { hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
+import { APPEARANCE_PRESETS, hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
 import {
   DEFAULT_VISIBLE_MENU_ITEMS,
   DEFAULT_MENU_ORDER,
@@ -275,21 +301,12 @@ const preserveCopyTerms = (text) => h`${String(text).split(/\b(Android|CSV|Googl
   return CASE_TERMS.has(part) ? h`<span class="case-preserve">${part}</span>` : part;
 })}`;
 const PRIO = { low: 'Baixa', normal: 'Normal', high: 'Alta' };
-const HOME_BLOCKS = [
-  ['summary', 'Resumo do dia', 'Tarefas de hoje, atrasadas, sem data e dados das áreas ativas.'],
-  ['quick', 'Adicionar tarefa', 'Campo rápido para registrar o próximo passo.'],
-  ['habits', 'Hábitos de hoje', 'Check-ins e acompanhamento da rotina.'],
-  ['today', 'Plano de hoje', 'Tarefas pendentes, atrasadas e concluídas.'],
-];
-const HOME_BLOCK_IDS = HOME_BLOCKS.map(([id]) => id);
-const defaultHomeLayout = () => ({ order: [...HOME_BLOCK_IDS], visible: [...HOME_BLOCK_IDS] });
-function normalizeHomeLayout(value) {
-  const layout = isPlainObject(value) ? value : {};
-  const order = Array.isArray(layout.order) ? layout.order.filter((id) => HOME_BLOCK_IDS.includes(id)) : [];
-  const visible = Array.isArray(layout.visible) ? layout.visible.filter((id) => HOME_BLOCK_IDS.includes(id)) : HOME_BLOCK_IDS;
-  return {
-    order: [...new Set(order), ...HOME_BLOCK_IDS.filter((id) => !order.includes(id))],
-    visible: [...new Set(visible)],
+const defaultHomeLayout = defaultHomeLayoutModel;
+function saveActiveHomeMode(settings) {
+  const { homeMode, homeLayout, homeShortcuts } = settings.prefs;
+  settings.prefs.homeModes[homeMode] = {
+    layout: { order: [...homeLayout.order], visible: [...homeLayout.visible] },
+    shortcuts: [...homeShortcuts],
   };
 }
 
@@ -298,7 +315,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -427,6 +444,18 @@ function normalizeSettings(s) {
       : d.prefs.pomodoro.preset;
   o.prefs.pomodoro.focusMin = Number.isInteger(pomodoro.focusMin) && pomodoro.focusMin >= 5 && pomodoro.focusMin <= 120 ? pomodoro.focusMin : d.prefs.pomodoro.focusMin;
   o.prefs.pomodoro.breakMin = Number.isInteger(pomodoro.breakMin) && pomodoro.breakMin >= 1 && pomodoro.breakMin <= 60 ? pomodoro.breakMin : d.prefs.pomodoro.breakMin;
+  o.prefs.homeMode = normalizeHomeMode(prefs.homeMode);
+  o.prefs.homeShortcuts = normalizeHomeShortcuts(prefs.homeShortcuts);
+  o.prefs.homeModes = normalizeHomeModes(prefs.homeModes);
+  if (!isPlainObject(prefs.homeModes)) {
+    o.prefs.homeModes[o.prefs.homeMode] = {
+      layout: { order: [...o.prefs.homeLayout.order], visible: [...o.prefs.homeLayout.visible] },
+      shortcuts: [...o.prefs.homeShortcuts],
+    };
+  }
+  o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
+  o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
+  o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
   o.prefs.pomodoro.longBreakMin = Number.isInteger(pomodoro.longBreakMin) && pomodoro.longBreakMin >= 5 && pomodoro.longBreakMin <= 60 ? pomodoro.longBreakMin : d.prefs.pomodoro.longBreakMin;
   o.prefs.pomodoro.soundTone = Object.hasOwn(POMODORO_SOUND_TONES, pomodoro.soundTone)
     ? pomodoro.soundTone
@@ -1444,6 +1473,16 @@ function gate(area, name) {
 }
 function areaNav(cur) {
   const items = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
+function profileGreeting(style) {
+  if (style === 'hello') return 'Olá';
+  if (style === 'oi') return 'Oi';
+  return greet();
+}
+function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
+  const profileAppearance = normalizeProfileAppearance(appearance);
+  const color = PALETTES[profileAppearance.avatarColor]?.[1] || PALETTES.rose[1];
+  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${icon(profileAppearance.avatar, 22)}</span>`;
+}
   if (items.length < 2) return '';
   return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="#${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
 }
@@ -1535,6 +1574,12 @@ function setThemeMode(mode) {
   S.settings = { ...S.settings, look: { ...S.settings.look, mode } };
   if (!saveSlices('settings')) {
     S.settings = previousSettings;
+  const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
+  HOME_AREA_COLORS.forEach(({ id, css }) => {
+    const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
+    if (color) r.style.setProperty(`--area-${css}`, color);
+    else r.style.removeProperty(`--area-${css}`);
+  });
     render();
     return;
   }
@@ -2098,8 +2143,10 @@ function viewInicio() {
   const completed = tt.filter((t) => t.done);
   const inbox = S.tasks.filter((t) => !t.dueDate && !t.done);
   const optionalAreas = areaTiles();
-  const activeAreaItems = MENU_ITEMS.filter(({ id, area }) => area && areaOn(area) && !HIDDEN_MENU_IDS.includes(id));
-  const homeLayout = settingsView().prefs.homeLayout;
+  const homePrefs = settingsView().prefs;
+  const homeLayout = homePrefs.homeLayout;
+  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => homePrefs.homeShortcuts.includes(id) && (!area || areaOn(area)));
+  const homeMessage = homePrefs.homeMessage;
   const sundayReview = pk(today()).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
@@ -2109,7 +2156,7 @@ function viewInicio() {
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${areaGuideButton('inicio')}
     ${homeFirstSteps()}
     ${sampleBanner()}
@@ -2127,6 +2174,8 @@ function viewInicio() {
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
           <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
         </section>` : ''}
+  const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
+  const greeting = profileGreeting(profileAppearance.greeting);
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins()}</div>` : ''}
         ${showHomeBlock('today') ? h`<section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="#planejar">Ver planejamento</a></div></div>
           ${tt.length ? h`<div class="home-task-groups">
@@ -2138,11 +2187,16 @@ function viewInicio() {
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
-    ${activeAreaItems.length >= 2 ? h`<section class="home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><h2 id="home-tools-title">O que você pode fazer<i>.</i></h2></div>
+    ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
+      <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
       <div class="home-tool-grid compact-card-grid">
-        <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos e calendário.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
-        ${activeAreaItems.map(({ id, area, label, icon: iconName }) => h`<a class="home-tool" href="#${id}"><span class="home-tool-icon">${icon(iconName, 20)}</span><span><b>${AREAS[area]?.[0] || label}</b><small>${AREAS[area]?.[1] || label}</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>`)}
+        ${homeShortcuts.map((shortcut) => {
+          const action = shortcut.id === 'finance' && !S.finance.accounts.length ? 'quick-action-account' : shortcut.action;
+          const label = shortcut.id === 'finance'
+            ? S.finance.accounts.length ? 'Novo lançamento' : 'Criar conta financeira'
+            : shortcut.label;
+          return h`<button class="home-tool" type="button" data-action="${action}"><span class="home-tool-icon">${icon(shortcut.icon, 20)}</span><span><b>${label}</b><small>${shortcut.description}</small></span>${icon('chevRight', 18, 'home-tool-go')}</button>`;
+        })}
       </div>
     </section>` : ''}`;
 }
@@ -2821,17 +2875,14 @@ function aparencia(s) {
 }
 function profileSettings(s) {
   s = settingsView();
-  const p = ui.profileDraft || {
-    name: s.profile.name,
-    preferredName: s.profile.preferredName || s.profile.name,
-    sex: s.profile.sex || '',
-    age: s.profile.age == null ? '' : String(s.profile.age),
-  };
-  const profileDirty = profileDraftHasChanges(p, s.profile);
+  const p = ui.profileDraft || profileDraftFromSettings(s);
+  const appearance = normalizeProfileAppearance(p.appearance);
+  const profileDirty = profileDraftHasChanges(p, s.profile, s.prefs.profileAppearance);
+  const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
-    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>Você pode alterar seu nome, como prefere ser chamado(a), sua identidade de gênero e sua idade. A idade é usada somente para estimar a meta ao adicionar o hábito de água.</p></div>
-    <div class="profile-greeting-preview" aria-live="polite"><span class="profile-greeting-avatar" aria-hidden="true">${icon('user', 22)}</span><span class="profile-greeting-copy"><span>Prévia na tela inicial</span><b>${greet()}, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
+    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>Personalize como o Aurora se apresenta para você. Seu nome preferido, símbolo e saudação podem ser ajustados a qualquer momento.</p></div>
+    <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela inicial</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
     <section class="profile-settings-group" aria-labelledby="profile-name-title">
       <div><h3 id="profile-name-title">Informações do perfil</h3><p>Você pode alterar estas informações quando quiser. Não perguntamos sua orientação sexual.</p></div>
       <div class="form profile-settings-fields">
@@ -2846,18 +2897,19 @@ function profileSettings(s) {
         <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 0 e 120 anos.</span></label>
       </div>
     </section>
-      <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar</button></div>
+      <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar perfil e preferências</button></div>
       </form>
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
       <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
     </section>
   </div>`;
 }
-function profileDraftHasChanges(draft, profile) {
+function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEARANCE_DEFAULT) {
   return draft.name !== (profile.name || '')
     || draft.preferredName !== (profile.preferredName || profile.name || '')
     || draft.sex !== (profile.sex || '')
-    || draft.age !== (profile.age == null ? '' : String(profile.age));
+    || draft.age !== (profile.age == null ? '' : String(profile.age))
+    || !sameJsonValue(normalizeProfileAppearance(draft.appearance), normalizeProfileAppearance(savedAppearance));
 }
 
 const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'personalization', calendar: 'personalization', areas: 'areas-navigation', navigation: 'areas-navigation' };
@@ -2872,7 +2924,10 @@ function homeLayoutSettings(s) {
   const layout = s.prefs.homeLayout;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha os blocos que aparecem na Home e deixe os mais importantes no topo.</p></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
+    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. Áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
+    <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(([id, label, description], index) => h`<li class="home-layout-item">
       <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}" aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
       <span class="home-layout-controls"><span>${index + 1}º</span><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="-1" aria-label="Mover ${label} para cima" ${index === 0 ? raw('disabled') : ''}>${icon('arrowUp', 16)}</button><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="1" aria-label="Mover ${label} para baixo" ${index === ordered.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 16)}</button></span>
@@ -3012,6 +3067,11 @@ async function unlockLegacyImport() {
       discovery: migration.discovery,
       userId: accountSession.user.id,
       password,
+function activeAppearancePreset(settings) {
+  return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
+    && settings.look.density === preset.density
+    && settings.look.font === preset.font)?.[0] || '';
+}
     });
     prepareLegacyImportPreview(migration, sources, vaultCount);
   } catch (error) {
@@ -3022,6 +3082,7 @@ async function unlockLegacyImport() {
   } finally {
     migration.busy = false;
     render();
+    ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
   }
 }
 async function applyLegacyImport() {
@@ -3034,9 +3095,23 @@ async function applyLegacyImport() {
     migration.discovery = null;
     migration.step = 'start';
     migration.error = 'Os dados da conta mudaram desde a análise. Analise novamente; nenhuma cópia antiga foi alterada.';
+    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
+    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
+      <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
+      <a class="btn" href="${areaOn('habits') ? '#habitos' : '#config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+    </div>`) }
     render();
     return;
   }
+function profileDraftFromSettings(settings) {
+  return {
+    name: settings.profile.name,
+    preferredName: settings.profile.preferredName || settings.profile.name,
+    sex: settings.profile.sex || '',
+    age: settings.profile.age == null ? '' : String(settings.profile.age),
+    appearance: normalizeProfileAppearance(settings.prefs.profileAppearance),
+  };
+}
   if (settingsDraftDirty() || ui.profileDraft || ui.dlg) {
     setLegacyImportError('Salve ou feche as alterações abertas antes de importar. Nenhuma origem antiga foi alterada.');
     return;
@@ -3058,6 +3133,14 @@ async function applyLegacyImport() {
     migration.step = 'start';
     migration.error = 'Os dados da conta mudaram desde a análise. Analise novamente; nenhuma cópia antiga foi alterada.';
     render();
+    <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Sua identidade visual</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-controls">
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo do perfil</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor do símbolo</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true"></span></button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação no Início</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
+      </div>
+    </section>
     return;
   }
   if (navigator.onLine === false) {
@@ -3087,8 +3170,12 @@ async function applyLegacyImport() {
       throw new Error(`A conferência não encontrou todos os registros esperados em ${missing}. A importação não foi confirmada; mantenha as cópias antigas.`);
     }
     S = confirmed;
+  const activeMode = s.prefs.homeMode;
+  const modeDefaults = defaultHomeModes()[activeMode];
     Persist.rawTables = Persist.store.rawTables;
+  const shortcuts = s.prefs.homeShortcuts;
     Persist.confirmedState = JSON.parse(JSON.stringify(confirmed));
+  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
     Persist.pendingSnapshot = null;
     ui.persistFailed.clear();
     ui.persistBlocked.clear();
@@ -4402,7 +4489,32 @@ const ACTIONS = {
     const index = current.indexOf(id), target = index + direction;
     if (index < 0 || target < 0 || target >= current.length) return;
     const order = [...current]; [order[index], order[target]] = [order[target], order[index]];
-    updateSettingsDraft((settings) => { settings.prefs.homeLayout.order = order; });
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeLayout.order = order;
+      saveActiveHomeMode(settings);
+    });
+  },
+  'home-mode': (el) => {
+    const mode = el.dataset.homeMode;
+    if (!Object.hasOwn(HOME_MODES, mode) || mode === settingsView().prefs.homeMode) return;
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeMode = mode;
+      const saved = settings.prefs.homeModes[mode];
+      settings.prefs.homeLayout = { order: [...saved.layout.order], visible: [...saved.layout.visible] };
+      settings.prefs.homeShortcuts = [...saved.shortcuts];
+    });
+  },
+  'home-layout-reset': () => {
+    const mode = settingsView().prefs.homeMode;
+    const defaults = defaultHomeModes()[mode];
+    const prefs = settingsView().prefs;
+    if (sameJsonValue(prefs.homeLayout, defaults.layout) && sameJsonValue(prefs.homeShortcuts, defaults.shortcuts)) return;
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeLayout = { order: [...defaults.layout.order], visible: [...defaults.layout.visible] };
+      settings.prefs.homeShortcuts = [...defaults.shortcuts];
+      saveActiveHomeMode(settings);
+    });
+    toast('Modo inicial restaurado. Salve para aplicar permanentemente.');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'set-free-pomodoro-preset': (el) => {
@@ -4800,12 +4912,7 @@ const FORMS = {
   },
   'settings-save': saveSettingsDraft,
   'settings-profile': () => {
-    const draft = ui.profileDraft || {
-      name: S.settings.profile.name || '',
-      preferredName: S.settings.profile.preferredName || S.settings.profile.name || '',
-      sex: S.settings.profile.sex || '',
-      age: S.settings.profile.age == null ? '' : String(S.settings.profile.age),
-    };
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
     const ageInput = String(draft.age ?? '').trim();
     const age = ageInput ? Number(ageInput) : null;
     if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
@@ -4855,6 +4962,34 @@ const FORMS = {
     const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
     const pickedIcon = String(d.get('icon') || '');
+  'appearance-preset': (el) => {
+    const preset = APPEARANCE_PRESETS[el.dataset.v];
+    if (!preset) return;
+    updateSettingsDraft((settings) => {
+      settings.theme = preset.theme;
+      settings.look.density = preset.density;
+      settings.look.font = preset.font;
+    });
+  },
+  'profile-appearance': (el) => {
+    const key = el.dataset.k, value = el.dataset.v;
+    const validOptions = key === 'avatar' ? PROFILE_AVATARS
+      : key === 'avatarColor' ? PROFILE_AVATAR_COLORS
+        : key === 'greeting' ? PROFILE_GREETING_STYLES : [];
+    if (!validOptions.some(([id]) => id === value)) return;
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    draft.appearance = normalizeProfileAppearance({ ...draft.appearance, [key]: value });
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+  },
+  'profile-appearance-reset': () => {
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    if (sameJsonValue(draft.appearance, PROFILE_APPEARANCE_DEFAULT)) return;
+    draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+    toast('Identidade visual padrão selecionada. Salve para aplicar.');
+  },
     const pickedColor = String(d.get('color') || '').toLowerCase();
     const look = {
       ...(HABIT_ICON_KEYS.includes(pickedIcon) ? { icon: pickedIcon } : {}),
@@ -5067,7 +5202,7 @@ const CHANGES = {
   },
   'import': (el) => { const f = el.files && el.files[0]; importFile(f); el.value = ''; },
 };
-const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume']);
+const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume', 'home-message']);
 
 /* ---- Salvar sem trocar a tela debaixo do dedo (campos de texto salvam ao sair do campo) ---- */
 const flushDirty = () => { if (ui.dirty) { ui.dirty = false; clearTimeout(ui.dirtyT); render(); } };
@@ -5121,6 +5256,7 @@ function checkReminders() {
     const t = findTask(alert.id);
     if (!t || t.done) { delete ui.alerts[k]; changed = true; }
   });
+    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
   if (changed) {
     render();
     if (added) {
@@ -5313,8 +5449,30 @@ document.addEventListener('input', (e) => {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
       render();
     } else if (['sex', 'accountId', 'repeat', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
+      saveActiveHomeMode(settings);
+    });
+  },
+  'home-shortcut-visible': (el) => {
+    const id = el.dataset.homeShortcut;
+    if (!HOME_SHORTCUT_IDS.includes(id)) return;
+    updateSettingsDraft((settings) => {
+      const selected = new Set(settings.prefs.homeShortcuts);
+      if (el.checked) selected.add(id); else selected.delete(id);
+      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
+      saveActiveHomeMode(settings);
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
+  'home-area-color': (el) => {
+    const id = el.dataset.homeAreaColor;
+    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
+    updateSettingsDraft((settings) => {
+      if (el.value) settings.prefs.areaColors[id] = el.value;
+      else delete settings.prefs.areaColors[id];
+    });
+  },
+  'home-message': (el) => {
+    updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
+  },
     }
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
@@ -5601,6 +5759,10 @@ function finContas() {
     <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${empty('Nenhuma conta ainda', 'Cadastre uma conta corrente, poupança ou investimento. O Aurora não se conecta a bancos: tudo é digitado por você.', h`<button class="btn primary" data-action="acct-new">Criar conta</button>`, 'wallet')}</div>`}
     <p class="small muted">Cartões de crédito ficam na seção Cartões para separar faturas e limites do saldo das contas.</p>`;
+  if (el.matches('[data-change="home-message"]')) {
+    const counter = $('#home-message-count');
+    if (counter) counter.textContent = `${el.value.length}/${HOME_MESSAGE_MAX_LENGTH}`;
+  }
 }
 function finCartoes() {
   const cards = S.finance.accounts.filter(isCredit);

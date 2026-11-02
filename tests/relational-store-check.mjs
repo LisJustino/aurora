@@ -129,6 +129,17 @@ const state = {
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
+      profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
+      homeMode: 'focus',
+      homeModes: {
+        overview: { layout: { order: ['today', 'habits', 'summary', 'quick'], visible: ['today', 'summary'] }, shortcuts: ['task'] },
+        focus: { layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] }, shortcuts: ['task', 'pomodoro'] },
+        routine: { layout: { order: ['habits', 'today', 'summary', 'quick'], visible: ['habits', 'today'] }, shortcuts: ['habit'] },
+      },
+      homeShortcuts: ['task', 'pomodoro'],
+      homeMessage: 'Um passo de cada vez.',
+      areaColors: { planning: 'coral', habits: 'sage' },
     },
     onboardingComplete: true,
     introSeen: true,
@@ -219,6 +230,21 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMode, 'focus');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
@@ -272,6 +298,21 @@ assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(loadedState.settings.prefs.homeMode, 'focus');
+assert.deepEqual(loadedState.settings.prefs.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(loadedState.settings.prefs.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(loadedState.settings.prefs.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);

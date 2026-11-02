@@ -357,7 +357,7 @@
 @media (max-width: 700px) {
   .main[data-route="planejar"] .tcal .tc { min-height: var(--control-field); }
 }
-.main[data-route="planejar"] { --area-tone: var(--accent); }
+.main[data-route="planejar"] { --area-tone: var(--area-planning, var(--accent)); }
 
 .main[data-route="planejar"] > .page-title {
   position: relative;

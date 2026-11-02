@@ -45,7 +45,7 @@ import {
   normalizeAreaTutorialsSeen,
 } from '../src/js/features/area-guides.js';
 
-import { LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
+import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
 import {
   createSuggestedHabits,
@@ -84,6 +84,27 @@ import {
   formatBirthday,
   isValidBirthdayReference,
 } from '../src/js/features/profile/birthday.js';
+import {
+  normalizeProfileAppearance,
+  PROFILE_APPEARANCE_DEFAULT,
+  PROFILE_AVATARS,
+  PROFILE_AVATAR_COLORS,
+  PROFILE_GREETING_STYLES,
+} from '../src/js/features/profile/model.js';
+import {
+  defaultHomeLayout,
+  HOME_AREA_COLORS,
+  HOME_MESSAGE_MAX_LENGTH,
+  HOME_MODES,
+  normalizeHomeAreaColors,
+  normalizeHomeLayout,
+  normalizeHomeMessage,
+  normalizeHomeMode,
+  normalizeHomeModes,
+  normalizeHomeShortcuts,
+  defaultHomeShortcuts,
+  homeAreaColorValue,
+} from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
   isTrashExpired,
@@ -1413,6 +1434,75 @@ test('cor personalizada inválida volta ao padrão e válida é escurecida até 
   equal(hexOk('#12abEF'), true);
   equal(hexOk('#12abE'), false);
   equal(darkenFor('#000000'), '#000000');
+});
+
+test('presets de aparência apontam para paletas e opções válidas de leitura', () => {
+  truthy(Object.keys(APPEARANCE_PRESETS).length >= 3);
+  Object.values(APPEARANCE_PRESETS).forEach((preset) => {
+    truthy(Object.hasOwn(PALETTES, preset.theme));
+    truthy(['comfy', 'compact'].includes(preset.density));
+    truthy(['s', 'm', 'l'].includes(preset.font));
+  });
+});
+
+test('aparência de perfil valida opções sem descartar preferências futuras', () => {
+  equal(JSON.stringify(normalizeProfileAppearance(null)), JSON.stringify(PROFILE_APPEARANCE_DEFAULT));
+  equal(JSON.stringify(normalizeProfileAppearance({
+    avatar: 'flower',
+    avatarColor: 'sage',
+    greeting: 'oi',
+    futureOption: true,
+  })), JSON.stringify({
+    avatar: 'flower',
+    avatarColor: 'sage',
+    greeting: 'oi',
+    futureOption: true,
+  }));
+  const invalid = normalizeProfileAppearance({ avatar: 'missing', avatarColor: '#ffffff', greeting: 'unknown' });
+  equal(invalid.avatar, PROFILE_APPEARANCE_DEFAULT.avatar);
+  equal(invalid.avatarColor, PROFILE_APPEARANCE_DEFAULT.avatarColor);
+  equal(invalid.greeting, PROFILE_APPEARANCE_DEFAULT.greeting);
+  truthy(PROFILE_AVATARS.length >= 4);
+  truthy(PROFILE_AVATAR_COLORS.length >= 6);
+  truthy(PROFILE_GREETING_STYLES.some(([id]) => id === 'dynamic'));
+});
+
+test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {
+  equal(JSON.stringify(normalizeHomeLayout({ order: ['quick', 'invalid'], visible: ['today', 'today', 'invalid'] })), JSON.stringify({
+    order: ['quick', 'today', 'habits', 'summary'],
+    visible: ['today'],
+  }));
+  equal(JSON.stringify(normalizeHomeLayout(null)), JSON.stringify(defaultHomeLayout()));
+  equal(JSON.stringify(normalizeHomeShortcuts(['task', 'missing', 'task'])), JSON.stringify(['task']));
+  equal(JSON.stringify(normalizeHomeShortcuts(null)), JSON.stringify(defaultHomeShortcuts()));
+  equal(normalizeHomeMode('focus'), 'focus');
+  equal(normalizeHomeMode('invalid'), 'overview');
+  equal(JSON.stringify(Object.keys(normalizeHomeModes(null))), JSON.stringify(Object.keys(HOME_MODES)));
+  equal(JSON.stringify(normalizeHomeModes({
+    focus: {
+      layout: { order: ['quick'], visible: ['quick'] },
+      shortcuts: ['habit', 'invalid', 'habit'],
+    },
+  }).focus), JSON.stringify({
+    layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick'] },
+    shortcuts: ['habit'],
+  }));
+  equal(normalizeHomeMessage(`  mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH)}  `), `mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH - 9)}`);
+  equal(normalizeHomeMessage(null), '');
+  equal(JSON.stringify(normalizeHomeAreaColors({ planning: 'coral', water: '#ffffff', unknown: 'rose' })), JSON.stringify({ planning: 'coral' }));
+  truthy(HOME_AREA_COLORS.length >= 5);
+});
+
+test('cores escolhidas para áreas mantêm contraste nos temas claro e escuro', () => {
+  const luminance = (hex) => lum(hex);
+  const ratio = (foreground, background) => {
+    const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+    return (values[0] + 0.05) / (values[1] + 0.05);
+  };
+  Object.keys(PALETTES).forEach((paletteId) => {
+    ok(ratio(homeAreaColorValue(paletteId, 'light'), '#ffffff') >= 4.5, `${paletteId} em tema claro`);
+    ok(ratio(homeAreaColorValue(paletteId, 'dark'), '#17151b') >= 4.5, `${paletteId} em tema escuro`);
+  });
 });
 
 const failures = results.filter((result) => !result.passed);

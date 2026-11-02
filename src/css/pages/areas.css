@@ -623,7 +623,7 @@
   box-shadow: inset -1px 0 0 color-mix(in srgb, white 34%, transparent);
   transition: width var(--duration-base) var(--ease-standard);
 }
-.main[data-route="pomodoro"] { --area-tone: var(--accent); }
+.main[data-route="pomodoro"] { --area-tone: var(--area-pomodoro, var(--accent)); }
 .main[data-route="agua"] { --area-tone: var(--area-water); }
 .main[data-route="ciclo"] { --area-tone: var(--area-cycle); }
 

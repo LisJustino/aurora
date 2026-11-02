@@ -348,7 +348,7 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   background: var(--surface-soft);
 }
 .habit-record-icon { border-radius: var(--r-sm); }
-.main[data-route="habitos"] { --progress-tone: var(--ok); }
+.main[data-route="habitos"] { --progress-tone: var(--area-habits, var(--ok)); }
 .habit-water-inline-progress {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--progress-tone) 14%, transparent);
@@ -369,7 +369,7 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   .habit-record-actions .btn,
   .habit-record-actions .ibtn { min-height: var(--control-sm); }
 }
-.main[data-route="habitos"] { --area-tone: var(--ok); }
+.main[data-route="habitos"] { --area-tone: var(--area-habits, var(--ok)); }
 
 .main[data-route="habitos"] > .page-title {
   position: relative;
