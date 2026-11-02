@@ -17,7 +17,7 @@ import { iconSvg } from '../utils/icons.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.5';
+export const LEGAL_DOCUMENT_VERSION = '1.6';
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
   if (!(acceptedAt instanceof Date) || Number.isNaN(acceptedAt.getTime())) {

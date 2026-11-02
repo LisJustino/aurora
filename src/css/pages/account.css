@@ -687,8 +687,12 @@
 .account-loading-line.is-field { height: var(--control-field); border: 1px solid var(--line); background: var(--surface); }
 .account-loading-line.is-button { height: var(--control-field); background: var(--soft2); }
 .account-loading-line.is-short { width: 42%; }
-.account-loading [aria-hidden="true"] { animation: account-skeleton-pulse 1.2s ease-in-out infinite alternate; }
-@keyframes account-skeleton-pulse { to { opacity: .48; } }
+.account-loading [aria-hidden="true"] {
+  background-image: linear-gradient(105deg, transparent 24%, color-mix(in srgb, var(--surface) 72%, var(--soft2)) 48%, transparent 72%);
+  background-size: 220% 100%;
+  animation: account-skeleton-shimmer 1.6s var(--ease-standard) infinite;
+}
+@keyframes account-skeleton-shimmer { to { background-position: -220% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   .account-gate,
@@ -696,6 +700,7 @@
   .account-loading [aria-hidden="true"],
   .account-spinner { animation: none; }
 }
+:root[data-motion="reduce"] .account-loading [aria-hidden="true"] { animation: none; }
 
 .account-steps {
   display: grid;
@@ -887,15 +892,15 @@
   padding-top: var(--space-5);
   border-top: 1px solid var(--line);
 }
+.home-layout-settings > .settings-section-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
 .home-layout-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .home-layout-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-.home-layout-settings > .settings-section-heading {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-}
   gap: 12px;
   min-height: 68px;
   padding: 10px 12px;
@@ -910,11 +915,6 @@
 .home-layout-toggle small { color: var(--muted); font-size: var(--text-xs); line-height: 1.35; }
 .home-layout-controls { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--text-xs); }
 .home-layout-controls > span { min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
-
-@media (max-width: 700px) {
-  .home-layout-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .home-layout-controls { justify-content: flex-end; }
-}
 .home-mode-grid,
 .home-shortcut-options,
 .appearance-area-colors { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 8px; }
@@ -950,13 +950,18 @@
 .appearance-area-color select { width: 100%; min-width: 0; }
 .routine-settings-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .routine-settings-links .btn { min-height: var(--control-sm); }
+
+@media (max-width: 700px) {
+  .home-layout-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .home-layout-controls { justify-content: flex-end; }
+  .home-mode-grid,
+  .home-shortcut-options,
+  .appearance-area-colors { grid-template-columns: minmax(0, 1fr); }
+}
 .main[data-route="config"] .setting-toggle:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-soft);
-  .home-mode-grid,
-  .home-shortcut-options,
-  .appearance-area-colors { grid-template-columns: minmax(0, 1fr); }
 }
 .main[data-route="config"] .setting-toggle:has(> input:checked) {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
@@ -973,12 +978,12 @@
 }
 .setting-toggle-icon[data-area="pomodoro"] { --area-color: var(--area-pomodoro, var(--accent)); }
 .setting-toggle-icon[data-area="finances"] { --area-color: var(--area-finances); }
+.setting-toggle-icon[data-area="habits"] { --area-color: var(--area-habits, var(--ok)); }
 .setting-toggle-icon[data-area="water"] { --area-color: var(--area-water); }
 .setting-toggle-icon[data-area="cycle"] { --area-color: var(--area-cycle); }
 .main[data-route="config"] .setting-toggle-copy { gap: 5px; }
 .main[data-route="config"] .setting-toggle-copy b { font-size: var(--text-md); }
 .main[data-route="config"] .setting-toggle-copy > span { line-height: 1.4; }
-.setting-toggle-icon[data-area="habits"] { --area-color: var(--area-habits, var(--ok)); }
 .main[data-route="config"] .setting-toggle input {
   display: grid;
   width: 24px;
@@ -1091,14 +1096,14 @@
 }
 .main[data-route="config"] .profile-settings-group + .profile-settings-group,
 .main[data-route="config"] .appearance-settings-group + .appearance-settings-group { border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent); }
+@media (max-width: 480px) {
+  .main[data-route="config"] .appearance-settings-group { padding: var(--space-3); }
+}
 .main[data-route="config"] .profile-settings-actions,
 .main[data-route="config"] .settings-save-actions { margin-top: 2px; padding-top: 16px; border-top: 1px solid var(--line); }
 .profile-settings-heading { gap: 6px; }
 .profile-settings-heading > p { margin: 0; }
 .profile-greeting-preview {
-@media (max-width: 480px) {
-  .main[data-route="config"] .appearance-settings-group { padding: var(--space-3); }
-}
   display: flex;
   max-width: 760px;
   min-width: 0;
@@ -1146,11 +1151,6 @@
   color: var(--muted);
   cursor: pointer;
 }
-.profile-greeting-copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
 .profile-avatar-option:hover,
 .profile-avatar-color:hover { border-color: var(--accent); background: var(--surface-soft); }
 .profile-avatar-option[aria-pressed="true"],
@@ -1165,6 +1165,11 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 .profile-appearance-option .seg { width: 100%; max-width: 420px; }
+.profile-greeting-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
 .profile-greeting-copy > span:first-child {
   color: var(--muted);
   font-size: var(--text-2xs);
@@ -1226,12 +1231,12 @@
 
 @media (max-width: 480px) {
   .profile-greeting-preview { padding: 12px; }
+  .profile-appearance-heading { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .settings-link,
   .settings-link-icon { transition: none; }
-  .profile-appearance-heading { grid-template-columns: minmax(0, 1fr); }
 }
 .main[data-route="config"] { --area-tone: var(--accent); }
 .main[data-route="config"] > .page-title {

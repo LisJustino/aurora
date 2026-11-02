@@ -24,11 +24,14 @@
 /* Estados vazios usam sempre a mesma orientação: ícone, contexto e uma única ação de continuidade. */
 .empty {
   display: flex;
-  min-height: 220px;
+  min-height: 176px;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: clamp(28px, 5vw, 48px) 20px;
+  padding: var(--space-5);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-group);
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
   color: var(--muted);
   text-align: center;
 }
@@ -57,7 +60,7 @@
 }
 .empty-action > .btn:not(.danger):hover { background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn)); }
 @media (max-width: 480px) {
-  .empty { min-height: 190px; flex-direction: column; padding: 28px 16px; }
+  .empty { min-height: 160px; flex-direction: column; padding: var(--space-4); }
   .empty-copy { width: 100%; min-width: 0; }
   .empty-action { flex-direction: column; }
   .empty-action, .empty-action > .btn { width: 100%; }
