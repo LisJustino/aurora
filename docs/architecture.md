@@ -22,7 +22,8 @@ O shell, os menus e os modais são compartilhados e renderizados no elemento `#a
 - `src/js/features/footer/view.js`: conteúdo compartilhado do footer público, do fluxo de conta e do shell autenticado; ações de conta seguem o contexto da tela e o FAQ é estático.
 - `src/js/features/footer/legal-dialog.js`: carrega os documentos legais públicos no diálogo compartilhado do footer e oferece link de fallback se o carregamento falhar.
 - `supabase/functions/delete-account/`: exclusão autenticada da conta após recusa confirmada dos documentos, limpando Push remoto antes da exclusão Admin.
-- `src/js/features/profile/model.js`: opções compartilhadas de identidade de gênero usadas no cadastro e nos Ajustes.
+- `src/js/features/profile/model.js`: opções compartilhadas de identidade de gênero, avatar e saudação; normaliza a identidade visual opcional do perfil.
+- `src/js/features/home/personalization.js`: regras puras de normalização para modos, blocos, atalhos, mensagem e cores por área do Início; estado e renderização continuam compostos em `main.js`.
 - `src/js/features/selects/custom-select.js`: apresentação acessível e interações de teclado dos selects; o elemento nativo continua sendo a fonte do valor, validação e eventos.
 - `src/js/features/appearance/public-controls.js`: cabeçalho e controles temporários de tema/acessibilidade para as telas públicas; não lê nem grava as preferências privadas da conta.
 - `src/js/features/pomodoro/`: lógica e áudio do timer independente; não cria matérias ou sessões. `src/js/features/habits/` mantém o fragmento HTML e o modelo de hábitos; estado e handlers continuam compostos em `main.js`. A sugestão de água registra volumes por dia na fatia `water` existente e conclui o hábito ao atingir a meta.

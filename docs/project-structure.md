@@ -25,6 +25,7 @@ aurora/
 │       ├── core/              # Router e compatibilidade de rotas
 │       ├── features/           # Funcionalidades agrupadas por domínio
 │       │   ├── footer/         # Conteúdo compartilhado do footer
+│       │   ├── home/           # Preferências e modos do Início
 │       │   └── selects/        # Combobox acessível compartilhado
 │       ├── data/              # Store relacional e importador temporário do legado
 │       ├── services/          # Autenticação, Push e busca local

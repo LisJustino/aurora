@@ -22,6 +22,19 @@
   letter-spacing: .095em;
 }
 .home-head h1 { max-width: 18ch; font-size: clamp(2.15rem, 4.5vw, 3rem); }
+.home-personal-message { max-width: 54ch; margin: 8px 0 0; color: var(--area-tone, var(--accent)); font-size: var(--text-lg); font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.home-profile-avatar {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  margin-right: .38em;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--profile-avatar-color) 14%, var(--surface));
+  color: var(--profile-avatar-color);
+  vertical-align: .12em;
+}
+.home-profile-avatar .ic { width: 20px; height: 20px; }
 .home-head .lead { max-width: 52ch; margin-top: 12px; color: var(--muted); font-size: var(--text-base); }
 .ring-fg { stroke: var(--accent); }
 .ringw .rt { color: var(--ink); font-variant-numeric: tabular-nums; }
