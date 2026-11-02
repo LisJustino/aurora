@@ -48,6 +48,7 @@ import {
   normalizeAccountType,
 } from './features/finance/accounts.js';
 import { parseStatement } from './features/finance/statement.js';
+import { createGoogleCalendarService } from './services/google-calendar.js';
 import {
   AREA_GUIDES,
   FINANCE_PRIVACY_NOTICE,
@@ -88,6 +89,8 @@ import {
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { renderFooterContent } from './features/footer/view.js';
+
+const googleCalendar = createGoogleCalendarService();
 import { showLegalDocument } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
@@ -210,6 +213,12 @@ const plural = (n, a, b) => n === 1 ? a : b;
 
 const LIST_COLORS = ['#c97994', '#e07a5f', '#d9a05b', '#a3b55a', '#5fa68a', '#5aa5b8', '#7c8fd4', '#8a7ac4', '#a24f9e', '#d6455d', '#8b8b95', '#ad8c76'];
 const CAT_ICONS = ['utensils', 'home', 'car', 'heart', 'book', 'sparkles', 'bag', 'repeat', 'user', 'tag', 'wallet', 'plus', 'trendUp', 'calendar', 'card', 'bank'];
+const CATEGORY_ICON_LABELS = {
+  utensils: 'Alimentação', home: 'Casa', car: 'Transporte', heart: 'Saúde',
+  book: 'Educação', sparkles: 'Brilho', bag: 'Compras', repeat: 'Recorrência',
+  user: 'Pessoa', tag: 'Etiqueta', wallet: 'Carteira', plus: 'Mais',
+  trendUp: 'Rendimentos', calendar: 'Calendário', card: 'Cartão', bank: 'Banco',
+};
 const DEF_LISTS = [{ name: 'Pessoal', color: '#c97994' }];
 const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
@@ -326,7 +335,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaQuery: '', habitIdeaCategory: 'all', profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaQuery: '', habitIdeaCategory: 'all', profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -435,15 +444,6 @@ function normalizeSettings(s) {
   o.prefs.visibleMenuItems = normalizeVisibleMenuItems(prefs.visibleMenuItems);
   o.prefs.areaTutorialsSeen = normalizeAreaTutorialsSeen(prefs.areaTutorialsSeen);
   o.prefs.homeLayout = normalizeHomeLayout(prefs.homeLayout);
-  o.prefs.pomodoro = { ...d.prefs.pomodoro, ...pomodoro };
-  o.prefs.pomodoro.on = typeof pomodoro.on === 'boolean' ? pomodoro.on : d.prefs.pomodoro.on;
-  o.prefs.pomodoro.preset = (Object.hasOwn(POMODORO_PRESETS, pomodoro.preset) || pomodoro.preset === 'custom')
-    ? pomodoro.preset
-    : Object.hasOwn(pomodoro, 'focusMin') || Object.hasOwn(pomodoro, 'breakMin')
-      ? 'custom'
-      : d.prefs.pomodoro.preset;
-  o.prefs.pomodoro.focusMin = Number.isInteger(pomodoro.focusMin) && pomodoro.focusMin >= 5 && pomodoro.focusMin <= 120 ? pomodoro.focusMin : d.prefs.pomodoro.focusMin;
-  o.prefs.pomodoro.breakMin = Number.isInteger(pomodoro.breakMin) && pomodoro.breakMin >= 1 && pomodoro.breakMin <= 60 ? pomodoro.breakMin : d.prefs.pomodoro.breakMin;
   o.prefs.homeMode = normalizeHomeMode(prefs.homeMode);
   o.prefs.homeShortcuts = normalizeHomeShortcuts(prefs.homeShortcuts);
   o.prefs.homeModes = normalizeHomeModes(prefs.homeModes);
@@ -456,6 +456,15 @@ function normalizeSettings(s) {
   o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
   o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
   o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
+  o.prefs.pomodoro = { ...d.prefs.pomodoro, ...pomodoro };
+  o.prefs.pomodoro.on = typeof pomodoro.on === 'boolean' ? pomodoro.on : d.prefs.pomodoro.on;
+  o.prefs.pomodoro.preset = (Object.hasOwn(POMODORO_PRESETS, pomodoro.preset) || pomodoro.preset === 'custom')
+    ? pomodoro.preset
+    : Object.hasOwn(pomodoro, 'focusMin') || Object.hasOwn(pomodoro, 'breakMin')
+      ? 'custom'
+      : d.prefs.pomodoro.preset;
+  o.prefs.pomodoro.focusMin = Number.isInteger(pomodoro.focusMin) && pomodoro.focusMin >= 5 && pomodoro.focusMin <= 120 ? pomodoro.focusMin : d.prefs.pomodoro.focusMin;
+  o.prefs.pomodoro.breakMin = Number.isInteger(pomodoro.breakMin) && pomodoro.breakMin >= 1 && pomodoro.breakMin <= 60 ? pomodoro.breakMin : d.prefs.pomodoro.breakMin;
   o.prefs.pomodoro.longBreakMin = Number.isInteger(pomodoro.longBreakMin) && pomodoro.longBreakMin >= 5 && pomodoro.longBreakMin <= 60 ? pomodoro.longBreakMin : d.prefs.pomodoro.longBreakMin;
   o.prefs.pomodoro.soundTone = Object.hasOwn(POMODORO_SOUND_TONES, pomodoro.soundTone)
     ? pomodoro.soundTone
@@ -1336,6 +1345,15 @@ function clearPomodoroNotifications() {
 }
 function shell(body) {
   const overdue = S.tasks.filter((t) => !t.done && t.dueDate && t.dueDate < today()).length;
+  const timer = S.pomodoro;
+  const timerNow = Date.now();
+  const timerElapsed = phaseElapsedSeconds(timer, timerNow);
+  const timerDuration = phaseDurationSeconds(pomodoroSettingsForTimer(), timer.phase);
+  const timerRunning = timer.startedAt !== null;
+  const timerHasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || timerElapsed > 0;
+  const miniTimerVisible = ui.route !== 'pomodoro' && (timerRunning || timerHasProgress);
+  const miniFocusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
+  const miniFocusLabel = miniFocusTask?.title || timer.focusLabel || 'Seu bloco atual';
   const saveStatus = ui.persistBlocked.size || ui.persistFailed.size ? 'warning' : 'saved';
   const saveLabel = ui.preview
     ? ''
@@ -1353,12 +1371,29 @@ function shell(body) {
   const isCurrent = (id) => id === ui.route;
   const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
-  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const quickActionItems = h`
+    <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
+    ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
+    ${areaOn('finances') ? h`<button type="button" data-action="${S.finance.accounts.length ? 'quick-action-transaction' : 'quick-action-account'}"><span class="ni">${icon('wallet', 18)}</span><span>${S.finance.accounts.length ? 'Lançamento' : 'Criar conta financeira'}</span></button>` : ''}
+    ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
+  const quickActions = h`<div class="nav-quick-control">
+    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
+    <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
+  </div>`;
+  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
+      <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
+        <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="#pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
+          <span class="pomodoro-mini-indicator" aria-hidden="true"></span>
+          <span class="pomodoro-mini-copy"><b id="pomodoro-mini-phase">${standalonePomodoroPhaseName(timer.phase)} · ${timerRunning ? 'em andamento' : 'pausado'}</b><small id="pomodoro-mini-focus">${miniFocusLabel}</small></span>
+          <span class="pomodoro-mini-clock" id="pomodoro-mini-clock" role="timer" aria-live="off">${clock(Math.max(0, timerDuration - timerElapsed))}</span>
+        </a>
+        <button type="button" class="pomodoro-mini-toggle" id="pomodoro-mini-toggle" data-action="pomodoro-mini-toggle" aria-label="${timerRunning ? 'Pausar Pomodoro' : 'Retomar Pomodoro'}">${timerRunning ? 'Pausar' : 'Retomar'}</button>
+      </section>
       ${persistenceNotice()}
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
@@ -1438,6 +1473,16 @@ function weeklyReviewView() {
 }
 
 const greet = () => { const hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; };
+function profileGreeting(style) {
+  if (style === 'hello') return 'Olá';
+  if (style === 'oi') return 'Oi';
+  return greet();
+}
+function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
+  const profileAppearance = normalizeProfileAppearance(appearance);
+  const color = PALETTES[profileAppearance.avatarColor]?.[1] || PALETTES.rose[1];
+  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${icon(profileAppearance.avatar, 22)}</span>`;
+}
 const PAGE_CONTEXT = {
   Planejar: ['Tarefas e prazos', 'Crie tarefas, organize a semana e acompanhe itens atrasados.'],
   Pomodoro: ['Foco e pausas', 'Configure blocos Pomodoro e associe tarefas ao timer.'],
@@ -1473,16 +1518,6 @@ function gate(area, name) {
 }
 function areaNav(cur) {
   const items = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
-function profileGreeting(style) {
-  if (style === 'hello') return 'Olá';
-  if (style === 'oi') return 'Oi';
-  return greet();
-}
-function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
-  const profileAppearance = normalizeProfileAppearance(appearance);
-  const color = PALETTES[profileAppearance.avatarColor]?.[1] || PALETTES.rose[1];
-  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${icon(profileAppearance.avatar, 22)}</span>`;
-}
   if (items.length < 2) return '';
   return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="#${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
 }
@@ -1539,6 +1574,12 @@ function applyTheme(theme) {
   r.setAttribute('data-palette', th); r.style.setProperty('--p', p); r.style.setProperty('--pd', pd);
   const effectiveMode = L.mode === 'auto' ? (systemThemeQuery?.matches ? 'dark' : 'light') : L.mode;
   r.setAttribute('data-theme', effectiveMode);
+  const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
+  HOME_AREA_COLORS.forEach(({ id, css }) => {
+    const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
+    if (color) r.style.setProperty(`--area-${css}`, color);
+    else r.style.removeProperty(`--area-${css}`);
+  });
   r.setAttribute('data-density', L.density); r.setAttribute('data-fs', L.font);
   r.setAttribute('data-contrast', L.contrast ? 'high' : 'normal');
   r.setAttribute('data-readable', L.readable ? 'true' : 'false');
@@ -1574,12 +1615,6 @@ function setThemeMode(mode) {
   S.settings = { ...S.settings, look: { ...S.settings.look, mode } };
   if (!saveSlices('settings')) {
     S.settings = previousSettings;
-  const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
-  HOME_AREA_COLORS.forEach(({ id, css }) => {
-    const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
-    if (color) r.style.setProperty(`--area-${css}`, color);
-    else r.style.removeProperty(`--area-${css}`);
-  });
     render();
     return;
   }
@@ -1701,7 +1736,7 @@ function renderToast() {
   if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
   const icons = { success: 'check', warning: 'alert', error: 'alert', action: 'repeat', info: 'info' };
   const labels = { success: 'Concluído', warning: 'Atenção', error: 'Não foi possível concluir', action: 'Alteração feita', info: 'Informação' };
-  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen ? ' toast-top' : ''}`;
+  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen || ui.quickActionsOpen ? ' toast-top' : ''}`;
   el.setAttribute('role', ui.toast.tone === 'error' ? 'alert' : 'status');
   const toastMessage = typeof ui.toast.msg === 'string' ? preserveCopyTerms(ui.toast.msg) : ui.toast.msg;
   el.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[ui.toast.tone], 18)}</span><span class="toast-content"><span class="toast-label">${labels[ui.toast.tone]}</span><span class="toast-message">${toastMessage}</span></span>${ui.toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
@@ -1734,6 +1769,7 @@ function focusRouteTarget(id) {
 }
 function onRoute() {
   ui.navigationOpen = false;
+  ui.quickActionsOpen = false;
   let r = location.hash.slice(1);
   const queryIndex = r.indexOf('?');
   const query = queryIndex >= 0 ? r.slice(queryIndex + 1) : '';
@@ -1970,6 +2006,7 @@ function togglePomodoroTimer() {
   S.pomodoro = timer;
   commit('pomodoro');
   syncPomodoroPushSchedule(timer);
+  updatePomodoroMiniTimer(now);
 }
 function skipPomodoroBreak() {
   const now = Date.now(), advanced = advancePomodoro(S.pomodoro, pomodoroSettingsForTimer(), now);
@@ -2079,9 +2116,8 @@ function homeNextAction() {
   if (!next) return '';
   if (next.type === 'task') {
     const task = next.task;
-    const label = task.dueDate && task.dueDate < todayKey ? `Atrasada · ${shortDate(task.dueDate)}`
-      : task.dueDate === todayKey ? task.time ? `Hoje às ${task.time}` : 'Para hoje'
-        : task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
+    if (task.dueDate && task.dueDate <= todayKey) return '';
+    const label = task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
     return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
   }
   if (next.type === 'habit') {
@@ -2136,6 +2172,8 @@ function homeFirstSteps() {
 
 function viewInicio() {
   const name = (S.settings.profile.preferredName || S.settings.profile.name).trim();
+  const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
+  const greeting = profileGreeting(profileAppearance.greeting);
   const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
   const overdue = pend.filter((t) => t.dueDate < today());
   const dueToday = pend.filter((t) => t.dueDate === today());
@@ -2158,13 +2196,10 @@ function viewInicio() {
   return h`
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${areaGuideButton('inicio')}
-    ${homeFirstSteps()}
     ${sampleBanner()}
-    ${backupReminder()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
     <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
       <div class="home-primary">
-        ${homeNextAction()}
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
           <a href="#planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
           <a href="#planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
@@ -2174,8 +2209,6 @@ function viewInicio() {
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
           <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
         </section>` : ''}
-  const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
-  const greeting = profileGreeting(profileAppearance.greeting);
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins()}</div>` : ''}
         ${showHomeBlock('today') ? h`<section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="#planejar">Ver planejamento</a></div></div>
           ${tt.length ? h`<div class="home-task-groups">
@@ -2184,9 +2217,12 @@ function viewInicio() {
             ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
           </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="#planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
+        ${homeNextAction()}
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
+    ${homeFirstSteps()}
+    ${backupReminder()}
     ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
       <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
       <div class="home-tool-grid compact-card-grid">
@@ -2245,16 +2281,38 @@ function plansHtml() {
 }
 function taskCalendar() {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
+  const eventsByDay = new Map();
+  (googleCalendar.isConnected() ? ui.googleCalendar.events : []).forEach((event) => {
+    const dayEvents = eventsByDay.get(event.day) || [];
+    dayEvents.push(event);
+    eventsByDay.set(event.day, dayEvents);
+  });
   const wd = Array.from({ length: 7 }, (_, i) => DIAS[(ws + i) % 7]);
   const by = {}; S.tasks.forEach((t) => { if (t.dueDate && t.dueDate.startsWith(ym) && !(t.done && ui.filters.f === 'pendentes')) (by[t.dueDate] = by[t.dueDate] || []).push(t); });
   const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
   for (let d = 1; d <= n; d++) {
-    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done);
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}"><b>${d}</b><i>${pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : ''}</i></button>`);
+    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done), dayEvents = eventsByDay.get(k) || [];
+    const labels = [
+      `${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
+      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} do Google Calendar`] : []),
+    ];
+    const markers = [
+      pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : '',
+      dayEvents.length ? '<u class="google-event-dot"></u>' : '',
+    ].join('');
+    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${d}</b><i>${markers}</i></button>`);
   }
   const day = S.tasks.filter((t) => t.dueDate === ui.taskDay).sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    <div class="tcal" role="group" aria-label="Calendário de tarefas">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
+    ${googleCalendarPanel()}
+    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos do Google">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
+    ${googleCalendar.isConnected() ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
+      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
+      ${selectedEvents.length
+        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName}</small></span></li>`)}</ul>`
+        : h`<p class="small muted">Nenhum evento do Google Calendar neste dia.</p>`}
+    </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
       ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul>` : h`<p class="small muted">Nada marcado para este dia.</p>`}
       <button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button></section>`;
@@ -2274,6 +2332,168 @@ function taskWeek() {
       <button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>
     </section>`)}</div>
   </div>`;
+}
+function googleCalendarPanel() {
+  const state = ui.googleCalendar;
+  const configured = googleCalendar.isConfigured();
+  const connected = googleCalendar.isConnected();
+  const prepared = googleCalendar.isPrepared();
+  const busy = ['loading-sdk', 'authorizing', 'loading-calendars', 'loading-events'].includes(state.status);
+  const expired = ['connected', 'error', 'loading-events'].includes(state.status) && !connected;
+  const selected = new Set(state.selectedIds);
+  const statusText = {
+    'loading-sdk': 'Preparando a autorização segura do Google…',
+    authorizing: 'Aguardando sua autorização do Google…',
+    'loading-calendars': 'Carregando seus calendários…',
+    'loading-events': 'Buscando eventos deste mês…',
+  }[state.status];
+  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
+    <div class="head">
+      <div><h3 id="google-calendar-title">Google Calendar</h3><span class="badge">Somente leitura</span></div>
+      ${connected ? h`<div class="row"><button type="button" class="btn sm" data-action="google-calendar-refresh" ${busy ? raw('disabled') : ''}>Atualizar</button><button type="button" class="btn sm ghost" data-action="google-calendar-disconnect">Parar de mostrar eventos</button></div>` : ''}
+    </div>
+    <p class="small muted">Mostra eventos no calendário do Planejar. O Aurora não cria, altera nem salva eventos; a autorização e os eventos ficam somente nesta aba.</p>
+    ${!configured ? h`<p class="small" role="alert">Integração indisponível: configure <code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code> neste ambiente.</p>` : ''}
+    ${configured && !connected && !prepared && !busy ? h`<button type="button" class="btn" data-action="google-calendar-prepare">${state.status === 'error' ? 'Tentar novamente' : 'Conectar Google Calendar'}</button>` : ''}
+    ${configured && prepared && !connected && !busy ? h`<button type="button" class="btn primary" data-action="google-calendar-authorize">Autorizar leitura do Google Calendar</button>` : ''}
+    ${expired ? h`<p class="small muted" role="status">A autorização expirou ou foi revogada. Autorize novamente para voltar a exibir os eventos.</p>` : ''}
+    ${statusText ? h`<p class="small muted" role="status" aria-live="polite">${statusText}</p>` : ''}
+    ${state.error ? h`<p class="small google-calendar-error" role="alert">${state.error}</p>` : ''}
+    ${connected && state.calendars.length ? h`<div class="google-calendar-sources" aria-label="Calendários incluídos">
+      <span class="small muted">Calendários exibidos</span>
+      ${state.calendars.map((calendar) => h`<button type="button" class="google-calendar-source" data-action="google-calendar-toggle" data-calendar-id="${calendar.id}" aria-pressed="${selected.has(calendar.id)}" ${busy ? raw('disabled') : ''}>${selected.has(calendar.id) ? icon('check', 15) : icon('plus', 15)}<span>${calendar.name}${calendar.primary ? ' · principal' : ''}</span></button>`)}
+    </div>` : ''}
+    ${connected && !state.calendars.length && !busy ? h`<p class="small muted">Nenhum calendário com eventos disponíveis foi encontrado.</p>` : ''}
+    ${connected ? h`<p class="fine">O acesso expira ao fechar a aba ou quando o Google o revoga. Para remover a permissão concedida, gerencie o Aurora nas <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">permissões da sua Conta Google</a>.</p>` : ''}
+  </section>`;
+}
+function googleCalendarRange(month) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return {
+    start: new Date(year, monthNumber - 1, 1),
+    end: new Date(year, monthNumber, 1),
+  };
+}
+function resetGoogleCalendarState() {
+  googleCalendar.clear();
+  ui.googleCalendar.requestId += 1;
+  ui.googleCalendar = { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: ui.googleCalendar.requestId };
+}
+async function loadGoogleCalendarEvents() {
+  const state = ui.googleCalendar;
+  const month = ui.taskCal;
+  const requestId = ++state.requestId;
+  if (!googleCalendar.isConnected()) {
+    state.status = 'disconnected';
+    state.events = [];
+    state.error = 'A autorização expirou ou foi revogada. Conecte novamente para continuar.';
+    state.loadedMonth = '';
+    render();
+    return;
+  }
+  const selectedIds = state.selectedIds.filter((id) => state.calendars.some((calendar) => calendar.id === id));
+  state.error = '';
+  state.events = [];
+  state.loadedMonth = '';
+  state.status = 'loading-events';
+  render();
+  if (!selectedIds.length) {
+    state.status = 'connected';
+    state.loadedMonth = month;
+    render();
+    return;
+  }
+
+  try {
+    const events = await googleCalendar.getEvents(selectedIds, googleCalendarRange(month));
+    if (ui.googleCalendar.requestId !== requestId || ui.taskCal !== month) return;
+    const names = new Map(state.calendars.map((calendar) => [calendar.id, calendar.name]));
+    state.events = events.map((event) => ({ ...event, calendarName: names.get(event.calendarId) || 'Google Calendar' }));
+    state.loadedMonth = month;
+    state.status = 'connected';
+    render();
+  } catch (error) {
+    if (ui.googleCalendar.requestId !== requestId) return;
+    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
+    state.error = error instanceof Error ? error.message : 'Não foi possível carregar os eventos do Google Calendar.';
+    render();
+  }
+}
+async function loadGoogleCalendarList() {
+  const state = ui.googleCalendar;
+  const requestId = ++state.requestId;
+  state.status = 'loading-calendars';
+  state.error = '';
+  render();
+  try {
+    const calendars = await googleCalendar.getCalendars();
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    if (!calendars.length) throw new Error('Nenhum calendário com permissão de leitura foi encontrado.');
+    state.calendars = calendars;
+    const primary = calendars.filter((calendar) => calendar.primary).map((calendar) => calendar.id);
+    state.selectedIds = primary.length
+      ? primary
+      : calendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
+    if (!state.selectedIds.length) state.selectedIds = [calendars[0].id];
+    state.status = 'connected';
+    render();
+    await loadGoogleCalendarEvents();
+  } catch (error) {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
+    state.error = error instanceof Error ? error.message : 'Não foi possível carregar seus calendários do Google.';
+    render();
+  }
+}
+function prepareGoogleCalendar() {
+  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.');
+  const state = ui.googleCalendar;
+  state.status = 'loading-sdk';
+  state.error = '';
+  render();
+  void googleCalendar.prepare().then(() => {
+    if (ui.googleCalendar !== state) return;
+    state.status = 'ready';
+    render();
+  }).catch((error) => {
+    if (ui.googleCalendar !== state) return;
+    state.status = 'error';
+    state.error = error instanceof Error ? error.message : 'Não foi possível preparar a conexão com o Google Calendar.';
+    render();
+  });
+}
+function authorizeGoogleCalendar() {
+  const state = ui.googleCalendar;
+  const requestId = ++state.requestId;
+  let authorization;
+  try {
+    authorization = googleCalendar.authorize();
+  } catch (error) {
+    ui.googleCalendar.status = 'error';
+    ui.googleCalendar.error = error instanceof Error ? error.message : 'Não foi possível iniciar a autorização do Google Calendar.';
+    render();
+    return;
+  }
+  state.status = 'authorizing';
+  state.error = '';
+  render();
+  void authorization.then(() => {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    return loadGoogleCalendarList();
+  }).catch((error) => {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    state.status = googleCalendar.isPrepared() ? 'ready' : 'error';
+    state.error = error instanceof Error ? error.message : 'Não foi possível autorizar a leitura do Google Calendar.';
+    render();
+  });
+}
+function toggleGoogleCalendar(id) {
+  const state = ui.googleCalendar;
+  if (!googleCalendar.isConnected() || !state.calendars.some((calendar) => calendar.id === id)) return;
+  state.selectedIds = state.selectedIds.includes(id)
+    ? state.selectedIds.filter((selectedId) => selectedId !== id)
+    : [...state.selectedIds, id];
+  void loadGoogleCalendarEvents();
 }
 function viewPlanejar() {
   const f = ui.filters;
@@ -2445,7 +2665,7 @@ function habitRow(habit) {
         })}</div>
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
         ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
-        ${saved ? h`<div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button></div>` : ''}
+        ${saved ? h`<div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div>` : ''}
       </div>
     </details>
   </li>`;
@@ -2571,7 +2791,7 @@ function viewHabits() {
       </details>`.s
       : '',
     'archived-habits': archived.length
-      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">Restaurar</button><button type="button" class="ibtn" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar hábito arquivado ${habit.name}">${icon('pencil', 18)}</button></li>`)}</ul></details>`.s
+      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">Restaurar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button><button type="button" class="ibtn" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar hábito arquivado ${habit.name}">${icon('pencil', 18)}</button></li>`)}</ul></details>`.s
       : '',
   };
   return raw(renderHabitsTemplate(habitsTemplate, slots));
@@ -2848,6 +3068,11 @@ function viewCiclo() {
 function settingsSegment(look, key, label, options, action = 'look') {
   return h`<div class="seg" role="group" aria-label="${label}">${options.map(([value, text, ic, sample]) => h`<button type="button" aria-pressed="${String(look[key]) === String(value)}" data-action="${action}" data-k="${key}" data-v="${value}">${ic ? icon(ic, 16) : ''}${sample ? h`<span class="appearance-font-sample appearance-font-sample-${value}" aria-hidden="true">Aa</span>` : ''}<span class="appearance-segment-label">${text}</span></button>`)}</div>`;
 }
+function activeAppearancePreset(settings) {
+  return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
+    && settings.look.density === preset.density
+    && settings.look.font === preset.font)?.[0] || '';
+}
 function aparencia(s) {
   s = settingsView();
   const L = s.look;
@@ -2858,6 +3083,7 @@ function aparencia(s) {
     && !L.contrast && !L.readable && !L.highlightLinks && !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
     <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Personalização<i>.</i></h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
+    ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
     ${group('appearance-mode-title', 'Tema', 'Claro, escuro ou o mesmo do seu aparelho. O tema é salvo ao tocar.', h`<div class="seg" role="group" aria-label="Tema">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="personalization-mode-${value}" aria-pressed="${String(L.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>`)}
     ${group('appearance-color-title', 'Cor de destaque', `Paleta atual: ${currentPalette}.`, h`<div class="swatches appearance-swatches" role="group" aria-label="Paletas de cor">${Object.entries(PALETTES).map(([k, [n, c]]) => h`<button type="button" class="swatch" aria-label="Cor ${n}" aria-pressed="${String(s.theme === k)}" data-action="set-theme" data-v="${k}"><i style="background:${c}" aria-hidden="true"></i><span>${n}</span></button>`)}
       <label class="swatch appearance-custom-color${s.theme === 'custom' ? ' is-selected' : ''}" title="Escolher cor personalizada">
@@ -2870,8 +3096,22 @@ function aparencia(s) {
       <div class="appearance-settings-option"><span class="appearance-settings-label">Espaçamento</span>${settingsSegment(L, 'density', 'Espaçamento', [['comfy', 'Confortável'], ['compact', 'Compacto']])}</div>
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`)}
+    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
+    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
+      <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
+      <a class="btn" href="${areaOn('habits') ? '#habitos' : '#config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+    </div>`) }
     ${settingsSaveButton()}
   </form>`;
+}
+function profileDraftFromSettings(settings) {
+  return {
+    name: settings.profile.name,
+    preferredName: settings.profile.preferredName || settings.profile.name,
+    sex: settings.profile.sex || '',
+    age: settings.profile.age == null ? '' : String(settings.profile.age),
+    appearance: normalizeProfileAppearance(settings.prefs.profileAppearance),
+  };
 }
 function profileSettings(s) {
   s = settingsView();
@@ -2889,6 +3129,14 @@ function profileSettings(s) {
         <label class="f" for="pname">Nome<input type="text" id="pname" data-profile-field="name" value="${p.name}" maxlength="50" autocomplete="name" required></label>
         <label class="f" for="ppreferred">Como prefere ser chamado(a)?<input type="text" id="ppreferred" data-profile-field="preferredName" value="${p.preferredName}" maxlength="50" autocomplete="nickname" required></label>
         <label class="f" for="psex">Identidade de gênero<select id="psex" data-profile-field="sex" required aria-describedby="profile-sex-help"><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Inclui opções para pessoas cis, trans e não binárias. Você também pode preferir não informar.</span></label>
+      </div>
+    </section>
+    <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Sua identidade visual</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-controls">
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo do perfil</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor do símbolo</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true"></span></button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação no Início</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-estimate-title">
@@ -2921,8 +3169,12 @@ const SETTINGS_SECTIONS = [
   ['data', 'Dados e backup', 'archive', 'Importação e cópias de segurança'],
 ];
 function homeLayoutSettings(s) {
+  const activeMode = s.prefs.homeMode;
+  const modeDefaults = defaultHomeModes()[activeMode];
   const layout = s.prefs.homeLayout;
+  const shortcuts = s.prefs.homeShortcuts;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
+  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
     <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
@@ -3067,11 +3319,6 @@ async function unlockLegacyImport() {
       discovery: migration.discovery,
       userId: accountSession.user.id,
       password,
-function activeAppearancePreset(settings) {
-  return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
-    && settings.look.density === preset.density
-    && settings.look.font === preset.font)?.[0] || '';
-}
     });
     prepareLegacyImportPreview(migration, sources, vaultCount);
   } catch (error) {
@@ -3082,7 +3329,6 @@ function activeAppearancePreset(settings) {
   } finally {
     migration.busy = false;
     render();
-    ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
   }
 }
 async function applyLegacyImport() {
@@ -3095,23 +3341,9 @@ async function applyLegacyImport() {
     migration.discovery = null;
     migration.step = 'start';
     migration.error = 'Os dados da conta mudaram desde a análise. Analise novamente; nenhuma cópia antiga foi alterada.';
-    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
-    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
-      <a class="btn" href="${areaOn('habits') ? '#habitos' : '#config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
-    </div>`) }
     render();
     return;
   }
-function profileDraftFromSettings(settings) {
-  return {
-    name: settings.profile.name,
-    preferredName: settings.profile.preferredName || settings.profile.name,
-    sex: settings.profile.sex || '',
-    age: settings.profile.age == null ? '' : String(settings.profile.age),
-    appearance: normalizeProfileAppearance(settings.prefs.profileAppearance),
-  };
-}
   if (settingsDraftDirty() || ui.profileDraft || ui.dlg) {
     setLegacyImportError('Salve ou feche as alterações abertas antes de importar. Nenhuma origem antiga foi alterada.');
     return;
@@ -3133,14 +3365,6 @@ function profileDraftFromSettings(settings) {
     migration.step = 'start';
     migration.error = 'Os dados da conta mudaram desde a análise. Analise novamente; nenhuma cópia antiga foi alterada.';
     render();
-    <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
-      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Sua identidade visual</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
-      <div class="profile-appearance-controls">
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo do perfil</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor do símbolo</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true"></span></button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação no Início</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
-      </div>
-    </section>
     return;
   }
   if (navigator.onLine === false) {
@@ -3170,12 +3394,8 @@ function profileDraftFromSettings(settings) {
       throw new Error(`A conferência não encontrou todos os registros esperados em ${missing}. A importação não foi confirmada; mantenha as cópias antigas.`);
     }
     S = confirmed;
-  const activeMode = s.prefs.homeMode;
-  const modeDefaults = defaultHomeModes()[activeMode];
     Persist.rawTables = Persist.store.rawTables;
-  const shortcuts = s.prefs.homeShortcuts;
     Persist.confirmedState = JSON.parse(JSON.stringify(confirmed));
-  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
     Persist.pendingSnapshot = null;
     ui.persistFailed.clear();
     ui.persistBlocked.clear();
@@ -3797,7 +4017,15 @@ function dlgAreaTutorial() {
     'area-tutorial-body');
 }
 function listArr(g) { return S.settings.cats[g]; }
-function addItem(g, name, parentName = '') {
+function findCategory(g, name, parentName = '') {
+  const categories = listArr(g);
+  if (parentName) {
+    const parent = categories.find((category) => norm(category.name) === norm(parentName));
+    return parent?.subcategories?.find((category) => norm(categoryLeafName(category)) === norm(name)) || null;
+  }
+  return categories.find((category) => norm(category.name) === norm(name)) || null;
+}
+function addItem(g, name, parentName = '', color = '', iconName = '') {
   const arr = listArr(g), value = String(name || '').trim().slice(0, 30);
   if (!value) return '';
   const parent = String(parentName || '').trim();
@@ -3807,21 +4035,54 @@ function addItem(g, name, parentName = '') {
       const subcategories = Array.isArray(parentEntry.subcategories) ? parentEntry.subcategories : [];
       const existing = subcategories.find((category) => norm(categoryLeafName(category)) === norm(value));
       if (existing) return `${parentEntry.name} > ${categoryLeafName(existing)}`;
-      parentEntry.subcategories = [...subcategories, { name: value, color: parentEntry.color, icon: parentEntry.icon, subcategories: [] }];
+      parentEntry.subcategories = [...subcategories, {
+        name: value,
+        color: hexOk(color) ? color : parentEntry.color,
+        icon: CAT_ICONS.includes(iconName) ? iconName : parentEntry.icon,
+        subcategories: [],
+      }];
       return `${parentEntry.name} > ${value}`;
     }
   }
   const ex = arr.find((category) => norm(category.name) === norm(value));
   if (ex) return ex.name;
-  arr.push({ name: value, color: LIST_COLORS[arr.length % LIST_COLORS.length], icon: 'tag', subcategories: [] });
+  arr.push({
+    name: value,
+    color: hexOk(color) ? color : LIST_COLORS[arr.length % LIST_COLORS.length],
+    icon: CAT_ICONS.includes(iconName) ? iconName : 'tag',
+    subcategories: [],
+  });
   return value;
+}
+function replaceCategoryReferences(oldPath, newPath) {
+  if (oldPath === newPath) return false;
+  if (Object.hasOwn(S.finance.budgets, oldPath) && Object.hasOwn(S.finance.budgets, newPath)) return null;
+  let changed = false;
+  [S.finance.tx, recList()].forEach((records) => records.forEach((record) => {
+    if (record.category === oldPath) {
+      record.category = newPath;
+      changed = true;
+    }
+  }));
+  if (Object.hasOwn(S.finance.budgets, oldPath)) {
+    Object.defineProperty(S.finance.budgets, newPath, {
+      value: S.finance.budgets[oldPath],
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    delete S.finance.budgets[oldPath];
+    changed = true;
+  }
+  return changed;
 }
 function resolveNew(g, d, key) {
   if (d[key] !== '__new') return true;
   const n = String(d.newName || '').trim().slice(0, 30);
   if (!n) { toast('Dê um nome para a nova opção.'); return false; }
   const parentName = String(d.newParent || '').trim();
-  d[key] = addItem(g, n, parentName); d.newName = ''; d.newParent = ''; commit('settings'); return true;
+  d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
+  d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
 const DLG = { task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
@@ -4084,6 +4345,20 @@ const ACTIONS = {
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
+  'quick-actions-toggle': () => {
+    const opening = !ui.quickActionsOpen;
+    ui.navigationOpen = false;
+    ui.quickActionsOpen = opening;
+    render();
+    requestAnimationFrame(() => document.querySelector(
+      opening ? '#quick-actions-menu button' : '.nav-quick-trigger',
+    )?.focus());
+  },
+  'quick-action-task': () => { ui.quickActionsOpen = false; openTaskDialog(today()); },
+  'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
+  'quick-action-transaction': () => { ui.quickActionsOpen = false; newTxDlg('out'); },
+  'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
+  'quick-action-pomodoro': () => { ui.quickActionsOpen = false; nav('pomodoro'); },
   'areas-nav-open': () => nav('config?section=areas-navigation'),
   'area-guide-open': (el) => {
     const route = el.dataset.areaGuide;
@@ -4226,7 +4501,25 @@ const ACTIONS = {
     delete ui.alerts[el.dataset.k];
     togglePomodoroTimer();
   },
-  'plan-view': (el) => { if (['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) ui.planView = el.dataset.v; render(); },
+  'plan-view': (el) => {
+    if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
+    ui.planView = el.dataset.v;
+    render();
+    if (ui.planView === 'calendario' && googleCalendar.isConnected()
+      && ui.googleCalendar.loadedMonth !== ui.taskCal) void loadGoogleCalendarEvents();
+  },
+  'google-calendar-prepare': () => prepareGoogleCalendar(),
+  'google-calendar-authorize': () => authorizeGoogleCalendar(),
+  'google-calendar-refresh': () => {
+    if (ui.googleCalendar.calendars.length) void loadGoogleCalendarEvents();
+    else void loadGoogleCalendarList();
+  },
+  'google-calendar-toggle': (el) => toggleGoogleCalendar(el.dataset.calendarId),
+  'google-calendar-disconnect': () => {
+    resetGoogleCalendarState();
+    render();
+    toast('Os eventos deixaram de aparecer nesta aba. Se quiser revogar a permissão, use as configurações da Conta Google.');
+  },
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
   'weekly-save-reflection': () => {
@@ -4256,7 +4549,14 @@ const ACTIONS = {
     ui.habitIdeaCategory = el.dataset.id || 'all';
     updateHabitIdeaFilters();
   },
-  'tcal-month': (el) => { ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n)); render(); },
+  'tcal-month': (el) => {
+    ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n));
+    ui.googleCalendar.events = [];
+    ui.googleCalendar.loadedMonth = '';
+    ui.googleCalendar.requestId += 1;
+    render();
+    if (googleCalendar.isConnected()) void loadGoogleCalendarEvents();
+  },
   'tcal-day': (el) => { ui.taskDay = el.dataset.d; render(); },
   'tweek-nav': (el) => { ui.taskWeek = addDays(ui.taskWeek, Number(el.dataset.n) * 7); render(); },
   'tweek-today': () => { ui.taskWeek = today(); render(); },
@@ -4526,6 +4826,7 @@ const ACTIONS = {
     updateSettingsDraft((settings) => { settings.prefs.pomodoro.preset = preset; });
   },
   'toggle-free-timer': () => togglePomodoroTimer(),
+  'pomodoro-mini-toggle': () => togglePomodoroTimer(),
   'skip-free-break': () => skipPomodoroBreak(),
   'finish-free-timer': () => finishPomodoro(),
   'discard-free-timer': () => discardPomodoro(),
@@ -4668,6 +4969,34 @@ const ACTIONS = {
     if (entry) toast('Registro movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
+  'appearance-preset': (el) => {
+    const preset = APPEARANCE_PRESETS[el.dataset.v];
+    if (!preset) return;
+    updateSettingsDraft((settings) => {
+      settings.theme = preset.theme;
+      settings.look.density = preset.density;
+      settings.look.font = preset.font;
+    });
+  },
+  'profile-appearance': (el) => {
+    const key = el.dataset.k, value = el.dataset.v;
+    const validOptions = key === 'avatar' ? PROFILE_AVATARS
+      : key === 'avatarColor' ? PROFILE_AVATAR_COLORS
+        : key === 'greeting' ? PROFILE_GREETING_STYLES : [];
+    if (!validOptions.some(([id]) => id === value)) return;
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    draft.appearance = normalizeProfileAppearance({ ...draft.appearance, [key]: value });
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+  },
+  'profile-appearance-reset': () => {
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    if (sameJsonValue(draft.appearance, PROFILE_APPEARANCE_DEFAULT)) return;
+    draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+    toast('Identidade visual padrão selecionada. Salve para aplicar.');
+  },
   'preferences-week-start': (el) => {
     const weekStart = Number(el.dataset.v);
     if (![0, 1].includes(weekStart)) return;
@@ -4929,6 +5258,7 @@ const FORMS = {
       sex: draft.sex,
       age,
     });
+    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
       render();
@@ -4962,34 +5292,6 @@ const FORMS = {
     const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
     const pickedIcon = String(d.get('icon') || '');
-  'appearance-preset': (el) => {
-    const preset = APPEARANCE_PRESETS[el.dataset.v];
-    if (!preset) return;
-    updateSettingsDraft((settings) => {
-      settings.theme = preset.theme;
-      settings.look.density = preset.density;
-      settings.look.font = preset.font;
-    });
-  },
-  'profile-appearance': (el) => {
-    const key = el.dataset.k, value = el.dataset.v;
-    const validOptions = key === 'avatar' ? PROFILE_AVATARS
-      : key === 'avatarColor' ? PROFILE_AVATAR_COLORS
-        : key === 'greeting' ? PROFILE_GREETING_STYLES : [];
-    if (!validOptions.some(([id]) => id === value)) return;
-    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
-    draft.appearance = normalizeProfileAppearance({ ...draft.appearance, [key]: value });
-    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
-    render();
-  },
-  'profile-appearance-reset': () => {
-    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
-    if (sameJsonValue(draft.appearance, PROFILE_APPEARANCE_DEFAULT)) return;
-    draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
-    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
-    render();
-    toast('Identidade visual padrão selecionada. Salve para aplicar.');
-  },
     const pickedColor = String(d.get('color') || '').toLowerCase();
     const look = {
       ...(HABIT_ICON_KEYS.includes(pickedIcon) ? { icon: pickedIcon } : {}),
@@ -5149,7 +5451,29 @@ const CHANGES = {
       const visible = new Set(settings.prefs.homeLayout.visible);
       if (el.checked) visible.add(id); else visible.delete(id);
       settings.prefs.homeLayout.visible = HOME_BLOCK_IDS.filter((blockId) => visible.has(blockId));
+      saveActiveHomeMode(settings);
     });
+  },
+  'home-shortcut-visible': (el) => {
+    const id = el.dataset.homeShortcut;
+    if (!HOME_SHORTCUT_IDS.includes(id)) return;
+    updateSettingsDraft((settings) => {
+      const selected = new Set(settings.prefs.homeShortcuts);
+      if (el.checked) selected.add(id); else selected.delete(id);
+      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
+      saveActiveHomeMode(settings);
+    });
+  },
+  'home-area-color': (el) => {
+    const id = el.dataset.homeAreaColor;
+    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
+    updateSettingsDraft((settings) => {
+      if (el.value) settings.prefs.areaColors[id] = el.value;
+      else delete settings.prefs.areaColors[id];
+    });
+  },
+  'home-message': (el) => {
+    updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
   },
   'look-custom': (el) => { if (hexOk(el.value)) updateSettingsDraft((settings) => { settings.look.custom = el.value; settings.theme = 'custom'; }); },
   'look-contrast': (el) => updateSettingsDraft((settings) => { settings.look.contrast = el.checked; }),
@@ -5256,7 +5580,6 @@ function checkReminders() {
     const t = findTask(alert.id);
     if (!t || t.done) { delete ui.alerts[k]; changed = true; }
   });
-    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
   if (changed) {
     render();
     if (added) {
@@ -5293,6 +5616,36 @@ function syncPomodoroTimer(now = Date.now()) {
   syncPomodoroPushSchedule(S.pomodoro);
   return true;
 }
+function updatePomodoroMiniTimer(now = Date.now()) {
+  const mini = $('#pomodoro-mini');
+  if (!mini) return;
+  const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
+  const elapsed = phaseElapsedSeconds(timer, now);
+  const duration = phaseDurationSeconds(pom, timer.phase);
+  const running = timer.startedAt !== null;
+  const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
+  const visible = ui.route !== 'pomodoro' && (running || hasProgress);
+  mini.hidden = !visible;
+  if (!visible) return;
+  const remaining = Math.max(0, duration - elapsed);
+  const phaseName = standalonePomodoroPhaseName(timer.phase);
+  const phase = $('#pomodoro-mini-phase');
+  const focus = $('#pomodoro-mini-focus');
+  const clockElement = $('#pomodoro-mini-clock');
+  const open = $('#pomodoro-mini-open');
+  const toggle = $('#pomodoro-mini-toggle');
+  const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
+  const focusLabel = focusTask?.title || timer.focusLabel || 'Seu bloco atual';
+  if (phase) phase.textContent = `${phaseName} · ${running ? 'em andamento' : 'pausado'}`;
+  if (focus) focus.textContent = focusLabel;
+  if (clockElement) clockElement.textContent = clock(remaining);
+  if (open) open.setAttribute('aria-label', `Abrir Pomodoro: ${phaseName} ${running ? 'em andamento' : 'pausado'}, ${clock(remaining)} restantes`);
+  if (toggle) {
+    toggle.textContent = running ? 'Pausar' : 'Retomar';
+    toggle.setAttribute('aria-label', running ? 'Pausar Pomodoro' : 'Retomar Pomodoro');
+  }
+  mini.setAttribute('data-phase', timer.phase);
+}
 function tick() {
   if (Persist.replacing) return;
   if (tickN++ % 10 === 0) checkReminders();
@@ -5301,6 +5654,7 @@ function tick() {
   const now = Date.now();
   const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
   const elapsed = phaseElapsedSeconds(timer, now), duration = phaseDurationSeconds(pom, timer.phase);
+  updatePomodoroMiniTimer(now);
   const clockElement = $('#standalone-pomo-clock');
   if (!clockElement) return;
   clockElement.textContent = clock(Math.max(0, duration - elapsed));
@@ -5368,6 +5722,13 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
+  if (!ui.quickActionsOpen || !(target instanceof Element)
+    || target.closest('#quick-actions-menu, .nav-quick-trigger')) return;
+  ui.quickActionsOpen = false;
+  render();
+});
+document.addEventListener('click', (e) => {
+  const target = e.target;
   if (!ui.notificationsOpen || !(target instanceof Element) || target.closest('#notification-panel, .notification-trigger')) return;
   setTimeout(() => {
     if (ui.notificationsOpen) closeNotifications(false);
@@ -5400,6 +5761,10 @@ document.addEventListener('submit', (e) => {
 });
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.matches('[data-change="home-message"]')) {
+    const counter = $('#home-message-count');
+    if (counter) counter.textContent = `${el.value.length}/${HOME_MESSAGE_MAX_LENGTH}`;
+  }
   if (el instanceof HTMLInputElement && el.matches('.money-input')) {
     const formattedValue = formatMoneyInput(el.value);
     if (formattedValue !== el.value) {
@@ -5428,12 +5793,15 @@ document.addEventListener('input', (e) => {
       preferredName: $('#ppreferred')?.value || '',
       sex: $('#psex')?.value || '',
       age: $('#page')?.value || '',
+      appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
     };
-    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile) ? draft : null;
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     const saveButton = $('#profile-settings-form [type="submit"]');
     if (saveButton) saveButton.disabled = !ui.profileDraft;
     const previewName = $('#profile-preview-name');
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
+    const previewGreeting = $('#profile-preview-greeting');
+    if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
@@ -5449,30 +5817,8 @@ document.addEventListener('input', (e) => {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
       render();
     } else if (['sex', 'accountId', 'repeat', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
-      saveActiveHomeMode(settings);
-    });
-  },
-  'home-shortcut-visible': (el) => {
-    const id = el.dataset.homeShortcut;
-    if (!HOME_SHORTCUT_IDS.includes(id)) return;
-    updateSettingsDraft((settings) => {
-      const selected = new Set(settings.prefs.homeShortcuts);
-      if (el.checked) selected.add(id); else selected.delete(id);
-      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
-      saveActiveHomeMode(settings);
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
-  'home-area-color': (el) => {
-    const id = el.dataset.homeAreaColor;
-    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
-    updateSettingsDraft((settings) => {
-      if (el.value) settings.prefs.areaColors[id] = el.value;
-      else delete settings.prefs.areaColors[id];
-    });
-  },
-  'home-message': (el) => {
-    updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
-  },
     }
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
@@ -5492,6 +5838,12 @@ document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
   if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
+  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value !== today()) {
+    ui.dlg.d.paid = false;
+    ui.dlg.d.settledDate = '';
+    render();
+    return;
+  }
   const fn = key && !SETTINGS_INPUT_CHANGES.has(key) && CHANGES[key]; if (fn) fn(el);
 });
 document.addEventListener('toggle', (e) => {
@@ -5516,6 +5868,13 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape' && ui.accessibilityOpen) { e.preventDefault(); closeAccessibility(); return; }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
+  if (e.key === 'Escape' && ui.quickActionsOpen) {
+    e.preventDefault();
+    ui.quickActionsOpen = false;
+    render();
+    requestAnimationFrame(() => document.querySelector('.nav-quick-trigger')?.focus());
+    return;
+  }
   if (e.key === 'Escape' && ui.navigationOpen) {
     e.preventDefault();
     ui.navigationOpen = false;
@@ -5541,18 +5900,9 @@ document.addEventListener('mousedown', (e) => {
 
 
 /* ========== Finanças (contas, cartões, lançamentos, orçamento, relatórios) ========== */
-const FINANCE_TONES = [
-  'var(--accent)',
-  'color-mix(in srgb, var(--accent) 78%, var(--p))',
-  'color-mix(in srgb, var(--accent) 62%, var(--pd))',
-  'color-mix(in srgb, var(--accent) 46%, var(--ink))',
-  'color-mix(in srgb, var(--accent) 66%, var(--surface))',
-];
-const financeTone = (name = '') => [...String(name)].reduce((total, char) => total + char.charCodeAt(0), 0) % FINANCE_TONES.length;
 const catMeta = (t) => {
   if (t.type === 'tr') return { c: 'color-mix(in srgb, var(--accent) 38%, var(--muted))', i: 'transfer' };
-  const meta = catInfo(t.type === 'in' ? 'in' : 'out', t.category);
-  return { ...meta, c: FINANCE_TONES[financeTone(t.category)] };
+  return catInfo(t.type === 'in' ? 'in' : 'out', t.category);
 };
 const outMeta = (n) => catInfo('out', n);
 const ACC_ICON = { checking: 'bank', savings: 'trendUp', investment: 'trendUp', credit: 'card' };
@@ -5677,7 +6027,11 @@ function finResumo() {
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const cards = F.accounts.filter(isCredit);
-  const recents = [...F.tx].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
+  const recents = st.tx
+    .filter((transaction) => !cur || transaction.date <= today())
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 5);
   const bud = Object.entries(F.budgets).filter(([, b]) => b && b.cents > 0), budSpent = bud.reduce((s, [c]) => s + (cats.find(([n]) => n === c)?.[1] || 0), 0), budTot = bud.reduce((s, [, b]) => s + b.cents, 0);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Resumo financeiro"><div class="fin-hero-top"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>${balanceSparkline()}
@@ -5690,7 +6044,7 @@ function finResumo() {
       ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
         ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}</div>
     ${finFixas()}
-    <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">Os mais recentes, com data e situação.</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>`;
+    <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>`;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
@@ -5759,10 +6113,6 @@ function finContas() {
     <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${empty('Nenhuma conta ainda', 'Cadastre uma conta corrente, poupança ou investimento. O Aurora não se conecta a bancos: tudo é digitado por você.', h`<button class="btn primary" data-action="acct-new">Criar conta</button>`, 'wallet')}</div>`}
     <p class="small muted">Cartões de crédito ficam na seção Cartões para separar faturas e limites do saldo das contas.</p>`;
-  if (el.matches('[data-change="home-message"]')) {
-    const counter = $('#home-message-count');
-    if (counter) counter.textContent = `${el.value.length}/${HOME_MESSAGE_MAX_LENGTH}`;
-  }
 }
 function finCartoes() {
   const cards = S.finance.accounts.filter(isCredit);
@@ -5829,15 +6179,22 @@ function dlgTx() {
   const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}<i>.</i></h2>${closeBtn}</div>
     ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
-    <div class="seg" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
+    <div class="seg finance-transaction-type" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
     <form id="dlgform" class="form" data-form="dlg-tx">
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}      ${!tr && d.category === '__new' ? h`${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}` : ''}      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
-      ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
-      ${tr ? dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : ''}
-      ${!tr && !isCredit(acc) ? h`<label class="row full" style="gap:12px;min-height:44px"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><br><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'}</span></span></label>` : ''}
-      ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`)}<p class="fine">${d.kind === 'in' ? 'Usada nos relatórios por caixa.' : 'Usada nos relatórios por caixa. Compras no cartão continuam vinculadas ao ciclo da fatura.'}</p>` : ''}
+      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}
+      ${!tr && d.category === '__new' ? h`
+        ${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}
+        ${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}
+        ${dlgField('Ícone', h`<select data-dlg="newIcon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.newIcon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
+        ${dlgField('Cor', h`<input type="color" data-dlg="newColor" value="${d.newColor || (d.newParent ? categoryMatch(d.kind === 'in' ? 'in' : 'out', d.newParent)?.category.color : LIST_COLORS[0]) || LIST_COLORS[0]}" aria-label="Cor da nova categoria">`)}
+      ` : ''}
+      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
+      ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data do lançamento', h`<input type="date" data-dlg="date" value="${d.date}">`)}
+      ${tr ? dlgField('Data da transferência', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : h`<p class="fine full">Esta data organiza o lançamento no mês. Se não for hoje, ele começa como pendente.</p>`}
+      ${!tr && !isCredit(acc) ? h`<label class="row full tx-settlement-toggle"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small tx-settlement-toggle-copy"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'} Outra data desmarca esta opção automaticamente.</span></span></label>` : ''}
+      ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`, 'full')}<p class="fine full">Quando o valor entrou ou saiu da conta. Os relatórios por caixa usam esta data.</p>` : ''}
       ${!edit && !tr ? h`${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`)}${d.repeat === 'parcel' ? dlgField('Parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`) : ''}${d.repeat !== 'none' ? h`<p class="fine full">${d.repeat === 'parcel' ? 'O valor total é dividido igualmente entre as parcelas, uma por mês.' : 'Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.'}</p>` : ''}` : ''}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
@@ -5845,11 +6202,13 @@ function dlgTx() {
 function dlgCategoryManager() {
   const renderCategoryNode = (kind, category) => {
     const subcategories = Array.isArray(category.subcategories) ? category.subcategories : [];
+    const editButton = (name, parent = '') => h`<button type="button" class="ibtn category-manager-edit" data-action="category-edit" data-kind="${kind}" data-name="${name}" data-parent="${parent}" aria-label="Personalizar categoria ${name}">${icon('pencil', 16)}</button>`;
     return h`<li class="category-manager-item">
       ${catChip(catInfo(kind, category.name))}
       <span class="grow ttl">${kind === 'out' ? expenseTitle(category.name) : category.name}</span>
       ${subcategories.length ? h`<span class="muted small">${subcategories.length} subcategoria${subcategories.length > 1 ? 's' : ''}</span>` : ''}
-    </li>${subcategories.length ? h`<li class="category-manager-sublist"><ul class="list category-manager-list category-manager-subcategories">${subcategories.map((subcategory) => h`<li>${catChip(catInfo(kind, `${category.name} > ${categoryLeafName(subcategory)}`))}<span class="grow ttl">${kind === 'out' ? expenseTitle(`${category.name} > ${categoryLeafName(subcategory)}`) : `${category.name} > ${categoryLeafName(subcategory)}`}</span></li>`)}</ul></li>` : ''}`;
+      ${editButton(category.name)}
+    </li>${subcategories.length ? h`<li class="category-manager-sublist"><ul class="list category-manager-list category-manager-subcategories">${subcategories.map((subcategory) => h`<li>${catChip(catInfo(kind, `${category.name} > ${categoryLeafName(subcategory)}`))}<span class="grow ttl">${kind === 'out' ? expenseTitle(`${category.name} > ${categoryLeafName(subcategory)}`) : `${category.name} > ${categoryLeafName(subcategory)}`}</span>${editButton(categoryLeafName(subcategory), category.name)}</li>`)}</ul></li>` : ''}`;
   };
   const categoryGroup = (kind, label) => h`<section class="category-manager-group">
     <div class="head"><h3>${label}</h3><button type="button" class="btn sm" data-action="category-new" data-kind="${kind}">${icon('plus', 16)}Adicionar</button></div>
@@ -5861,15 +6220,17 @@ function dlgCategoryManager() {
     h`<button type="button" class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgCategoryNew() {
-  const kind = ui.dlg.d.kind;
+  const d = ui.dlg.d, kind = d.kind, editing = !!d.editName;
   const label = kind === 'in' ? 'receita' : 'despesa';
   const parents = topCategoryNames(kind);
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Nova categoria de ${label}<i>.</i></h2><p class="small muted">Ela ficará disponível nos próximos lançamentos.</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">${editing ? 'Personalizar categoria' : `Nova categoria de ${label}`}<i>.</i></h2><p class="small muted">${editing ? 'A cor e o ícone também aparecem nos lançamentos.' : 'Ela ficará disponível nos próximos lançamentos.'}</p></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-category">
-      ${parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${ui.dlg.d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
-      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${ui.dlg.d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      ${!editing && parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
+      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      ${dlgField('Ícone', h`<select data-dlg="icon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.icon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
+      ${dlgField('Cor', h`<input type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
     </form>`,
-    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">Adicionar</button>`);
+    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
 }
 function dlgAccount() {
   const d = ui.dlg.d, edit = !!d.id, card = d.type === 'credit';
@@ -5961,8 +6322,23 @@ Object.assign(ACTIONS, {
     if (!FIN_TABS.some(([key]) => key === el.dataset.t)) { console.error('Aurora: seção de Finanças inválida.', el.dataset.t); return; }
     ui.finTab = el.dataset.t;
     render();
+    requestAnimationFrame(() => {
+      const selected = $(`.fin-section-option[data-t="${ui.finTab}"]`);
+      selected?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   },
-  'fin-go': (el) => { ui.finTab = el.dataset.t; if (el.dataset.f) ui.finFilter = el.dataset.f; render(); window.scrollTo(0, 0); },
+  'fin-go': (el) => {
+    ui.finTab = el.dataset.t;
+    if (el.dataset.f) ui.finFilter = el.dataset.f;
+    render();
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => {
+      const selected = $(`.fin-section-option[data-t="${ui.finTab}"]`);
+      selected?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  },
   'fin-filter': (el) => { ui.finFilter = el.dataset.f; render(); },
   'fin-filters-clear': () => {
     ui.finFilter = 'todos';
@@ -6019,7 +6395,24 @@ Object.assign(ACTIONS, {
     if (entry) toast('Lançamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
   'category-manager': () => dlgOpen('category-manager', {}),
-  'category-new': (el) => { const kind = el.dataset.kind; if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.'); dlgOpen('category-new', { kind, name: '' }); },
+  'category-new': (el) => {
+    const kind = el.dataset.kind;
+    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    dlgOpen('category-new', { kind, name: '', icon: 'tag', color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length] });
+  },
+  'category-edit': (el) => {
+    const { kind, name, parent = '' } = el.dataset;
+    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.');
+    const category = findCategory(kind, name, parent);
+    dlgOpen('category-new', {
+      kind,
+      editName: name,
+      parent,
+      name: category.name,
+      icon: category.icon,
+      color: category.color,
+    });
+  },
   'fin-csv': () => finCsv(),
   'acct-new': () => dlgOpen('account', { name: '', bank: '', type: 'checking', balance: '', limit: '', closing: '', due: '' }),
   'acct-new-card': () => dlgOpen('account', { name: '', bank: '', type: 'credit', linkedAccountId: '', balance: '', limit: '', closing: '', due: '' }),
@@ -6174,14 +6567,45 @@ Object.assign(FORMS, {
     const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
     if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
     if (!name) return toast('Informe o nome da categoria.');
+    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.');
     const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
     if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.');
-    const duplicate = parentEntry ? (Array.isArray(parentEntry.subcategories) ? parentEntry.subcategories.some((category) => norm(categoryLeafName(category)) === norm(name)) : false) : listArr(d.kind).some((category) => norm(category.name) === norm(name));
+    const existing = d.editName ? findCategory(d.kind, d.editName, parentName) : null;
+    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.');
+    const siblings = parentEntry ? (parentEntry.subcategories || []) : listArr(d.kind);
+    const duplicate = siblings.some((category) => category !== existing
+      && norm(parentEntry ? categoryLeafName(category) : category.name) === norm(name));
     if (duplicate) return toast('Já existe uma categoria com esse nome.');
-    addItem(d.kind, name, parentName);
+    const financeChanges = [];
+    if (existing) {
+      const oldName = categoryLeafName(existing);
+      const oldPath = parentName ? `${parentName} > ${oldName}` : oldName;
+      const newPath = parentName ? `${parentName} > ${name}` : name;
+      const paths = [[oldPath, newPath]];
+      if (!parentName) {
+        (existing.subcategories || []).forEach((subcategory) => {
+          const child = categoryLeafName(subcategory);
+          paths.push([`${oldName} > ${child}`, `${name} > ${child}`]);
+        });
+      }
+      if (paths.some(([oldValue, newValue]) => oldValue !== newValue
+        && Object.hasOwn(S.finance.budgets, newValue))) {
+        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.');
+      }
+      existing.name = name;
+      existing.color = d.color;
+      existing.icon = d.icon;
+      paths.forEach(([oldValue, newValue]) => {
+        const changed = replaceCategoryReferences(oldValue, newValue);
+        if (changed === null) financeChanges.push(false);
+        else if (changed) financeChanges.push(true);
+      });
+    } else {
+      addItem(d.kind, name, parentName, d.color, d.icon);
+    }
     ui.dlg = createDialog('category-manager', {});
-    commit('settings');
-    toast('Categoria adicionada.');
+    commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
+    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.');
   },
   'dlg-goal': () => { const d = ui.dlg.d, t = parseMoney(d.target), sv = d.saved.trim() ? parseMoney(d.saved) : 0; if (!d.name.trim() || !(t > 0) || Number.isNaN(sv)) return toast('Informe o nome e o valor do objetivo.'); S.finance.goals.push({ id: newId(), name: d.name.trim().slice(0, 50), targetCents: t, savedCents: Math.max(0, sv), deadline: isDay(d.deadline) ? d.deadline : '' }); ui.dlg = null; commit('finance'); },
   'dlg-deposit': () => { const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id), v = parseMoney(d.amount); if (!g || Number.isNaN(v) || v === 0) return toast('Informe um valor.'); g.savedCents = Math.max(0, g.savedCents + v); ui.dlg = null; commit('finance'); toast(v > 0 ? 'Valor guardado.' : 'Valor retirado.'); },
@@ -6464,6 +6888,7 @@ function showAccountDataLoadError(root, error, user) {
       const { error: signOutError } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (signOutError) throw signOutError;
       Persist.wipe();
+      resetGoogleCalendarState();
       accountSession = null;
       history.replaceState(null, '', postSignOutPath(location));
       location.reload();
@@ -6590,7 +7015,31 @@ async function startAurora() {
   }
   initializePublicAppearance();
   renderLanding(root);
-  root.addEventListener('click', (event) => {
+  const sessionRestore = (async () => {
+    try {
+      const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
+        import('./services/account-auth.js'),
+        import('./data/supabase-client.js'),
+      ]);
+      if (!hasSupabaseConfig()) return false;
+      const client = await getAccountClient();
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      if (!data.session?.user) return false;
+      try {
+        await startAuthenticatedAurora(root);
+        return true;
+      } catch (error) {
+        console.error('Aurora: a sessão existente não pôde ser restaurada.', error);
+        showAccountStartupError(root, 'Não foi possível restaurar sua sessão. Atualize a página e tente entrar novamente.');
+        return true;
+      }
+    } catch (error) {
+      console.error('Aurora: não foi possível verificar a sessão salva.', error);
+      return false;
+    }
+  })();
+  root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
     const action = event.target instanceof Element ? event.target.closest('[data-public-action]')?.dataset.publicAction : null;
     if (action === 'landing') {
@@ -6614,6 +7063,7 @@ async function startAurora() {
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
     });
+    if (await sessionRestore) return;
     startAuthenticatedAurora(root, action, true).catch((error) => {
       console.error('Aurora: a inicialização segura falhou.', error);
       const detail = error instanceof Error && error.message
@@ -6696,6 +7146,7 @@ document.addEventListener('click', async (event) => {
     return;
   }
   Persist.wipe();
+  resetGoogleCalendarState();
   history.replaceState(null, '', postSignOutPath(location));
   location.reload();
 });

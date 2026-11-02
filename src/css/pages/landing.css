@@ -6,8 +6,8 @@
   flex-direction: column;
   margin-inline: auto;
   background:
-    radial-gradient(circle at 12% 0%, rgba(199, 154, 131, 0.17), transparent 24%),
-    linear-gradient(180deg, rgba(236, 232, 227, 0.98), rgba(228, 223, 217, 0.98));
+    radial-gradient(circle at 12% 0%, var(--public-glow), transparent 24%),
+    var(--bg);
 }
 
 .public-site > .public-topbar {
@@ -15,8 +15,8 @@
   width: 100%;
   margin-inline: 0;
   padding-inline: var(--gut-l) var(--gut-r);
-  border-bottom: 1px solid rgba(71, 60, 57, 0.08);
-  background: rgba(255, 255, 255, 0.56);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: blur(14px);
 }
 
@@ -582,7 +582,7 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.36);
+  background: var(--surface-soft);
   color: var(--accent);
   font-size: var(--text-sm);
   letter-spacing: 0;
@@ -629,9 +629,9 @@
   max-width: var(--card-compact-max-width);
   min-height: 0;
   padding: var(--space-5);
-  border-color: rgba(92, 75, 70, 0.08);
+  border-color: var(--line);
   border-radius: var(--r-group);
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--surface);
   box-shadow: 0 12px 22px -22px rgba(50, 37, 33, 0.34);
   transition: transform var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
@@ -647,9 +647,9 @@
   justify-content: space-between;
   gap: var(--space-5);
   padding: clamp(var(--space-4), 4vw, var(--space-6));
-  border: 1px solid rgba(120, 88, 80, 0.12);
+  border: 1px solid var(--line);
   border-radius: var(--r-large);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(241, 224, 220, 0.42));
+  background: linear-gradient(135deg, var(--surface), var(--hero));
   box-shadow: 0 20px 36px -28px rgba(86, 55, 44, 0.38);
 }
 
@@ -666,8 +666,8 @@
   display: grid;
   align-content: start;
   gap: var(--space-3);
-  border-color: rgba(92, 75, 70, 0.08);
-  background: rgba(255, 255, 255, 0.32);
+  border-color: var(--line);
+  background: var(--surface);
   box-shadow: 0 10px 24px -22px rgba(45, 35, 31, 0.26);
 }
 .public-faq-item summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--ink); font-weight: var(--weight-semibold); cursor: pointer; list-style: none; }

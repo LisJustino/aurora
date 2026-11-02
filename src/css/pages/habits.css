@@ -54,7 +54,7 @@
 .habit-weekday-picker input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 .habit-schedule .small { margin-top: 8px; }
 .habit-actions { flex-wrap: wrap; gap: 6px; }
-.habit-actions .btn { min-height: 36px; }
+.habit-actions .btn, .habit-archived .habit-row > .btn { min-height: 36px; }
 .habit-edit-history { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .habit-edit-history .habit-month { border: 0; padding: 0; }
 .habit-month { border-top: 1px solid var(--line); padding-top: 2px; }

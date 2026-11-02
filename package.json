@@ -8,7 +8,8 @@
     "build": "vite build && node scripts/copy-static-assets.mjs",
     "preview": "vite preview",
     "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
-    "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs"
+    "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs",
+    "test:e2e:google-calendar": "node tests/e2e/google-calendar.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4"

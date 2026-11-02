@@ -20,6 +20,10 @@
   respeita dias pulados e metas semanais e permite abrir o editor existente
   para ajustar o plano. Ela não cria um histórico ou formato de persistência
   adicional e mantém linguagem sem pressão.
+- Hábitos ativos e arquivados podem ser excluídos com confirmação. A exclusão
+  move o hábito e seu histórico para a lixeira por 30 dias, permitindo
+  restauração; arquivar continua sendo uma alternativa que preserva o hábito
+  na área de Hábitos.
 - As ideias de Hábitos podem ser buscadas por nome, descrição ou categoria e
   filtradas por categoria. Escolher uma ideia continua abrindo o editor para
   personalização antes de gravar o hábito; busca e filtro são apenas estado
@@ -61,7 +65,9 @@
   adicionar scripts ou eventos de rastreamento até definir finalidade,
   minimização, retenção, transparência na Política de Privacidade e necessidade
   de novo aceite; métricas agregadas de hospedagem também dependem de decisão
-  explícita.
+  explícita. A exceção opt-in de Google Identity Services serve apenas para
+  autorizar leitura do Google Calendar após ação explícita; não adiciona
+  analytics.
 - No cadastro, um e-mail que o Supabase identifica como já associado recebe
   orientação de que uma exclusão confirmada libera novo cadastro sem os dados
   anteriores; erros não reconhecidos continuam sem detalhes técnicos do
@@ -118,3 +124,15 @@ reintroduz na conta atual, mas a cópia cifrada original permanece até ser
 apagada como parte da limpeza legada. Migrations históricas permanecem no
 repositório como registro do schema anterior; elas não representam o schema
 ativo após a migration de remoção.
+
+## Google Calendar no Planejar
+
+A integração é opcional e somente de leitura. Google Identity Services solicita
+uma autorização separada, iniciada em Planejar, com o escopo
+`calendar.readonly`; o login Google do Supabase continua sem esse escopo e não
+é alterado. O navegador consulta diretamente calendários e eventos do mês
+visível. Tokens, nomes e eventos permanecem apenas na memória da aba: não são
+persistidos no navegador ou no backend, incluídos em backups ou enviados ao
+Worker. A permissão externa pode ser removida nas configurações da Conta
+Google. A Política de Privacidade e o aceite legal passam para 1.6 antes de
+habilitar essa leitura.

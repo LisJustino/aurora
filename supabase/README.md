@@ -24,6 +24,25 @@ O botão social disponível no Aurora usa Google OAuth pelo Supabase. Configure-
 
 Apple/iCloud está pausado e não precisa ser configurado para novos logins. A configuração existente no Supabase, se houver, pode permanecer; o Aurora não inicia autenticação Apple até o recurso ser reativado.
 
+## Google Calendar no Planejar
+
+O Google Calendar usa uma autorização separada do login Supabase. Crie no
+Google Cloud um Client ID OAuth **Web application** dedicado à leitura de
+calendários; configure como **Authorized JavaScript origins** as origens já
+usadas pelo app (`http://localhost:5173`, `http://127.0.0.1:5173` e a origem
+de produção). O fluxo GIS usa janela de autorização e não exige redirect URI.
+Ative a Google Calendar API e inclua o escopo
+`https://www.googleapis.com/auth/calendar.readonly` na tela de consentimento.
+Esse escopo é somente de leitura e pode exigir verificação do app pelo Google
+antes de liberá-lo para usuários fora da lista de teste.
+
+Configure o Client ID público na variável de build `VITE_GOOGLE_CALENDAR_CLIENT_ID`
+no `.env.local` de desenvolvimento e nos ambientes Preview/Production do
+Cloudflare. Não configure nem publique Client Secret no frontend. Essa
+integração não usa credenciais Supabase, não altera os escopos do login Google
+e não grava eventos ou tokens no Supabase; o navegador consulta o Google
+diretamente.
+
 Antes de aplicar em produção:
 
 1. Confirme que há backup do projeto e que a migration foi revisada.

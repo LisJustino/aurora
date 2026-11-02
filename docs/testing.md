@@ -20,15 +20,45 @@ haver depoimentos fictícios, nem promessas vagas de preço ou privacidade. Em
 overflow horizontal. A demonstração interativa cobre uma tarefa, um hábito e
 o Pomodoro; finanças e ciclo são apresentados, mas não simulados nela.
 
+Com uma sessão válida salva, abra a rota raiz e confirme que a área autenticada
+é carregada sem precisar tocar em “Entrar”; depois encerre a sessão e confirme
+que a landing pública volta a aparecer. Com uma sessão só de navegador, confirme
+que a restauração funciona na aba atual, mas não persiste em outro navegador.
+
+Em Finanças, no resumo, confirme que “Últimos lançamentos” inclui somente o mês
+selecionado e, no mês atual, não lista datas futuras nem lançamentos de meses
+seguintes gerados por fixas. Em Gerenciar categorias, edite nome, ícone e cor
+de uma categoria usada em lançamentos, crie uma subcategoria com identidade
+visual própria e confira a atualização dos lançamentos e limites associados ao
+renomear. No formulário, selecione uma data diferente de hoje e confirme que
+“Já paguei/recebi” é desmarcado; revise se “Data do lançamento” e “Data do
+pagamento/recebimento” deixam clara a diferença entre competência e caixa. O
+checkbox e sua explicação devem permanecer alinhados, e a data de pagamento
+com sua explicação não devem dividir a mesma linha. Em celular, os três tipos
+de lançamento não devem se deslocar horizontalmente ao selecionar Receita ou
+Transferência; a seção ativa de Finanças deve continuar focada e visível após a
+navegação.
+
 Ao navegar para outra área a partir de Ajustes e retornar pelo histórico ou pelo menu, confirme que “Seu perfil” é selecionado. Recarregue enquanto outra aba de Ajustes estiver aberta e confirme que essa aba permanece selecionada.
 
-Na navegação, confira todas as áreas no cabeçalho desktop em uma única linha, centralizadas e sem o botão “Mais”, entre 900 e 1439 px; entre 900 e 1199 px, os links mostram ícones com nomes acessíveis e não há rolagem horizontal. O botão de busca não aparece no cabeçalho; Ctrl+K continua abrindo a busca global. No móvel, o dock deve manter quatro atalhos e “Mais” deve abrir as opções restantes; toque fora e Esc devem fechá-lo.
+Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet e a barra lateral a partir de 1200 px; a busca não aparece no cabeçalho e Ctrl+K continua abrindo a busca global. No móvel, o dock mantém quatro atalhos de área, “Mais” abre as opções restantes e “Criar” abre as ações rápidas; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
+
+No Início, em 320 px, 390 px e desktop, confirme que o destaque inicial é compacto, que o plano de hoje vem antes dos resumos nos padrões novos e que uma tarefa exibida no plano não é repetida como “Próxima ação”. Preferências de ordem existentes devem continuar preservadas. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
+
+`node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` valida as ações rápidas, o foco por teclado, a área ativa e a transição do dock para a barra lateral entre 320 e 1440 px.
+
+`node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
+
+Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Verifique também a importação/exportação de backup anterior, que deve continuar compatível e usar os padrões para os campos novos ausentes.
 
 Em Hábitos, abra “Revisar cada hábito” e confira o resumo até a data atual,
 excluindo dias pulados e sem contar dias futuros. “Ajustar” deve abrir o editor
 do hábito correspondente, preservar os check-ins e permitir salvar dias/meta;
-os hábitos pausados devem continuar disponíveis na ação de retomada. Confira
-também em largura móvel e com tema escuro.
+os hábitos pausados devem continuar disponíveis na ação de retomada. “Excluir”
+deve estar disponível nos hábitos ativos e arquivados, pedir confirmação e
+mover o hábito e seu histórico para a lixeira por 30 dias; a ação de desfazer
+deve restaurá-los. Arquivar continua preservando o hábito na lista de
+arquivados. Confira também em largura móvel e com tema escuro.
 
 Nas “Ideias de hábitos”, confira busca por nome e descrição, busca sem
 diferenciação de acentos, filtros por categoria, contagem e estado sem
@@ -41,13 +71,20 @@ Nos projetos Supabase de desenvolvimento e produção, confirme que **Authentica
 
 Com Google habilitado e `/#inicio` cadastrado como URL de retorno no Supabase, teste o botão social. O retorno deve abrir a área autenticada, não a landing pública. No primeiro acesso, o OAuth também cria a conta no Supabase; nome, nome de preferência, data de nascimento válida (com idade entre 0 e 120 anos) e aceite dos documentos são obrigatórios antes de carregar os dados. Cadastros abaixo de 18 anos, inclusive com idade zero, não devem ser bloqueados. Cancelar esse cadastro deve encerrar a sessão. O login Apple/iCloud não deve aparecer nem ser aceito como novo fluxo por enquanto; a detecção de identidade Apple existente permanece para compatibilidade.
 
+Para a integração opcional de calendário, configure `VITE_GOOGLE_CALENDAR_CLIENT_ID` com um Client ID Web dedicado, ative a Google Calendar API e cadastre a origem do app no Google Cloud. No Planejar → Calendário, “Conectar” apenas carrega a biblioteca após ação explícita; “Autorizar” pede escopo somente de leitura. Confirme que é possível escolher calendários, ver eventos no mês e no dia, navegar entre meses, atualizar e parar de exibir; nenhuma ação deve criar/alterar eventos ou persistir token/eventos após recarga. Verifique a revogação em Conta Google → Segurança e console sem tokens nem conteúdo dos eventos. A versão 1.6 dos documentos deve exigir novo aceite das contas existentes. Teste o serviço isoladamente com `node tests/google-calendar-check.mjs`. Um teste com conta Google real depende da configuração do Client ID, consentimento e eventual verificação do app no Google Cloud.
+
+O fluxo da interface com respostas Google simuladas pode ser validado iniciando
+o Vite com qualquer Client ID de teste configurado e executando
+`npm run test:e2e:google-calendar -- http://127.0.0.1:5173`; o teste não chama
+serviços externos.
+
 Nos campos de e-mail do cadastro, login e recuperação, confira sugestões após `@`, lista inicial compacta, filtragem, seleção por teclado/toque e a possibilidade de continuar digitando um domínio que não aparece. Ao abrir o login, os campos vazios não devem exibir erros; a validação não deve mostrar erro enquanto o campo está em edição e deve avisar depois que a pessoa sair de um endereço inválido.
 
 Na etapa de perfil do cadastro em mobile, confirme que o texto introdutório redundante fica oculto para aproximar o campo de nascimento do viewport; em desktop, a introdução permanece visível. Confira também a largura do campo em 320 px e o comportamento do teclado/seletor nativo em um dispositivo físico.
 
 ### Segurança e fallback
 
-- CSP e headers de segurança são validados em `_headers`; a política inclui `default-src 'self'`, `connect-src` para o Supabase e o Worker de Push, `frame-ancestors 'none'` e `form-action 'self'`.
+- CSP e headers de segurança são validados em `_headers`; a política inclui `default-src 'self'`, permissões restritas de script/frame/conexão para Google Identity Services e Google Calendar, `connect-src` para Supabase e Worker Push, `frame-ancestors 'none'` e `form-action 'self'`.
 - O fallback SPA continua em `/index.html` para rotas, mas `/src/*`, `/icons/*` e `/pages/*` devem responder 404 quando o arquivo não existir.
 - Depois de `npm run build`, confirme que todas as entradas HTML apontam para o manifest na raiz publicada; o arquivo não pode ser reescrito para `/assets/`, pois `start_url` e `scope` são relativos ao manifest.
 - A persistência relacional usa delta por tabela e bloqueia sobrescrita de linha mais nova com conflito `version_conflict`; a aba recarrega os dados em foco quando não há pendências.
@@ -59,7 +96,7 @@ Na etapa de perfil do cadastro em mobile, confirme que o texto introdutório red
 - Antes de ampliar a divulgação, siga o checklist de [`cloudflare-pages.md`](./cloudflare-pages.md): revisão jurídica dos documentos, confirmação operacional do projeto de produção e testes dos fluxos com contas fictícias.
 - A produção ainda precisa de verificação independente das configurações Supabase; o estado do projeto de desenvolvimento não comprova as configurações de produção.
 - O cadastro permanece sem confirmação de e-mail. A interface deve avisar que o endereço precisa estar correto e acessível para permitir recuperação da senha.
-- Analytics comportamental e scripts de terceiros estão adiados; a publicação não deve adicionar rastreadores ou eventos sem uma nova decisão e revisão da política/consentimento.
+- Analytics comportamental e rastreadores de terceiros continuam adiados; Google Identity Services é carregado somente por ação explícita e exclusivamente para conceder a leitura opcional de calendário descrita na Política de Privacidade.
 - Não altere a versão dos documentos legais sem alinhar `terms.html`, `privacy.html`, `LEGAL_DOCUMENT_VERSION` e o fluxo de reconsentimento; uma nova versão pode exigir aceite de contas existentes.
 
 Na raiz do repositório, instale as dependências e execute:
@@ -96,6 +133,7 @@ node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5173
 node tests/e2e/notifications.cjs http://127.0.0.1:5173
 node tests/e2e/home-first-steps.cjs http://127.0.0.1:5173
 node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
+node tests/e2e/finance-improvements.cjs http://127.0.0.1:5173
 node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
@@ -122,6 +160,7 @@ adiar e dispensar continuam funcionando em mobile e desktop.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
 - `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
 - `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
+- `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento e recorte mensal do resumo em perfil de demonstração.
 - `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
 - `node tests/e2e/public-demo-interactions.cjs` verifica hábito/tarefa/timer por teclado, zero requisições e zero gravações no navegador, em 390 px e desktop.
 - **Aprovado (2026-10-30):** `node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5190` — lista compacta, filtragem, seleção por teclado/clique e validação após sair do campo, em 320 px e desktop.
