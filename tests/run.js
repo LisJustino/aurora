@@ -576,7 +576,13 @@ test('valida atividade sexual e métodos contraceptivos do diário do ciclo', ()
   truthy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['condom', 'pill'] }));
   truthy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['none'] }));
   truthy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['undisclosed'] }));
+  truthy(isValidCycleSexualLog({ masturbationActivity: true, orgasmCount: 0 }));
+  truthy(isValidCycleSexualLog({ sexualActivity: true, masturbationActivity: true, orgasmCount: 2 }));
   falsy(isValidCycleSexualLog({ sexualActivity: 'sim' }));
+  falsy(isValidCycleSexualLog({ masturbationActivity: 'sim' }));
+  falsy(isValidCycleSexualLog({ orgasmCount: -1 }));
+  falsy(isValidCycleSexualLog({ orgasmCount: 100 }));
+  falsy(isValidCycleSexualLog({ orgasmCount: 1.5 }));
   falsy(isValidCycleSexualLog({ contraceptionMethods: ['condom'] }));
   falsy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['unknown'] }));
   falsy(isValidCycleSexualLog({ sexualActivity: true, contraceptionMethods: ['pill', 'pill'] }));
@@ -1177,9 +1183,9 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  ok(SUGGESTED_HABITS.length >= 58);
+  equal(SUGGESTED_HABITS.length, 100);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
-  for (const id of ['water', 'reading', 'training', 'pause', 'dental-care', 'active-break', 'study', 'connect', 'mindful-meal', 'make-bed', 'five-minute-tidy', 'plan-rest', 'walk-with-dog', 'learn-language', 'weekly-reflection', 'try-new-recipe', 'clear-desk', 'weekly-reset']) {
+  for (const id of ['water', 'reading', 'training', 'pause', 'dental-care', 'active-break', 'study', 'connect', 'mindful-meal', 'make-bed', 'five-minute-tidy', 'plan-rest', 'walk-with-dog', 'learn-language', 'weekly-reflection', 'try-new-recipe', 'clear-desk', 'weekly-reset', 'wash-face', 'yoga-at-home', 'brain-dump', 'prepare-lunch', 'check-daily-budget']) {
     ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
   }
   ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados pessoais'));
@@ -1187,6 +1193,7 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
   ok(SUGGESTED_HABITS.some((item) => item.id === 'skincare' && item.category === 'personal-care'));
   ok(SUGGESTED_HABITS.some((item) => item.id === 'gym' && item.category === 'movement'));
   for (const item of SUGGESTED_HABITS) {
+    ok(SUGGESTED_HABIT_CATEGORIES.some(({ id }) => id === item.category), `categoria de ${item.id}`);
     ok(HABIT_ICON_KEYS.includes(item.icon), `ícone de ${item.id}`);
     ok(HABIT_COLORS.includes(item.color), `cor de ${item.id}`);
     const tags = habitSuggestionTags(item);
@@ -1203,32 +1210,17 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
   ok(isValidHabit(created[0]));
 });
 
-test('ideias de hábitos filtram por texto sem diferenciar acentos ou categoria', () => {
-  const water = filterSuggestedHabits(SUGGESTED_HABITS, 'AGUA');
-  equal(water.length, 1);
-  equal(water[0].id, 'water');
-  const reading = filterSuggestedHabits(SUGGESTED_HABITS, '10 minutos');
-  equal(reading.length, 1);
-  equal(reading[0].id, 'reading');
-  const movement = filterSuggestedHabits(SUGGESTED_HABITS, '', 'movement');
+test('ideias de hábitos filtram por categoria e contexto', () => {
+  const movement = filterSuggestedHabits(SUGGESTED_HABITS, 'movement');
   ok(movement.length > 0);
   ok(movement.every((idea) => idea.category === 'movement'));
-  const quick = filterSuggestedHabits(SUGGESTED_HABITS, '', 'all', 'quick');
+  const quick = filterSuggestedHabits(SUGGESTED_HABITS, 'all', 'quick');
   ok(quick.length > 0);
   ok(quick.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'quick')));
-  const movementWithoutEquipment = filterSuggestedHabits(SUGGESTED_HABITS, '', 'movement', 'no-equipment');
+  const movementWithoutEquipment = filterSuggestedHabits(SUGGESTED_HABITS, 'movement', 'no-equipment');
   ok(movementWithoutEquipment.length > 0);
   ok(movementWithoutEquipment.every((idea) => idea.category === 'movement'
     && habitSuggestionTags(idea).some(({ id }) => id === 'no-equipment')));
-  const homeSearch = filterSuggestedHabits(SUGGESTED_HABITS, 'EM CASA');
-  ok(homeSearch.length > 0);
-  ok(homeSearch.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'home')));
-  const noEquipmentSearch = filterSuggestedHabits(SUGGESTED_HABITS, 'sem equipamento');
-  ok(noEquipmentSearch.length > 0);
-  ok(noEquipmentSearch.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'no-equipment')));
-  const mind = filterSuggestedHabits(SUGGESTED_HABITS, 'mente');
-  ok(mind.length > 0);
-  ok(mind.some((idea) => idea.category === 'mind'));
 });
 
 test('ideias de hábitos omitem hábitos já existentes sem diferenciar acentos e água', () => {

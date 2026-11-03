@@ -21,6 +21,23 @@ const check = (passed, name, detail = '') => {
   const recent = await page.locator('.finance-recent').textContent();
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
   check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');
+  const selectedMonth = await page.locator('.mnav .mlabel').textContent();
+  await page.getByRole('button', { name: 'Ver receitas lançadas no mês' }).click();
+  const revenueRows = await page.locator('#tx-results .fr').evaluateAll((rows) => rows.map((row) => row.querySelector('.amt')?.classList.contains('in') ?? false));
+  check(await page.locator('.fin-section-option[data-t="lancamentos"]').getAttribute('aria-pressed') === 'true', 'indicador de receitas abre Lançamentos');
+  check(revenueRows.length > 0 && revenueRows.every(Boolean), 'indicador de receitas filtra apenas receitas do mês');
+  check(await page.locator('.mnav .mlabel').textContent() === selectedMonth, 'atalho de receitas preserva o mês selecionado');
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
+  for (const [label, expectedFilter] of [
+    ['Ver despesas lançadas no mês', 'out'],
+    ['Ver lançamentos do mês para conferir o resultado', 'todos'],
+    ['Ver lançamentos pendentes do mês', 'pendentes'],
+  ]) {
+    await page.getByRole('button', { name: label }).click();
+    check(await page.locator(`.scroll-x button[data-action="fin-filter"][data-f="${expectedFilter}"]`).getAttribute('aria-pressed') === 'true', `${label} aplica filtro ${expectedFilter}`);
+    check(await page.locator('.mnav .mlabel').textContent() === selectedMonth, `${label} preserva o mês selecionado`);
+    await page.locator('.fin-section-option[data-t="resumo"]').click();
+  }
   check(await page.locator('.finance-pending-summary > div').count() === 2, 'compromissos destacam totais a pagar e receber');
   check(await page.locator('.finance-trend-chart circle').count() === 7, 'gráfico mostra os últimos sete dias');
   await page.locator('.finance-fab').click();
@@ -36,6 +53,51 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.finance-trend-empty').count() === 1, 'compromissos futuros não viram evolução de despesas realizadas');
   await page.locator('.mnav [data-n="0"]').click();
   await page.locator('.finance-trend-chart').waitFor();
+
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('10,01');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Série parcelada de teste');
+  const nonCreditAccount = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => (
+    options.find((option) => !/cartão|crédito/i.test(option.textContent))?.value
+  ));
+  await page.locator('#dlg [data-dlg="accountId"]').selectOption(nonCreditAccount);
+  const installmentDate = new Date();
+  installmentDate.setDate(1);
+  installmentDate.setMonth(installmentDate.getMonth() + 2);
+  installmentDate.setDate(new Date(installmentDate.getFullYear(), installmentDate.getMonth() + 1, 0).getDate());
+  const currentInstallmentDate = `${installmentDate.getFullYear()}-${String(installmentDate.getMonth() + 1).padStart(2, '0')}-${String(installmentDate.getDate()).padStart(2, '0')}`;
+  await page.locator('#dlg [data-dlg="date"]').fill(currentInstallmentDate);
+  await page.locator('#dlg [data-dlg="repeat"]').selectOption('parcel');
+  check(await page.locator('#dlg [data-dlg="currentInstallment"]').count() === 1, 'parcelamento permite informar a parcela atual');
+  check(await page.locator('#dlg [data-dlg="times"]').getAttribute('max') === '60', 'parcelamento mantém limite de 60 parcelas');
+  await page.locator('#dlg [data-dlg="currentInstallment"]').fill('11');
+  await page.locator('#dlg [data-dlg="times"]').fill('10');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="currentInstallment"]').count() === 1, 'parcelamento rejeita parcela atual maior que o total');
+  await page.locator('#dlg [data-dlg="currentInstallment"]').fill('3');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  await page.locator('.mnav [data-n="-1"]').click();
+  await page.locator('.mnav [data-n="-1"]').click();
+  const earlierInstallments = await page.locator('#tx-results .fr .ttl').allTextContents();
+  await page.locator('.mnav [data-n="1"]').click();
+  const immediatelyEarlierInstallments = await page.locator('#tx-results .fr .ttl').allTextContents();
+  await page.locator('.mnav [data-n="1"]').click();
+  const generatedInstallments = [];
+  for (let offset = 0; offset < 8; offset++) {
+    const rows = await page.locator('#tx-results .fr').evaluateAll((items) => items.map((item) => ({
+      title: item.querySelector('.ttl')?.textContent?.trim(),
+      amount: item.querySelector('.amt')?.textContent?.trim(),
+    })));
+    generatedInstallments.push(rows.find((row) => row.title === `Série parcelada de teste (${offset + 3}/10)`));
+    if (offset < 7) await page.locator('.mnav [data-n="1"]').click();
+  }
+  check(!earlierInstallments.some((title) => title.startsWith('Série parcelada de teste'))
+    && !immediatelyEarlierInstallments.some((title) => title.startsWith('Série parcelada de teste')), 'parcelamento não cria parcelas anteriores à atual');
+  check(generatedInstallments.every((row) => row?.amount.includes('1,00')), '3/10 a 10/10 são criadas mensalmente com a divisão correta dos centavos');
+  await page.locator('.mnav [data-n="0"]').click();
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
 
   await page.locator('.finance-fab').click();
   const quickMenu = page.locator('#quick-actions-menu');
@@ -184,7 +246,20 @@ const check = (passed, name, detail = '') => {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
+  const overviewDesktopLayout = await page.evaluate(() => {
+    const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
+    const recent = document.querySelector('.finance-recent').getBoundingClientRect();
+    return recent.left >= categories.right - 1 && Math.abs(recent.top - categories.top) < 2;
+  });
+  check(overviewDesktopLayout, 'composição do mês e últimos lançamentos ficam lado a lado no desktop');
   check(await page.locator('.finance-recent .list').evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length === 2), 'últimos lançamentos organizados em duas colunas no desktop');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overviewMobileLayout = await page.evaluate(() => {
+    const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
+    const recent = document.querySelector('.finance-recent').getBoundingClientRect();
+    return recent.top >= categories.bottom;
+  });
+  check(overviewMobileLayout, 'composição do mês e últimos lançamentos continuam empilhados no celular');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

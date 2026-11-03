@@ -17,6 +17,9 @@ const exclusiveMethods = new Set(['none', 'undisclosed']);
 export function isValidCycleSexualLog(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
   if (Object.hasOwn(record, 'sexualActivity') && typeof record.sexualActivity !== 'boolean') return false;
+  if (Object.hasOwn(record, 'masturbationActivity') && typeof record.masturbationActivity !== 'boolean') return false;
+  if (Object.hasOwn(record, 'orgasmCount')
+    && (!Number.isInteger(record.orgasmCount) || record.orgasmCount < 0 || record.orgasmCount > 99)) return false;
   if (!Object.hasOwn(record, 'contraceptionMethods')) return true;
 
   const methods = record.contraceptionMethods;

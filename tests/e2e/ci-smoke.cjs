@@ -104,6 +104,7 @@ async function main() {
   runSuite('app-shell-pomodoro-mini.cjs', DEV_URL);
   runSuite('accessibility.cjs', DEV_URL);
   runSuite('custom-select.cjs', DEV_URL);
+  runSuite('cycle-intimacy.cjs', DEV_URL);
   runSuite('finance-improvements.cjs', DEV_URL);
   runSuite('modal-scroll-lock.cjs', DEV_URL);
   runSuite('auth-preview-boundary.cjs', DEV_URL, PREVIEW_URL);
