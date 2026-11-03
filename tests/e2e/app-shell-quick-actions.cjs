@@ -17,9 +17,98 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#inicio`);
-  const quickTrigger = page.getByRole('button', { name: 'Ações rápidas' });
-  await quickTrigger.waitFor({ state: 'visible' });
+  const moreTrigger = page.getByRole('button', { name: /Mais áreas/ });
+  await moreTrigger.waitFor({ state: 'visible' });
+  const moreMenu = page.locator('#nav-more-menu');
+  const quickTrigger = moreMenu.locator('.nav-more-create');
+  const quickMenu = page.locator('#quick-actions-menu');
+  const openQuickActions = async () => {
+    if (await quickMenu.isVisible()) return;
+    if (await moreMenu.isHidden()) await moreTrigger.click();
+    await quickTrigger.click();
+    await quickMenu.waitFor({ state: 'visible' });
+  };
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'shell não tem overflow horizontal em 320 px');
+  check(await page.evaluate(() => (
+    document.querySelector('#app > .app-definitions')?.getBoundingClientRect().height === 0
+    && document.querySelector('#app > .app')?.getBoundingClientRect().top === 0
+  )), 'SVG de definições não cria espaço acima do app');
+  const mobileNavLabels = [];
+  await page.evaluate(() => document.fonts.ready);
+  for (const width of [320, 360, 390, 430]) {
+    await page.setViewportSize({ width, height: 700 });
+    mobileNavLabels.push(await page.evaluate(() => ({
+      width: innerWidth,
+      brandHidden: getComputedStyle(document.querySelector('.topbar .wordmark')).display === 'none',
+      dockedAtViewportBottom: (() => {
+        const nav = document.querySelector('.topbar .nav');
+        const bounds = nav.getBoundingClientRect();
+        const style = getComputedStyle(nav);
+        return style.position === 'fixed'
+          && Math.abs(bounds.left) <= 1
+          && Math.abs(bounds.right - innerWidth) <= 1
+          && Math.abs(bounds.bottom - innerHeight) <= 1
+          && style.borderTopLeftRadius === style.borderTopRightRadius
+          && style.borderBottomLeftRadius === '0px'
+          && style.borderBottomRightRadius === '0px';
+      })(),
+      actionsInsideBackground: (() => {
+        const nav = document.querySelector('.topbar .nav');
+        const bounds = nav.getBoundingClientRect();
+        return [...nav.children]
+          .filter((child) => getComputedStyle(child).display !== 'none'
+            && !child.classList.contains('nav-more-menu')
+            && !child.classList.contains('nav-quick-control'))
+          .every((child) => {
+            const item = child.getBoundingClientRect();
+            return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
+          });
+      })(),
+      labelsFit: [...document.querySelectorAll('.topbar .nav > .nav-primary .tab-label-group')]
+        .every((label) => label.scrollWidth <= label.clientWidth + 1),
+      createInMore: (() => {
+        const nav = document.querySelector('.topbar .nav');
+        return getComputedStyle(nav.querySelector(':scope > .nav-quick-control > .nav-quick-trigger')).display === 'none'
+          && Boolean(nav.querySelector('.nav-more-menu .nav-more-create'));
+      })(),
+    })));
+  }
+  check(mobileNavLabels.every(({ dockedAtViewportBottom }) => dockedAtViewportBottom),
+    'dock ocupa a largura da tela e fica fixo no rodapé entre 320 e 430 px', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ actionsInsideBackground }) => actionsInsideBackground),
+    'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ createInMore }) => createInMore),
+    'ação Criar fica dentro de Mais e não ocupa uma coluna do dock', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ brandHidden }) => brandHidden),
+    'marca usa apenas o símbolo no cabeçalho móvel para preservar espaço', JSON.stringify(mobileNavLabels));
+  await page.setViewportSize({ width: 320, height: 700 });
+  await moreTrigger.click();
+  const moreMenuLabelsFit = await page.evaluate(() => {
+    const menu = document.querySelector('.nav-more-menu');
+    const bounds = menu.getBoundingClientRect();
+    const dock = document.querySelector('.topbar .nav').getBoundingClientRect();
+    const create = menu.querySelector('.nav-more-create');
+    const createBounds = create.getBoundingClientRect();
+    return bounds.left >= 0
+      && bounds.right <= innerWidth
+      && bounds.left >= dock.left - 1
+      && bounds.right <= dock.right + 1
+      && bounds.bottom <= dock.top
+      && [...menu.querySelectorAll('.nav-more-link, .nav-more-create')].every((item) => item.scrollWidth <= item.clientWidth + 1)
+      && createBounds.width >= 44
+      && createBounds.height >= 44
+      && createBounds.left >= bounds.left
+      && createBounds.right <= bounds.right;
+  });
+  check(moreMenuLabelsFit, 'menu Mais encaixa no dock e inclui Criar com rótulos inteiros');
+  await quickTrigger.click();
+  await quickMenu.waitFor({ state: 'visible' });
+  check(await quickMenu.isVisible(), 'Criar abre as ações rápidas a partir de Mais');
+  await page.keyboard.press('Escape');
+  check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas abertas por Mais');
+  check(await moreTrigger.evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador Mais');
+  await moreTrigger.click();
   const homeOrder = await page.evaluate(() => ({
     plan: document.querySelector('.home-today-card')?.getBoundingClientRect().top,
     onboarding: document.querySelector('.home-first-steps')?.getBoundingClientRect().top,
@@ -46,19 +135,24 @@ const check = (passed, name, detail = '') => {
     return finalAction.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top;
   });
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
-  await quickTrigger.click();
-  const quickMenu = page.locator('#quick-actions-menu');
-  await quickMenu.waitFor({ state: 'visible' });
+  await openQuickActions();
+  check(await page.evaluate(() => {
+    const menu = document.querySelector('#quick-actions-menu').getBoundingClientRect();
+    const dock = document.querySelector('.topbar .nav').getBoundingClientRect();
+    return menu.left >= dock.left - 1
+      && menu.right <= dock.right + 1
+      && menu.bottom <= dock.top;
+  }), 'menu Criar encaixa no dock sem desencontro horizontal');
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).count() === 1, 'ações rápidas oferecem criação de tarefa');
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).evaluate((button) => button === document.activeElement), 'abrir ações rápidas posiciona o foco no primeiro item');
   await page.keyboard.press('Escape');
   check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas');
-  check(await quickTrigger.evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador');
+  check(await moreTrigger.evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador Mais');
 
-  await quickTrigger.click();
+  await openQuickActions();
   await page.locator('.nav-scrim').click();
   check(await quickMenu.isHidden(), 'clique fora fecha as ações rápidas');
-  await quickTrigger.click();
+  await openQuickActions();
   await quickMenu.getByRole('button', { name: 'Nova tarefa' }).click();
   const taskDialog = page.locator('#dlg');
   await taskDialog.waitFor({ state: 'visible' });
@@ -78,7 +172,7 @@ const check = (passed, name, detail = '') => {
     ['Novo hábito', 'Novo hábito.'],
     ['Lançamento', 'Novo lançamento.'],
   ]) {
-    await quickTrigger.click();
+    await openQuickActions();
     await quickMenu.getByRole('button', { name: actionName }).click();
     await taskDialog.waitFor({ state: 'visible' });
     check(await taskDialog.getByRole('heading', { name: dialogTitle }).count() === 1, `${actionName} abre o formulário existente`);
@@ -92,12 +186,19 @@ const check = (passed, name, detail = '') => {
     breakpoints.push(await page.evaluate(() => {
       const nav = document.querySelector('.topbar .nav');
       const currentLabel = nav.querySelector('a[aria-current="page"] .tab-label-group');
+      const sidebarElement = document.querySelector('.app > .topbar');
+      const sidebarBounds = sidebarElement.getBoundingClientRect();
       const sidebar = getComputedStyle(document.querySelector('.app')).gridTemplateColumns.startsWith('256px');
+      const sidebarFixed = getComputedStyle(sidebarElement).position === 'fixed'
+        && Math.abs(sidebarBounds.top) <= 1
+        && Math.abs(sidebarBounds.bottom - innerHeight) <= 1;
       const navLabels = [...nav.querySelectorAll(':scope > a .tab-label-group')];
       return {
         width: innerWidth,
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        reloadButtonVisible: getComputedStyle(nav.parentElement.querySelector('[data-action="reload-app"]')).display !== 'none',
         sidebar,
+        sidebarFixed,
         activeLabelVisible: currentLabel ? currentLabel.getBoundingClientRect().width > 0 : true,
         allNavLabelsVisible: navLabels.length > 0 && navLabels.every((label) => label.getBoundingClientRect().width > 1),
         createLabelVisible: nav.querySelector('.nav-quick-trigger .tab-label-group').getBoundingClientRect().width > 1,
@@ -110,13 +211,49 @@ const check = (passed, name, detail = '') => {
   const labeledTablet = breakpoints.find(({ width }) => width === 1100);
   check(labeledTablet?.allNavLabelsVisible && labeledTablet?.createLabelVisible, 'nomes das áreas e de Criar ficam visíveis no tablet largo');
   check(breakpoints.find(({ width }) => width === 1200)?.sidebar, 'barra lateral entra a partir de 1200 px');
+  check(breakpoints.find(({ width }) => width === 1200)?.sidebarFixed,
+    'barra lateral desktop permanece fixa na altura da janela', JSON.stringify(breakpoints.find(({ width }) => width === 1200)));
+  const sidebarItemOrder = await page.locator('.app > .topbar .nav').evaluate((nav) => (
+    [...nav.children]
+      .filter((item) => getComputedStyle(item).display !== 'none'
+        && !item.classList.contains('nav-more-menu'))
+      .map((item) => item.classList.contains('nav-quick-control')
+        ? 'criar'
+        : item.getAttribute('href'))
+  ));
+  check(sidebarItemOrder[0] === '#inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
+  const sidebarHabitsIndex = sidebarItemOrder.indexOf('#habitos');
+  const sidebarCreateIndex = sidebarItemOrder.indexOf('criar');
+  check(sidebarHabitsIndex < 0 || sidebarCreateIndex > sidebarHabitsIndex,
+    'Criar aparece depois de Hábitos na barra lateral', sidebarItemOrder.join(', '));
   check(breakpoints.find(({ width }) => width === 768)?.navPosition === 'fixed', 'dock inferior permanece em tablet estreito');
-  const searchTrigger = page.getByRole('button', { name: /Buscar no Aurora/ });
-  check(await searchTrigger.isVisible(), 'busca global fica visível no cabeçalho autenticado');
-  await searchTrigger.click();
+  check(breakpoints.find(({ width }) => width === 1024)?.reloadButtonVisible,
+    'botão de atualização permanece disponível no layout compacto do navegador');
+  check(!breakpoints.find(({ width }) => width === 1200)?.reloadButtonVisible,
+    'botão de atualização não aparece na visão web');
+  const sidebarAfterRouteChanges = [];
+  for (const [hash, route] of [['#inicio', 'inicio'], ['#planejar', 'planejar']]) {
+    await page.locator(`.topbar .nav a[href="${hash}"]`).click();
+    await page.locator(`.main[data-route="${route}"]`).waitFor();
+    sidebarAfterRouteChanges.push(await page.locator('.app > .topbar').evaluate((sidebar) => {
+      const bounds = sidebar.getBoundingClientRect();
+      return {
+        position: getComputedStyle(sidebar).position,
+        top: bounds.top,
+        bottom: bounds.bottom,
+        viewportHeight: innerHeight,
+      };
+    }));
+  }
+  check(sidebarAfterRouteChanges.every(({ position, top, bottom, viewportHeight }) => (
+    position === 'fixed' && Math.abs(top) <= 1 && Math.abs(bottom - viewportHeight) <= 1
+  )), 'barra lateral não se desloca ao alternar entre telas', JSON.stringify(sidebarAfterRouteChanges));
+  check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
+    'busca global não aparece como botão no cabeçalho');
+  await page.keyboard.press('Control+k');
   check(await page.locator('#dlg').getByRole('heading', { name: 'Buscar no Aurora.' }).count() === 1, 'acionador abre a busca global');
   await page.keyboard.press('Escape');
-  check(await page.locator('#dlg').count() === 0 && await searchTrigger.evaluate((button) => button === document.activeElement), 'Esc fecha a busca e devolve foco ao acionador');
+  check(await page.locator('#dlg').count() === 0, 'Esc fecha a busca aberta pelo atalho de teclado');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

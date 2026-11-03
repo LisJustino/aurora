@@ -21,6 +21,16 @@ const check = (passed, name, detail = '') => {
   const timerToggle = page.locator('[data-action="toggle-free-timer"]');
   await timerToggle.waitFor();
   check(await page.locator('#pomodoro-mini').isHidden(), 'mini controle fica oculto na tela completa do Pomodoro');
+  const dialFit = [];
+  for (const width of [320, 390, 768, 900, 1100, 1366]) {
+    await page.setViewportSize({ width, height: 844 });
+    dialFit.push(await page.locator('.focus-clock').evaluate((clock) => ({
+      width: innerWidth,
+      timerFits: clock.querySelector('.timer').scrollWidth <= clock.clientWidth - 4,
+    })));
+  }
+  check(dialFit.every(({ timerFits }) => timerFits), 'tempo do Pomodoro cabe dentro do mostrador sem cortar as bordas', JSON.stringify(dialFit));
+  await page.setViewportSize({ width: 1280, height: 900 });
   await timerToggle.click();
   await page.locator('.topbar .nav a[href="#planejar"]').first().click();
 

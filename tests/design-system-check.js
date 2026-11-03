@@ -51,6 +51,8 @@ check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
 const fontLiterals = offenders(/font-size:\s*(?:\d*\.?\d+(?:rem|px)|\d+\.\d+em)\s*[;}]/g)
   .filter((item) => item !== 'base.css: font-size: 16px;');
 check(!fontLiterals.length, 'Tamanhos de fonte usam --text-* (exceto clamp e o mínimo de 16 px dos campos)', fontLiterals.slice(0, 6).join(' | '));
+const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
+check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', fontShorthandLiterals.slice(0, 6).join(' | '));
 
 const radiusLiterals = offenders(/border-radius:\s*[^;{}]*\d+(?:\.\d+)?px[^;{}]*[;}]/g);
 check(!radiusLiterals.length, 'Raios usam tokens --r-*', radiusLiterals.slice(0, 6).join(' | '));
@@ -61,11 +63,13 @@ check(!heightLiterals.length, 'Alturas mínimas de controle usam --control-*', h
 const hexLiterals = offenders(/(?:color|background|border-color|fill|stroke):\s*#(?:fff|ffffff|000|000000)(?![\w])/gi);
 check(!hexLiterals.length, 'Cores sólidas em branco/preto usam --on-solid ou tokens de tema (misturas com color-mix são permitidas)', hexLiterals.slice(0, 6).join(' | '));
 
-const scale = new Set([...allText.matchAll(/--text-(2xs|xs|meta|sm|md|base|lg|xl|title|2xl|3xl)\s*:/g)].map((match) => match[1]));
-check(scale.size === 11, 'A escala de tipografia tem os 11 degraus', [...scale].join(', '));
+const scale = new Set([...allText.matchAll(/--text-(2xs|xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
+check(scale.size === 12, 'A escala de tipografia tem os 12 degraus', [...scale].join(', '));
 for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
   '--r-xs', '--r-sm', '--r-control', '--r-group', '--r', '--r-large', '--r-pill', '--on-solid',
+  '--priority-low',
+  '--text-4xl', '--text-timer',
   '--card-padding', '--card-padding-compact', '--card-content-gap',
   '--card-compact-min-width', '--card-compact-max-width', '--card-compact-gap',
   '--shadow-sm',

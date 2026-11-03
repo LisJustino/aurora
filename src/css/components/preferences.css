@@ -159,6 +159,8 @@
 .settings-data-action > p:not(.small):not(.err) { color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
 .settings-data-action > .small { line-height: 1.4; }
 .settings-data-action > .btn { margin-top: var(--space-1); }
+.settings-data-export > .row { grid-column: 1 / -1; }
+.settings-data-export > .row > .btn { white-space: nowrap; }
 .settings-data-action #imperr:empty { display: none; }
 .settings-data-export,
 .settings-data-restore { grid-template-columns: 38px minmax(0, 1fr); }
@@ -201,7 +203,9 @@
   border-radius: var(--r-group);
   background: var(--surface);
 }
-.settings-data-trash .trash-list .grow { display: grid; gap: 3px; }
+.settings-data-trash .trash-list .grow { display: grid; min-width: 0; gap: 4px; overflow-wrap: anywhere; }
+.settings-data-trash .trash-list .ttl { font-size: var(--text-sm); line-height: 1.35; }
+.settings-data-trash .trash-list > li > .btn { flex: none; }
 .settings-trash-expiry {
   width: fit-content;
   padding: 2px 8px;
@@ -209,8 +213,10 @@
   background: var(--soft);
   color: var(--muted);
   font-size: var(--text-xs);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.settings-trash-expiry.is-urgent { background: var(--warn-soft); color: var(--warn); }
 .settings-trash-empty {
   display: flex;
   align-items: center;

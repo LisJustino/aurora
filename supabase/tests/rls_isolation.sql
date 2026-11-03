@@ -399,6 +399,38 @@ begin
     0, 'Registro válido A', 'cycle_periods', now()
   );
 
+  insert into public.cycle_days (
+    user_id, log_date, sexual_activity, masturbation_activity, orgasm_count
+  )
+  values (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+    '2026-03-01', true, true, 2
+  );
+
+  select count(*) into visible_count
+  from public.cycle_days
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101'
+    and log_date = '2026-03-01'
+    and sexual_activity is true
+    and masturbation_activity is true
+    and orgasm_count = 2;
+  if visible_count <> 1 then
+    raise exception 'User A could not insert cycle intimacy fields';
+  end if;
+
+  begin
+    insert into public.cycle_days (
+      user_id, log_date, sexual_activity, masturbation_activity, orgasm_count
+    )
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+      '2026-03-02', true, true, 100
+    );
+    raise exception 'The orgasm count constraint accepted 100';
+  exception
+    when check_violation then null;
+  end;
+
   begin
     insert into public.trash_records (
       user_id, legacy_id, entry_legacy_id, collection, record_key,

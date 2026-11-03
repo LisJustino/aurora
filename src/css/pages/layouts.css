@@ -10,7 +10,7 @@
 .focus-entry p { margin-top: 6px; }
 .stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stats3 > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.stats3 b { font: 700 1.05rem var(--font-h); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.stats3 b { font: var(--weight-bold) var(--text-lg) var(--font-h); letter-spacing: -.02em; overflow-wrap: anywhere; }
 .stats3 span { color: var(--muted); font-size: var(--text-xs); }
 .main[data-route="config"] .card > .form + .row,
 .main[data-route="config"] .card > .row { flex-wrap: wrap; }

@@ -7,7 +7,7 @@
   gap: 8px;
   margin: 6px 0 0;
   color: var(--muted);
-  font: 700 .8125rem/1.4 var(--font);
+  font: var(--weight-bold) var(--text-meta)/1.4 var(--font);
 }
 .gh .n { padding: 1px 8px; border-radius: var(--r-pill); background: var(--soft2); color: var(--ink); font-size: var(--text-xs); }
 .gh.bad { color: var(--bad); }
@@ -70,7 +70,7 @@
 .chk.pop span { animation: pop .22s ease; }
 @keyframes pop { 50% { transform: scale(1.18); } }
 .chk.p-high:not([aria-checked="true"]) span { border-color: var(--bad); }
-.chk.p-low:not([aria-checked="true"]) span { border-color: #3f7f93; }
+.chk.p-low:not([aria-checked="true"]) span { border-color: var(--priority-low); }
 
 .notice {
   display: flex;
@@ -105,12 +105,12 @@ details.card:not([open]) { gap: 0; }
 
 .timer {
   color: var(--ink);
-  font: 700 clamp(2.75rem, 12vw, 4rem)/1 var(--font-h);
+  font: var(--weight-bold) var(--text-timer)/1 var(--font-h);
   font-variant-numeric: tabular-nums;
   letter-spacing: -.04em;
 }
 .chart { display: block; width: 100%; max-width: 520px; height: auto; margin-inline: auto; }
-.chart text { fill: var(--muted); font: .75rem var(--font); }
+.chart text { fill: var(--muted); font: var(--text-xs) var(--font); }
 .chart .b { fill: var(--p); }
 .chart .b.today { fill: var(--pd); }
 .chart .g { stroke: var(--accent); stroke-dasharray: 4 4; }
@@ -164,7 +164,7 @@ details.card:not([open]) { gap: 0; }
   color: var(--accent);
 }
 .tile h3 { margin-top: 2px; font-size: var(--text-md); }
-.tile .v { font: 750 1.35rem/1.2 var(--font-h); letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile .v { font: var(--weight-strong) var(--text-title)/1.2 var(--font-h); letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .tile .s { color: var(--muted); font-size: var(--text-meta); }
 .tile .go { position: absolute; top: 14px; right: 12px; color: var(--muted); }
 .tile.off { border-style: solid; background: var(--surface); }
@@ -183,7 +183,7 @@ details.card:not([open]) { gap: 0; }
 
 .sym { display: flex; flex-direction: column; gap: 10px; }
 .sym + .sym { padding-top: var(--space-4); border-top: 1px solid var(--line); }
-.sym h3 { display: flex; align-items: center; gap: 8px; color: var(--ink); font: 650 .9375rem var(--font-h); }
+.sym h3 { display: flex; align-items: center; gap: 8px; color: var(--ink); font: var(--weight-semibold) var(--text-md) var(--font-h); }
 .sym h3 .ic { color: var(--accent); }
 .dchip {
   display: flex;
@@ -201,7 +201,7 @@ details.card:not([open]) { gap: 0; }
   font-size: var(--text-xs);
   cursor: pointer;
 }
-.dchip b { color: var(--ink); font: 650 1rem var(--font-h); }
+.dchip b { color: var(--ink); font: var(--weight-semibold) var(--text-base) var(--font-h); }
 .dchip i { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
 .dchip i.on { background: var(--accent); }
 .dchip.per { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }

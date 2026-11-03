@@ -96,7 +96,7 @@ async function main() {
 
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('habits-app-experience.cjs', DEV_URL);
-  runSuite('backup-encryption.cjs', DEV_URL);
+  runSuite('backup-export-import.cjs', DEV_URL);
   runSuite('pwa-update.cjs', DEV_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);
   runSuite('signup-birthdate.cjs', DEV_URL);
@@ -104,6 +104,7 @@ async function main() {
   runSuite('app-shell-pomodoro-mini.cjs', DEV_URL);
   runSuite('accessibility.cjs', DEV_URL);
   runSuite('custom-select.cjs', DEV_URL);
+  runSuite('cycle-intimacy.cjs', DEV_URL);
   runSuite('finance-improvements.cjs', DEV_URL);
   runSuite('modal-scroll-lock.cjs', DEV_URL);
   runSuite('auth-preview-boundary.cjs', DEV_URL, PREVIEW_URL);

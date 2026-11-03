@@ -576,6 +576,8 @@ function buildRows(userId, state, idMap) {
     skin: log.skin || [],
     sexual_activity: log.sexualActivity ?? null,
     contraception_methods: log.contraceptionMethods || [],
+    masturbation_activity: log.masturbationActivity ?? null,
+    orgasm_count: log.orgasmCount ?? null,
     is_test_data: log.sample === true,
     deleted_at: deletedAtFor(settings, 'cycleLog', day),
   })));
@@ -773,6 +775,8 @@ function cycleLogFromRow(row) {
     ...(row.skin?.length ? { skin: row.skin } : {}),
     ...(row.sexual_activity !== null ? { sexualActivity: row.sexual_activity } : {}),
     ...(row.contraception_methods?.length ? { contraceptionMethods: row.contraception_methods } : {}),
+    ...(row.masturbation_activity != null ? { masturbationActivity: row.masturbation_activity } : {}),
+    ...(row.orgasm_count != null ? { orgasmCount: row.orgasm_count } : {}),
     sample: row.is_test_data || undefined,
   };
 }

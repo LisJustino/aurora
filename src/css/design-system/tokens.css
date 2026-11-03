@@ -51,6 +51,7 @@
   --area-water: #216f86;
   --area-finances: #397650;
   --area-cycle: #8b4e78;
+  --priority-low: #3f7f93;
   --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
   --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 52%, #71465f), color-mix(in srgb, var(--btn) 40%, #382f45));
   --on-hero-home: var(--on-btn);
@@ -148,7 +149,9 @@
   --text-title: 1.375rem;
   --text-2xl: 1.5rem;
   --text-3xl: 1.75rem;
+  --text-4xl: 2rem;
   --text-body: var(--text-base);
+  --text-timer: clamp(2.75rem, 12vw, 4rem);
   /* Controles: altura mínima por tamanho (sm 40 · md 44 · field 48 · lg 52) */
   --control-sm: 40px;
   --control-md: var(--target-size);
@@ -194,6 +197,7 @@
   --area-water: #72c7d8;
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
+  --priority-low: #8ccddd;
   --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
   --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
@@ -209,6 +213,7 @@
   --btn: #6f2845;
   --focus: #542135;
   --ring: #6f2845;
+  --priority-low: #17596b;
 }
 
 :root[data-theme="dark"][data-contrast="high"] {
@@ -219,4 +224,5 @@
   --btn: #a94f71;
   --focus: #fff;
   --ring: #f5c0d2;
+  --priority-low: #a6e7f5;
 }

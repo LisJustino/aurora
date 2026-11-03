@@ -31,6 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes postgresql-client
+          PGPASSWORD=postgres psql --host=127.0.0.1 --port=54322 --username=postgres --dbname=postgres --set=ON_ERROR_STOP=1 --file=supabase/schema.sql
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" --set=ON_ERROR_STOP=1 --file=supabase/tests/rls_isolation.sql
       - name: Verify concurrent relational writes
         run: npm run test:supabase:concurrency
