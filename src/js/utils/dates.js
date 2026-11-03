@@ -11,6 +11,14 @@ export const addDays = (key, amount) => {
   date.setDate(date.getDate() + amount);
   return dk(date);
 };
+export const addMonths = (key, amount) => {
+  const date = pk(key);
+  const day = date.getDate();
+  date.setDate(1);
+  date.setMonth(date.getMonth() + amount);
+  date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
+  return dk(date);
+};
 export const dayDiff = (a, b) => Math.round((pk(a) - pk(b)) / 864e5);
 export const weekStart = (key, startDay = 1) => {
   const date = pk(key);

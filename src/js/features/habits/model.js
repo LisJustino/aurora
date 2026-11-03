@@ -1,3 +1,5 @@
+import { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
+export { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
 import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
@@ -17,10 +19,6 @@ export const HABIT_ICONS = Object.freeze([
   ['candy', 'Lazer'], ['scale', 'Acompanhamento'], ['flag', 'Meta'], ['grid', 'Organizar'],
 ]);
 export const HABIT_ICON_KEYS = Object.freeze(HABIT_ICONS.map(([key]) => key));
-export const HABIT_COLORS = Object.freeze([
-  '#c97994', '#e07a5f', '#d9a05b', '#a3b55a', '#5fa68a', '#5aa5b8',
-  '#7c8fd4', '#8a7ac4', '#a24f9e', '#d6455d', '#8b8b95', '#ad8c76',
-]);
 export const DEFAULT_HABIT_ICON = 'sparkles';
 export const DEFAULT_HABIT_COLOR = HABIT_COLORS[0];
 
@@ -52,6 +50,8 @@ export const SUGGESTED_HABIT_TAGS = Object.freeze([
   { id: 'quick', title: 'Poucos minutos' },
   { id: 'home', title: 'Em casa' },
   { id: 'no-equipment', title: 'Sem equipamento' },
+  { id: 'outdoor', title: 'Ao ar livre' },
+  { id: 'equipment', title: 'Com equipamento' },
 ]);
 
 const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
@@ -63,7 +63,9 @@ const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
     'wash-face', 'use-floss', 'care-for-hands', 'apply-lip-balm',
     'pause-for-eye-rest', 'walk-10-minutes', 'stretch-neck-shoulders',
     'mindful-minute', 'brain-dump', 'name-your-feelings', 'try-new-food',
-    'review-weekly-priorities', 'check-daily-budget',
+    'review-weekly-priorities', 'check-daily-budget', 'open-curtains',
+    'plan-snacks', 'pack-a-lunch', 'sunscreen', 'connect', 'walk-with-dog',
+    'learn-language', 'practice-instrument',
   ]),
   home: Object.freeze([
     'water', 'skincare', 'hair-care', 'personal-hygiene', 'sleep', 'medication',
@@ -85,12 +87,20 @@ const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
     'sort-laundry', 'reset-kitchen', 'review-weekly-priorities',
     'check-daily-budget', 'charge-phone-away', 'clear-inbox',
     'evening-room-reset', 'take-out-trash', 'prepare-workspace',
+    'open-curtains', 'plan-snacks', 'pack-a-lunch', 'connect', 'learn-language',
+    'practice-instrument',
   ]),
   'no-equipment': Object.freeze([
     'training', 'stretch', 'walk', 'dance', 'active-break', 'mobility',
     'take-stairs', 'play-outside',
     'walk-10-minutes', 'yoga-at-home', 'bodyweight-strength',
     'stretch-neck-shoulders', 'move-after-meal', 'practice-balance',
+  ]),
+  outdoor: Object.freeze([
+    'cycle', 'walk-with-dog', 'play-a-sport', 'outdoor-movement',
+  ]),
+  equipment: Object.freeze([
+    'gym', 'cycle', 'play-a-sport', 'practice-instrument',
   ]),
 });
 
@@ -119,108 +129,6 @@ export function featuredHabitSuggestions(suggestions, limit = 4) {
   return selected;
 }
 
-export const SUGGESTED_HABITS = [
-  { id: 'water', category: 'personal-care', name: 'Beber água', description: 'Registre os mL consumidos e acompanhe a meta diária.', icon: 'droplet', color: HABIT_COLORS[5] },
-  { id: 'skincare', category: 'personal-care', name: 'Fazer skincare', description: 'Reserve um momento para cuidar da pele.', icon: 'flower', color: HABIT_COLORS[0] },
-  { id: 'hair-care', category: 'personal-care', name: 'Cuidar do cabelo', description: 'Inclua os cuidados com o cabelo na rotina.', icon: 'hair', color: HABIT_COLORS[11] },
-  { id: 'personal-hygiene', category: 'personal-care', name: 'Cuidar da higiene pessoal', description: 'Acompanhe um cuidado diário importante para você.', icon: 'sparkles', color: HABIT_COLORS[6] },
-  { id: 'sleep', category: 'personal-care', name: 'Dormir no horário', description: 'Vá para a cama sem estender a noite.', icon: 'moon', color: HABIT_COLORS[7] },
-  { id: 'medication', category: 'personal-care', name: 'Tomar remédio ou vitamina', description: 'Lembre-se do cuidado orientado para você.', icon: 'pill', color: HABIT_COLORS[5] },
-  { id: 'gym', category: 'movement', name: 'Ir à academia', description: 'Reserve um horário para o treino.', icon: 'dumbbell', color: HABIT_COLORS[1] },
-  { id: 'training', category: 'movement', name: 'Fazer um treino', description: 'Movimente o corpo do seu jeito.', icon: 'activity', color: HABIT_COLORS[4] },
-  { id: 'stretch', category: 'movement', name: 'Alongar', description: 'Faça alguns minutos de alongamento.', icon: 'spine', color: HABIT_COLORS[3] },
-  { id: 'walk', category: 'movement', name: 'Caminhar ao ar livre', description: 'Um pouco de movimento e ar fresco.', icon: 'leaf', color: HABIT_COLORS[3] },
-  { id: 'cycle', category: 'movement', name: 'Pedalar', description: 'Inclua um passeio de bicicleta na semana.', icon: 'bike', color: HABIT_COLORS[5] },
-  { id: 'reading', category: 'mind', name: 'Ler por 10 minutos', description: 'Reserve alguns minutos para a leitura.', icon: 'book', color: HABIT_COLORS[6] },
-  { id: 'meditate', category: 'mind', name: 'Respirar e meditar', description: 'Faça uma pausa para respirar com calma.', icon: 'meditate', color: HABIT_COLORS[8] },
-  { id: 'journal', category: 'mind', name: 'Escrever no diário', description: 'Anote como foi o seu dia.', icon: 'note', color: HABIT_COLORS[0] },
-  { id: 'gratitude', category: 'mind', name: 'Praticar gratidão', description: 'Pense em algo bom que aconteceu.', icon: 'smile', color: HABIT_COLORS[2] },
-  { id: 'screens', category: 'mind', name: 'Ficar sem telas antes de dormir', description: 'Desconecte-se um pouco antes de descansar.', icon: 'phoneOff', color: HABIT_COLORS[10] },
-  { id: 'pause', category: 'mind', name: 'Fazer uma pausa', description: 'Faça uma pausa consciente durante o dia.', icon: 'coffee', color: HABIT_COLORS[2] },
-  { id: 'fruit', category: 'food', name: 'Comer uma fruta', description: 'Inclua uma fruta na rotina.', icon: 'apple', color: HABIT_COLORS[9] },
-  { id: 'cook', category: 'food', name: 'Preparar uma refeição', description: 'Separe um momento para cozinhar.', icon: 'utensils', color: HABIT_COLORS[11] },
-  { id: 'meal-plan', category: 'food', name: 'Planejar as refeições', description: 'Organize com antecedência o que pretende comer.', icon: 'calendarCheck', color: HABIT_COLORS[3] },
-  { id: 'tidy', category: 'routine', name: 'Arrumar um cantinho', description: 'Organize um pedacinho da casa.', icon: 'home', color: HABIT_COLORS[11] },
-  { id: 'morning-plan', category: 'routine', name: 'Planejar o dia', description: 'Escolha uma prioridade para o seu dia.', icon: 'target', color: HABIT_COLORS[7] },
-  { id: 'evening-routine', category: 'routine', name: 'Preparar o dia seguinte', description: 'Deixe algo organizado para amanhã.', icon: 'calendarCheck', color: HABIT_COLORS[6] },
-  { id: 'dental-care', category: 'personal-care', name: 'Cuidar da saúde bucal', description: 'Inclua um momento de cuidado com a saúde bucal.', icon: 'sparkles', color: HABIT_COLORS[5] },
-  { id: 'sunscreen', category: 'personal-care', name: 'Passar protetor solar', description: 'Lembre-se desse cuidado nos dias em que fizer sentido para você.', icon: 'sun', color: HABIT_COLORS[2] },
-  { id: 'dance', category: 'movement', name: 'Dançar', description: 'Coloque uma música e se movimente do seu jeito.', icon: 'music', color: HABIT_COLORS[0] },
-  { id: 'active-break', category: 'movement', name: 'Fazer uma pausa ativa', description: 'Levante, caminhe ou alongue por alguns minutos.', icon: 'activity', color: HABIT_COLORS[4] },
-  { id: 'mobility', category: 'movement', name: 'Praticar mobilidade', description: 'Reserve alguns minutos para movimentar o corpo.', icon: 'spine', color: HABIT_COLORS[3] },
-  { id: 'study', category: 'mind', name: 'Estudar por 15 minutos', description: 'Avance um pouco em um assunto que queira aprender.', icon: 'book', color: HABIT_COLORS[6] },
-  { id: 'creative-time', category: 'mind', name: 'Dedicar tempo a um hobby', description: 'Faça algo criativo ou que você goste.', icon: 'palette', color: HABIT_COLORS[8] },
-  { id: 'connect', category: 'mind', name: 'Falar com alguém querido', description: 'Envie uma mensagem ou reserve um tempo para conversar.', icon: 'heart', color: HABIT_COLORS[9] },
-  { id: 'mindful-meal', category: 'food', name: 'Fazer uma refeição sem distrações', description: 'Desfrute de uma refeição com menos telas por perto.', icon: 'utensils', color: HABIT_COLORS[3] },
-  { id: 'prepare-snack', category: 'food', name: 'Preparar um lanche', description: 'Deixe um lanche separado para mais tarde.', icon: 'apple', color: HABIT_COLORS[9] },
-  { id: 'make-bed', category: 'routine', name: 'Arrumar a cama', description: 'Comece o dia com uma pequena tarefa concluída.', icon: 'bed', color: HABIT_COLORS[11] },
-  { id: 'review-calendar', category: 'routine', name: 'Conferir a agenda', description: 'Veja seus compromissos e escolha o que precisa de atenção.', icon: 'calendarCheck', color: HABIT_COLORS[7] },
-  { id: 'organize-bag', category: 'routine', name: 'Organizar a bolsa ou mochila', description: 'Separe o que vai precisar levar com você.', icon: 'folder', color: HABIT_COLORS[1] },
-  { id: 'care-for-plant', category: 'routine', name: 'Cuidar de uma planta', description: 'Reserve um momento para cuidar das suas plantas.', icon: 'leaf', color: HABIT_COLORS[4] },
-  { id: 'five-minute-tidy', category: 'routine', name: 'Organizar por cinco minutos', description: 'Escolha um espaço pequeno e deixe-o mais organizado.', icon: 'home', color: HABIT_COLORS[11] },
-  { id: 'prepare-for-bed', category: 'personal-care', name: 'Preparar-se para dormir com calma', description: 'Crie um pequeno ritual para encerrar o dia.', icon: 'moon', color: HABIT_COLORS[7] },
-  { id: 'check-in-with-yourself', category: 'personal-care', name: 'Perceber como você está', description: 'Reserve um momento para notar como está se sentindo.', icon: 'heart', color: HABIT_COLORS[9] },
-  { id: 'plan-rest', category: 'personal-care', name: 'Separar um tempo para descansar', description: 'Inclua um intervalo de descanso na sua rotina.', icon: 'bed', color: HABIT_COLORS[11] },
-  { id: 'take-stairs', category: 'movement', name: 'Subir escadas quando fizer sentido', description: 'Escolha as escadas em um trajeto possível para você.', icon: 'activity', color: HABIT_COLORS[4] },
-  { id: 'walk-with-dog', category: 'movement', name: 'Passear com o cachorro', description: 'Inclua um passeio na rotina com seu pet.', icon: 'leaf', color: HABIT_COLORS[3] },
-  { id: 'play-outside', category: 'movement', name: 'Brincar ou se movimentar ao ar livre', description: 'Aproveite um momento fora de casa para se movimentar.', icon: 'sun', color: HABIT_COLORS[2] },
-  { id: 'learn-language', category: 'mind', name: 'Estudar um idioma', description: 'Pratique algumas palavras ou frases novas.', icon: 'book', color: HABIT_COLORS[6] },
-  { id: 'practice-instrument', category: 'mind', name: 'Praticar um instrumento', description: 'Dedique alguns minutos à música.', icon: 'music', color: HABIT_COLORS[0] },
-  { id: 'weekly-reflection', category: 'mind', name: 'Fazer uma revisão da semana', description: 'Lembre do que foi importante e do que quer levar adiante.', icon: 'note', color: HABIT_COLORS[8] },
-  { id: 'screen-free-break', category: 'mind', name: 'Fazer uma pausa longe das telas', description: 'Descanse os olhos e faça uma pausa sem dispositivos.', icon: 'phoneOff', color: HABIT_COLORS[10] },
-  { id: 'try-new-recipe', category: 'food', name: 'Experimentar uma receita nova', description: 'Escolha algo diferente para preparar quando quiser.', icon: 'utensils', color: HABIT_COLORS[1] },
-  { id: 'prepare-breakfast', category: 'food', name: 'Preparar o café da manhã', description: 'Separe um momento para organizar sua primeira refeição.', icon: 'coffee', color: HABIT_COLORS[2] },
-  { id: 'add-vegetable', category: 'food', name: 'Incluir um vegetal em uma refeição', description: 'Escolha um vegetal para acompanhar uma refeição.', icon: 'apple', color: HABIT_COLORS[4] },
-  { id: 'make-grocery-list', category: 'food', name: 'Anotar itens para as compras', description: 'Registre o que está faltando antes de ir às compras.', icon: 'calendarCheck', color: HABIT_COLORS[5] },
-  { id: 'clear-desk', category: 'routine', name: 'Deixar a mesa organizada', description: 'Organize o espaço antes ou depois de usar.', icon: 'home', color: HABIT_COLORS[7] },
-  { id: 'wash-dishes', category: 'routine', name: 'Lavar a louça após uma refeição', description: 'Cuide da louça de uma refeição por vez.', icon: 'utensils', color: HABIT_COLORS[3] },
-  { id: 'set-out-clothes', category: 'routine', name: 'Separar a roupa do dia seguinte', description: 'Deixe uma opção pronta para facilitar a manhã.', icon: 'calendarCheck', color: HABIT_COLORS[6] },
-  { id: 'keys-in-place', category: 'routine', name: 'Guardar chaves no mesmo lugar', description: 'Escolha um local fixo para encontrar suas chaves.', icon: 'target', color: HABIT_COLORS[1] },
-  { id: 'organize-digital-files', category: 'routine', name: 'Organizar arquivos digitais', description: 'Separe alguns arquivos ou fotos para colocar em ordem.', icon: 'folder', color: HABIT_COLORS[8] },
-  { id: 'weekly-reset', category: 'routine', name: 'Preparar a casa para a semana', description: 'Escolha uma pequena tarefa para começar a semana com mais leveza.', icon: 'calendarCheck', color: HABIT_COLORS[11] },
-  { id: 'wash-face', category: 'personal-care', name: 'Lavar o rosto', description: 'Inclua esse cuidado na rotina que funciona para você.', icon: 'flower', color: HABIT_COLORS[0] },
-  { id: 'use-floss', category: 'personal-care', name: 'Usar fio dental', description: 'Lembre-se desse passo no cuidado com a saúde bucal.', icon: 'sparkles', color: HABIT_COLORS[5] },
-  { id: 'moisturize-skin', category: 'personal-care', name: 'Hidratar a pele', description: 'Reserve um momento para hidratar a pele, se fizer sentido para você.', icon: 'flower', color: HABIT_COLORS[0] },
-  { id: 'care-for-hands', category: 'personal-care', name: 'Cuidar das mãos', description: 'Inclua um cuidado simples com as mãos na sua rotina.', icon: 'heart', color: HABIT_COLORS[9] },
-  { id: 'apply-lip-balm', category: 'personal-care', name: 'Usar protetor labial', description: 'Deixe o protetor labial por perto para lembrar de usar.', icon: 'heart', color: HABIT_COLORS[2] },
-  { id: 'pause-for-eye-rest', category: 'personal-care', name: 'Descansar os olhos', description: 'Faça uma pausa breve para olhar para longe das telas.', icon: 'sun', color: HABIT_COLORS[6] },
-  { id: 'check-posture', category: 'personal-care', name: 'Perceber a postura', description: 'Faça uma pausa para ajustar a posição com conforto.', icon: 'spine', color: HABIT_COLORS[4] },
-  { id: 'open-curtains', category: 'personal-care', name: 'Abrir as cortinas pela manhã', description: 'Deixe a luz natural entrar quando for possível.', icon: 'sun', color: HABIT_COLORS[2] },
-  { id: 'walk-10-minutes', category: 'movement', name: 'Caminhar por 10 minutos', description: 'Escolha um trajeto e ritmo confortáveis para você.', icon: 'activity', color: HABIT_COLORS[3] },
-  { id: 'yoga-at-home', category: 'movement', name: 'Fazer yoga em casa', description: 'Siga uma sequência curta que combine com seu momento.', icon: 'spine', color: HABIT_COLORS[8] },
-  { id: 'bodyweight-strength', category: 'movement', name: 'Fazer exercícios com o peso do corpo', description: 'Movimente-se sem equipamentos, respeitando seus limites.', icon: 'dumbbell', color: HABIT_COLORS[1] },
-  { id: 'stretch-neck-shoulders', category: 'movement', name: 'Alongar pescoço e ombros', description: 'Faça movimentos leves e confortáveis durante uma pausa.', icon: 'spine', color: HABIT_COLORS[3] },
-  { id: 'move-after-meal', category: 'movement', name: 'Fazer uma caminhada leve', description: 'Se quiser, caminhe um pouco depois de uma refeição.', icon: 'leaf', color: HABIT_COLORS[4] },
-  { id: 'practice-balance', category: 'movement', name: 'Praticar equilíbrio', description: 'Experimente um exercício simples em um local seguro.', icon: 'activity', color: HABIT_COLORS[5] },
-  { id: 'play-a-sport', category: 'movement', name: 'Praticar um esporte', description: 'Reserve um momento para um esporte de que você goste.', icon: 'target', color: HABIT_COLORS[1] },
-  { id: 'outdoor-movement', category: 'movement', name: 'Fazer uma atividade ao ar livre', description: 'Escolha uma atividade externa que seja agradável para você.', icon: 'sun', color: HABIT_COLORS[2] },
-  { id: 'brain-dump', category: 'mind', name: 'Anotar o que está na cabeça', description: 'Escreva ideias ou preocupações para organizar os pensamentos.', icon: 'pencil', color: HABIT_COLORS[8] },
-  { id: 'focus-single-task', category: 'mind', name: 'Focar em uma tarefa por vez', description: 'Escolha uma tarefa e reduza as distrações por alguns minutos.', icon: 'target', color: HABIT_COLORS[7] },
-  { id: 'mindful-minute', category: 'mind', name: 'Fazer um minuto de atenção plena', description: 'Observe a respiração e o momento presente por um minuto.', icon: 'meditate', color: HABIT_COLORS[8] },
-  { id: 'screen-free-morning', category: 'mind', name: 'Começar o dia sem telas', description: 'Se for possível, deixe o celular de lado ao acordar.', icon: 'phoneOff', color: HABIT_COLORS[10] },
-  { id: 'learn-something-new', category: 'mind', name: 'Aprender algo novo', description: 'Dedique alguns minutos a um assunto que desperte curiosidade.', icon: 'book', color: HABIT_COLORS[6] },
-  { id: 'creative-writing', category: 'mind', name: 'Escrever livremente', description: 'Escreva uma ideia, uma história ou algumas linhas sem editar.', icon: 'pencil', color: HABIT_COLORS[0] },
-  { id: 'listen-to-music', category: 'mind', name: 'Ouvir uma música com atenção', description: 'Escolha uma música e aproveite esse momento sem outras tarefas.', icon: 'music', color: HABIT_COLORS[2] },
-  { id: 'name-your-feelings', category: 'mind', name: 'Nomear como você está se sentindo', description: 'Faça uma pausa para reconhecer e registrar seus sentimentos.', icon: 'heart', color: HABIT_COLORS[9] },
-  { id: 'quiet-time', category: 'mind', name: 'Reservar um momento de silêncio', description: 'Desconecte-se por alguns minutos, se isso for confortável.', icon: 'wind', color: HABIT_COLORS[7] },
-  { id: 'prepare-lunch', category: 'food', name: 'Preparar o almoço', description: 'Organize uma refeição para o horário do almoço.', icon: 'utensils', color: HABIT_COLORS[4] },
-  { id: 'include-vegetable', category: 'food', name: 'Adicionar um vegetal ao prato', description: 'Escolha um vegetal que você goste para acompanhar a refeição.', icon: 'apple', color: HABIT_COLORS[3] },
-  { id: 'plan-snacks', category: 'food', name: 'Planejar lanches para o dia', description: 'Pense em opções práticas para os intervalos da sua rotina.', icon: 'calendarCheck', color: HABIT_COLORS[5] },
-  { id: 'try-new-food', category: 'food', name: 'Experimentar um alimento novo', description: 'Escolha algo diferente para provar quando tiver vontade.', icon: 'apple', color: HABIT_COLORS[9] },
-  { id: 'sit-down-to-eat', category: 'food', name: 'Fazer uma pausa para comer', description: 'Quando possível, sente-se e aproveite a refeição com calma.', icon: 'utensils', color: HABIT_COLORS[2] },
-  { id: 'prep-ingredients', category: 'food', name: 'Adiantar ingredientes de uma refeição', description: 'Lave, corte ou separe ingredientes para facilitar o preparo.', icon: 'utensils', color: HABIT_COLORS[1] },
-  { id: 'make-a-simple-meal', category: 'food', name: 'Preparar uma refeição simples', description: 'Escolha uma opção prática para cozinhar em casa.', icon: 'coffee', color: HABIT_COLORS[11] },
-  { id: 'pack-a-lunch', category: 'food', name: 'Organizar uma refeição para levar', description: 'Separe uma refeição para levar quando precisar sair.', icon: 'folder', color: HABIT_COLORS[6] },
-  { id: 'sort-laundry', category: 'routine', name: 'Separar uma leva de roupas', description: 'Organize as roupas para lavar ou guardar em etapas menores.', icon: 'home', color: HABIT_COLORS[11] },
-  { id: 'reset-kitchen', category: 'routine', name: 'Organizar a cozinha por alguns minutos', description: 'Cuide de uma pequena tarefa para deixar a cozinha em ordem.', icon: 'utensils', color: HABIT_COLORS[3] },
-  { id: 'review-weekly-priorities', category: 'routine', name: 'Revisar as prioridades da semana', description: 'Escolha o que merece atenção nos próximos dias.', icon: 'target', color: HABIT_COLORS[7] },
-  { id: 'check-daily-budget', category: 'routine', name: 'Conferir os gastos do dia', description: 'Reserve um momento para registrar ou revisar seus gastos.', icon: 'pie', color: HABIT_COLORS[5] },
-  { id: 'charge-phone-away', category: 'routine', name: 'Deixar o celular carregando longe da cama', description: 'Escolha um local seguro para carregar o celular à noite.', icon: 'phoneOff', color: HABIT_COLORS[10] },
-  { id: 'clear-inbox', category: 'routine', name: 'Organizar a caixa de entrada', description: 'Resolva ou arquive algumas mensagens pendentes.', icon: 'folder', color: HABIT_COLORS[6] },
-  { id: 'evening-room-reset', category: 'routine', name: 'Preparar o quarto para a noite', description: 'Organize um detalhe do quarto para deixar o ambiente mais agradável.', icon: 'moon', color: HABIT_COLORS[8] },
-  { id: 'take-out-trash', category: 'routine', name: 'Levar o lixo para fora', description: 'Inclua essa tarefa na rotina quando for necessário.', icon: 'home', color: HABIT_COLORS[4] },
-  { id: 'prepare-workspace', category: 'routine', name: 'Preparar o espaço de trabalho', description: 'Separe o que precisa e deixe o espaço pronto para começar.', icon: 'target', color: HABIT_COLORS[1] },
-];
 
 export function remainingHabitSuggestions(habits, suggestions = SUGGESTED_HABITS) {
   const existingHabits = Array.isArray(habits) ? habits : [];
@@ -233,11 +141,13 @@ export function remainingHabitSuggestions(habits, suggestions = SUGGESTED_HABITS
   ));
 }
 
-export function filterSuggestedHabits(suggestions, category = 'all', tag = 'all') {
+export function filterSuggestedHabits(suggestions, category = 'all', tag = 'all', query = '') {
+  const search = normalizeHabitText(query);
   return (Array.isArray(suggestions) ? suggestions : []).filter((suggestion) => {
     if (category !== 'all' && suggestion.category !== category) return false;
     const tags = habitSuggestionTags(suggestion);
     if (tag !== 'all' && !tags.some((item) => item.id === tag)) return false;
+    if (search && !normalizeHabitText(`${suggestion.name} ${suggestion.description}`).includes(search)) return false;
     return true;
   });
 }
