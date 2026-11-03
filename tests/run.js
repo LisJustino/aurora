@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
-import { isDay } from '../src/js/utils/dates.js';
+import { addMonths, isDay } from '../src/js/utils/dates.js';
 import {
   isPublicLandingHash,
   postSignOutPath,
@@ -568,6 +568,13 @@ test('valida datas civis incluindo anos bissextos', () => {
   truthy(isDay('2024-02-29'));
   equal(isDay('2025-02-29'), false);
   equal(isDay('2024-13-01'), false);
+});
+
+test('parcelas mensais preservam o dia de origem e ajustam meses curtos', () => {
+  equal(addMonths('2026-01-31', 1), '2026-02-28');
+  equal(addMonths('2026-01-31', 2), '2026-03-31');
+  equal(addMonths('2028-01-31', 1), '2028-02-29');
+  equal(addMonths('2026-03-31', -1), '2026-02-28');
 });
 
 test('valida atividade sexual e métodos contraceptivos do diário do ciclo', () => {
@@ -1197,6 +1204,7 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
     ok(HABIT_ICON_KEYS.includes(item.icon), `ícone de ${item.id}`);
     ok(HABIT_COLORS.includes(item.color), `cor de ${item.id}`);
     const tags = habitSuggestionTags(item);
+    ok(tags.length > 0, `ao menos um contexto para ${item.id}`);
     for (const tag of tags) ok(SUGGESTED_HABIT_TAGS.some(({ id }) => id === tag.id), `tag ${tag.id} de ${item.id}`);
   }
   const featured = featuredHabitSuggestions(SUGGESTED_HABITS);
@@ -1221,6 +1229,12 @@ test('ideias de hábitos filtram por categoria e contexto', () => {
   ok(movementWithoutEquipment.length > 0);
   ok(movementWithoutEquipment.every((idea) => idea.category === 'movement'
     && habitSuggestionTags(idea).some(({ id }) => id === 'no-equipment')));
+});
+
+test('ideias de hábitos também podem ser buscadas por texto sem diferenciar acentos', () => {
+  const matchingIdeas = filterSuggestedHabits(SUGGESTED_HABITS, 'all', 'all', 'saude bucal');
+  ok(matchingIdeas.some(({ id }) => id === 'dental-care'));
+  ok(filterSuggestedHabits(SUGGESTED_HABITS, 'movement', 'all', 'idioma').length === 0);
 });
 
 test('ideias de hábitos omitem hábitos já existentes sem diferenciar acentos e água', () => {

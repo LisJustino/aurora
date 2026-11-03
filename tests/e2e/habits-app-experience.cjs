@@ -34,8 +34,15 @@ const check = (passed, name, detail = '') => {
   const showAll = page.locator('[data-action="habit-ideas-expand"]');
   const totalIdeas = await page.locator('[data-habit-idea]').count();
   check(totalIdeas === 100, 'catálogo completo mostra exatamente 100 ideias');
-  check(await page.locator('.habit-idea-tools input').count() === 0,
-    'catálogo não exibe uma busca');
+  check(await page.locator('.habit-idea-search input').count() === 1,
+    'catálogo oferece busca por nome e descrição');
+  const ideaSearch = page.locator('.habit-idea-search input');
+  await ideaSearch.fill('idioma');
+  check(await page.locator('[data-habit-idea]:not([hidden])').count() > 0
+    && await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => (
+      ideas.every((idea) => `${idea.querySelector('b').textContent} ${idea.querySelector('small').textContent}`.toLocaleLowerCase().includes('idioma'))
+    )), 'busca filtra ideias pelo texto mesmo com a lista recolhida');
+  await ideaSearch.fill('');
   await showAll.click();
   check(await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas
     && await showAll.getAttribute('aria-expanded') === 'true', 'ação expande todas as ideias e atualiza o estado acessível');
@@ -72,7 +79,10 @@ const check = (passed, name, detail = '') => {
   await page.keyboard.press('Enter');
   await contextFilter.focus();
   await page.keyboard.press('Enter');
-  await page.keyboard.press('End');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   check(await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'no-equipment'
     && await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => ideas.length > 0

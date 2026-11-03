@@ -97,6 +97,22 @@ const check = (passed, name, detail = '') => {
     && !immediatelyEarlierInstallments.some((title) => title.startsWith('Série parcelada de teste')), 'parcelamento não cria parcelas anteriores à atual');
   check(generatedInstallments.every((row) => row?.amount.includes('1,00')), '3/10 a 10/10 são criadas mensalmente com a divisão correta dos centavos');
   await page.locator('.mnav [data-n="0"]').click();
+
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('25,50');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Parcela com valor informado');
+  await page.locator('#dlg [data-dlg="accountId"]').selectOption(nonCreditAccount);
+  await page.locator('#dlg [data-dlg="date"]').fill(currentInstallmentDate);
+  await page.locator('#dlg [data-dlg="repeat"]').selectOption('parcel');
+  check(await page.locator('#dlg [data-dlg="installmentAmountMode"]').count() === 1, 'parcelamento permite informar o valor de cada parcela');
+  await page.locator('#dlg [data-dlg="installmentAmountMode"]').selectOption('installment');
+  await page.locator('#dlg [data-dlg="currentInstallment"]').fill('3');
+  await page.locator('#dlg [data-dlg="times"]').fill('10');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  const enteredInstallment = page.locator('#tx-results .fr').filter({ hasText: 'Parcela com valor informado (3/10)' });
+  check(await enteredInstallment.locator('.amt').textContent().then((amount) => amount.includes('25,50')), '3/10 usa o valor informado para cada parcela');
   await page.locator('.fin-section-option[data-t="resumo"]').click();
 
   await page.locator('.finance-fab').click();
