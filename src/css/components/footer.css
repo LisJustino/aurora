@@ -116,7 +116,7 @@
 
 .footer-faq > summary {
   display: flex;
-  min-height: 48px;
+  min-height: var(--control-field);
   justify-content: space-between;
   align-items: center;
   gap: var(--space-3);

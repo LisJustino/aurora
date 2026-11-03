@@ -574,6 +574,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: 6px 6px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--toast-tone) 34%, transparent);
   border-radius: var(--r-group);
   background: var(--ink);
   color: var(--bg);

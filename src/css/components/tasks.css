@@ -232,12 +232,65 @@ details.card:not([open]) { gap: 0; }
 .tc u { display: block; width: 5px; height: 5px; flex: none; border-radius: 50%; }
 .tc u.has-tasks { background: var(--accent); }
 .tc u.dn { background: var(--line-strong); }
+.tc u.google-event-dot { background: var(--area-cycle); }
 .tc.t { border-color: var(--line-strong); background: var(--soft); }
 .tc.t b { color: var(--accent); font-weight: 700; }
 .tc.s { border-color: var(--accent); background: var(--soft2); }
 .tc.od { border-color: var(--bad); }
 .tc:disabled { color: var(--muted); opacity: .55; cursor: default; }
 .tc:focus-visible, .dchip:focus-visible { z-index: 1; outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.google-calendar-panel {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+}
+.google-calendar-panel > .head { align-items: flex-start; }
+.google-calendar-panel > .head > div:first-child { display: grid; justify-items: start; gap: var(--space-2); }
+.google-calendar-panel > .head .row { flex-wrap: wrap; justify-content: flex-end; }
+.google-calendar-panel p { margin: 0; }
+.google-calendar-error { color: var(--bad); }
+.google-calendar-sources { display: grid; gap: var(--space-2); }
+.google-calendar-source {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface-soft);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.google-calendar-source[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); }
+.google-calendar-source > .ic { flex: none; color: var(--accent); }
+.google-calendar-source > span { min-width: 0; overflow-wrap: anywhere; }
+.google-calendar-events { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.google-calendar-events > li {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface-soft);
+}
+.google-calendar-events time {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.google-calendar-events .grow { min-width: 0; }
+.google-calendar-events b,
+.google-calendar-events small { display: block; overflow-wrap: anywhere; }
+.google-calendar-events small { margin-top: var(--space-1); color: var(--muted); }
+.google-calendar-day { display: grid; gap: var(--space-3); }
+.google-calendar-day > .head { align-items: center; }
 
 @media (max-width: 480px) {
   .cal, .tcal {

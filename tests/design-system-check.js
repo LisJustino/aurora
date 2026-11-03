@@ -30,7 +30,11 @@ const offenders = (regex, filter = () => true) => outsideTokens.flatMap(({ file,
 ));
 
 // Variáveis definidas só por JavaScript (estilos inline) ficam de fora da checagem.
-const SET_BY_SCRIPT = new Set(['--c', '--category-tone', '--cycle-progress']);
+const SET_BY_SCRIPT = new Set([
+  '--c', '--category-tone', '--cycle-progress',
+  '--profile-avatar-color', '--preset-color',
+  '--scroll-lock-offset-x', '--scroll-lock-offset-y',
+]);
 const allText = files.map((item) => strip(item.text)).join('\n');
 const defined = new Set([...allText.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
 const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((match) => match[1]))]

@@ -7,6 +7,7 @@ export function renderFooterContent({
   accountError = false,
   preview = false,
   demoAvailable = false,
+  includeLegalDialog = true,
 } = {}) {
   const accountLinks = preview
     ? '<a class="footer-link" href="#config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
@@ -73,16 +74,21 @@ export function renderFooterContent({
         <span>© ${new Date().getFullYear()} aurora.</span>
         <button class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo</button>
       </div>
-      <dialog class="dlg legal-modal" data-legal-modal aria-labelledby="legal-modal-title">
-        <header class="head legal-modal-header">
-          <h2 id="legal-modal-title" data-legal-dialog-title>Documento legal</h2>
-          <button class="ibtn dlg-close" type="button" data-legal-modal-close aria-label="Fechar documento legal">${iconSvg('close', 18)}</button>
-        </header>
-        <p class="legal-modal-status" data-legal-dialog-status role="status" aria-live="polite" hidden></p>
-        <div class="dlg-body legal-modal-content" data-legal-dialog-content role="region" aria-busy="false" tabindex="0"></div>
-        <footer class="dlg-foot legal-modal-footer">
-          <button class="btn back" type="button" data-legal-modal-close>Fechar</button>
-        </footer>
-      </dialog>
+      ${includeLegalDialog ? renderLegalDialog() : ''}
     </div>`;
+}
+
+export function renderLegalDialog() {
+  return `
+    <dialog class="dlg legal-modal" data-legal-modal aria-labelledby="legal-modal-title">
+      <header class="head legal-modal-header">
+        <h2 id="legal-modal-title" data-legal-dialog-title>Documento legal</h2>
+        <button class="ibtn dlg-close" type="button" data-legal-modal-close aria-label="Fechar documento legal">${iconSvg('close', 18)}</button>
+      </header>
+      <p class="legal-modal-status" data-legal-dialog-status role="status" aria-live="polite" hidden></p>
+      <div class="dlg-body legal-modal-content" data-legal-dialog-content role="region" aria-busy="false" tabindex="0"></div>
+      <footer class="dlg-foot legal-modal-footer">
+        <button class="btn back" type="button" data-legal-modal-close>Fechar</button>
+      </footer>
+    </dialog>`;
 }

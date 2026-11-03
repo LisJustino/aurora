@@ -52,7 +52,7 @@
   --area-finances: #397650;
   --area-cycle: #8b4e78;
   --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 54%, #2d2a28), color-mix(in srgb, var(--btn) 30%, #48423d));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 52%, #71465f), color-mix(in srgb, var(--btn) 40%, #382f45));
   --on-hero-home: var(--on-btn);
   --on-hero: var(--ink);
   --shadow: 0 28px 64px -34px rgb(44 38 33 / 26%);
@@ -195,7 +195,7 @@
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
   --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 70%, #241f1d), color-mix(in srgb, var(--btn) 52%, #302b27));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
   --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);

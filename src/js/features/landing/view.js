@@ -78,22 +78,16 @@ export function renderLanding(root) {
           <div class="public-copy">
             <p class="public-eyebrow"><span aria-hidden="true"></span> Organização pessoal para a rotina real</p>
             <h1 id="landing-title">Mais clareza para a sua semana<span>.</span></h1>
-            <p class="public-lead">Planeje tarefas, acompanhe hábitos e registre suas finanças manualmente em um só lugar. Comece pela demonstração com exemplos fictícios ou crie uma conta para guardar seus próprios registros.</p>
+            <p class="public-lead">Planeje tarefas, acompanhe hábitos e registre suas finanças manualmente, em um só lugar.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="signup">Criar conta e começar</button>
               <button class="btn large" type="button" data-public-action="demo">Explorar a demonstração</button>
             </div>
-            <ul class="public-proof" aria-label="Informações práticas sobre o Aurora">
-              <li><strong>Teste sem conta</strong><span>com exemplos fictícios</span></li>
-              <li><strong>Finanças manuais</strong><span>sem conexão bancária</span></li>
-              <li><strong>Seus registros</strong><span>na sua conta Aurora</span></li>
-            </ul>
-            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Na demonstração, tarefas, hábitos e Pomodoro usam exemplos fictícios; suas alterações não são salvas nem sincronizadas.</span></p>
           </div>
           <figure class="product-preview" role="img" aria-label="Capturas da interface do aurora. em computador e celular">
             <div class="preview-device preview-device--desktop" aria-hidden="true">
               <div class="preview-device-screen">
-                <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async">
+                <img class="preview-capture preview-capture--desktop" src="./src/assets/landing-desktop.png" alt="" width="1440" height="900" decoding="async" fetchpriority="high">
               </div>
               <span class="preview-device-base"></span>
             </div>
@@ -101,11 +95,19 @@ export function renderLanding(root) {
               <span class="preview-device-side-button"></span>
               <div class="preview-device-screen">
                 <span class="preview-device-notch"></span>
-                <img class="preview-capture preview-capture--mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async">
+                <img class="preview-capture preview-capture--mobile" src="./src/assets/landing-mobile.png" alt="" width="390" height="844" decoding="async" fetchpriority="high">
               </div>
               <span class="preview-device-home-indicator"></span>
             </div>
           </figure>
+          <div class="public-hero-support">
+            <ul class="public-proof" aria-label="Informações práticas sobre o Aurora">
+              <li><strong>Teste sem conta</strong><span>com exemplos fictícios</span></li>
+              <li><strong>Finanças manuais</strong><span>sem conexão bancária</span></li>
+              <li><strong>Seus registros</strong><span>na sua conta Aurora</span></li>
+            </ul>
+            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Na demonstração, tarefas, hábitos e Pomodoro usam exemplos fictícios; suas alterações não são salvas nem sincronizadas.</span></p>
+          </div>
         </section>
         <section class="public-features" aria-labelledby="public-features-title">
           <div class="public-section-heading"><p class="public-eyebrow">Conheça o produto</p><h2 id="public-features-title">O que você pode organizar</h2></div>
@@ -178,7 +180,7 @@ export function renderLandingDemo(root) {
       <a class="skip" href="#demo-main" data-public-action="skip">Pular para o conteúdo principal</a>
       ${renderPublicHeader({ demo: true })}
       <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
-        <p class="demo-disclaimer" role="note" aria-label="Demonstração com dados fictícios">${demoIcon('info', 17)} demonstração com dados fictícios</p>
+        <p class="demo-disclaimer" role="note" aria-label="Demonstração interativa com dados fictícios; as alterações não são salvas">${demoIcon('info', 17)} Demonstração interativa · exemplos fictícios · nada é salvo</p>
         ${demoHomeHeading()}
         <div class="home-dashboard demo-dashboard">
           <div class="home-primary">

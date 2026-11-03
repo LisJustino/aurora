@@ -88,6 +88,9 @@ assert.match(rlsIsolationTest, /User A read User B vault key/i);
 assert.match(rlsIsolationTest, /User A read User B legacy data/i);
 assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
 assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
+assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
+assert.match(rlsIsolationTest, /expected_versions/i);
+assert.match(rlsIsolationTest, /version_conflict:/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];
@@ -129,6 +132,17 @@ const state = {
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
+      profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
+      homeMode: 'focus',
+      homeModes: {
+        overview: { layout: { order: ['today', 'habits', 'summary', 'quick'], visible: ['today', 'summary'] }, shortcuts: ['task'] },
+        focus: { layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] }, shortcuts: ['task', 'pomodoro'] },
+        routine: { layout: { order: ['habits', 'today', 'summary', 'quick'], visible: ['habits', 'today'] }, shortcuts: ['habit'] },
+      },
+      homeShortcuts: ['task', 'pomodoro'],
+      homeMessage: 'Um passo de cada vez.',
+      areaColors: { planning: 'coral', habits: 'sage' },
     },
     onboardingComplete: true,
     introSeen: true,
@@ -219,6 +233,21 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMode, 'focus');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
@@ -272,6 +301,21 @@ assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(loadedState.settings.prefs.homeMode, 'focus');
+assert.deepEqual(loadedState.settings.prefs.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(loadedState.settings.prefs.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(loadedState.settings.prefs.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);
@@ -367,7 +411,7 @@ const accountRows = {
     enabled_areas: { finances: true },
   }],
   tasks: [{
-    id: 'task-with-optional-fields',
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
     title: 'Tarefa válida',
     is_completed: false,
     tag: null,
@@ -386,6 +430,7 @@ const accountRows = {
     focus_seconds: 0,
     is_test_data: false,
     deleted_at: null,
+    updated_at: versionStamp,
   }],
 };
 const loadingClient = {
@@ -412,6 +457,58 @@ assert.deepEqual(loaded.finance.budgets, {});
 assert.equal(loaded.settings.onboardingComplete, true);
 assert.equal(loaded.settings.introSeen, true);
 assert.deepEqual(loaded.settings.areas, { finances: true });
+
+const recoveryCalls = [];
+let recoveryAttempts = 0;
+const recoveryClient = {
+  from(table) {
+    return {
+      select() { return this; },
+      async range() { return { data: accountRows[table] || [], error: null }; },
+    };
+  },
+  async rpc(name, args) {
+    recoveryCalls.push({ name, args });
+    recoveryAttempts += 1;
+    if (recoveryAttempts === 1) {
+      return { data: null, error: { code: '08006', message: 'connection dropped' } };
+    }
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          updated_at: '2026-10-30T12:01:00.000Z',
+        })),
+      })),
+      error: null,
+    };
+  },
+};
+const recoveryStore = new RelationalAccountStore(recoveryClient, userId);
+const recoveryBaseline = await recoveryStore.load();
+recoveryBaseline.pomodoro = null;
+const recoveryDraft = structuredClone(recoveryBaseline);
+recoveryDraft.tasks[0].title = 'Rascunho recuperável';
+const taskVersion = recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id);
+console.error = () => {};
+try {
+  await assert.rejects(
+    () => recoveryStore.save(recoveryDraft, recoveryBaseline),
+    /Não foi possível salvar as alterações na conta/,
+  );
+} finally {
+  console.error = originalConsoleError;
+}
+assert.equal(recoveryDraft.tasks[0].title, 'Rascunho recuperável', 'a falha não deve mutar o estado de origem');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), taskVersion);
+await recoveryStore.save(recoveryDraft, recoveryBaseline);
+const failedAttempt = recoveryCalls[0].args.p_changes.find(({ table }) => table === 'tasks');
+const retryAttempt = recoveryCalls[1].args.p_changes.find(({ table }) => table === 'tasks');
+assert.equal(failedAttempt.rows[0].expected_updated_at, taskVersion);
+assert.equal(retryAttempt.rows[0].expected_updated_at, taskVersion, 'a nova tentativa deve usar a versão confirmada anterior');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), '2026-10-30T12:01:00.000Z');
 
 const failedClient = {
   from() {

@@ -1,0 +1,15 @@
+project_id = "aurora-ci"
+
+[db]
+port = 54322
+major_version = 15
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+
+[auth]
+enabled = true

@@ -70,18 +70,9 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
     const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar na conta';
     return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
-  const nav = demo ? `
-    <nav class="nav demo-nav" aria-label="Navegação da demonstração">
-      <a aria-current="page" aria-disabled="true" tabindex="-1"><span class="ni">${icon('home', 20)}</span><span>Início</span></a>
-      <a aria-disabled="true" tabindex="-1"><span class="ni">${icon('calendarCheck', 20)}</span><span>Planejar</span></a>
-      <a aria-disabled="true" tabindex="-1"><span class="ni">${icon('clock', 20)}</span><span>Foco</span></a>
-      <a aria-disabled="true" tabindex="-1"><span class="ni">${icon('check', 20)}</span><span>Hábitos</span></a>
-    </nav>` : '';
-
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
       <a class="brand public-brand-link" href="./" ${authMode ? 'data-account-mode="landing"' : 'data-public-action="landing"'} aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
-      ${nav}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'entrar')}
         ${accountAction('signup', 'criar conta')}
@@ -91,7 +82,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
             <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>
             ${accessibilityPanel()}
           </span>
-          ${isLanding ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
+          ${isLanding || demo ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
         </span>
       </span>
     </header>`;
