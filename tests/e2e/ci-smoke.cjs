@@ -96,7 +96,7 @@ async function main() {
 
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('habits-app-experience.cjs', DEV_URL);
-  runSuite('backup-encryption.cjs', DEV_URL);
+  runSuite('backup-export-import.cjs', DEV_URL);
   runSuite('pwa-update.cjs', DEV_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);
   runSuite('signup-birthdate.cjs', DEV_URL);

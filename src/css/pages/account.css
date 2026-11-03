@@ -1473,6 +1473,7 @@
   grid-template-columns: minmax(0, .8fr) minmax(0, 1.6fr);
   align-items: start;
 }
+.main[data-route="config"] .profile-settings { container-type: inline-size; }
 .main[data-route="config"] .profile-settings-fields {
   max-width: none;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1495,4 +1496,9 @@
 @media (max-width: 760px) {
   .main[data-route="config"] .profile-settings-group { grid-template-columns: minmax(0, 1fr); }
   .main[data-route="config"] .profile-settings-fields { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 800px) {
+  .main[data-route="config"] .profile-settings-group[aria-labelledby="profile-appearance-title"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

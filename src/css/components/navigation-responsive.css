@@ -416,12 +416,18 @@
     column-gap: 0;
   }
   .app > .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: auto;
     grid-column: 1;
     grid-row: 1 / span 2;
     display: flex;
     width: 256px;
     height: 100vh;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
@@ -650,7 +656,7 @@
 }
 
 @media (min-width: 1200px) {
-  .app > .topbar .nav .nav-quick-control { width: 100%; order: -1; }
+  .app > .topbar .nav .nav-quick-control { width: 100%; }
   .app > .topbar .nav .nav-quick-trigger {
     width: 100%;
     min-height: var(--control-md);
@@ -677,16 +683,16 @@
 
 @media (max-width: 480px) {
   .topbar .nav {
-    right: 12px;
-    left: 12px;
+    right: 0;
+    left: 0;
     width: auto;
     max-width: none;
     box-sizing: border-box;
     gap: 0;
     margin: 0;
     padding: 7px 5px calc(7px + env(safe-area-inset-bottom, 0px));
-    border-radius: var(--r-large);
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--r-large) var(--r-large) 0 0;
+    bottom: 0;
   }
   .topbar .nav .tab-period { display: none; }
 }

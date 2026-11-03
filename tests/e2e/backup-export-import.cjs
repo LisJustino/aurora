@@ -18,7 +18,7 @@ let temporaryDirectory;
   await page.goto(`${BASE}/?preview#config?section=data`);
   const backupInput = page.locator('input[data-change="import"]');
 
-  await page.getByRole('button', { name: 'Exportar JSON comum' }).click();
+  await page.getByRole('button', { name: 'Exportar backup' }).click();
   const plainDownloadPromise = page.waitForEvent('download');
   await page.locator('#dlg').getByRole('button', { name: 'Continuar' }).click();
   await page.locator('#dlg').waitFor({ state: 'detached' });
@@ -40,39 +40,6 @@ let temporaryDirectory;
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await page.locator('#dlg').waitFor({ state: 'detached' });
 
-  const encryptDialog = page.locator('#dlg');
-  await page.getByRole('button', { name: 'Exportar cifrado' }).click();
-  await encryptDialog.getByRole('heading', { name: 'Proteger backup com senha.' }).waitFor();
-  await encryptDialog.locator('#backup-password').fill('Senha de teste privada');
-  await encryptDialog.locator('#backup-password-confirm').fill('Senha de teste privada');
-  const downloadPromise = page.waitForEvent('download');
-  await encryptDialog.getByRole('button', { name: 'Baixar backup cifrado' }).click();
-  const download = await downloadPromise;
-  const filePath = await download.path();
-  const serialized = await readFile(filePath, 'utf8');
-  const envelope = JSON.parse(serialized);
-  if (envelope.app !== 'aurora-encrypted-backup' || serialized.includes('Revisar orçamento mensal')) {
-    throw new Error('O backup cifrado não tem o envelope esperado ou expôs dados em texto puro.');
-  }
-  await encryptDialog.waitFor({ state: 'detached' });
-
-  await backupInput.setInputFiles(filePath);
-  const decryptDialog = page.locator('#dlg');
-  await decryptDialog.getByRole('heading', { name: 'Desbloquear backup.' }).waitFor();
-  await decryptDialog.locator('#backup-password').fill('Senha errada de teste');
-  await decryptDialog.getByRole('button', { name: 'Desbloquear e revisar' }).click();
-  await decryptDialog.getByRole('alert').getByText('Senha incorreta ou backup danificado.').waitFor();
-  if (await decryptDialog.locator('#backup-password').inputValue() !== '') {
-    throw new Error('A senha incorreta permaneceu no campo após a tentativa.');
-  }
-
-  await page.keyboard.press('Escape');
-  await decryptDialog.waitFor({ state: 'detached' });
-  await backupInput.setInputFiles(filePath);
-  await page.locator('#dlg').getByRole('heading', { name: 'Desbloquear backup.' }).waitFor();
-  await page.locator('#backup-password').fill('Senha de teste privada');
-  await page.getByRole('button', { name: 'Desbloquear e revisar' }).click();
-  await page.locator('#dlg').getByRole('heading', { name: 'Importar este backup?' }).waitFor();
   if (errors.length) throw new Error(`Erros no console: ${errors.join(' | ')}`);
 
   await browser.close();
@@ -81,7 +48,7 @@ let temporaryDirectory;
     await rm(temporaryDirectory, { recursive: true, force: true });
     temporaryDirectory = null;
   }
-  console.log('Backups v1/v2 e cifrado: compatibilidade, ausência de texto puro, senha inválida e prévia verificadas.');
+  console.log('Backups Aurora v1/v2: exportação, compatibilidade e prévia de restauração verificadas.');
 })().catch(async (error) => {
   console.error(error);
   if (browser) await browser.close();

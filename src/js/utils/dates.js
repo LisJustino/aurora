@@ -47,6 +47,34 @@ export const dur = (seconds) => {
   const hours = Math.floor(minutes / 60), remainder = minutes % 60;
   return hours ? (remainder ? `${hours} h ${remainder} min` : `${hours} h`) : `${minutes} min`;
 };
+export const normalizeDay = (value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [year, month, day] = trimmed.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year
+      && date.getMonth() === month - 1
+      && date.getDate() === day
+      ? trimmed
+      : '';
+  }
+
+  const cleaned = trimmed.replace(/[^\d]/g, '-').replace(/-+/g, '-');
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(cleaned);
+  if (!match) return '';
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return '';
+  return `${year}-${pad(month)}-${pad(day)}`;
+};
+
 export const isDay = (value) => {
   const match = typeof value === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;

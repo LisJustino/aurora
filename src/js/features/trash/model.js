@@ -41,6 +41,10 @@ export function normalizeTrash(value, isValidEntry) {
   return { entries, rejectedCount };
 }
 
+export function sortTrashEntriesByExpiry(entries) {
+  return [...entries].sort((a, b) => a.deletedAt - b.deletedAt);
+}
+
 export function isTrashExpired(entry, now = Date.now()) {
   return now - entry.deletedAt >= TRASH_RETENTION_MS;
 }
