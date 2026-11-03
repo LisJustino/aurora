@@ -23,6 +23,15 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(BASE);
+  check(await page.getByRole('heading', { name: 'Mais clareza para a sua semana.' }).count() === 1, 'landing apresenta a proposta principal');
+  check(await page.getByText('profissional e mãe').count() === 0
+    && await page.getByText('estudante e freelancer').count() === 0
+    && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
+  check(await page.locator('.public-hero [data-public-action="signup"]').evaluate((button) => button.classList.contains('primary'))
+    && !await page.locator('.public-hero [data-public-action="demo"]').evaluate((button) => button.classList.contains('primary')), 'cadastro é o CTA principal e demonstração é alternativa');
+  await page.setViewportSize({ width: 320, height: 720 });
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Explorar a demonstração' }).click();
   await page.getByRole('button', { name: 'Iniciar foco de exemplo' }).waitFor();
   check(await page.getByText('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.').count() === 1, 'a demonstração informa os limites antes do CTA de cadastro');
@@ -67,6 +76,22 @@ const check = (passed, name, detail = '') => {
 
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
+  const demoLayout = await page.evaluate(() => {
+    const header = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
+    const main = document.querySelector('.demo-main').getBoundingClientRect();
+    const disclaimer = document.querySelector('.demo-disclaimer').getBoundingClientRect();
+    const welcome = document.querySelector('.home-head').getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    return {
+      hasInactiveNavigation: Boolean(document.querySelector('.demo-nav')),
+      headerFillsViewport: Math.abs(header.width - viewportWidth) <= 1,
+      mainIsCentered: Math.abs(main.left - (viewportWidth - main.width) / 2) <= 1,
+      disclaimerOverlapsWelcome: disclaimer.bottom > welcome.top,
+    };
+  });
+  check(!demoLayout.hasInactiveNavigation, 'demonstração não mostra áreas sem interação');
+  check(demoLayout.headerFillsViewport && demoLayout.mainIsCentered, 'demonstração usa cabeçalho completo e conteúdo centralizado em desktop');
+  check(!demoLayout.disclaimerOverlapsWelcome, 'aviso da demonstração não cobre o cartão de boas-vindas');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

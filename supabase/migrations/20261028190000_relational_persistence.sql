@@ -92,7 +92,7 @@ declare
     'task_tag_assignments', 'weekly_reflections', 'study_subjects', 'study_sessions',
     'timer_state', 'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
     'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
-    'finance_transactions', 'finance_budgets', 'finance_goals', 'finance_recurrences',
+    'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
     'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records'
   ];
 begin

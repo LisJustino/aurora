@@ -20,8 +20,13 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#inicio`);
   const card = page.locator('.home-first-steps');
   await card.waitFor({ state: 'visible' });
-  check(await card.getByRole('heading', { name: 'Primeiros passos.' }).count() === 1, 'cartão aparece no Início');
+  check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem recolhidos no Início');
+  check(await card.getByRole('link').count() === 0, 'ações iniciais ficam recolhidas por padrão');
+  await card.locator('summary').click();
+  check(await card.getByRole('link').count() === 4, 'ações iniciais podem ser expandidas');
   check(await card.locator('ol > li').count() === 4, 'cartão lista as quatro ações iniciais');
+  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 4 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
+  check(await card.locator('li.is-next').count() === 1 && await card.locator('li.is-next small').innerText() === 'Sugestão para você', 'cartão destaca uma próxima ação personalizada');
   check(await page.locator('#dlg').count() === 0, 'tutorial não abre automaticamente');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Início não tem overflow horizontal em 390 px');
   await page.setViewportSize({ width: 1366, height: 768 });
@@ -58,6 +63,7 @@ const check = (passed, name, detail = '') => {
 
   await page.reload();
   await card.waitFor({ state: 'visible' });
+  await card.locator('summary').click();
   await card.getByRole('button', { name: 'Dispensar' }).click();
   check(await card.count() === 0, 'cartão pode ser dispensado');
 
@@ -69,6 +75,15 @@ const check = (passed, name, detail = '') => {
   const sources = await video.locator('source').evaluateAll((items) => items.map(({ type, src }) => ({ type, src })));
   check(sources.map(({ type }) => type).join(',') === 'video/webm,video/mp4', 'player oferece WebM e fallback MP4');
   check(await Promise.all(sources.map(async ({ src }) => (await page.request.get(src)).ok())).then((results) => results.every(Boolean)), 'arquivos WebM e MP4 respondem pela origem local');
+  await page.keyboard.press('Escape');
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+  await page.locator('.profile-link').click();
+  await page.locator('.account-resources-card').waitFor({ state: 'visible' });
+  await page.locator('.account-resources-card [data-legal-document="terms"]').click();
+  await page.locator('dialog[data-legal-modal][open] .legal-document').waitFor({ state: 'visible' });
+  check(await page.locator('[data-legal-dialog-title]').innerText() === 'Termos de Uso', 'documentos legais seguem acessíveis em Ajustes');
+  await page.locator('[data-legal-modal-close]').first().click();
+  await page.locator('dialog[data-legal-modal][open]').waitFor({ state: 'detached' });
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

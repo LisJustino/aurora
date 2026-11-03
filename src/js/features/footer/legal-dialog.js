@@ -1,3 +1,5 @@
+import { lockPageScroll } from '../../utils/scroll-lock.js';
+
 const LEGAL_DOCUMENTS = Object.freeze({
   terms: Object.freeze({ title: 'Termos de Uso', path: '/terms.html' }),
   privacy: Object.freeze({ title: 'Política de Privacidade', path: '/privacy.html' }),
@@ -55,7 +57,21 @@ export async function showLegalDocument(dialog, name) {
   content.replaceChildren();
   content.setAttribute('aria-busy', 'true');
   delete dialog.dataset.legalDocument;
-  if (!dialog.open) dialog.showModal();
+  if (!dialog.open) {
+    const unlockScroll = lockPageScroll();
+    const releaseOnClose = () => {
+      dialog.removeEventListener('close', releaseOnClose);
+      unlockScroll();
+    };
+    dialog.addEventListener('close', releaseOnClose);
+    try {
+      dialog.showModal();
+    } catch (error) {
+      dialog.removeEventListener('close', releaseOnClose);
+      unlockScroll();
+      throw error;
+    }
+  }
 
   try {
     content.replaceChildren(await loadLegalDocument(name));
