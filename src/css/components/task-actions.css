@@ -4,8 +4,8 @@
 .task .tt { padding: 2px 0; }
 .task .task-focus-button:hover, .task .task-focus-button:focus-visible { background: var(--soft2); color: var(--accent); }
 .grp {
-  gap: 4px;
-  padding: var(--space-4) var(--space-4) 6px;
+  gap: var(--space-1);
+  padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface);
@@ -23,7 +23,7 @@
 .grp .list > li:hover { background: var(--surface-soft); }
 .grp .gh { margin-top: 0; }
 .card.plain > .list, .card.plain #task-results > .list {
-  padding: 6px 16px;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface);
@@ -31,8 +31,11 @@
 .qa-card { gap: 12px; padding: 16px; }
 .qa-card .qa-main input { border-color: var(--line); background: var(--soft); }
 .qa-card .qa-main input:focus { background: var(--surface); }
+.task-results-groups { display: flex; flex-direction: column; gap: var(--space-4); }
+.task-sort-field { flex: 0 0 132px; }
+.plan-progress { margin: var(--space-2) 0 var(--space-half); }
 
 @media (max-width: 480px) {
   .grp { padding-inline: var(--space-3); }
-  .card.plain > .list, .card.plain #task-results > .list { padding-inline: 12px; }
+  .card.plain > .list, .card.plain #task-results > .list { padding-inline: var(--space-3); }
 }

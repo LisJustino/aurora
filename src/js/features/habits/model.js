@@ -1,3 +1,5 @@
+import { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
+export { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
 import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
@@ -10,19 +12,24 @@ export const HABIT_ICONS = Object.freeze([
   ['note', 'Diário'], ['pill', 'Remédio'], ['coffee', 'Pausa'], ['music', 'Música'],
   ['palette', 'Criar'], ['smile', 'Gratidão'], ['phoneOff', 'Menos tela'], ['heart', 'Autocuidado'],
   ['target', 'Foco'], ['home', 'Casa'], ['sparkles', 'Outro'],
+  ['acne', 'Pele'], ['flower', 'Skincare'], ['hair', 'Cabelo'], ['shield', 'Proteção'],
+  ['wind', 'Respiração'], ['egg', 'Nutrição'], ['utensils', 'Cozinhar'], ['blood', 'Ciclo'],
+  ['spine', 'Postura'], ['stomach', 'Digestão'], ['calendarCheck', 'Rotina'], ['clock', 'Horário'],
+  ['folder', 'Organização'], ['pie', 'Equilíbrio'], ['check', 'Concluir'], ['water', 'Hidratação'],
+  ['candy', 'Lazer'], ['scale', 'Acompanhamento'], ['flag', 'Meta'], ['grid', 'Organizar'],
 ]);
 export const HABIT_ICON_KEYS = Object.freeze(HABIT_ICONS.map(([key]) => key));
-export const HABIT_COLORS = Object.freeze([
-  '#c97994', '#e07a5f', '#d9a05b', '#a3b55a', '#5fa68a', '#5aa5b8',
-  '#7c8fd4', '#8a7ac4', '#a24f9e', '#d6455d', '#8b8b95', '#ad8c76',
-]);
 export const DEFAULT_HABIT_ICON = 'sparkles';
 export const DEFAULT_HABIT_COLOR = HABIT_COLORS[0];
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-const normalizeHabitName = (name) => String(name || '').trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const normalizeHabitText = (value) => String(value ?? '')
+  .trim()
+  .toLocaleLowerCase('pt-BR')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
 export const isWaterHabit = (habit) => (
-  habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitName(habit?.name))
+  habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitText(habit?.name))
 );
 export const habitIconKey = (habit) => (
   HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
@@ -31,22 +38,119 @@ export const habitColor = (habit) => (
   HEX_COLOR.test(habit?.color || '') ? habit.color : DEFAULT_HABIT_COLOR
 );
 
-export const SUGGESTED_HABITS = [
-  { id: 'water', name: 'Beber água', description: 'Registre os mL consumidos e acompanhe a meta diária.', icon: 'droplet', color: HABIT_COLORS[5] },
-  { id: 'reading', name: 'Ler por 10 minutos', description: 'Reserve alguns minutos para a leitura.', icon: 'book', color: HABIT_COLORS[6] },
-  { id: 'movement', name: 'Movimentar o corpo', description: 'Inclua um momento de movimento na rotina.', icon: 'activity', color: HABIT_COLORS[4] },
-  { id: 'pause', name: 'Fazer uma pausa', description: 'Faça uma pausa consciente durante o dia.', icon: 'coffee', color: HABIT_COLORS[2] },
-  { id: 'sleep', name: 'Dormir no horário', description: 'Vá para a cama sem estender a noite.', icon: 'moon', color: HABIT_COLORS[7] },
-  { id: 'stretch', name: 'Alongar', description: 'Poucos minutos de alongamento.', icon: 'dumbbell', color: HABIT_COLORS[1] },
-  { id: 'meditate', name: 'Respirar e meditar', description: 'Cinco minutos de calma.', icon: 'meditate', color: HABIT_COLORS[8] },
-  { id: 'journal', name: 'Escrever no diário', description: 'Anote como foi o seu dia.', icon: 'note', color: HABIT_COLORS[0] },
-  { id: 'outdoors', name: 'Caminhar ao ar livre', description: 'Um pouco de sol e ar fresco.', icon: 'leaf', color: HABIT_COLORS[3] },
-  { id: 'fruit', name: 'Comer uma fruta', description: 'Inclua uma fruta na rotina.', icon: 'apple', color: HABIT_COLORS[9] },
-  { id: 'vitamins', name: 'Tomar vitaminas', description: 'Lembre-se do suplemento ou remédio do dia.', icon: 'pill', color: HABIT_COLORS[5] },
-  { id: 'gratitude', name: 'Gratidão do dia', description: 'Pense em uma coisa boa que aconteceu.', icon: 'smile', color: HABIT_COLORS[2] },
-  { id: 'screens', name: 'Menos tela à noite', description: 'Desligue o celular antes de dormir.', icon: 'phoneOff', color: HABIT_COLORS[10] },
-  { id: 'tidy', name: 'Arrumar um cantinho', description: 'Organize um pedacinho da casa.', icon: 'home', color: HABIT_COLORS[11] },
-];
+export const SUGGESTED_HABIT_CATEGORIES = Object.freeze([
+  { id: 'personal-care', title: 'Cuidados pessoais' },
+  { id: 'movement', title: 'Corpo e movimento' },
+  { id: 'mind', title: 'Cuidados com a mente' },
+  { id: 'food', title: 'Alimentação' },
+  { id: 'routine', title: 'Rotina e casa' },
+]);
+
+export const SUGGESTED_HABIT_TAGS = Object.freeze([
+  { id: 'quick', title: 'Poucos minutos' },
+  { id: 'home', title: 'Em casa' },
+  { id: 'no-equipment', title: 'Sem equipamento' },
+  { id: 'outdoor', title: 'Ao ar livre' },
+  { id: 'equipment', title: 'Com equipamento' },
+]);
+
+const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
+  quick: Object.freeze([
+    'stretch', 'reading', 'meditate', 'journal', 'gratitude', 'pause', 'fruit',
+    'active-break', 'mobility', 'check-in-with-yourself', 'prepare-snack',
+    'make-bed', 'five-minute-tidy', 'make-grocery-list', 'clear-desk',
+    'set-out-clothes', 'keys-in-place',
+    'wash-face', 'use-floss', 'care-for-hands', 'apply-lip-balm',
+    'pause-for-eye-rest', 'walk-10-minutes', 'stretch-neck-shoulders',
+    'mindful-minute', 'brain-dump', 'name-your-feelings', 'try-new-food',
+    'review-weekly-priorities', 'check-daily-budget', 'open-curtains',
+    'plan-snacks', 'pack-a-lunch', 'sunscreen', 'connect', 'walk-with-dog',
+    'learn-language', 'practice-instrument',
+  ]),
+  home: Object.freeze([
+    'water', 'skincare', 'hair-care', 'personal-hygiene', 'sleep', 'medication',
+    'reading', 'meditate', 'journal', 'gratitude', 'screens', 'pause', 'fruit',
+    'cook', 'meal-plan', 'tidy', 'morning-plan', 'evening-routine', 'dental-care',
+    'creative-time', 'mindful-meal', 'prepare-snack', 'make-bed', 'review-calendar',
+    'organize-bag', 'care-for-plant', 'five-minute-tidy', 'prepare-for-bed',
+    'check-in-with-yourself', 'plan-rest', 'study', 'weekly-reflection',
+    'screen-free-break', 'try-new-recipe', 'prepare-breakfast', 'add-vegetable',
+    'make-grocery-list', 'clear-desk', 'wash-dishes', 'set-out-clothes',
+    'keys-in-place', 'organize-digital-files', 'weekly-reset',
+    'wash-face', 'use-floss', 'moisturize-skin', 'care-for-hands',
+    'apply-lip-balm', 'pause-for-eye-rest', 'check-posture', 'yoga-at-home',
+    'bodyweight-strength', 'stretch-neck-shoulders', 'practice-balance',
+    'brain-dump', 'focus-single-task', 'mindful-minute', 'screen-free-morning',
+    'learn-something-new', 'creative-writing', 'listen-to-music',
+    'name-your-feelings', 'quiet-time', 'prepare-lunch', 'include-vegetable',
+    'try-new-food', 'sit-down-to-eat', 'prep-ingredients', 'make-a-simple-meal',
+    'sort-laundry', 'reset-kitchen', 'review-weekly-priorities',
+    'check-daily-budget', 'charge-phone-away', 'clear-inbox',
+    'evening-room-reset', 'take-out-trash', 'prepare-workspace',
+    'open-curtains', 'plan-snacks', 'pack-a-lunch', 'connect', 'learn-language',
+    'practice-instrument',
+  ]),
+  'no-equipment': Object.freeze([
+    'training', 'stretch', 'walk', 'dance', 'active-break', 'mobility',
+    'take-stairs', 'play-outside',
+    'walk-10-minutes', 'yoga-at-home', 'bodyweight-strength',
+    'stretch-neck-shoulders', 'move-after-meal', 'practice-balance',
+  ]),
+  outdoor: Object.freeze([
+    'cycle', 'walk-with-dog', 'play-a-sport', 'outdoor-movement',
+  ]),
+  equipment: Object.freeze([
+    'gym', 'cycle', 'play-a-sport', 'practice-instrument',
+  ]),
+});
+
+export function habitSuggestionTags(suggestion) {
+  return SUGGESTED_HABIT_TAGS.filter(({ id }) => (
+    SUGGESTED_HABIT_TAGGED_IDS[id].includes(suggestion?.id)
+  ));
+}
+
+export function featuredHabitSuggestions(suggestions, limit = 4) {
+  const available = Array.isArray(suggestions) ? suggestions : [];
+  const count = Number.isInteger(limit) ? Math.max(0, limit) : 4;
+  const selected = [];
+  const add = (suggestion) => {
+    if (suggestion && selected.length < count && !selected.some(({ id }) => id === suggestion.id)) selected.push(suggestion);
+  };
+  for (const id of ['water', 'stretch', 'reading', 'fruit']) {
+    add(available.find((suggestion) => suggestion.id === id));
+  }
+  for (const category of SUGGESTED_HABIT_CATEGORIES) {
+    if (selected.length >= count) break;
+    if (selected.some((suggestion) => suggestion.category === category.id)) continue;
+    add(available.find((suggestion) => suggestion.category === category.id));
+  }
+  for (const suggestion of available) add(suggestion);
+  return selected;
+}
+
+
+export function remainingHabitSuggestions(habits, suggestions = SUGGESTED_HABITS) {
+  const existingHabits = Array.isArray(habits) ? habits : [];
+  const availableSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  const existingNames = new Set(existingHabits.map((habit) => normalizeHabitText(habit?.name)));
+  const hasWaterHabit = existingHabits.some(isWaterHabit);
+  return availableSuggestions.filter((suggestion) => (
+    !existingNames.has(normalizeHabitText(suggestion.name))
+    && !(suggestion.id === 'water' && hasWaterHabit)
+  ));
+}
+
+export function filterSuggestedHabits(suggestions, category = 'all', tag = 'all', query = '') {
+  const search = normalizeHabitText(query);
+  return (Array.isArray(suggestions) ? suggestions : []).filter((suggestion) => {
+    if (category !== 'all' && suggestion.category !== category) return false;
+    const tags = habitSuggestionTags(suggestion);
+    if (tag !== 'all' && !tags.some((item) => item.id === tag)) return false;
+    if (search && !normalizeHabitText(`${suggestion.name} ${suggestion.description}`).includes(search)) return false;
+    return true;
+  });
+}
 
 export function isValidHabit(habit) {
   return isPlainObject(habit)
@@ -105,12 +209,12 @@ export function habitIsSkipped(habit, day, today = day) {
 
 export function createSuggestedHabits(selectedIds, existingHabits, createId) {
   const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
-  const existingNames = new Set(existingHabits.map((habit) => normalizeHabitName(habit.name)));
+  const existingNames = new Set(existingHabits.map((habit) => normalizeHabitText(habit.name)));
   const existingWaterHabit = existingHabits.some(isWaterHabit);
   return SUGGESTED_HABITS
     .filter((suggestion) => selected.has(suggestion.id))
     .filter((suggestion) => (
-      !existingNames.has(normalizeHabitName(suggestion.name))
+      !existingNames.has(normalizeHabitText(suggestion.name))
       && (suggestion.id !== 'water' || !existingWaterHabit)
     ))
     .map((suggestion) => ({
@@ -163,6 +267,26 @@ export function habitWeekOverview(habits, day, weekStart, completedFor, skippedF
     planned,
     paused: habits.filter((habit) => habit.status === 'paused'),
   };
+}
+
+export function habitWeekReview(habits, day, weekStart, completedFor, skippedFor) {
+  const days = weekDays(day, weekStart).filter((entry) => entry <= day);
+  return habits
+    .filter((habit) => (habit.status || 'active') === 'active')
+    .map((habit) => {
+      const scheduled = days.filter((entry) => (
+        habit.days.includes(pk(entry).getDay()) && !skippedFor(habit, entry)
+      ));
+      const weeklyTarget = habitWeeklyTarget(habit);
+      const completed = scheduled.filter((entry) => completedFor(habit, entry)).length;
+      return {
+        habit,
+        completed,
+        planned: scheduled.length,
+        weeklyTarget,
+        goalMet: weeklyTarget !== null && completed >= weeklyTarget,
+      };
+    });
 }
 
 export function habitMonthDays(month, weekStart = 1) {

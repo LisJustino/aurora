@@ -27,7 +27,7 @@ export function isValidBirthdayReference(value) {
   const { month, day, ageAtReference, referenceDate } = value;
   if (!Number.isInteger(month) || month < 1 || month > 12
     || !Number.isInteger(day) || day < 1 || day > new Date(2000, month, 0).getDate()
-    || !Number.isInteger(ageAtReference) || ageAtReference < 18 || ageAtReference > 120) return false;
+    || !Number.isInteger(ageAtReference) || ageAtReference < 0 || ageAtReference > 120) return false;
   const reference = parseCivilDate(referenceDate);
   return Boolean(reference && reference.getFullYear() >= 1900 && reference <= new Date());
 }
@@ -40,7 +40,7 @@ export function createBirthdayReferenceFromParts({ month, day, ageAtReference, r
 export function createBirthdayReference(birthDate, referenceDate = new Date()) {
   const ageAtReference = calculateAge(birthDate, referenceDate);
   const parsedBirthDate = parseCivilDate(birthDate);
-  if (ageAtReference === null || ageAtReference < 18 || !parsedBirthDate
+  if (ageAtReference === null || !parsedBirthDate
     || !(referenceDate instanceof Date) || Number.isNaN(referenceDate.getTime())) return null;
   return {
     month: parsedBirthDate.getMonth() + 1,

@@ -1,9 +1,9 @@
 .accessibility-control { position: relative; }
 .accessibility-panel {
-  position: absolute;
+  position: fixed;
   z-index: var(--z-panel);
-  top: calc(100% + 12px);
-  right: -52px;
+  top: calc(68px + env(safe-area-inset-top, 0px) + 12px);
+  right: max(16px, env(safe-area-inset-right, 0px));
   display: grid;
   width: min(380px, calc(100vw - 32px));
   max-height: min(75dvh, 600px);

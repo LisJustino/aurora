@@ -1,24 +1,12 @@
-import { RelationalAccountStore } from './data/relational-account-store.js';
-import {
-  clearImportedBrowserStorage,
-  containsRemovedStudyData,
-  inspectLegacySources,
-  purgeRemovedStudyDataFromBrowserStorage,
-  scanLegacyBrowserStorage,
-  unlockLegacySources,
-} from './data/legacy-import.js';
-import {
-  hasAllExpectedRecords,
-  prepareLegacyImport,
-} from './data/legacy-import-model.js';
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
 import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
-  addDays, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
-  MESES, MESES_L, pad, pk, shortDate, today,
+  addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
+  MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
+import { lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
   isPublicLandingHash,
@@ -46,18 +34,21 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from './features/finance/accounts.js';
-import { parseStatement } from './features/finance/statement.js';
 import {
   AREA_GUIDES,
   FINANCE_PRIVACY_NOTICE,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
-import { parseQuickTaskText } from './features/planning/quick-entry.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
+import { renderHabitsView } from './features/habits/view.js';
+import { createCycleDialogViews } from './features/cycle/dialogs.js';
+import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
+import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   advancePomodoro,
+  customPomodoroSettings,
   effectivePomodoroSettings,
   longBreakMinutes,
   normalizePomodoroHistory,
@@ -86,10 +77,41 @@ import {
   schedulePomodoroPush,
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
-import { renderFooterContent } from './features/footer/view.js';
+import { renderFooterContent, renderLegalDialog } from './features/footer/view.js';
+
+let googleCalendarService = null;
+let googleCalendarServicePromise = null;
+function loadGoogleCalendarService() {
+  if (!googleCalendarServicePromise) {
+    googleCalendarServicePromise = import('./services/google-calendar.js')
+      .then(({ createGoogleCalendarService }) => {
+        googleCalendarService = createGoogleCalendarService();
+        return googleCalendarService;
+      })
+      .catch((error) => {
+        googleCalendarServicePromise = null;
+        throw error;
+      });
+  }
+  return googleCalendarServicePromise;
+}
+const googleCalendar = {
+  isConfigured: () => Boolean(import.meta.env?.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim()),
+  isConnected: () => googleCalendarService?.isConnected() || false,
+  isPrepared: () => googleCalendarService?.isPrepared() || false,
+  clear: () => googleCalendarService?.clear(),
+  prepare: async () => (await loadGoogleCalendarService()).prepare(),
+  authorize: () => {
+    if (!googleCalendarService) throw new Error('Prepare a conexão com o Google antes de autorizar.');
+    return googleCalendarService.authorize();
+  },
+  getCalendars: async () => (await loadGoogleCalendarService()).getCalendars(),
+  getEvents: async (...args) => (await loadGoogleCalendarService()).getEvents(...args),
+};
 import { showLegalDocument } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
-import { handlePublicControl, initializePublicAppearance } from './features/appearance/public-controls.js';
+import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
+import { prefersReducedMotion } from './utils/motion.js';
 import {
   createCyclePeriod,
   cycleLogDays,
@@ -103,10 +125,41 @@ import {
   isValidBirthdayReference,
 } from './features/profile/birthday.js';
 import { filterWeightInput } from './features/profile/weight.js';
-import { PROFILE_SEX } from './features/profile/model.js';
+import {
+  normalizeProfileAppearance,
+  PROFILE_APPEARANCE_DEFAULT,
+  PROFILE_AVATARS,
+  PROFILE_AVATAR_COLORS,
+  PROFILE_GREETING_STYLES,
+  PROFILE_SEX,
+} from './features/profile/model.js';
+import {
+  defaultHomeLayout as defaultHomeLayoutModel,
+  defaultHomeModes,
+  defaultHomeShortcuts,
+  HOME_AREA_COLORS,
+  HOME_BLOCKS,
+  HOME_BLOCK_IDS,
+  HOME_MESSAGE_MAX_LENGTH,
+  HOME_MODES,
+  HOME_SHORTCUTS,
+  HOME_SHORTCUT_IDS,
+  normalizeHomeAreaColors,
+  normalizeHomeLayout,
+  normalizeHomeMessage,
+  normalizeHomeMode,
+  normalizeHomeModes,
+  normalizeHomeShortcuts,
+  homeAreaColorValue,
+} from './features/home/personalization.js';
+import { initializeCustomSelects } from './features/selects/custom-select.js';
 import {
   habitWeeklyTarget,
+  habitWeekReview,
   habitIsComplete,
+  filterSuggestedHabits,
+  featuredHabitSuggestions,
+  habitSuggestionTags,
   habitMonthDays,
   habitMonthStats,
   habitStats,
@@ -114,7 +167,10 @@ import {
   isWaterHabit,
   isValidHabit,
   normalizeHabits,
+  remainingHabitSuggestions,
   SUGGESTED_HABITS,
+  SUGGESTED_HABIT_CATEGORIES,
+  SUGGESTED_HABIT_TAGS,
   HABIT_ICONS,
   HABIT_ICON_KEYS,
   HABIT_COLORS,
@@ -133,7 +189,7 @@ import {
   waterGoalReached,
   waterMlForDay,
 } from './features/habits/water-goal.js';
-import { hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
+import { APPEARANCE_PRESETS, hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
 import {
   DEFAULT_VISIBLE_MENU_ITEMS,
   DEFAULT_MENU_ORDER,
@@ -156,6 +212,7 @@ import {
   isTrashExpired,
   isValidTrashEntry as isValidTrashEntryModel,
   normalizeTrash,
+  sortTrashEntriesByExpiry,
   trashDaysRemaining,
 } from './features/trash/model.js';
 import { estimatedCyclePhase } from './features/cycle/phases.js';
@@ -178,14 +235,79 @@ const plural = (n, a, b) => n === 1 ? a : b;
 
 const LIST_COLORS = ['#c97994', '#e07a5f', '#d9a05b', '#a3b55a', '#5fa68a', '#5aa5b8', '#7c8fd4', '#8a7ac4', '#a24f9e', '#d6455d', '#8b8b95', '#ad8c76'];
 const CAT_ICONS = ['utensils', 'home', 'car', 'heart', 'book', 'sparkles', 'bag', 'repeat', 'user', 'tag', 'wallet', 'plus', 'trendUp', 'calendar', 'card', 'bank'];
+const CATEGORY_ICON_LABELS = {
+  utensils: 'Alimentação', home: 'Casa', car: 'Transporte', heart: 'Saúde',
+  book: 'Educação', sparkles: 'Brilho', bag: 'Compras', repeat: 'Recorrência',
+  user: 'Pessoa', tag: 'Etiqueta', wallet: 'Carteira', plus: 'Mais',
+  trendUp: 'Rendimentos', calendar: 'Calendário', card: 'Cartão', bank: 'Banco',
+};
 const DEF_LISTS = [{ name: 'Pessoal', color: '#c97994' }];
 const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
-const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon })) });
-const catNames = (k) => S.settings.cats[k].map((c) => c.name);
-const catInfo = (k, n) => { const c = S.settings.cats[k].find((x) => x.name === n); return c ? { c: c.color, i: c.icon } : { c: '#8b8b95', i: 'tag' }; };
+const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
+const categoryLeafName = (category) => {
+  if (typeof category === 'string') return category.trim();
+  if (isPlainObject(category) && typeof category.name === 'string') return category.name.trim();
+  return '';
+};
+const categoryPathParts = (value) => {
+  const text = String(value ?? '').trim();
+  const parts = text.split(/\s*>\s*/).map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return { parent: '', child: '' };
+  if (parts.length === 1) return { parent: '', child: parts[0] };
+  return { parent: parts[0], child: parts.slice(1).join(' > ') };
+};
+const normalizeCategoryEntry = (category) => {
+  if (typeof category === 'string') {
+    const name = category.trim();
+    return name ? { name: name.slice(0, 30), color: '#8b8b95', icon: 'tag', subcategories: [] } : null;
+  }
+  if (!isPlainObject(category) || typeof category.name !== 'string') return null;
+  const name = category.name.trim();
+  if (!name) return null;
+  const subcategories = Array.isArray(category.subcategories)
+    ? category.subcategories.map((item) => normalizeCategoryEntry(item)).filter(Boolean)
+    : [];
+  return {
+    name: name.slice(0, 30),
+    color: hexOk(category.color) ? category.color : '#8b8b95',
+    icon: CAT_ICONS.includes(category.icon) ? category.icon : 'tag',
+    subcategories: subcategories.slice(0, 20),
+  };
+};
+const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean);
+const topCategoryNames = (kind) => categoryEntries(kind).map((category) => category.name);
+const categoryMatch = (kind, value) => {
+  const target = String(value ?? '').trim();
+  if (!target) return null;
+  const { parent, child } = categoryPathParts(target);
+  const categories = categoryEntries(kind);
+  if (parent) {
+    const parentEntry = categories.find((category) => norm(category.name) === norm(parent));
+    if (!parentEntry) return null;
+    const subcategory = (parentEntry.subcategories || []).find((category) => norm(categoryLeafName(category)) === norm(child));
+    return subcategory ? { category: parentEntry, subcategory, fullName: `${parentEntry.name} > ${categoryLeafName(subcategory)}` } : null;
+  }
+  const direct = categories.find((category) => norm(category.name) === norm(target));
+  if (direct) return { category: direct, subcategory: null, fullName: direct.name };
+  for (const category of categories) {
+    const subcategory = (category.subcategories || []).find((item) => norm(categoryLeafName(item)) === norm(target));
+    if (subcategory) return { category, subcategory, fullName: `${category.name} > ${categoryLeafName(subcategory)}` };
+  }
+  return null;
+};
+const catNames = (k) => categoryEntries(k).flatMap((category) => {
+  const subcategories = Array.isArray(category.subcategories) ? category.subcategories.map((subcategory) => `${category.name} > ${categoryLeafName(subcategory)}`) : [];
+  return [category.name, ...subcategories];
+});
+const catInfo = (k, n) => {
+  const match = categoryMatch(k, n);
+  if (!match) return { c: '#8b8b95', i: 'tag' };
+  const source = match.subcategory || match.category;
+  return { c: source.color || '#8b8b95', i: source.icon || 'tag' };
+};
 const OTHER_BANK = 'other';
 const BANKS = {
   nubank: { name: 'Nubank', logo: new URL('../assets/bank-logos/18236120.svg', import.meta.url).href },
@@ -210,21 +332,12 @@ const preserveCopyTerms = (text) => h`${String(text).split(/\b(Android|CSV|Googl
   return CASE_TERMS.has(part) ? h`<span class="case-preserve">${part}</span>` : part;
 })}`;
 const PRIO = { low: 'Baixa', normal: 'Normal', high: 'Alta' };
-const HOME_BLOCKS = [
-  ['summary', 'Resumo do dia', 'Tarefas de hoje, atrasadas, sem data e dados das áreas ativas.'],
-  ['quick', 'Adicionar tarefa', 'Campo rápido para registrar o próximo passo.'],
-  ['habits', 'Hábitos de hoje', 'Check-ins e acompanhamento da rotina.'],
-  ['today', 'Plano de hoje', 'Tarefas pendentes, atrasadas e concluídas.'],
-];
-const HOME_BLOCK_IDS = HOME_BLOCKS.map(([id]) => id);
-const defaultHomeLayout = () => ({ order: [...HOME_BLOCK_IDS], visible: [...HOME_BLOCK_IDS] });
-function normalizeHomeLayout(value) {
-  const layout = isPlainObject(value) ? value : {};
-  const order = Array.isArray(layout.order) ? layout.order.filter((id) => HOME_BLOCK_IDS.includes(id)) : [];
-  const visible = Array.isArray(layout.visible) ? layout.visible.filter((id) => HOME_BLOCK_IDS.includes(id)) : HOME_BLOCK_IDS;
-  return {
-    order: [...new Set(order), ...HOME_BLOCK_IDS.filter((id) => !order.includes(id))],
-    visible: [...new Set(visible)],
+const defaultHomeLayout = defaultHomeLayoutModel;
+function saveActiveHomeMode(settings) {
+  const { homeMode, homeLayout, homeShortcuts } = settings.prefs;
+  settings.prefs.homeModes[homeMode] = {
+    layout: { order: [...homeLayout.order], visible: [...homeLayout.visible] },
+    shortcuts: [...homeShortcuts],
   };
 }
 
@@ -233,18 +346,21 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
 let S = defaults();
 let accountSession = null;
+let pwaRegistration = null;
+let pwaReloading = false;
+let pwaSupportPromise = null;
 const syncState = {
   pending: new Set(),
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), habitMonth: today().slice(0, 7), habitSuggestions: null, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, persistSavedAt: null, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -342,7 +458,7 @@ function normalizeSettings(s) {
     ? profile.preferredName.slice(0, 50)
     : o.profile.name;
   o.profile.sex = Object.hasOwn(SEX, profile.sex) ? profile.sex : '';
-  o.profile.age = Number.isInteger(profile.age) && profile.age >= 5 && profile.age <= 120 ? profile.age : null;
+  o.profile.age = Number.isInteger(profile.age) && profile.age >= 0 && profile.age <= 120 ? profile.age : null;
   o.profile.weightKg = Number.isFinite(profile.weightKg) && profile.weightKg >= 20 && profile.weightKg <= 400 ? profile.weightKg : null;
   o.profile.heightCm = Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250 ? profile.heightCm : null;
   o.areas = Object.fromEntries(Object.keys(d.areas).map((key) => [key, typeof areas[key] === 'boolean' ? areas[key] : d.areas[key]]));
@@ -353,9 +469,21 @@ function normalizeSettings(s) {
   o.prefs.visibleMenuItems = normalizeVisibleMenuItems(prefs.visibleMenuItems);
   o.prefs.areaTutorialsSeen = normalizeAreaTutorialsSeen(prefs.areaTutorialsSeen);
   o.prefs.homeLayout = normalizeHomeLayout(prefs.homeLayout);
+  o.prefs.homeMode = normalizeHomeMode(prefs.homeMode);
+  o.prefs.homeShortcuts = normalizeHomeShortcuts(prefs.homeShortcuts);
+  o.prefs.homeModes = normalizeHomeModes(prefs.homeModes);
+  if (!isPlainObject(prefs.homeModes)) {
+    o.prefs.homeModes[o.prefs.homeMode] = {
+      layout: { order: [...o.prefs.homeLayout.order], visible: [...o.prefs.homeLayout.visible] },
+      shortcuts: [...o.prefs.homeShortcuts],
+    };
+  }
+  o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
+  o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
+  o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
   o.prefs.pomodoro = { ...d.prefs.pomodoro, ...pomodoro };
   o.prefs.pomodoro.on = typeof pomodoro.on === 'boolean' ? pomodoro.on : d.prefs.pomodoro.on;
-  o.prefs.pomodoro.preset = ['classic', 'custom'].includes(pomodoro.preset)
+  o.prefs.pomodoro.preset = (Object.hasOwn(POMODORO_PRESETS, pomodoro.preset) || pomodoro.preset === 'custom')
     ? pomodoro.preset
     : Object.hasOwn(pomodoro, 'focusMin') || Object.hasOwn(pomodoro, 'breakMin')
       ? 'custom'
@@ -407,8 +535,9 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
+  const cleanCategoryGroup = (a) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean).slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
-  const dc = defCats(); o.cats = { out: cleanL(s?.cats?.out, true), in: cleanL(s?.cats?.in, true) };
+  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out), in: cleanCategoryGroup(s?.cats?.in) };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
   if (!PALETTES[o.theme] && o.theme !== 'custom') o.theme = 'rose';
   delete o.accountTypes;
@@ -495,6 +624,7 @@ const isValidRecurring = (record) => isPlainObject(record)
 const isValidCycleLog = (record) => isPlainObject(record)
   && ['flow', 'energy', 'sleep', 'discharge', 'note'].every((key) => optional(record, key, isText))
   && ['pain', 'mood', 'digestion', 'skin'].every((key) => optional(record, key, (value) => Array.isArray(value) && value.every(isText)))
+  && optional(record, 'orgasmCount', (value) => Number.isInteger(value) && value >= 0 && value <= 99)
   && isValidCycleSexualLog(record);
 const isValidCycleEntry = (record) => isPlainObject(record)
   && isDay(record.start)
@@ -543,7 +673,7 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(profile, 'name') && profile.name !== undefined && !isText(profile.name)) issues++;
     if (Object.hasOwn(profile, 'preferredName') && profile.preferredName !== undefined && !isText(profile.preferredName)) issues++;
     if (Object.hasOwn(profile, 'sex') && profile.sex !== undefined && profile.sex !== '' && !Object.hasOwn(SEX, profile.sex)) issues++;
-    if (Object.hasOwn(profile, 'age') && profile.age !== undefined && profile.age !== null && !(Number.isInteger(profile.age) && profile.age >= 5 && profile.age <= 120)) issues++;
+    if (Object.hasOwn(profile, 'age') && profile.age !== undefined && profile.age !== null && !(Number.isInteger(profile.age) && profile.age >= 0 && profile.age <= 120)) issues++;
     if (Object.hasOwn(profile, 'weightKg') && profile.weightKg !== undefined && profile.weightKg !== null && !(isFiniteValue(profile.weightKg) && profile.weightKg >= 20 && profile.weightKg <= 400)) issues++;
     if (Object.hasOwn(profile, 'heightCm') && profile.heightCm !== undefined && profile.heightCm !== null && !(Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250)) issues++;
   }
@@ -708,10 +838,19 @@ function normalizeSlice(k, v) {
       }
       else invalidCount++;
     });
+    const financeTx = tx.records.map((transaction) => {
+      const date = normalizeDay(transaction.date) || transaction.date;
+      const settledDate = transaction.settledDate ? normalizeDay(transaction.settledDate) || transaction.settledDate : undefined;
+      return {
+        ...transaction,
+        date,
+        ...(settledDate ? { settledDate } : {}),
+      };
+    });
     return {
       value: {
         accounts: accounts.records.map((account) => ({ ...account, type: normalizeAccountType(account.type) })),
-        tx: tx.records,
+        tx: financeTx,
         budgets,
         goals: goals.records,
         recurring: recurring.records,
@@ -755,7 +894,8 @@ const Persist = {
   confirmedState: null,
   rawTables: null,
   replacing: false,
-  attach({ client, user }) {
+  async attach({ client, user }) {
+    const { RelationalAccountStore } = await import('./data/relational-account-store.js');
     this.userId = user.id;
     this.store = new RelationalAccountStore(client, user.id);
     this.confirmedState = null;
@@ -820,7 +960,6 @@ const Persist = {
           syncState.conflicts.clear();
           ui.persistFailed.clear();
           ui.persistError = '';
-          ui.persistSavedAt = new Date();
         } catch (error) {
           if (!this.pendingSnapshot) {
             this.pendingSnapshot = snapshot;
@@ -974,6 +1113,7 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
     if (shouldRender) render();
     return false;
   }
+  if (!ui.preview && slices.includes('habits')) syncHabitReminderSchedule();
   if (shouldRender) render();
   return true;
 }
@@ -1100,7 +1240,7 @@ function purgeExpiredTrash() {
 }
 
 /* Ícones: src/js/utils/icons.js */
-const GRAD = raw('<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
+const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
 const configLink = () => h`<a class="inline-link" href="#config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
@@ -1110,12 +1250,12 @@ const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
-const brandLink = h`<a class="brand" href="#inicio" aria-label="Aurora, início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
+const brandLink = h`<a class="brand" href="#inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
 
 const notificationCount = () => Object.keys(ui.alerts).length;
 function updateDocumentTitle() {
-  const title = ROUTE_TITLES[ui.route] || 'Aurora';
-  document.title = `${notificationCount() ? `(${notificationCount()}) ` : ''}${title} | Aurora`;
+  const title = ROUTE_TITLES[ui.route] || 'aurora.';
+  document.title = `${notificationCount() ? `(${notificationCount()}) ` : ''}${title} | aurora.`;
 }
 function notificationButton(cls, id) {
   const count = notificationCount();
@@ -1153,9 +1293,16 @@ function upcomingReminders() {
 function notificationsHtml() {
   const items = Object.entries(ui.alerts).sort(([, a], [, b]) => (b.at || b.due || 0) - (a.at || a.due || 0));
   const upcoming = ui.notificationsOpen ? upcomingReminders() : [];
+  const remindersPaused = ui.remindersPausedUntil > Date.now();
+  const canPauseReminders = remindersPaused
+    || S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null)
+    || S.habits.some((habit) => (habit.status || 'active') === 'active' && habit.remind)
+    || items.some(([, alert]) => alert.kind !== 'pomodoro')
+    || upcoming.some((reminder) => reminder.kind === 'task' || reminder.kind === 'habit');
   const kindLabel = (a) => a.kind === 'pomodoro' ? 'Pomodoro' : a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
+    ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
       return h`<article class="notification-item is-${a.kind || 'task'}" ${habit ? raw(`style="--nc:${habitColor(habit)}"`) : ''}>
@@ -1168,6 +1315,7 @@ function notificationsHtml() {
           : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
     </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos e avisos do Pomodoro aparecem aqui.</span></div>`}
     ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
+    ${canPauseReminders && (areaOn('habits') || areaOn('pomodoro')) ? h`<a class="notification-settings-link" href="${areaOn('habits') ? '#habitos' : '#pomodoro'}">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
   </section>`;
 }
 function closeNotifications(restoreFocus = true) {
@@ -1175,13 +1323,32 @@ function closeNotifications(restoreFocus = true) {
   render();
   if (restoreFocus) {
     const trigger = $$('.notification-trigger').find((el) => el.getClientRects().length);
-    if (trigger) trigger.focus();
+    if (trigger) trigger.focus({ preventScroll: true });
   }
 }
 function closeAccessibility(restoreFocus = true) {
   ui.accessibilityOpen = false;
   render();
-  if (restoreFocus) $('#accessibility-trigger')?.focus();
+  if (restoreFocus) $('#accessibility-trigger')?.focus({ preventScroll: true });
+}
+let releaseNotificationScroll = null;
+let releaseAccessibilityScroll = null;
+function syncPanelScrollLocks() {
+  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
+  else if (!ui.notificationsOpen && releaseNotificationScroll) {
+    releaseNotificationScroll();
+    releaseNotificationScroll = null;
+  }
+  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
+  else if (!ui.accessibilityOpen && releaseAccessibilityScroll) {
+    releaseAccessibilityScroll();
+    releaseAccessibilityScroll = null;
+  }
+}
+function acquireActiveScrollLocks() {
+  if (ui.dlg && !releaseDialogScroll) releaseDialogScroll = lockPageScroll();
+  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
+  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
 }
 /* Erro junto ao campo: marca o campo, escreve a mensagem logo abaixo e leva o foco até ele.
    Só mexe no DOM do diálogo aberto; some quando a pessoa volta a digitar. Cai para o aviso se não achar o campo. */
@@ -1223,7 +1390,16 @@ function clearPomodoroNotifications() {
 }
 function shell(body) {
   const overdue = S.tasks.filter((t) => !t.done && t.dueDate && t.dueDate < today()).length;
-  const saveStatus = ui.persistBlocked.size || ui.persistFailed.size ? 'warning' : 'saved';
+  const timer = S.pomodoro;
+  const timerNow = Date.now();
+  const timerElapsed = phaseElapsedSeconds(timer, timerNow);
+  const timerDuration = phaseDurationSeconds(pomodoroSettingsForTimer(), timer.phase);
+  const timerRunning = timer.startedAt !== null;
+  const timerHasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || timerElapsed > 0;
+  const miniTimerVisible = ui.route !== 'pomodoro' && (timerRunning || timerHasProgress);
+  const miniFocusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
+  const miniFocusLabel = miniFocusTask?.title || timer.focusLabel || 'Seu bloco atual';
+  const saveStatus = ui.persistBlocked.size || ui.persistFailed.size || navigator.onLine === false ? 'warning' : 'saved';
   const saveLabel = ui.preview
     ? ''
     : ui.persistBlocked.size
@@ -1232,28 +1408,57 @@ function shell(body) {
         ? 'Falha ao salvar; tente novamente'
         : syncState.pending.size
           ? 'Salvando…'
-          : ui.persistSavedAt
-            ? `Salvo às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(ui.persistSavedAt)}`
+          : navigator.onLine === false
+            ? 'Sem conexão; alterações não serão salvas'
             : '';
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const compactItems = menuItems.slice(0, 4);
   const secondaryItems = menuItems.slice(4);
   const hasActiveArea = Object.values(S.settings.areas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
+  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" title="${label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
-  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
+  const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
+    ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
+    : ui.route === 'financas'
+      ? h`
+        ${S.finance.accounts.length > 1 ? h`<button type="button" data-action="quick-action-finance" data-kind="tr"><span class="ni">${icon('repeat', 18)}</span><span>Transferência</span></button>` : ''}
+        <button type="button" data-action="quick-action-finance" data-kind="in"><span class="ni">${icon('plus', 18)}</span><span>Receita</span></button>
+        <button type="button" data-action="quick-action-finance" data-kind="out"><span class="ni">${icon('arrowDown', 18)}</span><span>Despesa</span></button>
+        ${S.finance.accounts.some(isCredit) ? h`<button type="button" data-action="quick-action-finance" data-kind="card"><span class="ni">${icon('card', 18)}</span><span>Despesa cartão</span></button>` : ''}`
+      : h`<button type="button" data-action="quick-action-transaction"><span class="ni">${icon('wallet', 18)}</span><span>Lançamento</span></button>`;
+  const quickActionItems = h`
+    <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
+    ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
+    ${financeQuickActions}
+    ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
+  const quickActions = h`<div class="nav-quick-control">
+    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
+    <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
+  </div>`;
+  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen ? h`<div class="nav-scrim" data-action="nav-more-toggle" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}<button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Busca global" title="Buscar (Ctrl+K)">${icon('search', 20)}</button>${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-haspopup="true" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
+      <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
+        <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="#pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
+          <span class="pomodoro-mini-indicator" aria-hidden="true"></span>
+          <span class="pomodoro-mini-copy"><b id="pomodoro-mini-phase">${standalonePomodoroPhaseName(timer.phase)} · ${timerRunning ? 'em andamento' : 'pausado'}</b><small id="pomodoro-mini-focus">${miniFocusLabel}</small></span>
+          <span class="pomodoro-mini-clock" id="pomodoro-mini-clock" role="timer" aria-live="off">${clock(Math.max(0, timerDuration - timerElapsed))}</span>
+        </a>
+        <button type="button" class="pomodoro-mini-toggle" id="pomodoro-mini-toggle" data-action="pomodoro-mini-toggle" aria-label="${timerRunning ? 'Pausar Pomodoro' : 'Retomar Pomodoro'}">${timerRunning ? 'Pausar' : 'Retomar'}</button>
+      </section>
       ${persistenceNotice()}
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
       ${body}
+      ${saveLabel ? h`<div class="app-status save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</div>` : ''}
+      ${raw(renderLegalDialog())}
     </main>
-    <footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: !ui.preview, preview: ui.preview }))}${saveLabel ? h`<span class="save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</span>` : ''}</footer>
+    ${ui.preview ? h`<footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: false, preview: true, includeLegalDialog: false }))}</footer>` : ''}
   </div>`;
 }
 function persistenceNotice() {
@@ -1298,7 +1503,7 @@ function weeklyReviewView() {
     : '';
   const overdue = S.tasks.filter((task) => !task.done && task.dueDate && task.dueDate < today()).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Fechamento semanal</span><h2>Veja o que avançou<i>.</i></h2><p>${first.getDate()} ${MESES_L[first.getMonth()]}–${last.getDate()} ${MESES_L[last.getMonth()]} · Use este retrato para ajustar a próxima semana.</p></div><div class="weekly-review-actions"><button class="btn primary" data-action="plan-open">${icon('plus', 16)}Planejar próxima semana</button><button class="btn" data-action="weekly-open-finances">${icon('wallet', 16)}Ver finanças</button></div></section>
+    <section class="weekly-review-hero"><div><span>Fechamento semanal</span><h2>Veja o que avançou<i>.</i></h2><p>${first.getDate()} ${MESES_L[first.getMonth()]}–${last.getDate()} ${MESES_L[last.getMonth()]} · Use este retrato para ajustar a próxima semana.</p></div><div class="weekly-review-actions"><button class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button><button class="btn" data-action="weekly-open-finances">${icon('wallet', 16)}Ver finanças</button></div></section>
     <section class="card weekly-review-main"><div class="head"><div><p class="section-kicker">Seu ritmo</p><h2>Revisão da semana<i>.</i></h2></div><span class="small muted">Atualizada hoje</span></div>
       <div class="review-stats">
         <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
@@ -1320,13 +1525,23 @@ function weeklyReviewView() {
     <section class="card"><div class="head"><div><p class="section-kicker">Olhando à frente</p><h2>Prioridades da próxima semana<i>.</i></h2></div><span class="small muted">${nextFirst.getDate()}–${nextLast.getDate()} ${MESES_L[nextLast.getMonth()]}</span></div>
       ${review.nextWeek.tasks.length
         ? h`<ul class="list">${review.nextWeek.tasks.map(taskRow)}</ul>`
-        : empty('Semana livre por enquanto', 'Crie um plano por etapas ou adicione a próxima prioridade.', h`<button class="btn" data-action="plan-open">${icon('plus', 16)}Planejar semana</button>`, 'calendar')}
+        : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
     </section></div>
     <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="#pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
 }
 
 const greet = () => { const hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; };
+function profileGreeting(style) {
+  if (style === 'hello') return 'Olá';
+  if (style === 'oi') return 'Oi';
+  return greet();
+}
+function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
+  const profileAppearance = normalizeProfileAppearance(appearance);
+  const color = PALETTES[profileAppearance.avatarColor]?.[1] || PALETTES.rose[1];
+  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${icon(profileAppearance.avatar, 22)}</span>`;
+}
 const PAGE_CONTEXT = {
   Planejar: ['Tarefas e prazos', 'Crie tarefas, organize a semana e acompanhe itens atrasados.'],
   Pomodoro: ['Foco e pausas', 'Configure blocos Pomodoro e associe tarefas ao timer.'],
@@ -1339,7 +1554,7 @@ const pageTitle = (title, action = '') => {
   const [eyebrow, description] = PAGE_CONTEXT[title] || [];
   return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
-const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
+const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
 const ring = (done, total) => { const c = 2 * Math.PI * 32, pc = total ? done / total : 0; return h`<div class="ringw" role="img" aria-label="${done} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pc)).toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${done}/${total}</div></div>`; };
 const areaOn = (a) => S.settings.areas[a];
 function setAreaEnabled(settings, area, enabled) {
@@ -1389,7 +1604,7 @@ function taskRow(t) {
   const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
   return h`<li class="task ${t.done ? 'done' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
-    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${t.done}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
+    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
     <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="ttl">${t.title}</span>
       <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
@@ -1418,6 +1633,12 @@ function applyTheme(theme) {
   r.setAttribute('data-palette', th); r.style.setProperty('--p', p); r.style.setProperty('--pd', pd);
   const effectiveMode = L.mode === 'auto' ? (systemThemeQuery?.matches ? 'dark' : 'light') : L.mode;
   r.setAttribute('data-theme', effectiveMode);
+  const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
+  HOME_AREA_COLORS.forEach(({ id, css }) => {
+    const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
+    if (color) r.style.setProperty(`--area-${css}`, color);
+    else r.style.removeProperty(`--area-${css}`);
+  });
   r.setAttribute('data-density', L.density); r.setAttribute('data-fs', L.font);
   r.setAttribute('data-contrast', L.contrast ? 'high' : 'normal');
   r.setAttribute('data-readable', L.readable ? 'true' : 'false');
@@ -1484,6 +1705,7 @@ function accessibilityPanel() {
       ${toggle('accessibility-readable', 'accessibility-readable', 'Legibilidade aprimorada', 'Usa fonte simples e aumenta o espaçamento entre linhas.', look.readable)}
       ${toggle('accessibility-links', 'accessibility-links', 'Destacar links', 'Sublinha os links para identificá-los com mais facilidade.', look.highlightLinks)}
       ${toggle('accessibility-spacing', 'accessibility-spacing', 'Espaçamento confortável', 'Aumenta o respiro e as áreas para toque.', look.density === 'comfy')}
+      ${toggle('accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Evita rolagens animadas e reduz animações da interface.', look.reduceMotion)}
     </div>
     <a class="btn accessibility-more" id="accessibility-more" href="#config?section=personalization" data-action="accessibility-more">Mais opções de aparência</a>
     <button type="button" class="btn accessibility-reset" id="accessibility-reset" data-action="accessibility-reset">Restaurar configurações visuais</button>
@@ -1519,6 +1741,7 @@ function restoreDialogOpener(opener) {
   target?.focus({ preventScroll: true });
 }
 function render() {
+  acquireActiveScrollLocks();
   ui.dirty = false;
   applyTheme();
   const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
@@ -1541,9 +1764,116 @@ function render() {
   const dc = $('.dchip.on'); if (dc && dc.parentElement) { const sx = dc.parentElement; sx.scrollLeft = dc.offsetLeft - sx.clientWidth / 2 + dc.offsetWidth / 2; }
   $$('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; });
   renderDialog();
+  syncPanelScrollLocks();
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
+  renderPwaUpdateNotice();
   tick();
+}
+function renderPwaUpdateNotice() {
+  let notice = $('#pwa-update-notice');
+  if (!ui.pwaUpdateAvailable || ui.pwaUpdateDismissed || ui.dlg) {
+    notice?.remove();
+    return;
+  }
+  if (notice) return;
+  notice = document.createElement('section');
+  notice.id = 'pwa-update-notice';
+  notice.className = 'pwa-update-notice';
+  notice.setAttribute('role', 'status');
+  notice.setAttribute('aria-label', 'Atualização do Aurora disponível');
+  const message = document.createElement('p');
+  message.textContent = 'Uma nova versão do Aurora está pronta. Seus dados salvos serão mantidos.';
+  const actions = document.createElement('div');
+  actions.className = 'pwa-update-actions';
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'btn back';
+  dismiss.dataset.action = 'pwa-update-dismiss';
+  dismiss.textContent = 'Agora não';
+  const apply = document.createElement('button');
+  apply.type = 'button';
+  apply.className = 'btn primary';
+  apply.dataset.action = 'pwa-update-apply';
+  apply.textContent = 'Atualizar';
+  actions.append(dismiss, apply);
+  notice.append(message, actions);
+  document.body.append(notice);
+}
+function watchPwaRegistration(registration) {
+  pwaRegistration = registration;
+  let announcedWorker = null;
+  const announceWaitingWorker = () => {
+    const waiting = registration.waiting;
+    if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
+    announcedWorker = waiting;
+    ui.pwaUpdateAvailable = true;
+    ui.pwaUpdateDismissed = false;
+    renderPwaUpdateNotice();
+  };
+  registration.addEventListener('updatefound', () => {
+    const installing = registration.installing;
+    installing?.addEventListener('statechange', () => {
+      if (installing.state === 'installed') announceWaitingWorker();
+    });
+  });
+  announceWaitingWorker();
+  const checkForUpdate = () => {
+    if (document.visibilityState !== 'hidden') {
+      void registration.update().catch((error) => {
+        console.warn('O Aurora não conseguiu verificar se há uma atualização disponível.', error);
+      });
+    }
+  };
+  window.addEventListener('focus', checkForUpdate);
+  document.addEventListener('visibilitychange', checkForUpdate);
+}
+function registerPwaSupport() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  if (!pwaSupportPromise) {
+    pwaSupportPromise = (async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('/service-worker.js');
+        watchPwaRegistration(registration);
+        await navigator.serviceWorker.ready;
+        return registration;
+      } catch (error) {
+        pwaSupportPromise = null;
+        console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
+        ui.pushNotice = pomodoroPushErrorMessage(error);
+        if (ui.route === 'pomodoro') render();
+        return null;
+      }
+    })();
+  }
+  return pwaSupportPromise;
+}
+async function applyPwaUpdate() {
+  const waiting = pwaRegistration?.waiting;
+  if (!waiting) {
+    ui.pwaUpdateAvailable = false;
+    renderPwaUpdateNotice();
+    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.');
+    return;
+  }
+  const hasUnsavedChanges = settingsDraftDirty()
+    || Boolean(ui.profileDraft)
+    || Boolean(ui.dlg)
+    || ui.persistFailed.size > 0;
+  if (hasUnsavedChanges
+    && !await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
+  if (Persist.store && !await Persist.flush()) {
+    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.');
+    return;
+  }
+  if (pwaReloading) return;
+  pwaReloading = true;
+  const button = $('[data-action="pwa-update-apply"]');
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  }, { once: true });
+  waiting.postMessage({ type: 'SKIP_WAITING' });
 }
 function setToast(msg, undo) {
   clearTimeout(ui.toastT);
@@ -1571,7 +1901,7 @@ function renderToast() {
   if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
   const icons = { success: 'check', warning: 'alert', error: 'alert', action: 'repeat', info: 'info' };
   const labels = { success: 'Concluído', warning: 'Atenção', error: 'Não foi possível concluir', action: 'Alteração feita', info: 'Informação' };
-  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen ? ' toast-top' : ''}`;
+  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen || ui.quickActionsOpen ? ' toast-top' : ''}`;
   el.setAttribute('role', ui.toast.tone === 'error' ? 'alert' : 'status');
   const toastMessage = typeof ui.toast.msg === 'string' ? preserveCopyTerms(ui.toast.msg) : ui.toast.msg;
   el.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[ui.toast.tone], 18)}</span><span class="toast-content"><span class="toast-label">${labels[ui.toast.tone]}</span><span class="toast-message">${toastMessage}</span></span>${ui.toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
@@ -1604,6 +1934,7 @@ function focusRouteTarget(id) {
 }
 function onRoute() {
   ui.navigationOpen = false;
+  ui.quickActionsOpen = false;
   let r = location.hash.slice(1);
   const queryIndex = r.indexOf('?');
   const query = queryIndex >= 0 ? r.slice(queryIndex + 1) : '';
@@ -1840,6 +2171,7 @@ function togglePomodoroTimer() {
   S.pomodoro = timer;
   commit('pomodoro');
   syncPomodoroPushSchedule(timer);
+  updatePomodoroMiniTimer(now);
 }
 function skipPomodoroBreak() {
   const now = Date.now(), advanced = advancePomodoro(S.pomodoro, pomodoroSettingsForTimer(), now);
@@ -1883,7 +2215,7 @@ function discardPomodoro() {
   });
 }
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
-const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
+const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
 function backupReminderStatusForApp(now = Date.now()) {
   if (S.settings.prefs.sample || ui.backupReminderHidden) return null;
   const activityAt = [
@@ -1914,7 +2246,8 @@ const backupReminder = () => {
 
 function homeNextAction() {
   const now = Date.now(), todayKey = today(), candidates = [];
-  S.tasks.filter((task) => !task.done && (task.dueDate || task.time)).forEach((task) => {
+  S.tasks.filter((task) => !task.done && (task.dueDate || task.time)
+    && (!task.dueDate || task.dueDate > todayKey)).forEach((task) => {
     const day = task.dueDate || todayKey;
     const time = isTime(task.time) ? task.time : '12:00';
     const dueAt = new Date(`${day}T${time}:00`).getTime();
@@ -1949,9 +2282,7 @@ function homeNextAction() {
   if (!next) return '';
   if (next.type === 'task') {
     const task = next.task;
-    const label = task.dueDate && task.dueDate < todayKey ? `Atrasada · ${shortDate(task.dueDate)}`
-      : task.dueDate === todayKey ? task.time ? `Hoje às ${task.time}` : 'Para hoje'
-        : task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
+    const label = task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
     return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
   }
   if (next.type === 'habit') {
@@ -1979,7 +2310,7 @@ function homeHabitCheckins() {
       return h`<li class="home-habit-row">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
         <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span></span>
-        <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}" data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}" aria-pressed="${completed || skipped}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
+        <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}" data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}" aria-pressed="${String(completed || skipped)}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
       </li>`;
     })}</ul>
   </section>`;
@@ -1987,25 +2318,38 @@ function homeHabitCheckins() {
 
 function homeFirstSteps() {
   if (S.settings.prefs.firstStepsDismissed) return '';
+  const hasActiveHabit = S.habits.some((habit) => (habit.status || 'active') === 'active');
   const steps = [
     ['Criar uma tarefa', '#planejar', 'calendarCheck', S.tasks.length > 0],
-    ...(areaOn('habits') ? [['Marcar um hábito', '#habitos', 'leaf', S.habits.some((habit) => habitCompletedFor(habit, today()))]] : []),
+    ...(areaOn('habits') ? [[
+      hasActiveHabit ? 'Marcar um hábito' : 'Criar seu primeiro hábito',
+      '#habitos',
+      'leaf',
+      hasActiveHabit
+        ? S.habits.some((habit) => habitCompletedFor(habit, today()))
+        : false,
+    ]] : []),
     ...(areaOn('pomodoro') ? [['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0]] : []),
     ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0]] : []),
   ];
   if (steps.every(([, , , complete]) => complete)) return '';
-  return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
-    <header class="head"><div><p class="section-kicker">Comece com uma ação pequena</p><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2></div>
-      <button type="button" class="btn ghost sm" data-action="first-steps-dismiss">Dispensar</button>
-    </header>
-    <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete]) => h`<li class="${complete ? 'is-complete' : ''}">
-      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
-    </li>`)}</ol>
-  </section>`;
+  const completedSteps = steps.filter(([, , , complete]) => complete).length;
+  const nextStepIndex = steps.findIndex(([, , , complete]) => !complete);
+  return h`<details class="card home-first-steps" aria-labelledby="home-first-steps-title">
+    <summary class="home-first-steps-summary"><span><span class="section-kicker">Comece com uma ação pequena</span><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2><small class="home-first-steps-progress">${completedSteps} de ${steps.length} ações concluídas</small></span><span class="home-first-steps-toggle" aria-hidden="true">${icon('chevDown', 18)}</span></summary>
+    <div class="home-first-steps-content">
+      <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete], index) => h`<li class="${complete ? 'is-complete' : ''}${index === nextStepIndex ? ' is-next' : ''}">
+      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : index === nextStepIndex ? 'Sugestão para você' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
+      </li>`)}</ol>
+      <button type="button" class="btn ghost sm home-first-steps-dismiss" data-action="first-steps-dismiss">Dispensar</button>
+    </div>
+  </details>`;
 }
 
 function viewInicio() {
   const name = (S.settings.profile.preferredName || S.settings.profile.name).trim();
+  const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
+  const greeting = profileGreeting(profileAppearance.greeting);
   const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
   const overdue = pend.filter((t) => t.dueDate < today());
   const dueToday = pend.filter((t) => t.dueDate === today());
@@ -2013,8 +2357,10 @@ function viewInicio() {
   const completed = tt.filter((t) => t.done);
   const inbox = S.tasks.filter((t) => !t.dueDate && !t.done);
   const optionalAreas = areaTiles();
-  const activeAreaItems = MENU_ITEMS.filter(({ id, area }) => area && areaOn(area) && !HIDDEN_MENU_IDS.includes(id));
-  const homeLayout = settingsView().prefs.homeLayout;
+  const homePrefs = settingsView().prefs;
+  const homeLayout = homePrefs.homeLayout;
+  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => homePrefs.homeShortcuts.includes(id) && (!area || areaOn(area)));
+  const homeMessage = homePrefs.homeMessage;
   const sundayReview = pk(today()).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
@@ -2024,15 +2370,11 @@ function viewInicio() {
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${greet()}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1><p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
-    ${areaGuideButton('inicio')}
-    ${homeFirstSteps()}
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${sampleBanner()}
-    ${backupReminder()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
     <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
       <div class="home-primary">
-        ${homeNextAction()}
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
           <a href="#planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
           <a href="#planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
@@ -2047,17 +2389,26 @@ function viewInicio() {
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map(taskRow)}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map(taskRow)}</ul></section>` : ''}
-            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span>${completed.length}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou monte um plano por etapas.', h`<a class="btn" href="#planejar">Montar plano por etapas</a>`, 'calendarCheck')}
+            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
+          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="#planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
+        ${homeNextAction()}
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
-    ${activeAreaItems.length >= 2 ? h`<section class="home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><h2 id="home-tools-title">O que você pode fazer<i>.</i></h2></div>
+    ${areaGuideButton('inicio')}
+    ${homeFirstSteps()}
+    ${backupReminder()}
+    ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
+      <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
       <div class="home-tool-grid compact-card-grid">
-        <a class="home-tool" href="#planejar"><span class="home-tool-icon">${icon('calendarCheck', 20)}</span><span><b>Planejar</b><small>Tarefas, prazos, calendário e planos por etapas.</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>
-        ${activeAreaItems.map(({ id, area, label, icon: iconName }) => h`<a class="home-tool" href="#${id}"><span class="home-tool-icon">${icon(iconName, 20)}</span><span><b>${AREAS[area]?.[0] || label}</b><small>${AREAS[area]?.[1] || label}</small></span>${icon('chevRight', 18, 'home-tool-go')}</a>`)}
+        ${homeShortcuts.map((shortcut) => {
+          const action = shortcut.id === 'finance' && !S.finance.accounts.length ? 'quick-action-account' : shortcut.action;
+          const label = shortcut.id === 'finance'
+            ? S.finance.accounts.length ? 'Novo lançamento' : 'Criar conta financeira'
+            : shortcut.label;
+          return h`<button class="home-tool" type="button" data-action="${action}"><span class="home-tool-icon">${icon(shortcut.icon, 20)}</span><span><b>${label}</b><small>${shortcut.description}</small></span>${icon('chevRight', 18, 'home-tool-go')}</button>`;
+        })}
       </div>
     </section>` : ''}`;
 }
@@ -2086,36 +2437,58 @@ function taskListHtml() {
       ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
       : hasFilters
         ? h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
-        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="plan-open">${icon('calendar', 16)}Criar plano por etapas</button>`;
+        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button>`;
     return empty(
       hasTasks ? 'Nenhuma tarefa nesse filtro' : 'Ainda não há tarefas',
-      hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa ou monte um plano por etapas.',
+      hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa com prazo, horário e prioridade.',
       actions,
       hasTasks ? 'search' : 'calendarCheck',
     );
   }
   if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>`;
   const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
-  return raw('<div style="display:flex;flex-direction:column;gap:16px">' + G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${it.length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>`.s : ''; }).join('') + '</div>');
+  return raw('<div class="task-results-groups">' + G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${it.length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>`.s : ''; }).join('') + '</div>');
 }
 function plansHtml() {
   const g = {};
   S.tasks.forEach((t) => { if (t.groupId) (g[t.groupId] ||= { title: t.groupTitle, items: [] }).items.push(t); });
   const plans = Object.entries(g); if (!plans.length) return '';
-  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, p]) => { const d = p.items.filter((t) => t.done).length, pc = Math.round(d / p.items.length * 100); return h`<li><div class="grow"><div class="ttl">${p.title}</div><div class="bar" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${p.title}" style="margin:6px 0 2px"><span style="width:${pc}%"></span></div><span class="small muted">${d} de ${p.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${p.title}">${icon('trash', 18)}</button></li>`; })}</ul></section>`;
+  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, p]) => { const d = p.items.filter((t) => t.done).length, pc = Math.round(d / p.items.length * 100); return h`<li><div class="grow"><div class="ttl">${p.title}</div><div class="bar plan-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${p.title}"><span style="width:${pc}%"></span></div><span class="small muted">${d} de ${p.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${p.title}">${icon('trash', 18)}</button></li>`; })}</ul></section>`;
 }
 function taskCalendar() {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
+  const eventsByDay = new Map();
+  (googleCalendar.isConnected() ? ui.googleCalendar.events : []).forEach((event) => {
+    const dayEvents = eventsByDay.get(event.day) || [];
+    dayEvents.push(event);
+    eventsByDay.set(event.day, dayEvents);
+  });
   const wd = Array.from({ length: 7 }, (_, i) => DIAS[(ws + i) % 7]);
   const by = {}; S.tasks.forEach((t) => { if (t.dueDate && t.dueDate.startsWith(ym) && !(t.done && ui.filters.f === 'pendentes')) (by[t.dueDate] = by[t.dueDate] || []).push(t); });
   const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
   for (let d = 1; d <= n; d++) {
-    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done);
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}"><b>${d}</b><i>${pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : ''}</i></button>`);
+    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done), dayEvents = eventsByDay.get(k) || [];
+    const labels = [
+      `${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
+      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} do Google Calendar`] : []),
+    ];
+    const markers = [
+      pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : '',
+      dayEvents.length ? '<u class="google-event-dot"></u>' : '',
+    ].join('');
+    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${d}</b><i>${markers}</i></button>`);
   }
   const day = S.tasks.filter((t) => t.dueDate === ui.taskDay).sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    <div class="tcal" role="group" aria-label="Calendário de tarefas">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
+    ${googleCalendarPanel()}
+    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos do Google">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
+    ${googleCalendar.isConnected() ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
+      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
+      ${selectedEvents.length
+        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName}</small></span></li>`)}</ul>`
+        : h`<p class="small muted">Nenhum evento do Google Calendar neste dia.</p>`}
+    </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
       ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul>` : h`<p class="small muted">Nada marcado para este dia.</p>`}
       <button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button></section>`;
@@ -2136,16 +2509,167 @@ function taskWeek() {
     </section>`)}</div>
   </div>`;
 }
-function planningQuickPreview(value) {
-  const parsed = parseQuickTaskText(value, today());
-  if (parsed.error) return parsed.error;
-  if (!parsed.title) return 'Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.';
-  if (!parsed.hasDeadline) return `${parsed.title} · sem prazo identificado`;
-  return `${parsed.title} · ${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`;
+function googleCalendarPanel() {
+  const state = ui.googleCalendar;
+  const configured = googleCalendar.isConfigured();
+  const connected = googleCalendar.isConnected();
+  const prepared = googleCalendar.isPrepared();
+  const busy = ['loading-sdk', 'authorizing', 'loading-calendars', 'loading-events'].includes(state.status);
+  const expired = ['connected', 'error', 'loading-events'].includes(state.status) && !connected;
+  const selected = new Set(state.selectedIds);
+  const statusText = {
+    'loading-sdk': 'Preparando a autorização segura do Google…',
+    authorizing: 'Aguardando sua autorização do Google…',
+    'loading-calendars': 'Carregando seus calendários…',
+    'loading-events': 'Buscando eventos deste mês…',
+  }[state.status];
+  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
+    <div class="head">
+      <div><h3 id="google-calendar-title">Google Calendar</h3><span class="badge">Somente leitura</span></div>
+      ${connected ? h`<div class="row"><button type="button" class="btn sm" data-action="google-calendar-refresh" ${busy ? raw('disabled') : ''}>Atualizar</button><button type="button" class="btn sm ghost" data-action="google-calendar-disconnect">Parar de mostrar eventos</button></div>` : ''}
+    </div>
+    <p class="small muted">Mostra eventos no calendário do Planejar. O Aurora não cria, altera nem salva eventos; a autorização e os eventos ficam somente nesta aba.</p>
+    ${!configured ? h`<p class="small" role="alert">Integração indisponível: configure <code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code> neste ambiente.</p>` : ''}
+    ${configured && !connected && !prepared && !busy ? h`<button type="button" class="btn" data-action="google-calendar-prepare">${state.status === 'error' ? 'Tentar novamente' : 'Conectar Google Calendar'}</button>` : ''}
+    ${configured && prepared && !connected && !busy ? h`<button type="button" class="btn primary" data-action="google-calendar-authorize">Autorizar leitura do Google Calendar</button>` : ''}
+    ${expired ? h`<p class="small muted" role="status">A autorização expirou ou foi revogada. Autorize novamente para voltar a exibir os eventos.</p>` : ''}
+    ${statusText ? h`<p class="small muted" role="status" aria-live="polite">${statusText}</p>` : ''}
+    ${state.error ? h`<p class="small google-calendar-error" role="alert">${state.error}</p>` : ''}
+    ${connected && state.calendars.length ? h`<div class="google-calendar-sources" aria-label="Calendários incluídos">
+      <span class="small muted">Calendários exibidos</span>
+      ${state.calendars.map((calendar) => h`<button type="button" class="google-calendar-source" data-action="google-calendar-toggle" data-calendar-id="${calendar.id}" aria-pressed="${selected.has(calendar.id)}" ${busy ? raw('disabled') : ''}>${selected.has(calendar.id) ? icon('check', 15) : icon('plus', 15)}<span>${calendar.name}${calendar.primary ? ' · principal' : ''}</span></button>`)}
+    </div>` : ''}
+    ${connected && !state.calendars.length && !busy ? h`<p class="small muted">Nenhum calendário com eventos disponíveis foi encontrado.</p>` : ''}
+    ${connected ? h`<p class="fine">O acesso expira ao fechar a aba ou quando o Google o revoga. Para remover a permissão concedida, gerencie o Aurora nas <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">permissões da sua Conta Google</a>.</p>` : ''}
+  </section>`;
 }
-function updatePlanningQuickPreview(input) {
-  const preview = $('#planning-quick-preview');
-  if (preview) preview.textContent = planningQuickPreview(input.value);
+function googleCalendarRange(month) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return {
+    start: new Date(year, monthNumber - 1, 1),
+    end: new Date(year, monthNumber, 1),
+  };
+}
+function resetGoogleCalendarState() {
+  googleCalendar.clear();
+  ui.googleCalendar.requestId += 1;
+  ui.googleCalendar = { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: ui.googleCalendar.requestId };
+}
+async function loadGoogleCalendarEvents() {
+  const state = ui.googleCalendar;
+  const month = ui.taskCal;
+  const requestId = ++state.requestId;
+  if (!googleCalendar.isConnected()) {
+    state.status = 'disconnected';
+    state.events = [];
+    state.error = 'A autorização expirou ou foi revogada. Conecte novamente para continuar.';
+    state.loadedMonth = '';
+    render();
+    return;
+  }
+  const selectedIds = state.selectedIds.filter((id) => state.calendars.some((calendar) => calendar.id === id));
+  state.error = '';
+  state.events = [];
+  state.loadedMonth = '';
+  state.status = 'loading-events';
+  render();
+  if (!selectedIds.length) {
+    state.status = 'connected';
+    state.loadedMonth = month;
+    render();
+    return;
+  }
+
+  try {
+    const events = await googleCalendar.getEvents(selectedIds, googleCalendarRange(month));
+    if (ui.googleCalendar.requestId !== requestId || ui.taskCal !== month) return;
+    const names = new Map(state.calendars.map((calendar) => [calendar.id, calendar.name]));
+    state.events = events.map((event) => ({ ...event, calendarName: names.get(event.calendarId) || 'Google Calendar' }));
+    state.loadedMonth = month;
+    state.status = 'connected';
+    render();
+  } catch (error) {
+    if (ui.googleCalendar.requestId !== requestId) return;
+    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
+    state.error = error instanceof Error ? error.message : 'Não foi possível carregar os eventos do Google Calendar.';
+    render();
+  }
+}
+async function loadGoogleCalendarList() {
+  const state = ui.googleCalendar;
+  const requestId = ++state.requestId;
+  state.status = 'loading-calendars';
+  state.error = '';
+  render();
+  try {
+    const calendars = await googleCalendar.getCalendars();
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    if (!calendars.length) throw new Error('Nenhum calendário com permissão de leitura foi encontrado.');
+    state.calendars = calendars;
+    const primary = calendars.filter((calendar) => calendar.primary).map((calendar) => calendar.id);
+    state.selectedIds = primary.length
+      ? primary
+      : calendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
+    if (!state.selectedIds.length) state.selectedIds = [calendars[0].id];
+    state.status = 'connected';
+    render();
+    await loadGoogleCalendarEvents();
+  } catch (error) {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
+    state.error = error instanceof Error ? error.message : 'Não foi possível carregar seus calendários do Google.';
+    render();
+  }
+}
+function prepareGoogleCalendar() {
+  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.');
+  const state = ui.googleCalendar;
+  state.status = 'loading-sdk';
+  state.error = '';
+  render();
+  void googleCalendar.prepare().then(() => {
+    if (ui.googleCalendar !== state) return;
+    state.status = 'ready';
+    render();
+  }).catch((error) => {
+    if (ui.googleCalendar !== state) return;
+    state.status = 'error';
+    state.error = error instanceof Error ? error.message : 'Não foi possível preparar a conexão com o Google Calendar.';
+    render();
+  });
+}
+function authorizeGoogleCalendar() {
+  const state = ui.googleCalendar;
+  const requestId = ++state.requestId;
+  let authorization;
+  try {
+    authorization = googleCalendar.authorize();
+  } catch (error) {
+    ui.googleCalendar.status = 'error';
+    ui.googleCalendar.error = error instanceof Error ? error.message : 'Não foi possível iniciar a autorização do Google Calendar.';
+    render();
+    return;
+  }
+  state.status = 'authorizing';
+  state.error = '';
+  render();
+  void authorization.then(() => {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    return loadGoogleCalendarList();
+  }).catch((error) => {
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    state.status = googleCalendar.isPrepared() ? 'ready' : 'error';
+    state.error = error instanceof Error ? error.message : 'Não foi possível autorizar a leitura do Google Calendar.';
+    render();
+  });
+}
+function toggleGoogleCalendar(id) {
+  const state = ui.googleCalendar;
+  if (!googleCalendar.isConnected() || !state.calendars.some((calendar) => calendar.id === id)) return;
+  state.selectedIds = state.selectedIds.includes(id)
+    ? state.selectedIds.filter((selectedId) => selectedId !== id)
+    : [...state.selectedIds, id];
+  void loadGoogleCalendarEvents();
 }
 function viewPlanejar() {
   const f = ui.filters;
@@ -2162,21 +2686,12 @@ function viewPlanejar() {
     ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
     : 'Nenhuma tarefa atrasada';
   return h`${pageTitle('Planejar')}${areaGuideButton('planejar')}
-    <section class="card planning-quick-entry" aria-labelledby="planning-quick-entry-title">
-      <div class="head"><div><p class="section-kicker">Adicionar sem abrir formulário</p><h2 id="planning-quick-entry-title">Tarefa rápida<i>.</i></h2></div></div>
-      <form class="planning-quick-form" data-form="planning-quick-task">
-        <label class="sr" for="planning-quick-task">Nova tarefa</label>
-        <input id="planning-quick-task" name="title" type="text" maxlength="180" autocomplete="off" placeholder="Ex.: Enviar proposta sexta 18h" required data-input="planning-quick-task">
-        <button type="submit" class="btn primary">${icon('plus', 16)}Adicionar</button>
-      </form>
-      <p id="planning-quick-preview" class="small muted" aria-live="polite">Digite uma tarefa. Você pode incluir hoje, amanhã ou sexta 18h no fim.</p>
-    </section>
     <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
       <div class="planning-overview-copy">
         <span class="section-kicker">Resumo de tarefas</span>
         <h2 id="planning-overview-title">Tarefas por prazo<i>.</i></h2>
         <p>${todaySummary}. ${overdueSummary}.</p>
-        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button><button type="button" class="btn" data-action="plan-open">${icon('calendar', 16)}Plano por etapas</button></div>
+        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
       </div>
       <dl class="planning-overview-stats" aria-label="Resumo das tarefas pendentes">
         <div><dt>Para hoje</dt><dd>${todayPending}</dd></div>
@@ -2189,7 +2704,7 @@ function viewPlanejar() {
       <div class="seg" role="group" aria-label="Modo de visualização"><button type="button" aria-pressed="${ui.planView === 'lista'}" data-action="plan-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.planView === 'calendario'}" data-action="plan-view" data-v="calendario">${icon('calendar', 16)}Calendário</button><button type="button" aria-pressed="${ui.planView === 'semana'}" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Semana</button><button type="button" aria-pressed="${ui.planView === 'revisao'}" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Revisão</button></div>
       ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
-        <label style="flex:0 0 132px"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
+        <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
       <div id="task-results" aria-live="polite">${taskListHtml()}</div>`}</section>
     ${plansHtml()}`;
 }
@@ -2203,7 +2718,7 @@ function habitMonthlyHistory(habit) {
   const days = habitMonthDays(ui.habitMonth, weekStartDay());
   const stats = habitMonthStats(habit, ui.habitMonth, today(), (day) => habitCompletedFor(habit, day));
   return h`<details class="habit-month">
-    <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}</summary>
+    <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <div class="mnav"><button class="ibtn" type="button" data-action="habit-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 18)}</button><b>${cap(ymLabel(ui.habitMonth))}</b><button class="ibtn" type="button" data-action="habit-month" data-n="1" aria-label="Próximo mês" ${ui.habitMonth >= today().slice(0, 7) ? raw('disabled') : ''}>${icon('chevRight', 18)}</button></div>
     <p class="small muted">${stats.completed} de ${stats.scheduled} dias programados concluídos até hoje neste mês.</p>
     <div class="habit-month-grid" role="group" aria-label="Calendário de ${habit.name} em ${ymLabel(ui.habitMonth)}">
@@ -2240,19 +2755,43 @@ function habitYearHeat(habit) {
     return { day, scheduled, completed, skipped };
   });
   return h`<details class="habit-year" id="d-year-${habit.id}" ${ui.openDetails[`year-${habit.id}`] ? raw('open') : ''}>
-    <summary>Ano em calendário</summary>
+    <summary>Ano em calendário${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <p class="small muted">${done} de ${planned} ${plural(planned, 'dia programado concluído', 'dias programados concluídos')} nos últimos 12 meses.</p>
     <div class="habit-year-grid" role="img" aria-label="Calendário de 12 meses de ${habit.name}: ${done} de ${planned} dias programados concluídos">${cells.map((cell) => h`<span class="habit-year-cell${cell.completed ? ' is-done' : cell.skipped ? ' is-skipped' : cell.scheduled ? ' is-missed' : ''}" title="${longDate(cell.day)}${cell.skipped ? ' · pulado' : ''}"></span>`)}</div>
     <p class="habit-year-legend small muted"><span class="habit-year-cell"></span>não programado <span class="habit-year-cell is-missed"></span>não feito <span class="habit-year-cell is-skipped"></span>pulado <span class="habit-year-cell is-done"></span>feito</p>
   </details>`;
 }
-function remainingHabitSuggestions() {
-  const names = new Set(S.habits.map((habit) => norm(habit.name)));
-  const hasWaterHabit = S.habits.some(isWaterHabit);
-  return SUGGESTED_HABITS.filter((suggestion) => (
-    !names.has(norm(suggestion.name))
-    && !(suggestion.id === 'water' && hasWaterHabit)
-  ));
+function updateHabitIdeaFilters() {
+  const remaining = remainingHabitSuggestions(S.habits);
+  const suggestions = filterSuggestedHabits(
+    remaining,
+    ui.habitIdeaCategory,
+    ui.habitIdeaTag,
+    ui.habitIdeaQuery,
+  );
+  const visibleIds = new Set(suggestions.map((suggestion) => suggestion.id));
+  const defaultView = ui.habitIdeaCategory === 'all'
+    && ui.habitIdeaTag === 'all'
+    && !String(ui.habitIdeaQuery || '').trim();
+  const previewOnly = defaultView && !ui.habitIdeasExpanded;
+  document.querySelectorAll('[data-habit-idea]').forEach((button) => {
+    button.hidden = !visibleIds.has(button.dataset.id) || (previewOnly && button.dataset.preview === 'true');
+  });
+  document.querySelectorAll('.habit-idea-section').forEach((section) => {
+    section.hidden = !section.querySelector('[data-habit-idea]:not([hidden])');
+  });
+  const count = document.querySelector('[data-habit-idea-count]');
+  if (count) count.textContent = `${suggestions.length} ${plural(suggestions.length, 'ideia encontrada', 'ideias encontradas')}`;
+  const emptyState = document.querySelector('[data-habit-idea-empty]');
+  if (emptyState) emptyState.hidden = suggestions.length > 0;
+  const clearButton = document.querySelector('[data-action="habit-ideas-clear"]');
+  if (clearButton) clearButton.hidden = defaultView;
+  const expandButton = document.querySelector('[data-action="habit-ideas-expand"]');
+  if (expandButton) {
+    expandButton.hidden = !defaultView || suggestions.length <= 4;
+    expandButton.setAttribute('aria-expanded', String(ui.habitIdeasExpanded));
+    expandButton.textContent = ui.habitIdeasExpanded ? 'Mostrar menos ideias' : `Ver todas as ${suggestions.length} ideias`;
+  }
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
 function habitWaterTracker(habit) {
@@ -2291,98 +2830,32 @@ function habitRow(habit) {
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
   return h`<li class="habit-row${done ? ' is-done' : ''}${pending ? ' is-pending' : ''}${canCheck ? '' : ' is-off'}" data-habit-id="${habit.id}" style="--hc:${color}">
-    <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}" aria-pressed="${done}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
+    <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}" aria-pressed="${String(done)}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span class="habit-circle-check">${icon('check', 22)}</span>
     </button>
     <details class="habit-more" id="d-hab-${habit.id}" ${open}>
       <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span></span>${icon('chevDown', 18, 'chev')}</summary>
       <div class="habit-more-body">
         ${habitWaterTracker(habit)}
-        <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
-          const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
-          const editable = saved && status === 'active' && w.scheduled && w.day <= today();
-          return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
-        })}</div>
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
         ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
-        ${saved ? h`<div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button></div>` : ''}
+        ${saved ? h`<details class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>` : ''}
       </div>
     </details>
+    <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
+      const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
+      const editable = saved && status === 'active' && w.scheduled && w.day <= today();
+      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
+    })}</div>
   </li>`;
 }
 function viewHabits() {
-  if (!areaOn('habits')) return h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}${gate('habits', 'Hábitos')}`;
-  if (!habitsTemplate) {
-    if (!habitsTemplatePromise && !habitsTemplateError) requestHabitsTemplate();
-    return habitsTemplateError
-      ? h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="alert"><p>Não foi possível carregar a área de Hábitos.</p><button class="btn" data-action="retry-habits-template">Tentar novamente</button></section>`
-      : h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="status">Carregando Hábitos…</section>`;
-  }
-  const suggestions = remainingHabitSuggestions();
-  const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
-  const archived = S.habits.filter((habit) => habit.status === 'archived');
-  const overview = habitWeekOverview(
-    live,
-    today(),
-    weekStartDay(),
-    habitCompletedFor,
-    (habit, day) => habitIsSkipped(habit, day, today()),
-  );
-  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind);
-  const pushStatus = hasReminders ? getPomodoroPushStatus() : null;
-  const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
-    && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
-  const dow = pk(today()).getDay();
-  const todays = live.filter((habit) => (habit.status || 'active') === 'active' && habit.days.includes(dow));
-  const others = live.filter((habit) => !todays.includes(habit));
-  const skippedN = todays.filter((habit) => habitIsSkipped(habit, today(), today())).length;
-  const eligibleToday = todays.length - skippedN;
-  const doneN = todays.filter((habit) => !habitIsSkipped(habit, today(), today()) && habitCompletedFor(habit, today())).length;
-  const pct = eligibleToday ? Math.round(doneN / eligibleToday * 100) : 0;
-  const todaySummary = eligibleToday
-    ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
-    : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
-  const ideasOpen = ui.openDetails.ideas ?? S.habits.length === 0 ? raw('open') : '';
-  const slots = {
-    'page-title': h`${pageTitle('Hábitos')}`.s,
-    'area-guide-button': areaGuideButton('habitos').s,
-    'today-summary': h`${todaySummary}`.s,
-    'add-icon': icon('plus', 16).s,
-    'today-progress': eligibleToday
-      ? h`<div class="habit-today-bar" role="progressbar" aria-label="Hábitos concluídos hoje, sem contar dias pulados" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`.s
-      : '',
-    'todays-habits': todays.length
-      ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
-      : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
-    'reminder-note': hasReminders
-      ? h`<div class="habit-reminder-note">
-        <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede e do serviço de notificações.</p>
-        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos neste dispositivo' : 'Ativar avisos fora do app'}</button>
-        <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
-        <p class="small muted">A inscrição é compartilhada com o Pomodoro neste dispositivo; desativá-la interrompe os avisos de ambos. O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
-      </div>`.s
-      : '',
-    'week-overview': h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
-      <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
-        ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
-        : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
-      ${overview.planned ? h`<progress value="${overview.completed}" max="${overview.planned}" aria-label="Consistência dos hábitos nesta semana"></progress>` : ''}
-      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span></summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
-    </section>`.s,
-    'other-habits': others.length
-      ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
-      : '',
-    'habit-ideas': suggestions.length
-      ? h`<details class="card habit-ideas" id="d-ideas" ${ideasOpen}>
-        <summary><span><b>Ideias de hábitos</b><small>Toque para criar com ícone e cor já escolhidos.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
-        <div class="habit-idea-grid">${suggestions.map((idea) => h`<button type="button" class="habit-idea" data-action="habit-idea" data-id="${idea.id}" style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><b>${idea.name}</b></button>`)}</div>
-      </details>`.s
-      : '',
-    'archived-habits': archived.length
-      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">Restaurar</button><button type="button" class="ibtn" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar hábito arquivado ${habit.name}">${icon('pencil', 18)}</button></li>`)}</ul></details>`.s
-      : '',
-  };
-  return raw(renderHabitsTemplate(habitsTemplate, slots));
+  return renderHabitsView({
+    S, ui, areaOn, pageTitle, areaGuideButton, gate, habitsTemplate,
+    habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
+    weekStartDay, habitCompletedFor, getPomodoroPushStatus, plural, habitRow,
+    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
+  });
 }
 
 function requestHabitsTemplate() {
@@ -2407,6 +2880,7 @@ function viewPomodoro() {
   if (g) return h`${areaNav('pomodoro')}${pageTitle('Pomodoro')}${areaGuideButton('pomodoro')}${g}`;
   const timer = S.pomodoro, preferences = settingsView().prefs.pomodoro;
   const pom = effectivePomodoroSettings(preferences);
+  const presetLabels = { short: 'Rápido', classic: 'Clássico', extended: 'Estendido', deep: 'Foco profundo' };
   const running = timer.startedAt !== null;
   const elapsed = phaseElapsedSeconds(timer);
   const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
@@ -2422,28 +2896,34 @@ function viewPomodoro() {
     <section class="card focus-timer free-pomodoro" data-phase="${timer.phase}" aria-labelledby="standalone-pomodoro-title">
       <header class="focus-timer-head"><div><span class="focus-eyebrow">${standalonePomodoroPhaseName(timer.phase)}</span><h2 id="standalone-pomodoro-title">Foque em uma coisa por vez<i>.</i></h2><p class="free-pomodoro-subtitle">${focusTask ? h`Tarefa vinculada: <b class="user-value">${focusTask.title}</b> · ${dur(focusedSeconds)} focados` : timer.focusLabel ? h`Foco em: <b class="user-value">${timer.focusLabel}</b>` : 'Defina um foco opcional e comece seu primeiro bloco.'}</p></div></header>
       <div class="focus-timer-body">
-        <div class="focus-dial" aria-hidden="true"><svg viewBox="0 0 112 112"><circle class="focus-dial-track" cx="56" cy="56" r="50"/><circle class="focus-dial-progress" id="standalone-pomo-progress" cx="56" cy="56" r="50" style="stroke-dasharray:314.2;stroke-dashoffset:${(circumference * (1 - Math.min(1, elapsed / duration))).toFixed(1)}"/></svg><div class="focus-clock"><div class="timer" id="standalone-pomo-clock" role="timer" aria-live="off">${clock(remaining)}</div><span class="small muted" id="standalone-pomo-state">${standalonePomodoroPhaseLabel(timer.phase, running, hasProgress)}</span></div></div>
-        <div class="focus-timer-actions">
-          <label class="f free-pomodoro-label">Em que você vai focar? <span class="muted small">${timer.focusTaskId ? '(tarefa vinculada)' : '(opcional)'}</span><input type="text" id="pomo-focus-label" data-change="pomo-label" maxlength="40" autocomplete="off" placeholder="Ex.: estudar inglês" value="${timer.focusLabel || ''}" ${timer.focusTaskId ? raw('disabled') : ''}></label>
+        <div class="focus-dial-column">
+          <div class="focus-dial" aria-hidden="true"><svg viewBox="0 0 112 112"><circle class="focus-dial-track" cx="56" cy="56" r="50"/><circle class="focus-dial-progress" id="standalone-pomo-progress" cx="56" cy="56" r="50" style="stroke-dasharray:314.2;stroke-dashoffset:${(circumference * (1 - Math.min(1, elapsed / duration))).toFixed(1)}"/></svg><div class="focus-clock"><div class="timer" id="standalone-pomo-clock" role="timer" aria-live="off">${clock(remaining)}</div><span class="small muted" id="standalone-pomo-state">${standalonePomodoroPhaseLabel(timer.phase, running, hasProgress)}</span></div></div>
           <div class="focus-controls">
             <button type="button" class="btn primary" data-action="toggle-free-timer" aria-keyshortcuts="Space" title="Atalho: barra de espaço">${icon(running ? 'pause' : 'play', 18)}${running ? 'Pausar' : hasProgress ? 'Retomar' : 'Começar foco'}</button>
             ${timer.phase !== 'focus' ? h`<button type="button" class="btn" data-action="skip-free-break">Pular pausa</button>` : ''}
           </div>
-          ${hasProgress || running ? h`<details class="pomodoro-end-actions" id="d-pomodoro-end-actions" ${ui.openDetails['pomodoro-end-actions'] ? raw('open') : ''}><summary>Encerrar antes do tempo</summary><div><button type="button" class="btn" data-action="finish-free-timer">${icon('check', 18)}Encerrar sessão</button><button type="button" class="btn ghost" data-action="discard-free-timer">Descartar sessão</button></div></details>` : ''}
+        </div>
+        <div class="focus-timer-actions">
+          <label class="f free-pomodoro-label"><span>Em que você vai focar?</span><small class="muted">${timer.focusTaskId ? '(tarefa vinculada)' : '(opcional)'}</small><input type="text" id="pomo-focus-label" data-change="pomo-label" maxlength="40" autocomplete="off" placeholder="Ex.: estudar inglês" value="${timer.focusLabel || ''}" ${timer.focusTaskId ? raw('disabled') : ''}></label>
+          ${hasProgress || running ? h`<details class="pomodoro-end-actions" id="d-pomodoro-end-actions" ${ui.openDetails['pomodoro-end-actions'] ? raw('open') : ''}><summary>Encerrar antes do tempo<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><div><button type="button" class="btn" data-action="finish-free-timer">${icon('check', 18)}Encerrar sessão</button><button type="button" class="btn ghost" data-action="discard-free-timer">Descartar sessão</button></div></details>` : ''}
           <p class="focus-prompt" id="standalone-pomo-copy">${timerPhaseMessage(timer.phase, pom)}</p>
-          <details class="free-pomodoro-settings" id="d-pomodoro-settings" ${ui.openDetails['pomodoro-settings'] ? raw('open') : ''}>
-            <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b></summary>
+        </div>
+      </div>
+      <p class="err" id="standalone-pomo-error" role="alert"></p>
+    </section>
+    <details class="card free-pomodoro-settings" id="d-pomodoro-options" ${ui.openDetails['pomodoro-options'] ? raw('open') : ''}>
+            <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
             <form class="free-pomodoro-settings-form" data-form="settings-save" novalidate>
-            <div class="free-pomodoro-settings-head"><div><span>Configuração</span><h3>Bloco de tempo</h3></div><b>${pom.focusMin} / ${pom.breakMin} min</b></div>
+            <div class="free-pomodoro-settings-head"><div><span>PERSONALIZE</span><h3>Tempo de cada fase</h3></div><b>${pom.focusMin} / ${pom.breakMin} min</b></div>
             <div class="free-pomodoro-presets" role="group" aria-label="Bloco de tempo">
-              <button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="classic" aria-pressed="${preferences.preset === 'classic' ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>Clássico · ${POMODORO_PRESETS.classic.focusMin}/${POMODORO_PRESETS.classic.breakMin} min</button>
-              <button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="custom" aria-pressed="${preferences.preset === 'custom' ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>Personalizado · ${preferences.focusMin}/${preferences.breakMin} min</button>
+              ${Object.entries(POMODORO_PRESETS).map(([preset, times]) => h`<button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="${preset}" aria-pressed="${preferences.preset === preset ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>${presetLabels[preset]} · ${times.focusMin}/${times.breakMin} min</button>`)}
             </div>
-            <p class="small muted free-pomodoro-hint">${presetDisabled ? 'Conclua ou descarte o Pomodoro atual para trocar o bloco ou editar os tempos.' : preferences.preset === 'custom' ? 'Edite os tempos de foco e pausa.' : 'Selecione Personalizado para definir outros tempos.'}</p>
-            ${preferences.preset === 'custom' ? h`<div class="form free-pomodoro-durations">
-              <label class="f">Foco (min)<input type="number" inputmode="numeric" data-change="free-pomo-focus" min="5" max="120" step="1" value="${preferences.focusMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-              <label class="f">Pausa (min)<input type="number" inputmode="numeric" data-change="free-pomo-break" min="1" max="60" step="1" value="${preferences.breakMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-            </div>` : ''}
+            <p class="small muted free-pomodoro-hint">${presetDisabled ? 'Conclua ou descarte a sessão para editar os tempos.' : 'Escolha um ritmo pronto ou digite seus próprios minutos.'}</p>
+            <div class="form free-pomodoro-durations">
+              <label class="f">Foco (min)<input type="number" inputmode="numeric" data-change="free-pomo-focus" min="5" max="120" step="1" value="${pom.focusMin}" ${presetDisabled ? raw('disabled') : ''}></label>
+              <label class="f">Pausa (min)<input type="number" inputmode="numeric" data-change="free-pomo-break" min="1" max="60" step="1" value="${pom.breakMin}" ${presetDisabled ? raw('disabled') : ''}></label>
+            </div>
+            ${settingsSaveButton('Salvar tempos')}
             <label class="check free-pomodoro-auto"><input type="checkbox" data-change="free-pomo-auto" ${preferences.autoAdvance !== false ? raw('checked') : ''} ${presetDisabled ? raw('disabled') : ''}><span><b>Avançar fases automaticamente</b><small class="muted">Quando uma fase termina, a próxima começa sozinha.</small></span></label>
             <div class="form free-pomodoro-durations">
               <label class="f">Toque do alerta
@@ -2457,22 +2937,17 @@ function viewPomodoro() {
               </label>
               <button type="button" class="btn" data-action="preview-pomodoro-sound">Ouvir toque</button>
             </div>
-            ${settingsSaveButton()}
           </form>
-          </details>
-        </div>
-      </div>
-      <details class="pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
-        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</small></summary>
+    </details>
+    <details class="card pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
+        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</small><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
         <div class="pomodoro-push-content">
           <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p></div>
           <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona</summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
+          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
-      </details>
-      <p class="err" id="standalone-pomo-error" role="alert"></p>
-    </section>
+    </details>
     ${pomodoroHistoryCard(timer)}`;
 }
 function pomodoroHistoryCard(timer) {
@@ -2524,7 +2999,7 @@ const CYC_SHORT_LABEL = {
 const cycLabel = (cat, v) => (CYC.find((c) => c.id === cat)?.opts.find((o) => o[0] === v) || [, v])[1];
 const dayLog = (k) => S.cycleLog[k] || {};
 const isBleeding = (l) => ['light', 'medium', 'heavy'].includes(l.flow);
-const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || l.sexualActivity || ['pain', 'mood', 'digestion', 'skin'].some((c) => (l[c] || []).length));
+const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || l.sexualActivity || l.masturbationActivity || Number.isInteger(l.orgasmCount) || ['pain', 'mood', 'digestion', 'skin'].some((c) => (l[c] || []).length));
 function cycleLogDraft(log = {}) {
   return Object.fromEntries(Object.entries(log).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
 }
@@ -2537,7 +3012,9 @@ function cycleLogSummary(log) {
   return [
     log.flow ? `Fluxo: ${cycLabel('flow', log.flow)}` : '',
     log.sexualActivity ? 'Relação sexual registrada' : '',
+    log.masturbationActivity ? 'Masturbação registrada' : '',
     log.contraceptionMethods?.length ? 'método contraceptivo registrado' : '',
+    Number.isInteger(log.orgasmCount) ? `${log.orgasmCount} ${plural(log.orgasmCount, 'orgasmo', 'orgasmos')}` : '',
     symptomCount ? `${symptomCount} ${plural(symptomCount, 'sintoma', 'sintomas')}` : '',
     log.note ? 'com anotação' : '',
   ].filter(Boolean).join(' · ');
@@ -2567,7 +3044,10 @@ function cycleCalendarPhase(day, stats) {
 function topSymptoms() {
   const from = addDays(today(), -90), cnt = {};
   Object.entries(S.cycleLog).forEach(([k, l]) => { if (k < from) return; ['pain', 'mood', 'digestion', 'skin'].forEach((c) => (l[c] || []).forEach((v) => { const key = c + ':' + v; cnt[key] = (cnt[key] || 0) + 1; })); ['energy', 'sleep'].forEach((c) => { if (l[c]) { const key = c + ':' + l[c]; cnt[key] = (cnt[key] || 0) + 1; } }); });
-  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, n]) => { const [c, v] = key.split(':'); return [cycLabel(c, v), n]; });
+  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, count]) => {
+    const [category, value] = key.split(':');
+    return { category, value, label: cycLabel(category, value), count };
+  });
 }
 function viewCiclo() {
   const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${pageTitle('Ciclo')}${areaGuideButton('ciclo')}${g}`;
@@ -2605,7 +3085,7 @@ function viewCiclo() {
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
-      <div class="cycle-day-tools"><button type="button" class="btn sm" data-action="cyc-batch-open">${icon('calendar', 16)}Adicionar sintomas a vários dias</button></div>
+      <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
       <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
     <section class="card cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
       <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
@@ -2616,7 +3096,7 @@ function viewCiclo() {
         <span><i class="lg p"></i>Próximo início estimado</span>
         <span><i class="lg l"></i>Dia com registro</span>
       </div></section>
-    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(([l, n]) => h`<li><span class="grow ttl">${l}</span><span class="badge">${n} ${plural(n, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
+    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
     <details class="card cycle-health-card" open>
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Saúde menstrual e sexual</strong><small>Entenda mudanças do ciclo, cuidados nas relações e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">
@@ -2651,6 +3131,11 @@ function viewCiclo() {
 function settingsSegment(look, key, label, options, action = 'look') {
   return h`<div class="seg" role="group" aria-label="${label}">${options.map(([value, text, ic, sample]) => h`<button type="button" aria-pressed="${String(look[key]) === String(value)}" data-action="${action}" data-k="${key}" data-v="${value}">${ic ? icon(ic, 16) : ''}${sample ? h`<span class="appearance-font-sample appearance-font-sample-${value}" aria-hidden="true">Aa</span>` : ''}<span class="appearance-segment-label">${text}</span></button>`)}</div>`;
 }
+function activeAppearancePreset(settings) {
+  return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
+    && settings.look.density === preset.density
+    && settings.look.font === preset.font)?.[0] || '';
+}
 function aparencia(s) {
   s = settingsView();
   const L = s.look;
@@ -2661,6 +3146,7 @@ function aparencia(s) {
     && !L.contrast && !L.readable && !L.highlightLinks && !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
     <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Personalização<i>.</i></h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
+    ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
     ${group('appearance-mode-title', 'Tema', 'Claro, escuro ou o mesmo do seu aparelho. O tema é salvo ao tocar.', h`<div class="seg" role="group" aria-label="Tema">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="personalization-mode-${value}" aria-pressed="${String(L.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>`)}
     ${group('appearance-color-title', 'Cor de destaque', `Paleta atual: ${currentPalette}.`, h`<div class="swatches appearance-swatches" role="group" aria-label="Paletas de cor">${Object.entries(PALETTES).map(([k, [n, c]]) => h`<button type="button" class="swatch" aria-label="Cor ${n}" aria-pressed="${String(s.theme === k)}" data-action="set-theme" data-v="${k}"><i style="background:${c}" aria-hidden="true"></i><span>${n}</span></button>`)}
       <label class="swatch appearance-custom-color${s.theme === 'custom' ? ' is-selected' : ''}" title="Escolher cor personalizada">
@@ -2673,22 +3159,33 @@ function aparencia(s) {
       <div class="appearance-settings-option"><span class="appearance-settings-label">Espaçamento</span>${settingsSegment(L, 'density', 'Espaçamento', [['comfy', 'Confortável'], ['compact', 'Compacto']])}</div>
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`)}
+    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
+    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
+      <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
+      <a class="btn" href="${areaOn('habits') ? '#habitos' : '#config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+    </div>`) }
     ${settingsSaveButton()}
   </form>`;
 }
+function profileDraftFromSettings(settings) {
+  return {
+    name: settings.profile.name,
+    preferredName: settings.profile.preferredName || settings.profile.name,
+    sex: settings.profile.sex || '',
+    age: settings.profile.age == null ? '' : String(settings.profile.age),
+    appearance: normalizeProfileAppearance(settings.prefs.profileAppearance),
+  };
+}
 function profileSettings(s) {
   s = settingsView();
-  const p = ui.profileDraft || {
-    name: s.profile.name,
-    preferredName: s.profile.preferredName || s.profile.name,
-    sex: s.profile.sex || '',
-    age: s.profile.age == null ? '' : String(s.profile.age),
-  };
-  const profileDirty = profileDraftHasChanges(p, s.profile);
+  const p = ui.profileDraft || profileDraftFromSettings(s);
+  const appearance = normalizeProfileAppearance(p.appearance);
+  const profileDirty = profileDraftHasChanges(p, s.profile, s.prefs.profileAppearance);
+  const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
-    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>Você pode alterar seu nome, como prefere ser chamado(a), sua identidade de gênero e sua idade. A idade é usada somente para estimar a meta ao adicionar o hábito de água.</p></div>
-    <div class="profile-greeting-preview" aria-live="polite"><span class="profile-greeting-avatar" aria-hidden="true">${icon('user', 22)}</span><span class="profile-greeting-copy"><span>Prévia na tela inicial</span><b>${greet()}, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
+    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>Personalize como o Aurora se apresenta para você. Seu nome preferido, símbolo e saudação podem ser ajustados a qualquer momento.</p></div>
+    <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela inicial</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
     <section class="profile-settings-group" aria-labelledby="profile-name-title">
       <div><h3 id="profile-name-title">Informações do perfil</h3><p>Você pode alterar estas informações quando quiser. Não perguntamos sua orientação sexual.</p></div>
       <div class="form profile-settings-fields">
@@ -2697,25 +3194,37 @@ function profileSettings(s) {
         <label class="f" for="psex">Identidade de gênero<select id="psex" data-profile-field="sex" required aria-describedby="profile-sex-help"><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Inclui opções para pessoas cis, trans e não binárias. Você também pode preferir não informar.</span></label>
       </div>
     </section>
+    <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Sua identidade visual</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-controls">
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo do perfil</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor do símbolo</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true"></span></button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação no Início</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
+      </div>
+    </section>
     <section class="profile-settings-group" aria-labelledby="profile-estimate-title">
       <div><h3 id="profile-estimate-title">Idade</h3><p>Informe sua idade para usá-la na estimativa ao adicionar o hábito de água. Você pode deixar em branco.</p></div>
       <div class="form profile-settings-fields">
-        <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="5" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 5 e 120 anos.</span></label>
+        <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 0 e 120 anos.</span></label>
       </div>
     </section>
-      <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar</button></div>
+      <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar perfil e preferências</button></div>
       </form>
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2></div>
-      <button type="button" class="btn ghost sm" data-account-signout>Sair da conta</button>
+      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+    </section>
+    <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
+      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Consulte os documentos do Aurora ou entre em contato.</p></div></div>
+      <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:lisjustino@gmail.com">Falar com o Aurora</a></div>
     </section>
   </div>`;
 }
-function profileDraftHasChanges(draft, profile) {
+function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEARANCE_DEFAULT) {
   return draft.name !== (profile.name || '')
     || draft.preferredName !== (profile.preferredName || profile.name || '')
     || draft.sex !== (profile.sex || '')
-    || draft.age !== (profile.age == null ? '' : String(profile.age));
+    || draft.age !== (profile.age == null ? '' : String(profile.age))
+    || !sameJsonValue(normalizeProfileAppearance(draft.appearance), normalizeProfileAppearance(savedAppearance));
 }
 
 const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'personalization', calendar: 'personalization', areas: 'areas-navigation', navigation: 'areas-navigation' };
@@ -2727,10 +3236,17 @@ const SETTINGS_SECTIONS = [
   ['data', 'Dados e backup', 'archive', 'Importação e cópias de segurança'],
 ];
 function homeLayoutSettings(s) {
+  const activeMode = s.prefs.homeMode;
+  const modeDefaults = defaultHomeModes()[activeMode];
   const layout = s.prefs.homeLayout;
+  const shortcuts = s.prefs.homeShortcuts;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
+  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha os blocos que aparecem na Home e deixe os mais importantes no topo.</p></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
+    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. Áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
+    <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(([id, label, description], index) => h`<li class="home-layout-item">
       <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}" aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
       <span class="home-layout-controls"><span>${index + 1}º</span><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="-1" aria-label="Mover ${label} para cima" ${index === 0 ? raw('disabled') : ''}>${icon('arrowUp', 16)}</button><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="1" aria-label="Mover ${label} para baixo" ${index === ordered.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 16)}</button></span>
@@ -2791,7 +3307,22 @@ function setLegacyImportError(message) {
   ui.legacyImport.busy = false;
   render();
 }
-function prepareLegacyImportPreview(migration, sources, vaultCount) {
+let legacyImportModulesPromise;
+function loadLegacyImportModules() {
+  if (!legacyImportModulesPromise) {
+    legacyImportModulesPromise = Promise.all([
+      import('./data/legacy-import.js'),
+      import('./data/legacy-import-model.js'),
+    ]).then(([importer, model]) => ({ ...importer, ...model }))
+      .catch((error) => {
+        legacyImportModulesPromise = null;
+        throw error;
+      });
+  }
+  return legacyImportModulesPromise;
+}
+async function prepareLegacyImportPreview(migration, sources, vaultCount) {
+  const { prepareLegacyImport } = await loadLegacyImportModules();
   const browserData = migration.browserData;
   const sourceCounts = {
     browser: Object.keys(browserData.plain).length,
@@ -2832,6 +3363,10 @@ async function discoverLegacyImport() {
   };
   render();
   try {
+    const {
+      inspectLegacySources,
+      scanLegacyBrowserStorage,
+    } = await loadLegacyImportModules();
     const browserData = scanLegacyBrowserStorage(window.localStorage, accountSession.user.id);
     const discovery = await inspectLegacySources({
       client: accountSession.client,
@@ -2844,7 +3379,7 @@ async function discoverLegacyImport() {
     if (discovery.requiresUnlock) {
       migration.step = 'unlock';
     } else {
-      prepareLegacyImportPreview(migration, discovery.sources, discovery.vaultCount);
+      await prepareLegacyImportPreview(migration, discovery.sources, discovery.vaultCount);
     }
   } catch (error) {
     console.error('Aurora: a busca por dados antigos não foi concluída.', error);
@@ -2866,12 +3401,13 @@ async function unlockLegacyImport() {
   migration.error = '';
   render();
   try {
+    const { unlockLegacySources } = await loadLegacyImportModules();
     const { sources, vaultCount } = await unlockLegacySources({
       discovery: migration.discovery,
       userId: accountSession.user.id,
       password,
     });
-    prepareLegacyImportPreview(migration, sources, vaultCount);
+    await prepareLegacyImportPreview(migration, sources, vaultCount);
   } catch (error) {
     console.error('Aurora: o cofre antigo não pôde ser desbloqueado para importação.', error);
     migration.error = error instanceof Error
@@ -2897,6 +3433,14 @@ async function applyLegacyImport() {
   }
   if (settingsDraftDirty() || ui.profileDraft || ui.dlg) {
     setLegacyImportError('Salve ou feche as alterações abertas antes de importar. Nenhuma origem antiga foi alterada.');
+    return;
+  }
+  let hasAllExpectedRecords;
+  try {
+    ({ hasAllExpectedRecords } = await loadLegacyImportModules());
+  } catch (error) {
+    console.error('Aurora: não foi possível carregar o verificador da importação antiga.', error);
+    setLegacyImportError('Não foi possível carregar a verificação de dados antigos. As cópias foram preservadas; tente novamente.');
     return;
   }
   const addedTotal = Object.values(preview.plan.added).reduce((sum, count) => sum + count, 0);
@@ -2976,7 +3520,7 @@ async function applyLegacyImport() {
     render();
   }
 }
-function clearLegacyBrowserData() {
+async function clearLegacyBrowserData() {
   const migration = ui.legacyImport;
   const preview = migration.preview;
   const snapshot = preview?.browserData?.snapshot;
@@ -2987,7 +3531,17 @@ function clearLegacyBrowserData() {
     return;
   }
   migration.cleanupConfirmed = false;
-  const result = clearImportedBrowserStorage(window.localStorage, snapshot);
+  let result;
+  try {
+    const { clearImportedBrowserStorage } = await loadLegacyImportModules();
+    result = clearImportedBrowserStorage(window.localStorage, snapshot);
+  } catch (error) {
+    console.error('Aurora: não foi possível preparar a limpeza das cópias antigas.', error);
+    setLegacyImportError(error instanceof Error
+      ? error.message
+      : 'Não foi possível limpar as cópias antigas; elas continuam preservadas.');
+    return;
+  }
   result.removed.forEach((key) => { delete snapshot[key]; });
   if (result.changed.length) {
     migration.preview = null;
@@ -3024,12 +3578,12 @@ function legacyImportPanel() {
     ['Revisar e importar', 'Confira o resumo antes de gravar'],
     ['Conferir e limpar', 'Apagar cópias locais é opcional'],
   ];
-  return h`<section class="card settings-section-card" aria-labelledby="legacy-import-title">
+  return h`<section class="card settings-section-card settings-data-migration" aria-labelledby="legacy-import-title">
     <div class="settings-section-heading"><h2 id="legacy-import-title">Trazer dados antigos para esta conta<i>.</i></h2><p>Este roteiro encontra cópias neste navegador e no cofre antigo. Primeiro apenas localiza; você revisa antes de importar. Nada é apagado automaticamente.</p></div>
     <ol class="legacy-import-steps" aria-label="Etapas para trazer dados antigos">${steps.map(([title, detail], index) => {
       const step = index + 1;
       const state = step < activeStep ? 'is-complete' : step === activeStep ? 'is-current' : '';
-      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? '✓' : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
+      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? icon('check', 16) : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
     })}</ol>
     <div class="notice warn" role="note"><span>Antes de continuar, confirme que entrou na conta correta. Os dados já existentes serão mantidos; itens com o mesmo ID não serão duplicados.</span></div>
     ${migration.error ? h`<p class="err" role="alert">${migration.error}</p>` : ''}
@@ -3073,30 +3627,54 @@ function legacyImportPanel() {
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const failedSlices = [...ui.persistFailed];
-  const trashEntries = p.trash.filter((entry) => !isTrashExpired(entry)).sort((a, b) => b.deletedAt - a.deletedAt);
-  return h`<section class="card settings-section-card"><div class="settings-section-heading"><h2>Backup<i>.</i></h2><p>Baixe uma cópia dos seus dados para guardar ou levar para outro navegador. No celular, escolha Arquivos ou Downloads e guarde o <span class="case-preserve">JSON</span> fora dos dados do navegador.</p></div>
-    <div class="notice data-location" role="status">${icon('cloud', 18)}<span>Seus dados ficam associados à sua conta e protegidos por autenticação e regras de acesso individuais. O serviço pode processar dados em formato legível; mantenha sua conta e seus backups protegidos.</span></div>
-    <div class="notice warn" role="note"><span>O backup exportado continua sendo um arquivo JSON em texto puro e pode conter dados financeiros e de saúde. A exportação pedirá confirmação; proteja o arquivo fora do Aurora.</span></div>
-    <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
+  const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
+  return h`<section class="card settings-section-card settings-backup-card">
+    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>Os backups JSON não têm criptografia e podem incluir dados financeiros e de saúde. Guarde os arquivos em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
-    <div class="row"><button class="btn" data-action="export">${icon('download', 18)}Exportar backup</button></div></section>
+    <div class="settings-data-actions">
+      <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
+        <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
+        <h3 id="settings-export-title">Guardar uma cópia</h3>
+        <p>Exporte seus dados em JSON. No celular, guarde o arquivo fora dos dados do navegador.</p>
+        <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
+        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button></div>
+      </section>
+      <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
+        <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
+        <h3 id="settings-restore-title">Usar uma cópia salva</h3>
+        <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
+        <p class="small muted">São aceitos backups JSON do Aurora nas versões 1 e 2.</p>
+        <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
+        <p class="err" id="imperr" role="alert"></p>
+      </section>
+    </div>
+  </section>
     ${legacyImportPanel()}
-    <section class="card settings-section-card"><div class="settings-section-heading"><h2>Restaurar<i>.</i></h2><p>Escolha um backup para conferir o conteúdo antes da confirmação. A restauração substitui os dados relacionais atuais na sua conta.</p></div>
-    <div class="row"><label class="btn backup-file-label">${icon('upload', 18)}Escolher backup<input type="file" accept="application/json,.json" data-change="import" class="sr"></label></div>
-    <p class="err" id="imperr" role="alert"></p>
-    <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2.</p></section>
-    <section class="card settings-section-card" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira<i>.</i></h2><p>Itens excluídos ficam disponíveis para restauração por 30 dias. Depois, são removidos automaticamente. A lixeira também acompanha os backups exportados.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span><i>.</i></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
-          return h`<li><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))} · ${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
+          return h`<li class="settings-trash-entry"><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span class="settings-trash-expiry${days <= 7 ? ' is-urgent' : ''}">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
         })}</ul>`
-        : h`<p class="small muted">A lixeira está vazia.</p>`}
+        : h`<div class="settings-trash-empty"><span aria-hidden="true">${icon('trash', 20)}</span><p><b>A lixeira está vazia</b><small>Quando você excluir itens, eles aparecerão aqui por até 30 dias.</small></p></div>`}
     </section>
-    <section class="card settings-section-card"><div class="settings-section-heading"><h2>Zona de cuidado<i>.</i></h2><p>Experimente a plataforma com exemplos ou apague permanentemente os dados relacionais desta conta.</p></div>
-    <div class="row"><button class="btn" data-action="load-sample">Explorar com exemplos</button>
-    <button class="btn danger" data-action="wipe-ask">${icon('trash', 18)}Apagar dados relacionais</button></div></section>`;
+    <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
+      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Gerencie dados de demonstração ou remova os dados relacionais desta conta.</p></div>
+      <div class="settings-data-care-actions">
+        <section class="settings-data-action" aria-labelledby="settings-sample-title">
+          <h3 id="settings-sample-title">Explorar com exemplos</h3>
+          <p>Adicione registros fictícios para conhecer as áreas do Aurora. Eles são identificados como exemplos e não substituem seus dados pessoais.</p>
+          <button type="button" class="btn" data-action="load-sample">Carregar exemplos</button>
+        </section>
+        <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
+          <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
+          <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
+          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados relacionais</button>
+        </section>
+      </div>
+    </section>`;
 }
 function settingsStorageNotice(selectedTab) {
   if (selectedTab === 'data') return '';
@@ -3237,6 +3815,7 @@ const dlgDiscardChanges = () => {
   if (pending?.onDiscard) pending.onDiscard();
 }
 const dlgClose = () => {
+  if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   if (ui.dlg?.type === 'onboard') {
     finishOnboard(true);
     return;
@@ -3258,9 +3837,6 @@ const dlgClose = () => {
     return;
   }
   if (ui.dlg?.type === 'discard') { dlgKeepEditing(); return; }
-  if (ui.dlg?.type === 'taskplan' && ui.dlg.d.confirm) { ui.dlg = null; render(); return; }
-  if (ui.dlg?.type === 'taskplan' && taskPlanDirty()) { ui.dlg.d.confirm = true; render(); return; }
-  if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   ui.dlg = null;
   ui.dlgPending = null;
   render();
@@ -3270,10 +3846,6 @@ const dlgField = (label, inner, cls = '') => h`<label class="f ${cls}"><span cla
 const dlgWrap = (body, foot, bodyClass = '') => h`<div class="dlg-body ${bodyClass}">${body}</div><div class="dlg-foot">${foot}</div>`;
 const closeBtn = h`<button type="button" class="ibtn dlg-close" data-action="dlg-close" aria-label="Fechar">${icon('close', 20)}</button>`;
 
-function planTitles(d) {
-  const lines = d.steps.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 12).map((x) => x.slice(0, 120));
-  return lines.length ? lines : [d.goal.trim().slice(0, 120)];
-}
 function dlgActionConfirm() {
   const d = ui.dlg.d;
   return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}<i>.</i></h2></div>${closeBtn}</div>
@@ -3287,29 +3859,15 @@ function dlgConfirmation() {
     <p class="confirmation-copy">${d.message}</p>`,
     h`<button type="button" class="btn back" data-action="confirmation-cancel">Cancelar</button><button type="button" class="btn primary" data-action="confirmation-accept">Continuar</button>`);
 }
-function dlgTaskPlan() {
-  const d = ui.dlg.d, titles = planTitles(d);
-  if (d.confirm) return dlgWrap(h`<div class="wiz-h"><h2 id="dt">Descartar o que você escreveu?</h2><p>Seu objetivo e suas etapas ainda não foram salvos. Se fechar agora, o texto será descartado.</p></div>`,
-    h`<button class="btn" data-action="plan-discard">Descartar</button><button class="btn primary" data-action="plan-keep">Continuar planejando</button>`);
-  const prompts = ['O que você precisa realizar? Conte do seu jeito.', 'Quais passos pequenos levam até lá? Escreva um por linha.', 'Quando você quer começar?', 'Confira o plano. Ao confirmar, as tarefas entram na sua lista.'];
-  const body = d.step === 0 ? dlgField('Seu objetivo', h`<textarea id="f0" data-dlg="goal" maxlength="240" rows="3" placeholder="Ex.: me preparar para a prova de biologia">${d.goal}</textarea>`)
-    : d.step === 1 ? h`${dlgField('Etapas (uma por linha)', h`<textarea id="f0" data-dlg="steps" maxlength="1000" rows="5" placeholder="Revisar os capítulos 1 e 2&#10;Fazer exercícios de genética">${d.steps}</textarea>`)}<p class="fine">Sem etapas? Deixe vazio para criar uma tarefa só com o objetivo.</p>`
-    : d.step === 2 ? h`<div class="form">${dlgField('Começar em', h`<input id="f0" type="date" data-dlg="start" value="${d.start}">`, 'full')}${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}</div><label class="row" style="gap:12px"><input type="checkbox" data-dlg="spread" ${d.spread ? raw('checked') : ''}><span class="small">Distribuir uma etapa por dia, a partir da data escolhida</span></label>`
-    : h`<div class="card flat"><b>${d.goal.trim()}</b><ul class="list">${titles.map((t, i) => h`<li>${icon('check', 16)}<span class="grow">${t}</span>${d.start ? h`<span class="badge">${shortDate(d.spread ? addDays(d.start, i) : d.start)}</span>` : ''}</li>`)}</ul><p class="fine">Prioridade: ${cap(PRIO[d.priority])}${d.start ? '' : ' · sem data (vai para a caixa de entrada)'}</p></div>`;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap;align-items:flex-start"><div class="wiz-h"><h2 id="dt">Plano por etapas<i>.</i></h2><p>${prompts[d.step]}</p></div>${closeBtn}</div>
-    <div class="steps" aria-label="Etapa ${d.step + 1} de 4">${[0, 1, 2, 3].map((i) => h`<i class="${i <= d.step ? 'on' : ''}"></i>`)}</div>${body}${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}
-    <p class="fine">Você pode revisar tudo antes de adicionar as tarefas.</p>`,
-    h`${d.step > 0 ? h`<button class="btn back" data-action="plan-back">Voltar</button>` : ''}${d.step < 3 ? h`<button class="btn primary" data-action="plan-next">Continuar</button>` : h`<button class="btn primary" data-action="plan-create">Adicionar ${titles.length} ${plural(titles.length, 'tarefa', 'tarefas')}</button>`}`);
-}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
-  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento rápido' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
     <form id="dlgform" class="form task-form" data-form="dlg-task">${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
-      ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input type="time" data-dlg="time" value="${d.time || ''}">`)}
+      ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input class="task-time-input" type="time" data-dlg="time" value="${d.time || ''}">`)}
       ${dlgField('Repetir', h`<select data-dlg="repeat">${Object.entries(REPEATS).map(([k, v]) => h`<option value="${k}" ${k === (d.repeat || 'none') ? raw('selected') : ''}>${v}</option>`)}</select>`)}
       ${dlgField('Lembrete', h`<select data-dlg="remind" ${d.time ? '' : raw('disabled')}>${REMINDS.map(([k, v]) => h`<option value="${k}" ${String(d.remind == null ? '' : d.remind) === k ? raw('selected') : ''}>${v}</option>`)}</select>${d.time ? '' : h`<span class="task-field-help">Escolha uma hora para ativar.</span>`}`)}
       ${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}
-      <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary>Adicionar notas <span>opcional</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
+      <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary><span>Adicionar notas</span><span>opcional</span><span class="task-notes-disclosure" aria-hidden="true">${icon('chevDown', 16)}</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
     <div class="f"><span class="lbl">Etiquetas</span>
       ${(d.tags || []).length ? h`<div class="chips">${d.tags.map((g, i) => h`<span class="chip on tgchip">#${g}<button type="button" class="ibtn" data-action="tg-del" data-i="${i}" aria-label="Remover etiqueta ${g}">${icon('close', 14)}</button></span>`)}</div>` : ''}
       <form class="aibar" data-form="tg-add" style="border-radius:14px"><label class="sr" for="tgn">Nova etiqueta</label><input type="text" id="tgn" name="tg" maxlength="24" placeholder="Adicionar etiqueta" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form>
@@ -3322,76 +3880,23 @@ function dlgTask() {
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
     'task-dialog');
 }
-function dlgCycleLog() {
-  const { day, log } = ui.dlg.d;
-  const flow = CYC.find(({ id }) => id === 'flow');
-  const groups = CYC.filter(({ id }) => id !== 'flow');
-  const choiceStatus = (count, single) => count
-    ? `${count} selecionado${count === 1 ? '' : 's'}`
-    : `Opcional · ${single ? 'Escolha 1' : 'várias opções'}`;
-  const choiceButton = (category, value, label, selected, id = '') => h`<button type="button" ${id ? raw(`id="${id}"`) : ''} class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${label}" title="${label}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}" data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol" aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? ({ spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18) : 18)}</span><span class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}</span><span class="cycle-choice-mark" aria-hidden="true">${icon('check', 14)}</span></button>`;
-  return dlgWrap(h`<form id="dlgform" class="cycle-log-form" data-form="cycle-log">
-    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">Registro do ciclo</span><h2 id="dt">${longDate(day)}</h2><p>Marque o que se aplica a este dia. O preenchimento é opcional.</p></div>${closeBtn}</div>
-    <section class="cycle-flow-group" data-category="flow" role="group" aria-labelledby="cycle-flow-title">
-      <div class="cycle-group-heading"><div><h3 id="cycle-flow-title">${icon(CYC_ICON.flow, 16)}Fluxo menstrual</h3><p>Leve, médio ou intenso entram nas estimativas; escape, não.</p></div><span class="cycle-group-mode">${log.flow ? `Selecionado: ${cycLabel('flow', log.flow)}` : 'Opcional · escolha 1'}</span></div>
-      <div class="chips" role="group" aria-label="Intensidade do fluxo">${flow.opts.map(([value, label], index) => choiceButton('flow', value, label, log.flow === value, index === 0 ? 'f0' : ''))}</div>
-    </section>
-    <div class="cycle-symptoms-heading"><h3 id="cycle-symptoms-title">Sintomas e sinais</h3><p>Múltipla escolha, exceto em energia, sono e corrimento.</p></div>
-    <div class="cycle-symptom-grid" role="group" aria-labelledby="cycle-symptoms-title">${groups.map((group) => {
-      const current = group.single ? (log[group.id] ? [log[group.id]] : []) : (log[group.id] || []);
-      return h`<section class="sym cycle-symptom-group" data-category="${group.id}" role="group" aria-labelledby="cycle-group-${group.id}">
-        <div class="cycle-group-heading"><h3 id="cycle-group-${group.id}">${icon(CYC_ICON[group.id], 16)}${group.title}</h3><span class="cycle-group-mode">${choiceStatus(current.length, group.single)}</span></div>
-        <div class="chips">${group.opts.map(([value, label]) => choiceButton(group.id, value, label, current.includes(value)))}</div>
-      </section>`;
-    })}</div>
-    ${dlgField('Anotações do dia', h`<textarea data-dlg="log.note" maxlength="500" rows="3" placeholder="Algo que você queira lembrar…">${log.note || ''}</textarea>`, 'full')}
-    <section class="cycle-sexual-group" role="group" aria-labelledby="cycle-sexual-title">
-      <h3 id="cycle-sexual-title">${icon('heart', 16)}Relação sexual</h3>
-      <label class="row cycle-sexual-toggle"><input type="checkbox" data-dlg="log.sexualActivity" aria-describedby="cycle-sexual-note" ${log.sexualActivity ? raw('checked') : ''}><span>Houve atividade sexual neste dia</span></label>
-      ${log.sexualActivity ? h`<p class="fine" id="cycle-sexual-note">Opcional. Você pode selecionar mais de um método. “Nenhum método” e “Prefiro não informar” são opções exclusivas.</p>
-        <div class="chips cycle-contraception-options" role="group" aria-label="Métodos contraceptivos usados">${CYCLE_CONTRACEPTION_METHODS.map(({ id, label }) => h`<button type="button" class="chip" aria-pressed="${(log.contraceptionMethods || []).includes(id) ? 'true' : 'false'}" data-action="cyc-method" data-v="${id}">${label}</button>`)}</div>
-        <p class="fine">Os registros ficam na conta Aurora. Backups podem incluir esses dados em JSON sem criptografia; guarde o arquivo com cuidado.</p>` : h`<p class="fine" id="cycle-sexual-note">Opcional. Não registramos essa informação se você não marcar a opção. Os registros ficam na conta Aurora; backups podem incluí-los em JSON sem criptografia.</p>`}
-    </section>
-  </form>`,
-  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">Salvar registro</button>`);
-}
-function dlgCyclePeriod() {
-  const { start, end, index } = ui.dlg.d;
-  const maxDate = today();
-  const editing = Number.isInteger(index);
-  return dlgWrap(h`<form id="dlgform" class="cycle-period-form" data-form="cycle-period">
-    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">Registro do ciclo</span><h2 id="dt">${editing ? 'Editar período' : 'Registrar período'}<i>.</i></h2><p>Informe o primeiro e o último dia para registrar o período inteiro de uma vez.</p></div>${closeBtn}</div>
-    <div class="cycle-period-fields">
-      ${dlgField('Primeiro dia', h`<input id="f0" type="date" name="start" value="${start}" max="${maxDate}" aria-describedby="cycle-period-help" required>`)}
-      ${dlgField('Último dia', h`<input type="date" name="end" value="${end}" max="${maxDate}" aria-describedby="cycle-period-help" required>`)}
-    </div>
-    <p class="fine" id="cycle-period-help">O intervalo pode ter até ${MAX_CYCLE_PERIOD_DAYS} dias e não altera sintomas ou anotações já salvos. As estimativas podem mudar quando as datas forem atualizadas.</p>
-  </form>`,
-  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Atualizar período' : 'Salvar período'}</button>`);
-}
-function dlgCycleBatch() {
-  const { start, end, symptoms } = ui.dlg.d;
-  const categories = CYC.filter(({ id }) => ['pain', 'mood', 'digestion', 'skin'].includes(id));
-  return dlgWrap(h`<form id="dlgform" class="cycle-batch-form" data-form="cycle-batch">
-    <div class="cycle-log-heading"><div><span class="cycle-log-eyebrow">Registro do ciclo</span><h2 id="dt">Adicionar sintomas a vários dias<i>.</i></h2><p>Escolha um intervalo e os sintomas que deseja incluir em todos esses dias.</p></div>${closeBtn}</div>
-    <div class="cycle-period-fields">
-      ${dlgField('Primeiro dia', h`<input id="f0" type="date" name="start" value="${start}" max="${today()}" aria-describedby="cycle-batch-help" required>`)}
-      ${dlgField('Último dia', h`<input type="date" name="end" value="${end}" max="${today()}" aria-describedby="cycle-batch-help" required>`)}
-    </div>
-    <p class="fine" id="cycle-batch-help">Até ${MAX_CYCLE_LOG_RANGE_DAYS} dias por vez. Os sintomas selecionados serão acrescentados aos registros existentes; fluxo, energia, sono, corrimento, notas e informações sexuais não serão alterados.</p>
-    <div class="cycle-batch-groups">${categories.map((category) => h`<section class="cycle-batch-group" role="group" aria-label="${category.title}"><h3>${icon(CYC_ICON[category.id], 16)}${category.title}</h3><div class="chips">${category.opts.map(([value, label]) => h`<button type="button" class="chip" aria-pressed="${(symptoms[category.id] || []).includes(value)}" data-action="cyc-batch-opt" data-category="${category.id}" data-v="${value}">${label}</button>`)}</div></section>`)}</div>
-  </form>`,
-  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">Adicionar sintomas</button>`,
-  'cycle-batch-dialog');
-}
+const cycleDialogViews = createCycleDialogViews({
+  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms, plural,
+  cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
+});
+function dlgCycleLog() { return cycleDialogViews.log(); }
+function dlgCyclePeriod() { return cycleDialogViews.period(); }
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+    ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit">
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
-      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full" for="water-weight-kg">Peso para estimativa (kg)<input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Opcional"><span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
+      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
+        <span class="water-weight-input"><input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
+        <span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
         <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>` : ''}
         <label class="f full" for="water-goal-ml">Meta diária de água (mL)<input id="water-goal-ml" name="waterGoalMl" type="number" data-dlg="waterGoalMl" min="500" max="10000" step="50" value="${waterGoal}" required aria-describedby="water-goal-help"><span class="profile-field-help" id="water-goal-help">É uma referência ajustável, não uma recomendação médica. Registre os volumes para acompanhar o dia.</span></label>
         ${d.waterSuggestion ? h`<p class="fine full">A estimativa considera a idade informada em Ajustes (ou uma referência adulta) e o peso informado acima. Você pode ajustar a meta. Ao atingir o volume, o check-in do dia é concluído.</p>` : ''}` : ''}
@@ -3529,10 +4034,10 @@ function dlgOnboard() {
 }
 function dlgExport() {
   if (Object.keys(ui.integrityIssues).length) {
-    return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Backup indisponível<i>.</i></h2>${closeBtn}</div><p class="notice warn" role="alert">Há fatias locais inválidas. Baixe uma cópia bruta ou importe um backup confiável antes de criar um backup normalizado.</p>`,
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Backup indisponível<i>.</i></h2>${closeBtn}</div><p class="notice warn" role="alert">Há fatias locais inválidas. Baixe uma cópia bruta ou importe um backup confiável antes de criar um backup normalizado.</p>`,
       h`<button class="btn" data-action="recovery-export">Baixar cópia de recuperação</button><button class="btn back" data-action="dlg-close">Fechar</button>`);
   }
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">O download direto não está disponível aqui. Copie o texto e salve em um arquivo <b>${ui.dlg.d.kind === 'csv' ? '.csv' : '.json'}</b>${ui.dlg.d.kind === 'csv' ? '.' : '; depois dá para importá-lo.'}</p>
     <textarea id="exp" readonly rows="8" style="font-family:ui-monospace,monospace;font-size:.75rem">${ui.dlg.d.json}</textarea>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="copy-export">Copiar</button>`);
@@ -3561,22 +4066,79 @@ function dlgAreaTutorial() {
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
-    <details class="area-tutorial-script"><summary>Ver roteiro do vídeo</summary><ol>${guide.steps.map((step) => h`<li><strong>${step.title}</strong> — ${step.text}</li>`)}</ol>${guide.note ? h`<p>${guide.note}</p>` : ''}</details>`,
+    <details class="area-tutorial-script"><summary>Ver roteiro do vídeo${icon('chevDown', 16, 'tutorial-disclosure-indicator')}</summary><ol>${guide.steps.map((step) => h`<li><strong>${step.title}</strong> — ${step.text}</li>`)}</ol>${guide.note ? h`<p>${guide.note}</p>` : ''}</details>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`,
     'area-tutorial-body');
 }
 function listArr(g) { return S.settings.cats[g]; }
-function addItem(g, name) {
-  const arr = listArr(g), ex = arr.find((x) => norm(x.name) === norm(name)); if (ex) return ex.name;
-  arr.push({ name, color: LIST_COLORS[arr.length % LIST_COLORS.length], icon: 'tag' }); return name;
+function findCategory(g, name, parentName = '') {
+  const categories = listArr(g);
+  if (parentName) {
+    const parent = categories.find((category) => norm(category.name) === norm(parentName));
+    return parent?.subcategories?.find((category) => norm(categoryLeafName(category)) === norm(name)) || null;
+  }
+  return categories.find((category) => norm(category.name) === norm(name)) || null;
+}
+function addItem(g, name, parentName = '', color = '', iconName = '') {
+  const arr = listArr(g), value = String(name || '').trim().slice(0, 30);
+  if (!value) return '';
+  const parent = String(parentName || '').trim();
+  if (parent) {
+    const parentEntry = arr.find((category) => norm(category.name) === norm(parent));
+    if (parentEntry) {
+      const subcategories = Array.isArray(parentEntry.subcategories) ? parentEntry.subcategories : [];
+      const existing = subcategories.find((category) => norm(categoryLeafName(category)) === norm(value));
+      if (existing) return `${parentEntry.name} > ${categoryLeafName(existing)}`;
+      parentEntry.subcategories = [...subcategories, {
+        name: value,
+        color: hexOk(color) ? color : parentEntry.color,
+        icon: CAT_ICONS.includes(iconName) ? iconName : parentEntry.icon,
+        subcategories: [],
+      }];
+      return `${parentEntry.name} > ${value}`;
+    }
+  }
+  const ex = arr.find((category) => norm(category.name) === norm(value));
+  if (ex) return ex.name;
+  arr.push({
+    name: value,
+    color: hexOk(color) ? color : LIST_COLORS[arr.length % LIST_COLORS.length],
+    icon: CAT_ICONS.includes(iconName) ? iconName : 'tag',
+    subcategories: [],
+  });
+  return value;
+}
+function replaceCategoryReferences(oldPath, newPath) {
+  if (oldPath === newPath) return false;
+  if (Object.hasOwn(S.finance.budgets, oldPath) && Object.hasOwn(S.finance.budgets, newPath)) return null;
+  let changed = false;
+  [S.finance.tx, recList()].forEach((records) => records.forEach((record) => {
+    if (record.category === oldPath) {
+      record.category = newPath;
+      changed = true;
+    }
+  }));
+  if (Object.hasOwn(S.finance.budgets, oldPath)) {
+    Object.defineProperty(S.finance.budgets, newPath, {
+      value: S.finance.budgets[oldPath],
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    delete S.finance.budgets[oldPath];
+    changed = true;
+  }
+  return changed;
 }
 function resolveNew(g, d, key) {
   if (d[key] !== '__new') return true;
   const n = String(d.newName || '').trim().slice(0, 30);
   if (!n) { toast('Dê um nome para a nova opção.'); return false; }
-  d[key] = addItem(g, n); d.newName = ''; commit('settings'); return true;
+  const parentName = String(d.newParent || '').trim();
+  d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
+  d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { taskplan: dlgTaskPlan, task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-batch': dlgCycleBatch, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -3585,11 +4147,18 @@ DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alter
    seguem a área visível; a largura nunca muda (o deslocamento horizontal do iOS fazia o painel andar para os lados),
    e as mudanças são agrupadas para o painel não acompanhar a animação do teclado quadro a quadro. */
 let fitTimer = 0;
+let releaseDialogScroll = null;
 function applyFitDlg() {
   const el = $('#dlg'), v = window.visualViewport; if (!el) return;
   const keyboard = v && window.innerHeight - v.height > 120;
-  if (!keyboard) { Object.assign(el.style, { inset: '0', left: '', right: '', top: '', width: '', height: '' }); return; }
-  Object.assign(el.style, { inset: 'auto', left: '0', right: '0', width: 'auto', top: Math.max(0, Math.round(v.offsetTop)) + 'px', height: Math.round(v.height) + 'px' });
+  if (!keyboard) {
+    Object.assign(el.style, { inset: '0', left: '', right: '', top: '', width: '', height: '' });
+    el.style.removeProperty('--dialog-available-height');
+    return;
+  }
+  const height = Math.round(v.height);
+  Object.assign(el.style, { inset: 'auto', left: '0', right: '0', width: 'auto', top: `${Math.max(0, Math.round(v.offsetTop))}px`, height: `${height}px` });
+  el.style.setProperty('--dialog-available-height', `${height}px`);
 }
 function fitDlg() { applyFitDlg(); }
 function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(applyFitDlg, 90); }
@@ -3598,29 +4167,36 @@ window.addEventListener('resize', fitDlgSoon);
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
-  if (!ui.dlg) { if (el) { el.remove(); document.documentElement.style.overflow = ''; $('#app').inert = false; const lf = ui.lastFocus; ui.lastFocus = null; restoreDialogOpener(lf); } return; }
-  const isIntro = ui.dlg.type === 'intro', isCycleLog = ['cycle-log', 'cycle-batch'].includes(ui.dlg.type);
+  if (!ui.dlg) {
+    if (el) {
+      el.remove();
+      $('#app').inert = false;
+      const lf = ui.lastFocus;
+      ui.lastFocus = null;
+      restoreDialogOpener(lf);
+    }
+    releaseDialogScroll?.();
+    releaseDialogScroll = null;
+    return;
+  }
+  const isIntro = ui.dlg.type === 'intro', isCycleLog = ui.dlg.type === 'cycle-log';
   const isCyclePeriod = ui.dlg.type === 'cycle-period';
   const opening = !el, typeChanged = Boolean(el && el.dataset.dialogType !== ui.dlg.type);
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
   const afSel = af ? { id: af.id, data: af.dataset.dlg, action: af.dataset.action, v: af.dataset.v, c: af.dataset.c } : null;
   const prevScroll = !opening ? (el.querySelector('.dlg-body') || {}).scrollTop : 0;
-  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); document.documentElement.style.overflow = 'hidden'; }
+  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll(); }
   el.classList.toggle('is-intro', isIntro);
   fitDlg();
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt">${DLG[ui.dlg.type]().s}</div>`;
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">${DLG[ui.dlg.type]().s}</div>`;
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
   applyTheme(ui.dlg.type === 'onboard' ? ui.dlg.d.theme : undefined);
   let target = null;
   if (afSel) target = (afSel.id && document.getElementById(afSel.id)) || (afSel.data && el.querySelector(`[data-dlg="${afSel.data}"]`)) || (afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`));
-  if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('#f0') || el.querySelector('input,textarea,select,button');
-  // Mantém o foco no diálogo ao abrir a configuração; focar o campo de nome pode abrir o teclado antes de um toque.
-  if ((opening || typeChanged) && !afSel && ['intro', 'onboard'].includes(ui.dlg.type)) {
-    target = el.querySelector('.dlg');
-    target.tabIndex = -1;
-  }
+  if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('.dlg');
+  if ((opening || typeChanged) && !afSel) target = el.querySelector('.dlg');
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -3774,7 +4350,7 @@ function parseBackup(text) {
   if (ex.about && typeof ex.about === 'object') {
     const a = ex.about;
     if ((a.sex !== undefined && a.sex !== '' && !Object.hasOwn(SEX, a.sex))
-      || (a.age !== undefined && a.age !== null && !(Number.isInteger(a.age) && a.age >= 5 && a.age <= 120))
+      || (a.age !== undefined && a.age !== null && !(Number.isInteger(a.age) && a.age >= 0 && a.age <= 120))
       || (a.weightKg !== undefined && a.weightKg !== null && !(isFiniteValue(a.weightKg) && a.weightKg >= 20 && a.weightKg <= 400))
       || (a.heightCm !== undefined && a.heightCm !== null && !(Number.isInteger(a.heightCm) && a.heightCm >= 80 && a.heightCm <= 250))) throw new Error('Os dados do perfil no backup estão inválidos.');
     Object.assign(settings.profile, { sex: SEX[a.sex] ? a.sex : '', age: Number.isFinite(a.age) ? a.age : null, weightKg: Number.isFinite(a.weightKg) ? a.weightKg : null, heightCm: Number.isFinite(a.heightCm) ? a.heightCm : null });
@@ -3795,24 +4371,49 @@ function parseBackup(text) {
     weight: validatedBackupSlice('weight', ex.weight),
   };
 }
-function importFile(file) {
+async function importFile(file) {
   const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m); };
   if (!file) return;
-  const fr = new FileReader();
-  fr.onerror = () => err('Não consegui ler o arquivo.');
-  fr.onload = () => { try { const parsed = parseBackup(String(fr.result)); ui.dlg = null; dlgOpen('import', { parsed }); } catch (e) { err(e.message); } };
-  fr.readAsText(file);
+  if (file.size > 7 * 1024 * 1024) return err('O arquivo excede o limite permitido para backup.');
+  let text;
+  try {
+    text = await file.text();
+  } catch (error) {
+    console.error('Aurora: não foi possível ler o arquivo de backup.', error);
+    return err('Não consegui ler o arquivo.');
+  }
+  try {
+    let document;
+    try {
+      document = JSON.parse(text);
+    } catch {
+      const parsed = parseBackup(text);
+      ui.dlg = null;
+      dlgOpen('import', { parsed });
+      return;
+    }
+    const parsed = parseBackup(text);
+    ui.dlg = null;
+    dlgOpen('import', { parsed });
+  } catch (error) {
+    err(error instanceof Error ? error.message : 'Este arquivo não pôde ser validado.');
+  }
 }
 
 /* ---- Ações por clique ---- */
 const ACTIONS = {
   'footer-scroll-top': () => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion(settingsView().look.reduceMotion)) {
       window.scrollTo(0, 0);
       return;
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
+  'pwa-update-dismiss': () => {
+    ui.pwaUpdateDismissed = true;
+    renderPwaUpdateNotice();
+  },
+  'pwa-update-apply': () => { void applyPwaUpdate(); },
   'reload-app': () => {
     const hasUnsavedChanges = settingsDraftDirty()
       || Boolean(ui.profileDraft)
@@ -3823,6 +4424,33 @@ const ACTIONS = {
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
+  'quick-actions-toggle': (el) => {
+    const opening = !ui.quickActionsOpen;
+    const returnTarget = el.matches('.finance-fab')
+      ? '.finance-fab'
+      : window.matchMedia('(max-width: 899px)').matches
+        ? '.nav-more-trigger'
+        : '.nav-quick-trigger';
+    ui.navigationOpen = false;
+    ui.quickActionsOpen = opening;
+    render();
+    requestAnimationFrame(() => {
+      const target = opening
+        ? document.querySelector('#quick-actions-menu button')
+        : document.querySelector(returnTarget);
+      target?.focus();
+    });
+  },
+  'quick-action-task': () => { ui.quickActionsOpen = false; openTaskDialog(today()); },
+  'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
+  'quick-action-transaction': () => { ui.quickActionsOpen = false; newTxDlg('out'); },
+  'quick-action-finance': (el) => {
+    ui.quickActionsOpen = false;
+    const kind = el.dataset.kind;
+    newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card');
+  },
+  'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
+  'quick-action-pomodoro': () => { ui.quickActionsOpen = false; nav('pomodoro'); },
   'areas-nav-open': () => nav('config?section=areas-navigation'),
   'area-guide-open': (el) => {
     const route = el.dataset.areaGuide;
@@ -3844,8 +4472,10 @@ const ACTIONS = {
   'home-quick-focus': () => {
     const input = $('#home-quick-title-input');
     if (!input) return openTaskDialog(today());
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => input.focus(), 250);
+    const reduceMotion = prefersReducedMotion(settingsView().look.reduceMotion);
+    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    if (reduceMotion) input.focus();
+    else setTimeout(() => input.focus(), 250);
   },
   'first-steps-dismiss': () => {
     const snapshot = snapshotSlices(['settings']);
@@ -3854,13 +4484,45 @@ const ACTIONS = {
     render();
   },
   'task-new': (el) => openTaskDialog(isDay(el.dataset.due) ? el.dataset.due : ''),
-  'toggle': (el) => { const t = findTask(el.dataset.id); if (!t) return; t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : undefined;
-    if (t.done && t.repeat && t.repeat !== 'none' && t.dueDate) {
-      let nd = nextDue(t.dueDate, t.repeat), n = 0; while (nd < today() && n++ < 800) nd = nextDue(nd, t.repeat);
-      const nx = { ...t, id: newId(), done: false, doneAt: undefined, dueDate: nd, createdAt: Date.now(), subtasks: (t.subtasks || []).map((x) => ({ ...x, done: false })) }; delete nx.sample; S.tasks.push(nx); commit('tasks');
-      toast(`Concluída. Próxima: ${shortDate(nd)}.`, () => { t.done = false; t.doneAt = undefined; S.tasks = S.tasks.filter((x) => x.id !== nx.id); commit('tasks'); }); return;
+  'toggle': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task) return;
+    const wasDone = task.done, previousDoneAt = task.doneAt, completing = !task.done;
+    const snapshot = snapshotSlices(['tasks']);
+    task.done = completing;
+    task.doneAt = task.done ? new Date().toISOString() : undefined;
+    let nextTask = null;
+    if (task.done && task.repeat && task.repeat !== 'none' && task.dueDate) {
+      let nextDate = nextDue(task.dueDate, task.repeat), attempts = 0;
+      while (nextDate < today() && attempts++ < 800) nextDate = nextDue(nextDate, task.repeat);
+      nextTask = {
+        ...task,
+        id: newId(),
+        done: false,
+        doneAt: undefined,
+        dueDate: nextDate,
+        createdAt: Date.now(),
+        subtasks: (task.subtasks || []).map((subtask) => ({ ...subtask, done: false })),
+      };
+      delete nextTask.sample;
+      S.tasks.push(nextTask);
     }
-    commit('tasks'); if (t.done) completionFeedback(`.task[data-k="${t.id}"]`); },
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a conclusão da tarefa')) return;
+    if (completing) {
+      completionFeedback(`.task[data-k="${task.id}"]`);
+      const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
+      toast(message, () => {
+        const currentTask = findTask(task.id);
+        if (!currentTask) return;
+        const undoSnapshot = snapshotSlices(['tasks']);
+        currentTask.done = wasDone;
+        if (previousDoneAt === undefined) delete currentTask.doneAt;
+        else currentTask.doneAt = previousDoneAt;
+        if (nextTask) S.tasks = S.tasks.filter((item) => item.id !== nextTask.id);
+        saveSlicesWithRollback(['tasks'], undoSnapshot, true, 'a ação de concluir a tarefa');
+      });
+    }
+  },
   'tg-del': (el) => { ui.dlg.d.tags.splice(Number(el.dataset.i), 1); render(); },
   'tg-pick': (el) => { const a = ui.dlg.d.tags = ui.dlg.d.tags || []; if (!a.includes(el.dataset.v)) a.push(el.dataset.v); render(); },
   'mv-up': (el) => moveTask(el.dataset.id, -1),
@@ -3881,9 +4543,23 @@ const ACTIONS = {
   'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
   'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
   'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.'); },
-  'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus(); },
+  'reminders-pause': () => {
+    if (ui.remindersPausedUntil > Date.now()) {
+      ui.remindersPausedUntil = 0;
+      render();
+      toast('Lembretes do app retomados.');
+      return;
+    }
+    ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
+    Object.entries(ui.alerts).forEach(([key, alert]) => {
+      if (alert.kind !== 'pomodoro') delete ui.alerts[key];
+    });
+    render();
+    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.');
+  },
+  'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
-  'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus(); },
+  'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus({ preventScroll: true }); },
   'accessibility-close': () => closeAccessibility(),
   'accessibility-font': (el) => {
     const fonts = ['s', 'm', 'l'];
@@ -3922,6 +4598,7 @@ const ACTIONS = {
   'accessibility-readable': (el) => updateAccessibilityLook({ readable: !settingsView().look.readable }, el.id),
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
+  'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
   'accessibility-reset': () => { ui.accessibilityOpen = false; ACTIONS['appearance-reset'](); },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-result': (el) => {
@@ -3962,7 +4639,25 @@ const ACTIONS = {
     delete ui.alerts[el.dataset.k];
     togglePomodoroTimer();
   },
-  'plan-view': (el) => { if (['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) ui.planView = el.dataset.v; render(); },
+  'plan-view': (el) => {
+    if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
+    ui.planView = el.dataset.v;
+    render();
+    if (ui.planView === 'calendario' && googleCalendar.isConnected()
+      && ui.googleCalendar.loadedMonth !== ui.taskCal) void loadGoogleCalendarEvents();
+  },
+  'google-calendar-prepare': () => prepareGoogleCalendar(),
+  'google-calendar-authorize': () => authorizeGoogleCalendar(),
+  'google-calendar-refresh': () => {
+    if (ui.googleCalendar.calendars.length) void loadGoogleCalendarEvents();
+    else void loadGoogleCalendarList();
+  },
+  'google-calendar-toggle': (el) => toggleGoogleCalendar(el.dataset.calendarId),
+  'google-calendar-disconnect': () => {
+    resetGoogleCalendarState();
+    render();
+    toast('Os eventos deixaram de aparecer nesta aba. Se quiser revogar a permissão, use as configurações da Conta Google.');
+  },
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
   'weekly-save-reflection': () => {
@@ -3980,6 +4675,7 @@ const ACTIONS = {
     if (!idea) return;
     dlgOpen('habit-edit', {
       name: idea.name,
+      suggestionDescription: idea.description,
       days: [0, 1, 2, 3, 4, 5, 6],
       remind: '',
       weeklyGoal: '',
@@ -3988,7 +4684,29 @@ const ACTIONS = {
       ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: S.settings.prefs.waterGoalMl, waterGoalEdited: false } : {}),
     });
   },
-  'tcal-month': (el) => { ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n)); render(); },
+  'habit-ideas-clear': () => {
+    ui.habitIdeaCategory = 'all';
+    ui.habitIdeaTag = 'all';
+    ui.habitIdeaQuery = '';
+    const search = document.querySelector('[data-input="habit-ideas-search"]');
+    if (search) search.value = '';
+    document.querySelectorAll('select[data-change^="habit-idea-"]').forEach((select) => {
+      select.value = 'all';
+    });
+    updateHabitIdeaFilters();
+  },
+  'habit-ideas-expand': () => {
+    ui.habitIdeasExpanded = !ui.habitIdeasExpanded;
+    updateHabitIdeaFilters();
+  },
+  'tcal-month': (el) => {
+    ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n));
+    ui.googleCalendar.events = [];
+    ui.googleCalendar.loadedMonth = '';
+    ui.googleCalendar.requestId += 1;
+    render();
+    if (googleCalendar.isConnected()) void loadGoogleCalendarEvents();
+  },
   'tcal-day': (el) => { ui.taskDay = el.dataset.d; render(); },
   'tweek-nav': (el) => { ui.taskWeek = addDays(ui.taskWeek, Number(el.dataset.n) * 7); render(); },
   'tweek-today': () => { ui.taskWeek = today(); render(); },
@@ -4002,11 +4720,21 @@ const ACTIONS = {
     const day = today();
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
+    const snapshot = snapshotSlices(['habits']);
     habit.completions = habit.completions.includes(day)
       ? habit.completions.filter((completed) => completed !== day)
       : [...habit.completions, day];
-    commit('habits');
-    if (completing) completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) return;
+    if (completing) {
+      completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
+      toast('Hábito marcado como concluído.', () => {
+        const currentHabit = S.habits.find((item) => item.id === habit.id);
+        if (!currentHabit || !currentHabit.completions.includes(day)) return;
+        const undoSnapshot = snapshotSlices(['habits']);
+        currentHabit.completions = currentHabit.completions.filter((completed) => completed !== day);
+        saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do hábito');
+      });
+    }
   },
   'habit-skip': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -4020,9 +4748,16 @@ const ACTIONS = {
       if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.');
       skipped.add(day);
     }
+    const snapshot = snapshotSlices(['habits']);
     habit.skipped = [...skipped].sort();
-    commit('habits');
-    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.');
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a alteração do dia pulado')) return;
+    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? null : () => {
+      const currentHabit = S.habits.find((item) => item.id === habit.id);
+      if (!currentHabit || !(currentHabit.skipped || []).includes(day)) return;
+      const undoSnapshot = snapshotSlices(['habits']);
+      currentHabit.skipped = currentHabit.skipped.filter((skippedDay) => skippedDay !== day);
+      saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do dia pulado');
+    });
   },
   'habit-day': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -4221,18 +4956,44 @@ const ACTIONS = {
     const index = current.indexOf(id), target = index + direction;
     if (index < 0 || target < 0 || target >= current.length) return;
     const order = [...current]; [order[index], order[target]] = [order[target], order[index]];
-    updateSettingsDraft((settings) => { settings.prefs.homeLayout.order = order; });
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeLayout.order = order;
+      saveActiveHomeMode(settings);
+    });
+  },
+  'home-mode': (el) => {
+    const mode = el.dataset.homeMode;
+    if (!Object.hasOwn(HOME_MODES, mode) || mode === settingsView().prefs.homeMode) return;
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeMode = mode;
+      const saved = settings.prefs.homeModes[mode];
+      settings.prefs.homeLayout = { order: [...saved.layout.order], visible: [...saved.layout.visible] };
+      settings.prefs.homeShortcuts = [...saved.shortcuts];
+    });
+  },
+  'home-layout-reset': () => {
+    const mode = settingsView().prefs.homeMode;
+    const defaults = defaultHomeModes()[mode];
+    const prefs = settingsView().prefs;
+    if (sameJsonValue(prefs.homeLayout, defaults.layout) && sameJsonValue(prefs.homeShortcuts, defaults.shortcuts)) return;
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeLayout = { order: [...defaults.layout.order], visible: [...defaults.layout.visible] };
+      settings.prefs.homeShortcuts = [...defaults.shortcuts];
+      saveActiveHomeMode(settings);
+    });
+    toast('Modo inicial restaurado. Salve para aplicar permanentemente.');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'set-free-pomodoro-preset': (el) => {
     const preset = el.dataset.preset, timer = S.pomodoro;
-    if (!['classic', 'custom'].includes(preset)) return;
+    if (preset !== 'custom' && !Object.hasOwn(POMODORO_PRESETS, preset)) return;
     if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
       return toast('Conclua ou descarte o Pomodoro atual para trocar o bloco.');
     }
     updateSettingsDraft((settings) => { settings.prefs.pomodoro.preset = preset; });
   },
   'toggle-free-timer': () => togglePomodoroTimer(),
+  'pomodoro-mini-toggle': () => togglePomodoroTimer(),
   'skip-free-break': () => skipPomodoroBreak(),
   'finish-free-timer': () => finishPomodoro(),
   'discard-free-timer': () => discardPomodoro(),
@@ -4244,7 +5005,6 @@ const ACTIONS = {
   },
   'filter-inbox': () => { ui.filters.f = 'caixa'; },
   'filter-overdue': () => { ui.filters.f = 'atrasadas'; },
-  'plan-open': () => dlgOpen('taskplan', { step: 0, goal: '', steps: '', start: '', spread: false, priority: 'normal', error: '', confirm: false }),
   'enable-area': (el) => { if (setAreaEnabled(S.settings, el.dataset.area, true)) commit('settings'); },
   'clear-sample': () => {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
@@ -4280,20 +5040,15 @@ const ACTIONS = {
   'dlg-keep': () => dlgKeepEditing(),
   'dlg-discard': () => dlgDiscardChanges(),
   'skip': (el, e) => { e.preventDefault(); const m = $('#main'); if (m) { m.focus(); m.scrollIntoView(); } },
-  'plan-keep': () => { ui.dlg.d.confirm = false; render(); },
-  'plan-discard': () => { ui.dlg = null; render(); },
-  'plan-back': () => { ui.dlg.d.step--; ui.dlg.d.error = ''; render(); },
-  'plan-next': () => { const d = ui.dlg.d; if (d.step === 0 && !d.goal.trim()) { d.error = 'Escreva o objetivo para continuar.'; render(); return; } d.error = ''; d.step++; render(); },
-  'plan-create': () => {
-    const d = ui.dlg.d, titles = planTitles(d), gid = newId(), now = Date.now();
-    titles.forEach((title, i) => S.tasks.push(mkTask({ title, priority: d.priority, dueDate: d.start ? (d.spread ? addDays(d.start, i) : d.start) : null, groupId: gid, groupTitle: d.goal.trim().slice(0, 60), createdAt: now + i })));
-    ui.dlg = null; commit('tasks'); toast(`${titles.length} ${plural(titles.length, 'tarefa adicionada', 'tarefas adicionadas')}.`);
-  },
   'cal-month': (el) => { ui.calMonth = shiftMonth(ui.calMonth, Number(el.dataset.n)); render(); },
   'cyc-day': (el) => { ui.cycDay = el.dataset.d; ui.calMonth = el.dataset.d.slice(0, 7); render(); },
   'cyc-open': () => {
     const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
     dlgOpen('cycle-log', { day, log: cycleLogDraft(dayLog(day)) });
+  },
+  'cyc-flow-open': () => {
+    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
+    dlgOpen('cycle-log', { day, log: cycleLogDraft(dayLog(day)), quickFlow: true });
   },
   'cyc-period-open': () => {
     const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
@@ -4339,31 +5094,16 @@ const ACTIONS = {
     ], ['cycle'], () => { S.cycle.splice(index, 1); });
     if (entry) toast('Período movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
-  'cyc-batch-open': () => {
-    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
-    dlgOpen('cycle-batch', {
-      start: day,
-      end: day,
-      symptoms: { pain: [], mood: [], digestion: [], skin: [] },
-    });
-  },
-  'cyc-batch-opt': (el) => {
-    if (ui.dlg?.type !== 'cycle-batch') return;
-    const category = CYC.find(({ id }) => id === el.dataset.category);
-    const value = el.dataset.v;
-    if (!category || !['pain', 'mood', 'digestion', 'skin'].includes(category.id)
-      || !category.opts.some(([option]) => option === value)) return;
-    const selected = ui.dlg.d.symptoms[category.id];
-    ui.dlg.d.symptoms[category.id] = selected.includes(value)
-      ? selected.filter((item) => item !== value)
-      : [...selected, value];
-    render();
-  },
   'cyc-opt': (el) => {
     if (ui.dlg?.type !== 'cycle-log') return;
     const c = CYC.find((x) => x.id === el.dataset.c), v = el.dataset.v, l = ui.dlg.d.log;
     if (!c || !c.opts.some(([value]) => value === v)) return;
     if (c.single) l[c.id] = l[c.id] === v ? '' : v; else { const a = l[c.id] || []; l[c.id] = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; }
+    ui.dlg.dirty = true;
+    if (c.id !== 'flow') {
+      ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), c.id])];
+      ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== c.id);
+    }
     render();
   },
   'cyc-method': (el) => {
@@ -4396,6 +5136,34 @@ const ACTIONS = {
     if (entry) toast('Registro movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
+  'appearance-preset': (el) => {
+    const preset = APPEARANCE_PRESETS[el.dataset.v];
+    if (!preset) return;
+    updateSettingsDraft((settings) => {
+      settings.theme = preset.theme;
+      settings.look.density = preset.density;
+      settings.look.font = preset.font;
+    });
+  },
+  'profile-appearance': (el) => {
+    const key = el.dataset.k, value = el.dataset.v;
+    const validOptions = key === 'avatar' ? PROFILE_AVATARS
+      : key === 'avatarColor' ? PROFILE_AVATAR_COLORS
+        : key === 'greeting' ? PROFILE_GREETING_STYLES : [];
+    if (!validOptions.some(([id]) => id === value)) return;
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    draft.appearance = normalizeProfileAppearance({ ...draft.appearance, [key]: value });
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+  },
+  'profile-appearance-reset': () => {
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    if (sameJsonValue(draft.appearance, PROFILE_APPEARANCE_DEFAULT)) return;
+    draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+    toast('Identidade visual padrão selecionada. Salve para aplicar.');
+  },
   'preferences-week-start': (el) => {
     const weekStart = Number(el.dataset.v);
     if (![0, 1].includes(weekStart)) return;
@@ -4640,18 +5408,13 @@ const FORMS = {
   },
   'settings-save': saveSettingsDraft,
   'settings-profile': () => {
-    const draft = ui.profileDraft || {
-      name: S.settings.profile.name || '',
-      preferredName: S.settings.profile.preferredName || S.settings.profile.name || '',
-      sex: S.settings.profile.sex || '',
-      age: S.settings.profile.age == null ? '' : String(S.settings.profile.age),
-    };
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
     const ageInput = String(draft.age ?? '').trim();
     const age = ageInput ? Number(ageInput) : null;
     if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
     if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-    if (ageInput && (!Number.isInteger(age) || age < 5 || age > 120)) {
-      toast('A idade deve ser um número inteiro entre 5 e 120 anos.');
+    if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
+      toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
       $('#page')?.focus();
       return;
     }
@@ -4662,6 +5425,7 @@ const FORMS = {
       sex: draft.sex,
       age,
     });
+    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
       render();
@@ -4768,8 +5532,12 @@ const FORMS = {
   },
   'cycle-log': () => {
     const { day, log: draft } = ui.dlg.d;
-    if (!isDay(day) || day > today() || !isValidCycleLog(draft)) return toast('Revise o registro do ciclo.');
     const log = cycleLogDraft(draft);
+    if (typeof log.orgasmCount === 'string') {
+      if (!log.orgasmCount.trim()) delete log.orgasmCount;
+      else if (/^\d{1,2}$/.test(log.orgasmCount)) log.orgasmCount = Number(log.orgasmCount);
+    }
+    if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.');
     if (typeof log.note === 'string') {
       log.note = log.note.trim().slice(0, 500);
       if (!log.note) delete log.note;
@@ -4780,6 +5548,7 @@ const FORMS = {
     } else if (!log.contraceptionMethods?.length) {
       delete log.contraceptionMethods;
     }
+    if (!log.masturbationActivity) delete log.masturbationActivity;
     if (hasAnyLog(log)) S.cycleLog[day] = log;
     else delete S.cycleLog[day];
     ui.cycDay = day;
@@ -4827,36 +5596,16 @@ const FORMS = {
     render();
     if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`);
   },
-  'planning-quick-task': async (form, data) => {
-    const parsed = parseQuickTaskText(String(data.get('title') || ''), today());
-    if (parsed.error) {
-      toast(parsed.error);
-      $('#planning-quick-task')?.focus();
-      return;
-    }
-    if (!parsed.title) {
-      toast('Digite o título da tarefa.');
-      $('#planning-quick-task')?.focus();
-      return;
-    }
-    const deadline = parsed.hasDeadline
-      ? `${longDate(parsed.dueDate)}${parsed.time ? ` às ${parsed.time}` : ''}`
-      : 'sem prazo identificado';
-    if (!await confirmInDialog(`Prazo interpretado: ${deadline}. Criar a tarefa “${parsed.title}”?`)) return;
-    const snapshot = snapshotSlices(['tasks']);
-    S.tasks.push(mkTask({
-      title: parsed.title.slice(0, 120),
-      dueDate: parsed.dueDate,
-      time: parsed.time,
-    }));
-    if (!saveSlicesWithRollback(['tasks'], snapshot, false, 'a tarefa')) return;
-    form.reset();
-    render();
-    toast('Tarefa adicionada.');
-    $('#planning-quick-task')?.focus();
-  },
 };
 const CHANGES = {
+  'habit-idea-category': (el) => {
+    ui.habitIdeaCategory = el.value || 'all';
+    updateHabitIdeaFilters();
+  },
+  'habit-idea-context': (el) => {
+    ui.habitIdeaTag = el.value || 'all';
+    updateHabitIdeaFilters();
+  },
   'legacy-import-cleanup-confirm': (el) => {
     ui.legacyImport.cleanupConfirmed = el.checked;
     const button = $('#legacy-import-clear');
@@ -4882,7 +5631,29 @@ const CHANGES = {
       const visible = new Set(settings.prefs.homeLayout.visible);
       if (el.checked) visible.add(id); else visible.delete(id);
       settings.prefs.homeLayout.visible = HOME_BLOCK_IDS.filter((blockId) => visible.has(blockId));
+      saveActiveHomeMode(settings);
     });
+  },
+  'home-shortcut-visible': (el) => {
+    const id = el.dataset.homeShortcut;
+    if (!HOME_SHORTCUT_IDS.includes(id)) return;
+    updateSettingsDraft((settings) => {
+      const selected = new Set(settings.prefs.homeShortcuts);
+      if (el.checked) selected.add(id); else selected.delete(id);
+      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
+      saveActiveHomeMode(settings);
+    });
+  },
+  'home-area-color': (el) => {
+    const id = el.dataset.homeAreaColor;
+    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
+    updateSettingsDraft((settings) => {
+      if (el.value) settings.prefs.areaColors[id] = el.value;
+      else delete settings.prefs.areaColors[id];
+    });
+  },
+  'home-message': (el) => {
+    updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
   },
   'look-custom': (el) => { if (hexOk(el.value)) updateSettingsDraft((settings) => { settings.look.custom = el.value; settings.theme = 'custom'; }); },
   'look-contrast': (el) => updateSettingsDraft((settings) => { settings.look.contrast = el.checked; }),
@@ -4895,8 +5666,10 @@ const CHANGES = {
       return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
     }
     updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro.focusMin = clamp(Math.round(num(el.value)) || 25, 5, 120);
-      settings.prefs.pomodoro.preset = 'custom';
+      settings.prefs.pomodoro = {
+        ...customPomodoroSettings(settings.prefs.pomodoro),
+        focusMin: clamp(Math.round(num(el.value)) || 25, 5, 120),
+      };
     }, false);
   },
   'free-pomo-auto': (el) => {
@@ -4907,7 +5680,6 @@ const CHANGES = {
     }
     updateSettingsDraft((settings) => {
       settings.prefs.pomodoro.autoAdvance = el.checked;
-      settings.prefs.pomodoro.preset = 'custom';
     }, false);
   },
   'free-pomo-break': (el) => {
@@ -4916,8 +5688,10 @@ const CHANGES = {
       return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
     }
     updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro.breakMin = clamp(Math.round(num(el.value)) || 5, 1, 60);
-      settings.prefs.pomodoro.preset = 'custom';
+      settings.prefs.pomodoro = {
+        ...customPomodoroSettings(settings.prefs.pomodoro),
+        breakMin: clamp(Math.round(num(el.value)) || 5, 1, 60),
+      };
     }, false);
   },
   'free-pomo-sound-tone': (el) => {
@@ -4930,9 +5704,9 @@ const CHANGES = {
     const output = el.closest('label')?.querySelector('output');
     if (output) output.textContent = `${soundVolume}%`;
   },
-  'import': (el) => { const f = el.files && el.files[0]; importFile(f); el.value = ''; },
+  'import': (el) => { const f = el.files && el.files[0]; void importFile(f); el.value = ''; },
 };
-const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume']);
+const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume', 'home-message']);
 
 /* ---- Salvar sem trocar a tela debaixo do dedo (campos de texto salvam ao sair do campo) ---- */
 const flushDirty = () => { if (ui.dirty) { ui.dirty = false; clearTimeout(ui.dirtyT); render(); } };
@@ -4953,25 +5727,26 @@ document.addEventListener('drop', (e) => { const li = e.target.closest && e.targ
 document.addEventListener('dragend', () => { ui.dragId = null; });
 let tickN = 0;
 function checkReminders() {
-  const now = Date.now(); let changed = false, added = 0;
-  S.tasks.forEach((t) => {
-    if (t.done || !t.dueDate || !t.time || t.remind == null) return;
-    const due = new Date(`${t.dueDate}T${t.time}:00`).getTime(), fire = due - Number(t.remind) * 60000, key = `${t.id}|${t.dueDate}|${t.time}|${t.remind}`;
-    if (now >= fire && now <= due + 2 * 3600000 && !ui.fired[key] && now >= (ui.snooze[key] || 0)) { ui.fired[key] = true; ui.alerts[key] = { id: t.id, title: t.title, time: t.time, due, at: now }; changed = true; added += 1; }
-  });
-  const day = today();
-  S.habits.forEach((habit) => {
-    if ((habit.status || 'active') !== 'active' || !habit.remind
-      || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day)) return;
-    const key = `habit:${habit.id}:${day}`;
-    // Janela de 15 minutos: se a aba ficou em segundo plano no minuto exato, o lembrete ainda aparece.
-    const habitAt = new Date(`${day}T${habit.remind}:00`).getTime();
-    if (now < habitAt || now > habitAt + 15 * 60000 || ui.fired[key]) return;
-    ui.fired[key] = true;
-    ui.alerts[key] = { id: habit.id, kind: 'habit', title: habit.name, time: habit.remind, at: now, detail: 'Sua rotina programada para hoje está esperando.' };
-    changed = true;
-    added += 1;
-  });
+  const now = Date.now(), day = today(); let changed = false, added = 0;
+  if (now >= ui.remindersPausedUntil) {
+    S.tasks.forEach((t) => {
+      if (t.done || !t.dueDate || !t.time || t.remind == null) return;
+      const due = new Date(`${t.dueDate}T${t.time}:00`).getTime(), fire = due - Number(t.remind) * 60000, key = `${t.id}|${t.dueDate}|${t.time}|${t.remind}`;
+      if (now >= fire && now <= due + 2 * 3600000 && !ui.fired[key] && now >= (ui.snooze[key] || 0)) { ui.fired[key] = true; ui.alerts[key] = { id: t.id, title: t.title, time: t.time, due, at: now }; changed = true; added += 1; }
+    });
+    S.habits.forEach((habit) => {
+      if ((habit.status || 'active') !== 'active' || !habit.remind
+        || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day)) return;
+      const key = `habit:${habit.id}:${day}`;
+      // Janela de 15 minutos: se a aba ficou em segundo plano no minuto exato, o lembrete ainda aparece.
+      const habitAt = new Date(`${day}T${habit.remind}:00`).getTime();
+      if (now < habitAt || now > habitAt + 15 * 60000 || ui.fired[key]) return;
+      ui.fired[key] = true;
+      ui.alerts[key] = { id: habit.id, kind: 'habit', title: habit.name, time: habit.remind, at: now, detail: 'Sua rotina programada para hoje está esperando.' };
+      changed = true;
+      added += 1;
+    });
+  }
   Object.keys(ui.alerts).forEach((k) => {
     const alert = ui.alerts[k];
     if (alert.kind === 'pomodoro') return;
@@ -5022,6 +5797,36 @@ function syncPomodoroTimer(now = Date.now()) {
   syncPomodoroPushSchedule(S.pomodoro);
   return true;
 }
+function updatePomodoroMiniTimer(now = Date.now()) {
+  const mini = $('#pomodoro-mini');
+  if (!mini) return;
+  const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
+  const elapsed = phaseElapsedSeconds(timer, now);
+  const duration = phaseDurationSeconds(pom, timer.phase);
+  const running = timer.startedAt !== null;
+  const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
+  const visible = ui.route !== 'pomodoro' && (running || hasProgress);
+  mini.hidden = !visible;
+  if (!visible) return;
+  const remaining = Math.max(0, duration - elapsed);
+  const phaseName = standalonePomodoroPhaseName(timer.phase);
+  const phase = $('#pomodoro-mini-phase');
+  const focus = $('#pomodoro-mini-focus');
+  const clockElement = $('#pomodoro-mini-clock');
+  const open = $('#pomodoro-mini-open');
+  const toggle = $('#pomodoro-mini-toggle');
+  const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
+  const focusLabel = focusTask?.title || timer.focusLabel || 'Seu bloco atual';
+  if (phase) phase.textContent = `${phaseName} · ${running ? 'em andamento' : 'pausado'}`;
+  if (focus) focus.textContent = focusLabel;
+  if (clockElement) clockElement.textContent = clock(remaining);
+  if (open) open.setAttribute('aria-label', `Abrir Pomodoro: ${phaseName} ${running ? 'em andamento' : 'pausado'}, ${clock(remaining)} restantes`);
+  if (toggle) {
+    toggle.textContent = running ? 'Pausar' : 'Retomar';
+    toggle.setAttribute('aria-label', running ? 'Pausar Pomodoro' : 'Retomar Pomodoro');
+  }
+  mini.setAttribute('data-phase', timer.phase);
+}
 function tick() {
   if (Persist.replacing) return;
   if (tickN++ % 10 === 0) checkReminders();
@@ -5030,6 +5835,7 @@ function tick() {
   const now = Date.now();
   const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
   const elapsed = phaseElapsedSeconds(timer, now), duration = phaseDurationSeconds(pom, timer.phase);
+  updatePomodoroMiniTimer(now);
   const clockElement = $('#standalone-pomo-clock');
   if (!clockElement) return;
   clockElement.textContent = clock(Math.max(0, duration - elapsed));
@@ -5074,7 +5880,6 @@ document.addEventListener('keydown', (event) => {
     skipPomodoroBreak();
   }
 });
-const taskPlanDirty = () => ui.dlg.type === 'taskplan' && !ui.dlg.d.confirm && (ui.dlg.d.goal.trim() || ui.dlg.d.steps.trim());
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
   if (ui.legacyImport.busy) return;
@@ -5092,8 +5897,16 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
-  if (!ui.navigationOpen || !(target instanceof Element) || target.closest('#nav-more-menu, .nav-more-trigger')) return;
+  if (!ui.navigationOpen || !(target instanceof Element)
+    || target.closest('#nav-more-menu, .nav-more-trigger, .nav-more-create')) return;
   ui.navigationOpen = false;
+  render();
+});
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (!ui.quickActionsOpen || !(target instanceof Element)
+    || target.closest('#quick-actions-menu, .nav-quick-trigger, .nav-more-create, .finance-fab')) return;
+  ui.quickActionsOpen = false;
   render();
 });
 document.addEventListener('click', (e) => {
@@ -5111,6 +5924,7 @@ document.addEventListener('click', (e) => {
   const trigger = $('#accessibility-trigger');
   if (panel) panel.hidden = true;
   if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  syncPanelScrollLocks();
 });
 document.addEventListener('submit', (e) => {
   if (e.target instanceof HTMLFormElement && e.target.matches('[data-footer-suggestion]')) {
@@ -5129,15 +5943,16 @@ document.addEventListener('submit', (e) => {
 });
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.matches('[data-change="home-message"]')) {
+    const counter = $('#home-message-count');
+    if (counter) counter.textContent = `${el.value.length}/${HOME_MESSAGE_MAX_LENGTH}`;
+  }
   if (el instanceof HTMLInputElement && el.matches('.money-input')) {
     const formattedValue = formatMoneyInput(el.value);
     if (formattedValue !== el.value) {
       el.value = formattedValue;
       el.setSelectionRange(formattedValue.length, formattedValue.length);
     }
-  }
-  if (el instanceof HTMLInputElement && el.matches('[data-input="planning-quick-task"]')) {
-    updatePlanningQuickPreview(el);
   }
   if (el.matches('[data-dlg="waterWeightKg"]')) {
     const value = el.value;
@@ -5160,12 +5975,15 @@ document.addEventListener('input', (e) => {
       preferredName: $('#ppreferred')?.value || '',
       sex: $('#psex')?.value || '',
       age: $('#page')?.value || '',
+      appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
     };
-    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile) ? draft : null;
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     const saveButton = $('#profile-settings-form [type="submit"]');
     if (saveButton) saveButton.disabled = !ui.profileDraft;
     const previewName = $('#profile-preview-name');
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
+    const previewGreeting = $('#profile-preview-greeting');
+    if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
@@ -5180,13 +5998,17 @@ document.addEventListener('input', (e) => {
     } else if (ui.dlg.type === 'cycle-log' && el.dataset.dlg === 'log.sexualActivity') {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
       render();
-    } else if (['sex', 'accountId', 'repeat', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
+    } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
     }
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
   if (el.dataset.input === 'search') { ui.filters.q = el.value; const r = $('#task-results'); if (r) r.innerHTML = taskListHtml().s; }
+  if (el.dataset.input === 'habit-ideas-search') {
+    ui.habitIdeaQuery = el.value;
+    updateHabitIdeaFilters();
+  }
 });
 document.addEventListener('focusin', (e) => {
   const el = e.target;
@@ -5198,10 +6020,28 @@ document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
   if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
+  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value !== today()) {
+    ui.dlg.d.paid = false;
+    ui.dlg.d.settledDate = '';
+    render();
+    return;
+  }
   const fn = key && !SETTINGS_INPUT_CHANGES.has(key) && CHANGES[key]; if (fn) fn(el);
 });
-document.addEventListener('toggle', (e) => { const el = e.target; if (el.tagName === 'DETAILS' && el.id) { ui.openDetails[el.id.replace('d-', '')] = el.open; if (el.open) el.querySelectorAll('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; }); } }, true);
+document.addEventListener('toggle', (e) => {
+  const el = e.target;
+  if (el.matches?.('.cycle-symptom-group') && ui.dlg?.type === 'cycle-log') {
+    const openGroups = new Set(ui.dlg.d.openGroups || []);
+    const closedGroups = new Set(ui.dlg.d.closedGroups || []);
+    if (el.open) { openGroups.add(el.dataset.category); closedGroups.delete(el.dataset.category); }
+    else { openGroups.delete(el.dataset.category); closedGroups.add(el.dataset.category); }
+    ui.dlg.d.openGroups = [...openGroups];
+    ui.dlg.d.closedGroups = [...closedGroups];
+  }
+  if (el.tagName === 'DETAILS' && el.id) { ui.openDetails[el.id.replace('d-', '')] = el.open; if (el.open) el.querySelectorAll('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; }); }
+}, true);
 document.addEventListener('keydown', (e) => {
+  if (handlePublicKeydown(e)) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     if (ui.dlg?.type === 'onboard') return;
     e.preventDefault();
@@ -5210,6 +6050,18 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape' && ui.accessibilityOpen) { e.preventDefault(); closeAccessibility(); return; }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
+  if (e.key === 'Escape' && ui.quickActionsOpen) {
+    e.preventDefault();
+    ui.quickActionsOpen = false;
+    render();
+    requestAnimationFrame(() => {
+      const returnTarget = window.matchMedia('(max-width: 899px)').matches
+        ? '.nav-more-trigger'
+        : '.nav-quick-trigger';
+      document.querySelector(returnTarget)?.focus();
+    });
+    return;
+  }
   if (e.key === 'Escape' && ui.navigationOpen) {
     e.preventDefault();
     ui.navigationOpen = false;
@@ -5230,23 +6082,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('mousedown', (e) => {
-  if (e.target.id === 'dlg' && ui.dlg && ui.dlg.type !== 'onboard') dlgClose();
+  if (e.target.id === 'dlg' && ui.dlg) dlgClose();
 });
 
 
 /* ========== Finanças (contas, cartões, lançamentos, orçamento, relatórios) ========== */
-const FINANCE_TONES = [
-  'var(--accent)',
-  'color-mix(in srgb, var(--accent) 78%, var(--p))',
-  'color-mix(in srgb, var(--accent) 62%, var(--pd))',
-  'color-mix(in srgb, var(--accent) 46%, var(--ink))',
-  'color-mix(in srgb, var(--accent) 66%, var(--surface))',
-];
-const financeTone = (name = '') => [...String(name)].reduce((total, char) => total + char.charCodeAt(0), 0) % FINANCE_TONES.length;
 const catMeta = (t) => {
   if (t.type === 'tr') return { c: 'color-mix(in srgb, var(--accent) 38%, var(--muted))', i: 'transfer' };
-  const meta = catInfo(t.type === 'in' ? 'in' : 'out', t.category);
-  return { ...meta, c: FINANCE_TONES[financeTone(t.category)] };
+  return catInfo(t.type === 'in' ? 'in' : 'out', t.category);
 };
 const outMeta = (n) => catInfo('out', n);
 const ACC_ICON = { checking: 'bank', savings: 'trendUp', investment: 'trendUp', credit: 'card' };
@@ -5269,7 +6112,6 @@ const accountOptionLabel = (account) => `${accountDisplayName(account)} · ${acc
 const accName = (id) => { const account = accById(id); return account ? accountDisplayName(account) : 'Conta removida'; };
 const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const ymLabel = (ym) => { const [y, m] = ym.split('-').map(Number); return `${MESES_L[m - 1]} de ${y}`; };
-const addMonths = (k, n) => { const d = pk(k), day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return dk(d); };
 const signed = signedAmount;
 const accBalance = (account) => balanceForAccount(account, S.finance.tx);
 const netBalance = () => netAccountBalance(S.finance.accounts, S.finance.tx);
@@ -5332,9 +6174,30 @@ const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
   return h`<div class="fin-section-menu" role="group" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="fin-section-option ${id === key ? 'is-active' : ''}" data-action="fin-tab" data-t="${id}" aria-pressed="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
 };
-const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="tx-new">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
+const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="quick-actions-toggle" aria-label="Abrir ações rápidas de Finanças" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
 
 /* ---- Resumo ---- */
+function expenseTrendChart(ym, cur) {
+  if (ym > today().slice(0, 7)) {
+    return h`<p class="fine finance-trend-empty">Este mês ainda é futuro; não há evolução diária real para mostrar.</p>`;
+  }
+  const [year, month] = ym.split('-').map(Number);
+  const lastDay = cur ? today() : `${ym}-${pad(new Date(year, month, 0).getDate())}`;
+  const days = Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const totals = days.map((day) => S.finance.tx
+    .filter((transaction) => transaction.type === 'out' && transaction.date === day)
+    .reduce((sum, transaction) => sum + transaction.cents, 0));
+  const max = Math.max(1, ...totals);
+  const x = (index) => 16 + index * 48;
+  const y = (value) => 88 - value / max * 64;
+  const points = totals.map((value, index) => `${x(index)},${y(value)}`).join(' ');
+  const area = `M${x(0)},88 ${totals.map((value, index) => `L${x(index)},${y(value)}`).join(' ')} L${x(6)},88 Z`;
+  const labels = days.map((day, index) => `<text x="${x(index)}" y="116" text-anchor="middle">${esc(shortDate(day))}</text>`).join('');
+  const markers = totals.map((value, index) => `<circle class="finance-trend-point" cx="${x(index)}" cy="${y(value)}" r="4"><title>${esc(shortDate(days[index]))}: ${esc(money(value))}</title></circle>`).join('');
+  const summary = days.map((day, index) => `${shortDate(day)}: ${money(totals[index])}`).join('; ');
+  return raw(`<svg class="finance-trend-chart" viewBox="0 0 320 128" role="img" aria-label="Despesas nos últimos 7 dias: ${esc(summary)}"><line class="finance-trend-grid" x1="8" y1="24" x2="312" y2="24"/><line class="finance-trend-grid" x1="8" y1="56" x2="312" y2="56"/><line class="finance-trend-grid" x1="8" y1="88" x2="312" y2="88"/><path class="finance-trend-area" d="${area}"/><polyline class="finance-trend-line" points="${points}"/>${markers}${labels}</svg>`);
+}
+
 function finRitmo(ym, st, cur) {
   if (!st.outAll && !st.inAll) return '';
   const [y, m] = ym.split('-').map(Number), dim = new Date(y, m, 0).getDate(), day = cur ? Number(today().slice(8)) : dim;
@@ -5346,7 +6209,8 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="card"><div class="head"><h2>Ritmo do mês<i>.</i></h2></div>
+  return h`<section class="card finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+    ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas passaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
 }
@@ -5369,22 +6233,39 @@ function finResumo() {
   const forecast = bal + st.inPending - st.outPending;
   const result = st.inAll - st.outAll;
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
+  const pendingOut = pend.filter((t) => t.type === 'out');
+  const pendingIn = pend.filter((t) => t.type === 'in');
+  const pendingOutCents = pendingOut.reduce((sum, transaction) => sum + transaction.cents, 0);
+  const pendingInCents = pendingIn.reduce((sum, transaction) => sum + transaction.cents, 0);
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const cards = F.accounts.filter(isCredit);
-  const recents = [...F.tx].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+  const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
+  const recents = st.tx
+    .filter((transaction) => !cur || transaction.date <= today())
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 5);
   const bud = Object.entries(F.budgets).filter(([, b]) => b && b.cents > 0), budSpent = bud.reduce((s, [c]) => s + (cats.find(([n]) => n === c)?.[1] || 0), 0), budTot = bud.reduce((s, [, b]) => s + b.cents, 0);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Resumo financeiro"><div class="fin-hero-top"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>${balanceSparkline()}
       <p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando lançamentos pendentes: <b>${money(forecast)}</b>` : h`${cap(ymLabel(ym))}`}</p>
-      <div class="fh-row"><div class="finance-summary-stat is-income"><span>Receitas lançadas</span><b>${money(st.inAll)}</b><small>${money(st.inPaid)} recebidas</small></div><div class="finance-summary-stat is-expense"><span>Despesas lançadas</span><b>${money(st.outAll)}</b><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></div><div class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}"><span>Resultado</span><b>${money(result)}</b><small>no mês</small></div></div></section>
+      <div class="fh-row">
+        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><small>${money(st.inPaid)} recebidas</small></button>
+        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado</span><b>${money(result)}</b><small>no mês</small></button>
+        <button type="button" class="finance-summary-stat is-open" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters aria-label="Ver lançamentos pendentes do mês"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></button>
+      </div></section>
+    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div>
+      <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
+      <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
     ${finRitmo(ym, st, cur)}
-    <div class="fin-overview-grid"><div class="fin-overview-primary">${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div><ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
-      <section class="card"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
-        ${cats.length ? categoryBars(cats, totOut) : empty('Sem despesas neste mês', 'Registre uma despesa para ver a divisão por categoria.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie')}</section></div>
+    <div class="fin-overview-grid">
+      <section class="card finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
+        ${cats.length ? categoryBars(cats, totOut) : empty('Sem despesas neste mês', 'Registre uma despesa para ver a divisão por categoria.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie')}</section>
+      <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>
       ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
-        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}</div>
-    ${finFixas()}
-    <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">Os mais recentes, com data e situação.</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>`;
+        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}
+    </div>
+    ${finFixas()}`;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
@@ -5420,7 +6301,7 @@ function txListHtml() {
     );
   }
   const days = []; r.forEach((t) => { const l = days[days.length - 1]; if (l && l.d === t.date) l.items.push(t); else days.push({ d: t.date, items: [t] }); });
-  return raw('<div style="display:flex;flex-direction:column;gap:14px">' + days.map((g) => { const net = g.items.reduce((s, t) => s + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0), 0); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`.s; }).join('') + '</div>');
+  return raw('<div class="finance-results-groups">' + days.map((g) => { const net = g.items.reduce((s, t) => s + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0), 0); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`.s; }).join('') + '</div>');
 }
 function finLanc() { return ui.finView === 'cal' ? h`${monthNav()}${finTools()}${finCal()}` : finLancList(); }
 function finLancList() {
@@ -5428,10 +6309,10 @@ function finLancList() {
   return h`${monthNav()}${finTools()}
     <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
       <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Buscar" data-input="fin-search"></label>
-        <label style="flex:0 0 130px"><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
-        <label style="flex:0 0 130px"><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
-      <p class="small muted">Receitas <b style="color:var(--ok)">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
-      <div class="row" style="justify-content:space-between"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
+        <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
+        <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
+      <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
+      <div class="row fin-export-actions"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
       <div id="tx-results">${txListHtml()}</div></section>`;
 }
 
@@ -5471,10 +6352,10 @@ function finOrc() {
   const limited = rows.filter((r) => r.lim > 0), tl = limited.reduce((s, r) => s + r.lim, 0), ts = limited.reduce((s, r) => s + r.sp, 0);
   return h`${monthNav()}
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
-      ${limited.length ? h`<div><div class="row" style="justify-content:space-between"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small ${ts > tl ? 'err' : 'muted'}" style="margin-top:6px">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p></div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
+      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p></div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => { const m = outMeta(r.n), over = r.lim && r.sp > r.lim; return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="Definir limite de ${r.n}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`; })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos<i>.</i></h2><button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button></div>
-      ${F.goals.length ? h`<ul class="list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; return h`<li style="align-items:flex-start"><div class="grow"><div class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}</div><div class="bar" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}" style="margin:8px 0 4px"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${pc}%${g.deadline ? ' · até ' + shortDate(g.deadline) : ''}</span></div><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
+      ${F.goals.length ? h`<ul class="list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; return h`<li class="goal-item"><div class="grow"><div class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}</div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${pc}%${g.deadline ? ' · até ' + shortDate(g.deadline) : ''}</span></div><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
 }
 
 /* ---- Relatórios ---- */
@@ -5494,7 +6375,7 @@ function finRel() {
       ${list.length ? h`<div class="donut-row"><div class="donut-w">${donut(list.map(([n, v]) => ({ v, c: col(n) })), total, (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria')}<div class="dc"><b>${money(total)}</b><span>${kind === 'out' ? 'gastos' : 'recebidos'}</span></div></div></div>
         <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : empty(kind === 'out' ? 'Sem despesas neste mês' : 'Sem receitas neste mês', 'Registre lançamentos para ver o relatório.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, kind === 'out' ? 'pie' : 'wallet')}</section>
     ${finCompare()}
-    <section class="card"><h2>Últimos 6 meses<i>.</i></h2>${flowChart(months)}<p class="fine"><span class="lg" style="background:var(--ok)"></span>receitas <span class="lg" style="background:var(--bad)"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
+    <section class="card"><h2>Últimos 6 meses<i>.</i></h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
 }
 
 function viewFinancas() {
@@ -5509,48 +6390,97 @@ function viewFinancas() {
 
 /* ========== Diálogos de Finanças ========== */
 const moneyIn = (c) => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
-function newTxDlg(kind = 'out') {
-  const accs = S.finance.accounts, first = accs.find((a) => !isCredit(a)) || accs[0];
-  dlgOpen('tx', { kind, amount: '', desc: '', category: kind === 'in' ? catNames('in')[0] : catNames('out')[0], accountId: first ? first.id : '', toAccountId: (accs.find((a) => a.id !== (first || {}).id) || {}).id || '', date: today(), settledDate: today(), paid: true, repeat: 'none', times: '2' });
+function newTxDlg(kind = 'out', preferCredit = false) {
+  const accs = S.finance.accounts;
+  const defaults = recentTransactionDefaults(kind, preferCredit);
+  const first = accs.find((account) => account.id === defaults.accountId)
+    || (preferCredit ? accs.find(isCredit) : null)
+    || accs.find((account) => !isCredit(account))
+    || accs[0];
+  const second = accs.find((account) => account.id === defaults.toAccountId && account.id !== first?.id)
+    || accs.find((account) => account.id !== first?.id);
+  dlgOpen('tx', {
+    kind,
+    amount: '',
+    desc: '',
+    category: defaults.category,
+    accountId: first ? first.id : '',
+    toAccountId: second?.id || '',
+    date: today(),
+    settledDate: today(),
+    paid: true,
+    repeat: 'none',
+    currentInstallment: '1',
+    installmentAmountMode: 'total',
+    times: '2',
+  });
 }
-function dlgTx() {
-  const d = ui.dlg.d, accs = S.finance.accounts, edit = !!d.id, tr = d.kind === 'tr', acc = accById(d.accountId);
-  const kinds = [['out', 'Despesa'], ['in', 'Receita'], ['tr', 'Transferência']];
-  const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}<i>.</i></h2>${closeBtn}</div>
-    ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
-    <div class="seg" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
-    <form id="dlgform" class="form" data-form="dlg-tx">
-      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
-      ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>＋ Nova categoria…</option></select>`, 'full')}${!tr && d.category === '__new' ? dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full') : ''}
-      ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
-      ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`)}
-      ${tr ? dlgField('Data', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : ''}
-      ${!tr && !isCredit(acc) ? h`<label class="row full" style="gap:12px;min-height:44px"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><br><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'}</span></span></label>` : ''}
-      ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`)}<p class="fine">${d.kind === 'in' ? 'Usada nos relatórios por caixa.' : 'Usada nos relatórios por caixa. Compras no cartão continuam vinculadas ao ciclo da fatura.'}</p>` : ''}
-      ${!edit && !tr ? h`${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`)}${d.repeat === 'parcel' ? dlgField('Parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`) : ''}${d.repeat !== 'none' ? h`<p class="fine full">${d.repeat === 'parcel' ? 'O valor total é dividido igualmente entre as parcelas, uma por mês.' : 'Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.'}</p>` : ''}` : ''}
-    </form>`,
-    h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
+function recentTransactionDefaults(kind, preferCredit = false) {
+  const categoryType = kind === 'in' ? 'in' : 'out';
+  const categories = catNames(categoryType);
+  const accountAllowed = (account) => account && (kind === 'tr' || kind === 'in' ? !isCredit(account) : true);
+  const latest = S.finance.tx
+    .map((transaction, index) => ({ transaction, index }))
+    .filter(({ transaction }) => transaction.type === kind)
+    .sort((a, b) => Number(b.transaction.createdAt || 0) - Number(a.transaction.createdAt || 0) || b.index - a.index)
+    .map(({ transaction }) => transaction);
+  const recent = latest.find((transaction) => {
+    const account = S.finance.accounts.find((item) => item.id === transaction.accountId);
+    return accountAllowed(account)
+      && (kind === 'tr'
+        ? S.finance.accounts.some((item) => item.id === transaction.toAccountId && item.id !== account.id)
+        : categories.includes(transaction.category));
+  });
+  const preferredCredit = preferCredit
+    ? latest.find((transaction) => {
+      const account = S.finance.accounts.find((item) => item.id === transaction.accountId);
+      return isCredit(account) && categories.includes(transaction.category);
+    })
+    : null;
+  return {
+    accountId: (preferredCredit || recent)?.accountId || '',
+    category: (preferredCredit || recent)?.category || categories[0],
+    toAccountId: kind === 'tr' ? recent?.toAccountId || '' : '',
+  };
 }
+const financeDialogViews = createFinanceDialogViews({
+  ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+  accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
+  categoryMatch, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
+});
+function dlgTx() { return financeDialogViews.transaction(); }
 function dlgCategoryManager() {
+  const renderCategoryNode = (kind, category) => {
+    const subcategories = Array.isArray(category.subcategories) ? category.subcategories : [];
+    const editButton = (name, parent = '') => h`<button type="button" class="ibtn category-manager-edit" data-action="category-edit" data-kind="${kind}" data-name="${name}" data-parent="${parent}" aria-label="Personalizar categoria ${name}">${icon('pencil', 16)}</button>`;
+    return h`<li class="category-manager-item">
+      ${catChip(catInfo(kind, category.name))}
+      <span class="grow ttl">${kind === 'out' ? expenseTitle(category.name) : category.name}</span>
+      ${subcategories.length ? h`<span class="muted small">${subcategories.length} subcategoria${subcategories.length > 1 ? 's' : ''}</span>` : ''}
+      ${editButton(category.name)}
+    </li>${subcategories.length ? h`<li class="category-manager-sublist"><ul class="list category-manager-list category-manager-subcategories">${subcategories.map((subcategory) => h`<li>${catChip(catInfo(kind, `${category.name} > ${categoryLeafName(subcategory)}`))}<span class="grow ttl">${kind === 'out' ? expenseTitle(`${category.name} > ${categoryLeafName(subcategory)}`) : `${category.name} > ${categoryLeafName(subcategory)}`}</span>${editButton(categoryLeafName(subcategory), category.name)}</li>`)}</ul></li>` : ''}`;
+  };
   const categoryGroup = (kind, label) => h`<section class="category-manager-group">
     <div class="head"><h3>${label}</h3><button type="button" class="btn sm" data-action="category-new" data-kind="${kind}">${icon('plus', 16)}Adicionar</button></div>
-    <ul class="list category-manager-list">${listArr(kind).map((category) => h`<li>${catChip(catInfo(kind, category.name))}<span class="grow ttl">${kind === 'out' ? expenseTitle(category.name) : category.name}</span></li>`)}</ul>
+    <ul class="list category-manager-list">${categoryEntries(kind).map((category) => renderCategoryNode(kind, category))}</ul>
   </section>`;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Os registros existentes não serão alterados.</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
     ${categoryGroup('out', 'Despesas')}
     ${categoryGroup('in', 'Receitas')}`,
     h`<button type="button" class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgCategoryNew() {
-  const kind = ui.dlg.d.kind;
+  const d = ui.dlg.d, kind = d.kind, editing = !!d.editName;
   const label = kind === 'in' ? 'receita' : 'despesa';
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Nova categoria de ${label}<i>.</i></h2><p class="small muted">Ela ficará disponível nos próximos lançamentos.</p></div>${closeBtn}</div>
+  const parents = topCategoryNames(kind);
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">${editing ? 'Personalizar categoria' : `Nova categoria de ${label}`}<i>.</i></h2><p class="small muted">${editing ? 'A cor e o ícone também aparecem nos lançamentos.' : 'Ela ficará disponível nos próximos lançamentos.'}</p></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-category">
-      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${ui.dlg.d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      ${!editing && parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
+      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      ${dlgField('Ícone', h`<select data-dlg="icon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.icon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
+      ${dlgField('Cor', h`<input type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
     </form>`,
-    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">Adicionar</button>`);
+    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
 }
 function dlgAccount() {
   const d = ui.dlg.d, edit = !!d.id, card = d.type === 'credit';
@@ -5573,7 +6503,7 @@ function dlgAccount() {
     [OTHER_BANK, 'Outro / não listado'],
     ...(d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) ? [[d.bank, d.bank]] : []),
   ];
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
       ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
@@ -5590,14 +6520,14 @@ function dlgAccountDelete() {
   if (!a) return dlgWrap(h`<div class="head"><h2 id="dt">Conta não encontrada<i>.</i></h2>${closeBtn}</div><p class="small muted">A conta já não está disponível.</p>`, h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
   const txCount = S.finance.tx.filter((t) => t.accountId === a.id || t.toAccountId === a.id).length;
   const recurringCount = recList().filter((r) => r.accountId === a.id).length;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Excluir conta?<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir conta?<i>.</i></h2>${closeBtn}</div>
     <p class="small"><span class="user-value">${accountDisplayName(a)}</span>: a conta, ${txCount} ${plural(txCount, 'lançamento', 'lançamentos')} e ${recurringCount} ${plural(recurringCount, 'lançamento fixo', 'lançamentos fixos')} associados irão juntos para a lixeira.</p>
     <p class="notice warn" role="alert">Você poderá restaurar esses dados por 30 dias. Depois, serão removidos automaticamente.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="acct-del-confirm">Mover para a lixeira</button>`);
 }
 function dlgBudget() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span><i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span><i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Quanto você quer gastar por mês nesta categoria? O Aurora avisa quando chegar perto.</p>
     ${d.confirmClear ? h`<p class="notice warn" role="alert">O orçamento irá para a lixeira por 30 dias. Confirme para continuar.</p>` : ''}
     <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}</form>`,
@@ -5605,32 +6535,32 @@ function dlgBudget() {
 }
 function dlgGoal() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Novo objetivo<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Novo objetivo<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-goal">${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Criar objetivo</button>`);
 }
 function dlgDeposit() {
   const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id);
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span><i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span><i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Este valor atualiza apenas o acompanhamento do objetivo; não altera o saldo de uma conta nem cria um lançamento. Para retirar, informe um valor negativo.</p>
     <form id="dlgform" class="form" data-form="dlg-deposit">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Confirmar</button>`);
 }
 function dlgPayInv() {
   const d = ui.dlg.d, card = accById(d.cardId), srcs = S.finance.accounts.filter((a) => !isCredit(a));
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Pagar fatura<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Pagar fatura<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">${card ? h`<span class="user-value">${accountDisplayName(card)}</span>` : ''}: o pagamento sai da conta escolhida e reduz o valor em aberto do cartão.</p>
     <form id="dlgform" class="form" data-form="dlg-payinv">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`, 'full')}${dlgField('Pagar com', h`<select data-dlg="from">${srcs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.from ? raw('selected') : ''}>${accountOptionLabel(a)} · ${money(accBalance(a))}</option>`)}</select>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Pagar</button>`);
 }
 function dlgTxDel() {
   const d = ui.dlg.d, t = S.finance.tx.find((x) => x.id === d.id) || {}, g = S.finance.tx.filter((x) => x.groupId === d.gid), after = g.filter((x) => x.date >= (t.date || ''));
-  if (!d.gid) return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Excluir lançamento?<i>.</i></h2>${closeBtn}</div>
+  if (!d.gid) return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir lançamento?<i>.</i></h2>${closeBtn}</div>
     <p class="small"><span class="${t.type === 'out' ? 'expense-name' : 'user-value'}">${t.type === 'out' ? expenseTitle(t.desc || t.category || 'Este lançamento') : t.desc || t.category || 'Este lançamento'}</span> · ${t.date || ''} · ${t.cents ? money(t.cents) : ''}</p>
     <p class="small muted">O lançamento poderá ser restaurado pela lixeira por 30 dias.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="txdel-do" data-k="one">Excluir</button>`);
   const opt = (k, title, sub) => h`<button type="button" class="mrow" data-action="txdel-do" data-k="${k}"><span class="mk">${icon('trash', 18)}</span><span class="grow"><b>${title}</b><small>${sub} · restaurável por 30 dias</small></span></button>`;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
     <div class="more">${opt('one', 'Só este', '1 lançamento')}${opt('next', 'Este e os próximos', after.length + ' lançamentos')}${opt('all', 'Toda a série', g.length + ' lançamentos')}</div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
 }
 Object.assign(DLG, { txdel: dlgTxDel, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
@@ -5642,8 +6572,28 @@ Object.assign(ACTIONS, {
     if (!FIN_TABS.some(([key]) => key === el.dataset.t)) { console.error('Aurora: seção de Finanças inválida.', el.dataset.t); return; }
     ui.finTab = el.dataset.t;
     render();
+    requestAnimationFrame(() => {
+      const selected = $(`.fin-section-option[data-t="${ui.finTab}"]`);
+      selected?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   },
-  'fin-go': (el) => { ui.finTab = el.dataset.t; if (el.dataset.f) ui.finFilter = el.dataset.f; render(); window.scrollTo(0, 0); },
+  'fin-go': (el) => {
+    ui.finTab = el.dataset.t;
+    if (el.hasAttribute('data-clear-fin-filters')) {
+      ui.finQ = '';
+      ui.finAcc = '';
+      ui.finCat = '';
+    }
+    if (el.dataset.f) ui.finFilter = el.dataset.f;
+    render();
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => {
+      const selected = $(`.fin-section-option[data-t="${ui.finTab}"]`);
+      selected?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  },
   'fin-filter': (el) => { ui.finFilter = el.dataset.f; render(); },
   'fin-filters-clear': () => {
     ui.finFilter = 'todos';
@@ -5659,7 +6609,23 @@ Object.assign(ACTIONS, {
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },
   'tx-new': () => newTxDlg('out'),
   'tx-new-in': () => newTxDlg('in'),
-  'tx-kind': (el) => { const d = ui.dlg.d, k = el.dataset.k; if (d.kind === k) return; d.kind = k; d.category = k === 'in' ? catNames('in')[0] : catNames('out')[0]; if (k === 'tr' && (!d.toAccountId || d.toAccountId === d.accountId)) d.toAccountId = (S.finance.accounts.find((a) => a.id !== d.accountId) || {}).id || ''; render(); },
+  'tx-kind': (el) => {
+    const d = ui.dlg.d, kind = el.dataset.k;
+    if (d.kind === kind) return;
+    const defaults = recentTransactionDefaults(kind);
+    d.kind = kind;
+    d.category = defaults.category;
+    if (defaults.accountId) d.accountId = defaults.accountId;
+    else if ((kind === 'in' || kind === 'tr') && isCredit(accById(d.accountId))) {
+      d.accountId = (S.finance.accounts.find((account) => !isCredit(account)) || {}).id || '';
+    }
+    if (kind === 'tr') {
+      d.toAccountId = defaults.toAccountId && defaults.toAccountId !== d.accountId
+        ? defaults.toAccountId
+        : (S.finance.accounts.find((account) => account.id !== d.accountId) || {}).id || '';
+    }
+    render();
+  },
   'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', recId: t.recId || '' }); },
   'tx-paid': (el) => {
     const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
@@ -5700,7 +6666,24 @@ Object.assign(ACTIONS, {
     if (entry) toast('Lançamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
   },
   'category-manager': () => dlgOpen('category-manager', {}),
-  'category-new': (el) => { const kind = el.dataset.kind; if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.'); dlgOpen('category-new', { kind, name: '' }); },
+  'category-new': (el) => {
+    const kind = el.dataset.kind;
+    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    dlgOpen('category-new', { kind, name: '', icon: 'tag', color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length] });
+  },
+  'category-edit': (el) => {
+    const { kind, name, parent = '' } = el.dataset;
+    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.');
+    const category = findCategory(kind, name, parent);
+    dlgOpen('category-new', {
+      kind,
+      editName: name,
+      parent,
+      name: category.name,
+      icon: category.icon,
+      color: category.color,
+    });
+  },
   'fin-csv': () => finCsv(),
   'acct-new': () => dlgOpen('account', { name: '', bank: '', type: 'checking', balance: '', limit: '', closing: '', due: '' }),
   'acct-new-card': () => dlgOpen('account', { name: '', bank: '', type: 'credit', linkedAccountId: '', balance: '', limit: '', closing: '', due: '' }),
@@ -5793,7 +6776,12 @@ Object.assign(FORMS, {
       && (!isDay(d.settledDate) || d.settledDate > today())) {
       return toast('Informe uma data válida de pagamento ou recebimento, até hoje.');
     }
-    if (!d.id && d.repeat === 'parcel' && (!Number.isInteger(Number(d.times)) || Number(d.times) < 2 || Number(d.times) > 60)) return toast('Informe entre 2 e 60 parcelas.');
+    if (!d.id && d.repeat === 'parcel') {
+      const currentInstallment = Number(d.currentInstallment), totalInstallments = Number(d.times);
+      if (!Number.isInteger(totalInstallments) || totalInstallments < 2 || totalInstallments > 60) return toast('Informe um total entre 2 e 60 parcelas.');
+      if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.');
+      if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.');
+    }
     const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : d.category, desc: d.desc.trim().slice(0, 80) };
     if (tr) base.toAccountId = d.toAccountId;
     const paid = tr || isCredit(acc) ? true : !!d.paid;
@@ -5814,23 +6802,31 @@ Object.assign(FORMS, {
       const r = { id: newId(), type: d.kind, accountId: d.accountId, category: base.category, desc: base.desc, cents, day: pk(d.date).getDate(), startYM: d.date.slice(0, 7), lastYM: null, firstPaid: paid };
       recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.'); return;
     }
-    const n = d.repeat === 'none' || tr ? 1 : clamp(Math.round(num(d.times)) || 2, 2, 60), gid = n > 1 ? newId() : undefined;
-    for (let i = 0; i < n; i++) {
-      const part = d.repeat === 'parcel' ? Math.floor(cents / n) + (i === 0 ? cents - Math.floor(cents / n) * n : 0) : cents;
-      const installmentDate = addMonths(d.date, i);
-      const installmentPaid = isCredit(acc) ? true : i === 0 ? paid : false;
+    const totalInstallments = d.repeat === 'parcel' ? Number(d.times) : 1;
+    const firstInstallment = d.repeat === 'parcel' ? Number(d.currentInstallment) : 1;
+    const installmentsToCreate = totalInstallments - firstInstallment + 1;
+    const gid = totalInstallments > 1 ? newId() : undefined;
+    for (let offset = 0; offset < installmentsToCreate; offset++) {
+      const installmentNumber = firstInstallment + offset;
+      const part = d.repeat === 'parcel'
+        ? d.installmentAmountMode === 'installment'
+          ? cents
+          : Math.floor(cents / totalInstallments) + (installmentNumber === 1 ? cents - Math.floor(cents / totalInstallments) * totalInstallments : 0)
+        : cents;
+      const installmentDate = addMonths(d.date, offset);
+      const installmentPaid = isCredit(acc) ? true : offset === 0 ? paid : false;
       S.finance.tx.push({
         id: newId(),
         ...base,
         cents: part,
         date: installmentDate,
         paid: installmentPaid,
-        ...(!isCredit(acc) && installmentPaid ? { settledDate: i === 0 ? settledDate : installmentDate } : {}),
-        createdAt: Date.now() + i,
-        ...(n > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${i + 1}/${n})` } : {}),
+        ...(!isCredit(acc) && installmentPaid ? { settledDate: offset === 0 ? settledDate : installmentDate } : {}),
+        createdAt: Date.now() + offset,
+        ...(totalInstallments > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${installmentNumber}/${totalInstallments})` } : {}),
       });
     }
-    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(n > 1 ? `${n} lançamentos criados.` : 'Lançamento adicionado.');
+    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.');
   },
   'dlg-account': () => {
     const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.');
@@ -5852,14 +6848,48 @@ Object.assign(FORMS, {
   },
   'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
   'dlg-category': () => {
-    const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30);
+    const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
     if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
     if (!name) return toast('Informe o nome da categoria.');
-    if (listArr(d.kind).some((category) => norm(category.name) === norm(name))) return toast('Já existe uma categoria com esse nome.');
-    addItem(d.kind, name);
+    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.');
+    const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
+    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.');
+    const existing = d.editName ? findCategory(d.kind, d.editName, parentName) : null;
+    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.');
+    const siblings = parentEntry ? (parentEntry.subcategories || []) : listArr(d.kind);
+    const duplicate = siblings.some((category) => category !== existing
+      && norm(parentEntry ? categoryLeafName(category) : category.name) === norm(name));
+    if (duplicate) return toast('Já existe uma categoria com esse nome.');
+    const financeChanges = [];
+    if (existing) {
+      const oldName = categoryLeafName(existing);
+      const oldPath = parentName ? `${parentName} > ${oldName}` : oldName;
+      const newPath = parentName ? `${parentName} > ${name}` : name;
+      const paths = [[oldPath, newPath]];
+      if (!parentName) {
+        (existing.subcategories || []).forEach((subcategory) => {
+          const child = categoryLeafName(subcategory);
+          paths.push([`${oldName} > ${child}`, `${name} > ${child}`]);
+        });
+      }
+      if (paths.some(([oldValue, newValue]) => oldValue !== newValue
+        && Object.hasOwn(S.finance.budgets, newValue))) {
+        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.');
+      }
+      existing.name = name;
+      existing.color = d.color;
+      existing.icon = d.icon;
+      paths.forEach(([oldValue, newValue]) => {
+        const changed = replaceCategoryReferences(oldValue, newValue);
+        if (changed === null) financeChanges.push(false);
+        else if (changed) financeChanges.push(true);
+      });
+    } else {
+      addItem(d.kind, name, parentName, d.color, d.icon);
+    }
     ui.dlg = createDialog('category-manager', {});
-    commit('settings');
-    toast('Categoria adicionada.');
+    commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
+    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.');
   },
   'dlg-goal': () => { const d = ui.dlg.d, t = parseMoney(d.target), sv = d.saved.trim() ? parseMoney(d.saved) : 0; if (!d.name.trim() || !(t > 0) || Number.isNaN(sv)) return toast('Informe o nome e o valor do objetivo.'); S.finance.goals.push({ id: newId(), name: d.name.trim().slice(0, 50), targetCents: t, savedCents: Math.max(0, sv), deadline: isDay(d.deadline) ? d.deadline : '' }); ui.dlg = null; commit('finance'); },
   'dlg-deposit': () => { const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id), v = parseMoney(d.amount); if (!g || Number.isNaN(v) || v === 0) return toast('Informe um valor.'); g.savedCents = Math.max(0, g.savedCents + v); ui.dlg = null; commit('finance'); toast(v > 0 ? 'Valor guardado.' : 'Valor retirado.'); },
@@ -5928,7 +6958,7 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 function finTools() {
   const n = recList().length;
   return h`<div class="fin-tools"><div class="seg" role="group" aria-label="Modo"><button type="button" aria-pressed="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
-    <div class="row" style="gap:8px"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm" style="cursor:pointer">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+    <div class="row fin-tools-actions"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
   const ym = ui.finMonth, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
@@ -5943,7 +6973,7 @@ function finCal() {
   }
   const day = (by[ui.finDay] || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), tot = day.reduce((s, t) => s + (t.type === 'in' ? t.cents : -t.cents), 0);
   return h`<div class="tcal-wrap"><div class="tcal" role="group" aria-label="Calendário financeiro">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div>
-    <p class="fine"><span class="lg" style="background:var(--bad)"></span>a pagar <span class="lg" style="background:var(--ok)"></span>a receber <span class="lg" style="background:var(--line2)"></span>pago/recebido</p></div>
+    <p class="fine"><span class="lg finance-overdue"></span>a pagar <span class="lg finance-upcoming"></span>a receber <span class="lg finance-settled"></span>pago/recebido</p></div>
     <section class="card"><div class="head"><h3>${ui.finDay === tdy ? 'Hoje' : cap(longDate(ui.finDay))}</h3><span class="small ${tot < 0 ? '' : 'muted'}">${day.length ? money(tot) : ''}</span></div>
       ${day.length ? h`<ul class="list">${day.map(finRow)}</ul>` : h`<p class="small muted">Nada neste dia.</p>`}
       <button class="btn sm" data-action="tx-new-day">${icon('plus', 16)}Lançamento neste dia</button></section>`;
@@ -5952,20 +6982,20 @@ function finCal() {
 /* ---- fixas: lista e edição ---- */
 function dlgRecurList() {
   const rs = recList();
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Lançamentos fixos<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Lançamentos fixos<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Contas e receitas que se repetem todo mês. O Aurora cria os próximos meses sozinho. Para criar uma, use Lançamento e escolha "Fixa mensal".</p>
     ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : h`<div class="empty"><b>Nenhuma fixa ainda</b><span>Aluguel, salário, assinaturas: crie uma vez e esqueça.</span></div>`}`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgRecur() {
   const d = ui.dlg.d, kind = d.kind, cats = catNames(kind), cl = cats.includes(d.category) ? cats : [d.category, ...cats], accs = S.finance.accounts;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Editar fixa<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Editar fixa<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-recur">
       ${dlgField('Descrição', h`<input id="f0" type="text" data-dlg="desc" value="${d.desc}" maxlength="80" autocomplete="off">`, 'full')}
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input type="text" class="amt-in money-input" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`)}${dlgField('Dia do mês', h`<input type="number" min="1" max="31" data-dlg="day" value="${d.day}" inputmode="numeric">`)}
       ${dlgField('Categoria', h`<select data-dlg="category">${cl.map((c) => h`<option class="${kind === 'out' ? 'expense-name' : 'user-value'}" value="${c}" ${c === d.category ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(c) : c}</option>`)}</select>`)}${dlgField('Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
-      <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="future" ${d.future ? raw('checked') : ''}><span class="small"><b>Aplicar aos próximos já criados</b><br><span class="muted">Atualiza os meses futuros que ainda não foram pagos.</span></span></label>
-      <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="paused" ${d.paused ? raw('checked') : ''}><span class="small"><b>Pausar</b><br><span class="muted">Para de criar novos meses.</span></span></label>
+      <label class="row full form-choice-row"><input type="checkbox" data-dlg="future" ${d.future ? raw('checked') : ''}><span class="small"><b>Aplicar aos próximos já criados</b><br><span class="muted">Atualiza os meses futuros que ainda não foram pagos.</span></span></label>
+      <label class="row full form-choice-row"><input type="checkbox" data-dlg="paused" ${d.paused ? raw('checked') : ''}><span class="small"><b>Pausar</b><br><span class="muted">Para de criar novos meses.</span></span></label>
       ${d.confirmDel ? h`<p class="notice warn full" role="alert">A fixa e os próximos meses ainda não pagos irão para a lixeira por 30 dias. Os meses já pagos ficam. Toque em "Confirmar exclusão".</p>` : ''}
     </form>`,
     h`<button type="button" class="btn danger back" data-action="rec-del">${d.confirmDel ? 'Confirmar exclusão' : icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`);
@@ -5990,12 +7020,12 @@ function impRecalc(d, resetCats) {
 }
 function dlgImport2() {
   const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length, dups = d.rows.filter((r) => r.dup).length;
-  return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
     <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} parecem já existir (desmarcados)` : ''}. Confira as categorias antes de importar.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
     <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
-      <label class="row full" style="gap:12px;min-height:44px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
-    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row" style="gap:10px;flex-wrap:nowrap;align-items:flex-start;cursor:pointer;width:100%"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow" style="min-width:0"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · possível duplicado' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
+      <label class="row full form-choice-row"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
+    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · possível duplicado' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
       <select class="impcat" data-dlg="rows.${i}.cat" aria-label="Categoria de ${r.desc}">${catNames(r.kind).map((c) => h`<option class="user-value" ${c === r.cat ? raw('selected') : ''}>${c}</option>`)}</select></li>`)}</ul>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="imp-apply" ${n ? '' : raw('disabled')}>Importar ${n ? '(' + n + ')' : ''}</button>`);
 }
@@ -6052,6 +7082,14 @@ Object.assign(CHANGES, { 'fin-import': async (el) => {
   if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).');
   if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.');
   let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.'); }
+  let parseStatement;
+  try {
+    ({ parseStatement } = await import('./features/finance/statement.js'));
+  } catch (error) {
+    console.error('Aurora: não foi possível carregar a leitura de extratos.', error);
+    toast('Não foi possível preparar a leitura do extrato. Tente novamente.');
+    return;
+  }
   const parsed = parseStatement(text, f.name);
   if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.');
   const acc = S.finance.accounts.find((a) => !isCredit(a)) || S.finance.accounts[0], d = { file: f.name.slice(0, 40), accountId: acc.id, invert: false, truncated: parsed.truncated, rows: parsed.transactions.map((r) => ({ ...r, on: true })) };
@@ -6073,7 +7111,7 @@ function finCompare() {
       <tr><td>Receitas</td><td>${money(sa.inAll)}</td><td>${money(sb.inAll)}</td><td>${dl(sa.inAll, sb.inAll, true)}</td></tr>
       <tr><td>Despesas</td><td>${money(sa.outAll)}</td><td>${money(sb.outAll)}</td><td>${dl(sa.outAll, sb.outAll, false)}</td></tr>
       <tr><td>Resultado</td><td>${money(sa.inAll - sa.outAll)}</td><td>${money(sb.inAll - sb.outAll)}</td><td>${dl(sa.inAll - sa.outAll, sb.inAll - sb.outAll, true)}</td></tr></tbody></table>
-    ${names.length ? h`<div class="f"><span class="lbl">Despesas por categoria</span><ul class="list cmpl">${names.map((n) => h`<li><div class="grow"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b class="expense-name">${expenseTitle(n)}</b><span class="small">${dl(ca[n] || 0, cb[n] || 0, false)}</span></div>
+    ${names.length ? h`<div class="f"><span class="lbl">Despesas por categoria</span><ul class="list cmpl">${names.map((n) => h`<li><div class="grow"><div class="row finance-compare-row"><b class="expense-name">${expenseTitle(n)}</b><span class="small">${dl(ca[n] || 0, cb[n] || 0, false)}</span></div>
       <div class="pair" aria-hidden="true"><span style="width:${(ca[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div><div class="pair b" aria-hidden="true"><span style="width:${(cb[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div>
       <div class="small muted">${money(ca[n] || 0)} · ${money(cb[n] || 0)}</div></div></li>`)}</ul><p class="fine">Barra cheia: ${cap(ymLabel(A))}. Barra clara: ${cap(ymLabel(B))}.</p></div>` : h`<p class="small muted">Sem despesas nesses meses.</p>`}
     </section>`;
@@ -6142,6 +7180,7 @@ function showAccountDataLoadError(root, error, user) {
       const { error: signOutError } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (signOutError) throw signOutError;
       Persist.wipe();
+      resetGoogleCalendarState();
       accountSession = null;
       history.replaceState(null, '', postSignOutPath(location));
       location.reload();
@@ -6161,6 +7200,7 @@ function showAccountDataLoadError(root, error, user) {
 
 async function continueAuthenticatedAurora(root, user) {
   try {
+    const { purgeRemovedStudyDataFromBrowserStorage } = await import('./features/backup/removed-study-data.js');
     purgeRemovedStudyDataFromBrowserStorage(window.localStorage, user.id);
     await loadAccountData();
     initializeBirthdayFromMetadata(user);
@@ -6179,14 +7219,13 @@ async function continueAuthenticatedAurora(root, user) {
   onRoute();
   if (!profileSetupComplete()) openProfileSetup();
   setInterval(tick, 1000);
-  if ('serviceWorker' in navigator) {
+  const registration = await registerPwaSupport();
+  if (registration) {
     try {
-      await navigator.serviceWorker.register('/service-worker.js');
-      await navigator.serviceWorker.ready;
       await initializePomodoroPush();
       await syncHabitReminderSchedule();
     } catch (error) {
-      console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
+      console.error('O Aurora não conseguiu iniciar as notificações Push.', error);
       ui.pushNotice = pomodoroPushErrorMessage(error);
       if (ui.route === 'pomodoro') render();
     }
@@ -6210,7 +7249,7 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
     if (returnedToPublic) renderLanding(root);
     return;
   }
-  Persist.attach(accountSession);
+  await Persist.attach(accountSession);
   await continueAuthenticatedAurora(root, accountSession.user);
 }
 
@@ -6259,6 +7298,7 @@ async function startAurora() {
     setInterval(tick, 1000);
     return;
   }
+  if (isPublicLanding) void registerPwaSupport();
   if (routeMeta && location.hash === '#landing') {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
@@ -6268,7 +7308,31 @@ async function startAurora() {
   }
   initializePublicAppearance();
   renderLanding(root);
-  root.addEventListener('click', (event) => {
+  const sessionRestore = (async () => {
+    try {
+      const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
+        import('./services/account-auth.js'),
+        import('./data/supabase-client.js'),
+      ]);
+      if (!hasSupabaseConfig()) return false;
+      const client = await getAccountClient();
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      if (!data.session?.user) return false;
+      try {
+        await startAuthenticatedAurora(root);
+        return true;
+      } catch (error) {
+        console.error('Aurora: a sessão existente não pôde ser restaurada.', error);
+        showAccountStartupError(root, 'Não foi possível restaurar sua sessão. Atualize a página e tente entrar novamente.');
+        return true;
+      }
+    } catch (error) {
+      console.error('Aurora: não foi possível verificar a sessão salva.', error);
+      return false;
+    }
+  })();
+  root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
     const action = event.target instanceof Element ? event.target.closest('[data-public-action]')?.dataset.publicAction : null;
     if (action === 'landing') {
@@ -6292,6 +7356,7 @@ async function startAurora() {
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
     });
+    if (await sessionRestore) return;
     startAuthenticatedAurora(root, action, true).catch((error) => {
       console.error('Aurora: a inicialização segura falhou.', error);
       const detail = error instanceof Error && error.message
@@ -6374,6 +7439,7 @@ document.addEventListener('click', async (event) => {
     return;
   }
   Persist.wipe();
+  resetGoogleCalendarState();
   history.replaceState(null, '', postSignOutPath(location));
   location.reload();
 });
@@ -6393,6 +7459,8 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+
+initializeCustomSelects(document);
 
 startAurora().catch((error) => {
   console.error('Aurora: a inicialização segura falhou.', error);

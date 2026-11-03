@@ -5,7 +5,7 @@ const TABLES = [
   'task_tag_assignments', 'weekly_reflections', 'timer_state',
   'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
-  'finance_transactions', 'finance_budgets', 'finance_goals', 'finance_recurrences',
+  'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
   'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records',
 ];
 const MANAGED_TABLES = TABLES.filter((table) => table !== 'push_subscriptions');
@@ -334,7 +334,7 @@ function buildRows(userId, state, idMap) {
     });
   }
 
-  const timer = state.pomodoro;
+  const timer = state.pomodoro || {};
   const timerId = idFor(idMap, 'timer_state', 'pomodoro');
   pushRow(rows, 'timer_state', {
     id: timerId,
@@ -576,6 +576,8 @@ function buildRows(userId, state, idMap) {
     skin: log.skin || [],
     sexual_activity: log.sexualActivity ?? null,
     contraception_methods: log.contraceptionMethods || [],
+    masturbation_activity: log.masturbationActivity ?? null,
+    orgasm_count: log.orgasmCount ?? null,
     is_test_data: log.sample === true,
     deleted_at: deletedAtFor(settings, 'cycleLog', day),
   })));
@@ -773,6 +775,8 @@ function cycleLogFromRow(row) {
     ...(row.skin?.length ? { skin: row.skin } : {}),
     ...(row.sexual_activity !== null ? { sexualActivity: row.sexual_activity } : {}),
     ...(row.contraception_methods?.length ? { contraceptionMethods: row.contraception_methods } : {}),
+    ...(row.masturbation_activity != null ? { masturbationActivity: row.masturbation_activity } : {}),
+    ...(row.orgasm_count != null ? { orgasmCount: row.orgasm_count } : {}),
     sample: row.is_test_data || undefined,
   };
 }

@@ -16,7 +16,7 @@ await act('planejar','[data-action="task-new"]','nova tarefa');
 await act('financas','[data-action="tx-new"]','novo lançamento');
 await p.evaluate(()=>{location.hash='financas'}); await p.waitForTimeout(300); await p.evaluate(()=>document.querySelector('[data-action="fin-tab"][data-t="contas"]')?.click()); await p.waitForTimeout(300); await act('financas','[data-action="acct-new"]','nova conta');
 await p.evaluate(()=>location.hash='financas');
-await act('inicio','.global-search-trigger','busca');
+await p.evaluate(()=>location.hash='inicio'); await p.waitForTimeout(350); await p.keyboard.press('Control+k'); await p.waitForTimeout(450); await measure('busca'); await p.evaluate(()=>document.querySelector('[data-action="dlg-close"]')?.click()); await p.waitForTimeout(300); await p.reload(); await p.waitForTimeout(500);
 await p.evaluate(()=>location.hash='inicio'); await p.waitForTimeout(300);
 await act('inicio','[data-action="accessibility-toggle"]','tema e acessibilidade');
 await act('inicio','[data-action="toggle-notifications"]','notificações');

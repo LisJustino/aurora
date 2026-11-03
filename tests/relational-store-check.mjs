@@ -37,10 +37,22 @@ const financeAccountMigration = await readFile(
 );
 assert.match(financeAccountMigration, /set account_type = 'checking'\s+where account_type = 'cash'/i);
 assert.match(financeAccountMigration, /'checking', 'savings', 'investment', 'credit'/i);
+assert.match(
+  financeAccountMigration,
+  /check \(account_types <@ array\['checking', 'savings', 'investment', 'cash'\]::text\[\]\)/i,
+);
 assert.match(financeAccountMigration, /linked_account_id uuid/i);
 assert.match(financeAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
 assert.match(financeAccountMigration, /on delete set null \(linked_account_id\)/i);
 assert.match(financeAccountMigration, /linked_account_id is null or account_type = 'credit'/i);
+const cycleIntimacyMigration = await readFile(
+  new URL('../supabase/migrations/20261102000000_cycle_intimacy_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleIntimacyMigration, /add column if not exists masturbation_activity boolean/i);
+assert.match(cycleIntimacyMigration, /add column if not exists orgasm_count integer/i);
+assert.match(cycleIntimacyMigration, /if not exists \([\s\S]*cycle_days_orgasm_count_check/i);
+assert.match(cycleIntimacyMigration, /orgasm_count is null or orgasm_count between 0 and 99/i);
 
 const trashCollectionMigration = await readFile(
   new URL('../supabase/migrations/20261029040000_trash_cycle_collection.sql', import.meta.url),
@@ -78,6 +90,19 @@ const rlsIsolationTest = await readFile(
 assert.match(rlsIsolationTest, /valid-trash-a/i);
 assert.match(rlsIsolationTest, /when check_violation/i);
 assert.match(rlsIsolationTest, /User A inserted trash for User B/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_keys/i);
+assert.match(rlsIsolationTest, /Anonymous users read user_data/i);
+assert.match(rlsIsolationTest, /User A read User B vault key/i);
+assert.match(rlsIsolationTest, /User A read User B legacy data/i);
+assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
+assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
+assert.match(rlsIsolationTest, /masturbation_activity, orgasm_count/i);
+assert.match(rlsIsolationTest, /'2026-03-01', true, true, 2/i);
+assert.match(rlsIsolationTest, /'2026-03-02', true, true, 100/i);
+assert.match(rlsIsolationTest, /The orgasm count constraint accepted 100/i);
+assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
+assert.match(rlsIsolationTest, /expected_versions/i);
+assert.match(rlsIsolationTest, /version_conflict:/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];
@@ -119,6 +144,17 @@ const state = {
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
+      profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
+      homeMode: 'focus',
+      homeModes: {
+        overview: { layout: { order: ['today', 'habits', 'summary', 'quick'], visible: ['today', 'summary'] }, shortcuts: ['task'] },
+        focus: { layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] }, shortcuts: ['task', 'pomodoro'] },
+        routine: { layout: { order: ['habits', 'today', 'summary', 'quick'], visible: ['habits', 'today'] }, shortcuts: ['habit'] },
+      },
+      homeShortcuts: ['task', 'pomodoro'],
+      homeMessage: 'Um passo de cada vez.',
+      areaColors: { planning: 'coral', habits: 'sage' },
     },
     onboardingComplete: true,
     introSeen: true,
@@ -148,13 +184,30 @@ const state = {
       { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', desc: 'Teste' },
       { id: 'tx-legacy', type: 'in', accountId: 'account-1', cents: 2500, date: '2026-10-27', desc: 'Antigo' },
       { id: 'tx-cash', type: 'in', accountId: 'cash-legacy', cents: 500, date: '2026-10-26', desc: 'Saldo preservado' },
+      { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
     ],
     budgets: { Mercado: { cents: 5000 } },
     goals: [],
-    recurring: [],
+    recurring: [{
+      id: 'rec-rent',
+      type: 'out',
+      accountId: 'account-1',
+      cents: 1800,
+      day: 25,
+      startYM: '2026-10',
+      category: 'Moradia',
+      desc: 'Aluguel',
+    }],
   },
   cycle: [{ start: '2026-10-25', end: '2026-10-29' }],
-  cycleLog: {},
+  cycleLog: {
+    '2026-10-28': {
+      sexualActivity: true,
+      contraceptionMethods: ['condom'],
+      masturbationActivity: true,
+      orgasmCount: 2,
+    },
+  },
   weight: [],
 };
 
@@ -163,12 +216,17 @@ await store.save(state);
 assert.equal(writes.length, 1);
 assert.equal(writes[0].name, 'apply_relational_changes');
 const changeByTable = new Map(writes[0].args.p_changes.map((change) => [change.table, change.rows]));
+const orderedTables = writes[0].args.p_changes.map((change) => change.table);
 const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
 assert.equal(changeByTable.get('finance_transactions')[0].user_id, userId);
+const recurrenceRow = changeByTable.get('finance_recurrences')[0];
+const recurringTransactionRow = changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-recurring');
+assert.equal(recurringTransactionRow.recurrence_id, recurrenceRow.id);
+assert.ok(orderedTables.indexOf('finance_recurrences') < orderedTables.indexOf('finance_transactions'));
 const accountRowsByLegacyId = new Map(changeByTable.get('finance_accounts').map((row) => [row.legacy_id, row]));
 assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment');
 assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');
@@ -179,6 +237,12 @@ assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
 assert.equal(changeByTable.get('cycle_periods')[0].start_date, '2026-10-25');
 assert.equal(changeByTable.get('cycle_periods')[0].end_date, '2026-10-29');
+const cycleDayRow = changeByTable.get('cycle_days')[0];
+assert.equal(cycleDayRow.log_date, '2026-10-28');
+assert.equal(cycleDayRow.sexual_activity, true);
+assert.deepEqual(cycleDayRow.contraception_methods, ['condom']);
+assert.equal(cycleDayRow.masturbation_activity, true);
+assert.equal(cycleDayRow.orgasm_count, 2);
 assert.equal(changeByTable.get('water_logs')[0].amount_ml, 250);
 assert.equal(changeByTable.get('water_logs')[0].recorded_at, '2026-10-29T12:00:00.000Z');
 const trashedPeriod = changeByTable.get('cycle_periods').find((row) => row.start_date === '2026-10-10');
@@ -194,6 +258,21 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMode, 'focus');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(changeByTable.get('user_settings')[0].preferences.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
@@ -247,8 +326,30 @@ assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
+  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.homeLayout, {
+  order: ['today', 'summary', 'quick', 'habits'],
+  visible: ['summary', 'today'],
+});
+assert.equal(loadedState.settings.prefs.homeMode, 'focus');
+assert.deepEqual(loadedState.settings.prefs.homeShortcuts, ['task', 'pomodoro']);
+assert.equal(loadedState.settings.prefs.homeMessage, 'Um passo de cada vez.');
+assert.deepEqual(loadedState.settings.prefs.areaColors, { planning: 'coral', habits: 'sage' });
+assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
+  layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
+  shortcuts: ['task', 'pomodoro'],
+});
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
+assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
+  sexualActivity: true,
+  contraceptionMethods: ['condom'],
+  masturbationActivity: true,
+  orgasmCount: 2,
+  sample: undefined,
+});
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);
 assert.deepEqual(loadedState.water, [{
   id: 'water-log-1',
@@ -342,7 +443,7 @@ const accountRows = {
     enabled_areas: { finances: true },
   }],
   tasks: [{
-    id: 'task-with-optional-fields',
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
     title: 'Tarefa válida',
     is_completed: false,
     tag: null,
@@ -361,6 +462,7 @@ const accountRows = {
     focus_seconds: 0,
     is_test_data: false,
     deleted_at: null,
+    updated_at: versionStamp,
   }],
 };
 const loadingClient = {
@@ -387,6 +489,58 @@ assert.deepEqual(loaded.finance.budgets, {});
 assert.equal(loaded.settings.onboardingComplete, true);
 assert.equal(loaded.settings.introSeen, true);
 assert.deepEqual(loaded.settings.areas, { finances: true });
+
+const recoveryCalls = [];
+let recoveryAttempts = 0;
+const recoveryClient = {
+  from(table) {
+    return {
+      select() { return this; },
+      async range() { return { data: accountRows[table] || [], error: null }; },
+    };
+  },
+  async rpc(name, args) {
+    recoveryCalls.push({ name, args });
+    recoveryAttempts += 1;
+    if (recoveryAttempts === 1) {
+      return { data: null, error: { code: '08006', message: 'connection dropped' } };
+    }
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          updated_at: '2026-10-30T12:01:00.000Z',
+        })),
+      })),
+      error: null,
+    };
+  },
+};
+const recoveryStore = new RelationalAccountStore(recoveryClient, userId);
+const recoveryBaseline = await recoveryStore.load();
+recoveryBaseline.pomodoro = null;
+const recoveryDraft = structuredClone(recoveryBaseline);
+recoveryDraft.tasks[0].title = 'Rascunho recuperável';
+const taskVersion = recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id);
+console.error = () => {};
+try {
+  await assert.rejects(
+    () => recoveryStore.save(recoveryDraft, recoveryBaseline),
+    /Não foi possível salvar as alterações na conta/,
+  );
+} finally {
+  console.error = originalConsoleError;
+}
+assert.equal(recoveryDraft.tasks[0].title, 'Rascunho recuperável', 'a falha não deve mutar o estado de origem');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), taskVersion);
+await recoveryStore.save(recoveryDraft, recoveryBaseline);
+const failedAttempt = recoveryCalls[0].args.p_changes.find(({ table }) => table === 'tasks');
+const retryAttempt = recoveryCalls[1].args.p_changes.find(({ table }) => table === 'tasks');
+assert.equal(failedAttempt.rows[0].expected_updated_at, taskVersion);
+assert.equal(retryAttempt.rows[0].expected_updated_at, taskVersion, 'a nova tentativa deve usar a versão confirmada anterior');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), '2026-10-30T12:01:00.000Z');
 
 const failedClient = {
   from() {

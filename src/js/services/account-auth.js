@@ -13,11 +13,11 @@ import {
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, createBirthdayReference, isValidBirthdayReference } from '../features/profile/birthday.js';
-import { IC } from '../utils/icons.js';
+import { iconSvg } from '../utils/icons.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.4';
+export const LEGAL_DOCUMENT_VERSION = '1.6';
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
   if (!(acceptedAt instanceof Date) || Number.isNaN(acceptedAt.getTime())) {
@@ -39,7 +39,7 @@ export function hasCurrentLegalConsent(user) {
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
 }
 
-export function hasCompleteAdultProfile(user) {
+export function hasCompleteProfile(user) {
   const metadata = user?.user_metadata;
   return Boolean(metadata
     && typeof metadata.name === 'string'
@@ -165,8 +165,6 @@ const create = (tag, className, text) => {
   if (text !== undefined) element.textContent = text;
   return element;
 };
-
-const accountIcon = (name, size = 18) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name] || ''}</svg>`;
 
 function setAccountFieldError(input, message) {
   const field = input.closest('.account-field');
@@ -335,14 +333,14 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
     reveal.setAttribute('aria-controls', input.id);
     reveal.setAttribute('aria-pressed', 'false');
     reveal.title = 'Mostrar senha';
-    reveal.innerHTML = accountIcon('eye');
+    reveal.innerHTML = iconSvg('eye');
     reveal.addEventListener('click', () => {
       const visible = input.type === 'password';
       input.type = visible ? 'text' : 'password';
       reveal.setAttribute('aria-pressed', String(visible));
       reveal.setAttribute('aria-label', `${visible ? 'Ocultar' : 'Mostrar'} ${labelText.toLowerCase()}`);
       reveal.title = `${visible ? 'Ocultar' : 'Mostrar'} senha`;
-      reveal.innerHTML = accountIcon(visible ? 'eyeOff' : 'eye');
+      reveal.innerHTML = iconSvg(visible ? 'eyeOff' : 'eye');
       input.focus();
     });
     control.append(reveal);
@@ -405,7 +403,7 @@ function createAccountPageLayout() {
   return { layout, page };
 }
 
-export function appendLegalConsent(form) {
+export function appendLegalConsent(form, { updatedDocuments = false } = {}) {
   const accepted = create('input');
   accepted.type = 'checkbox';
   accepted.name = 'termsAccepted';
@@ -425,16 +423,33 @@ export function appendLegalConsent(form) {
   privacyLink.href = '/privacy.html';
   privacyLink.target = '_blank';
   privacyLink.rel = 'noopener noreferrer';
-  const links = create('p', 'account-terms-copy');
-  links.append(
-    document.createTextNode('Leia os documentos (abrem em novas abas): '),
-    termsLink,
-    document.createTextNode(' e '),
-    privacyLink,
-    document.createTextNode('.'),
-  );
   const group = create('div', 'account-terms-group');
-  group.append(consent, links);
+  if (updatedDocuments) {
+    group.classList.add('account-terms-group-updated');
+    const documents = create('div', 'account-legal-documents');
+    termsLink.className = 'account-legal-document';
+    termsLink.replaceChildren(
+      create('span', 'account-legal-document-title', 'Termos de Uso'),
+      create('span', 'account-legal-document-description', 'Regras para usar o Aurora'),
+    );
+    privacyLink.className = 'account-legal-document';
+    privacyLink.replaceChildren(
+      create('span', 'account-legal-document-title', 'Política de Privacidade'),
+      create('span', 'account-legal-document-description', 'Como seus dados são tratados'),
+    );
+    documents.append(termsLink, privacyLink);
+    group.append(documents, consent);
+  } else {
+    const links = create('p', 'account-terms-copy');
+    links.append(
+      document.createTextNode('Leia os documentos (abrem em novas abas): '),
+      termsLink,
+      document.createTextNode(' e '),
+      privacyLink,
+      document.createTextNode('.'),
+    );
+    group.append(consent, links);
+  }
   form.append(group);
   return accepted;
 }
@@ -451,6 +466,7 @@ export function createAccountForm(root, {
 }) {
   root.replaceChildren();
   const { layout, page } = createAccountPageLayout();
+  page.dataset.accountMode = mode;
   const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
   const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
@@ -467,11 +483,14 @@ export function createAccountForm(root, {
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', description);
+  const legalEyebrow = mode === 'legal-consent'
+    ? create('p', 'account-legal-eyebrow', 'DOCUMENTOS ATUALIZADOS')
+    : null;
   if (mode === 'login') {
     detail.classList.add('account-security-note');
     const icon = document.createElement('span');
     icon.className = 'account-security-icon';
-    icon.innerHTML = accountIcon('shield', 18);
+    icon.innerHTML = iconSvg('shield', 18);
     detail.prepend(icon);
   }
   const form = create('form', 'account-form');
@@ -485,14 +504,22 @@ export function createAccountForm(root, {
       const item = create('li', `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`);
       item.dataset.step = String(index);
       if (index === activeStage) item.setAttribute('aria-current', 'step');
-      const number = create('span', 'account-step-number', index === activeStage ? String(index) : index < activeStage ? '✓' : String(index));
+      const number = create('span', 'account-step-number', index < activeStage ? '' : String(index));
+      if (index < activeStage) number.innerHTML = iconSvg('check', 16);
       const text = create('span', 'account-step-label', label);
       item.append(number, text);
+      if (index < signupSteps[signupSteps.length - 1][1]) {
+        const separator = create('span', 'account-step-separator');
+        separator.setAttribute('aria-hidden', 'true');
+        separator.innerHTML = iconSvg('chevRight', 16);
+        item.append(separator);
+      }
       steps.append(item);
     });
     card.append(steps);
   }
-  card.append(brand, heading, detail);
+  if (legalEyebrow) card.append(brand, legalEyebrow, heading, detail);
+  else card.append(brand, heading, detail);
 
   if (recoveryKey) {
     const instructions = create('p', 'account-security-note', 'Guarde esta chave fora do Aurora. Ela é exibida somente agora e será necessária para recuperar os dados se a senha for redefinida ou você usar outro dispositivo.');
@@ -511,11 +538,11 @@ export function createAccountForm(root, {
       'date',
       'bday',
       signupProfile?.birthDate || '',
-      'Usamos a data para verificar a idade; guardamos somente a idade calculada.',
+      'Usamos a data para calcular sua idade; guardamos somente a idade calculada.',
     );
     birthDate.closest('.account-field')?.classList.add('account-birth-field');
     birthDate.max = localDateValue(new Date());
-    ageStatus = create('p', 'account-age-status', 'Informe sua data de nascimento para verificar a maioridade.');
+    ageStatus = create('p', 'account-age-status', 'Informe sua data de nascimento para calcular sua idade.');
     ageStatus.id = 'account-age-status';
     ageStatus.setAttribute('role', 'status');
     ageStatus.setAttribute('aria-live', 'polite');
@@ -555,7 +582,9 @@ export function createAccountForm(root, {
     form.elements.confirmPassword.maxLength = 72;
     appendLegalConsent(form);
   }
-  if (mode === 'legal-consent' || mode === 'oauth-profile') appendLegalConsent(form);
+  if (mode === 'legal-consent' || mode === 'oauth-profile') {
+    appendLegalConsent(form, { updatedDocuments: mode === 'legal-consent' });
+  }
   if (mode === 'delete-account') {
     form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os backups JSON baixados não são apagados pelo Aurora.'));
     const confirmation = createField(
@@ -583,8 +612,9 @@ export function createAccountForm(root, {
     const rememberSession = create('input');
     rememberSession.type = 'checkbox';
     rememberSession.name = 'rememberSession';
+    rememberSession.checked = true;
     const rememberSessionLabel = create('label', 'account-remember-session');
-    const rememberSessionCopy = create('span', '', 'Manter conectado');
+    const rememberSessionCopy = create('span', '', 'Manter conectado neste dispositivo');
     rememberSessionLabel.append(rememberSession, rememberSessionCopy);
     form.append(rememberSessionLabel);
   }
@@ -644,6 +674,10 @@ export function createAccountForm(root, {
     password.setAttribute('aria-describedby', `${password.getAttribute('aria-describedby')} ${checklist.id}`.trim());
     PASSWORD_REQUIREMENTS.forEach(([key, text]) => {
       const item = create('li', 'account-password-criterion', text);
+      const indicator = create('span', 'account-password-criterion-icon');
+      indicator.setAttribute('aria-hidden', 'true');
+      indicator.innerHTML = iconSvg('circle', 12);
+      item.prepend(indicator);
       item.dataset.criterion = key;
       checklist.append(item);
     });
@@ -661,6 +695,7 @@ export function createAccountForm(root, {
         const item = checklist.querySelector(`[data-criterion="${key}"]`);
         item.classList.toggle('is-met', valid);
         item.setAttribute('aria-label', `${valid ? 'atendido' : 'pendente'}: ${item.textContent}`);
+        item.querySelector('.account-password-criterion-icon').innerHTML = iconSvg(valid ? 'check' : 'circle', 12);
         if (valid) passed += 1;
       });
       const level = passed >= 5 ? 'forte' : passed >= 3 ? 'média' : 'fraca';
@@ -694,19 +729,15 @@ export function createAccountForm(root, {
     const updateProfileValidity = () => {
       const age = calculateAge(birthDate.value);
       if (!birthDate.value) {
-        ageStatus.textContent = 'Informe sua data de nascimento para verificar a maioridade.';
+        ageStatus.textContent = 'Informe sua data de nascimento para calcular sua idade.';
         ageStatus.dataset.state = 'pending';
         birthDate.setCustomValidity('');
       } else if (age === null) {
         ageStatus.textContent = 'Informe uma data válida, com até 120 anos.';
         ageStatus.dataset.state = 'invalid';
         birthDate.setCustomValidity('Informe uma data de nascimento válida.');
-      } else if (age < 18) {
-        ageStatus.textContent = `Você tem ${age} anos. O cadastro está disponível a partir dos 18 anos.`;
-        ageStatus.dataset.state = 'invalid';
-        birthDate.setCustomValidity('A criação de conta está disponível apenas para pessoas com 18 anos ou mais.');
       } else {
-        ageStatus.textContent = `Você tem ${age} anos e é maior de idade.`;
+        ageStatus.textContent = `Você tem ${age} anos.`;
         ageStatus.dataset.state = 'eligible';
         birthDate.setCustomValidity('');
       }
@@ -714,7 +745,6 @@ export function createAccountForm(root, {
         form.elements.name.value.trim()
         && form.elements.preferredName.value.trim()
         && age !== null
-        && age >= 18
         && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
       );
     };
@@ -1040,12 +1070,12 @@ export async function requireAccount(root, initialMode = 'login', {
   const authPage = async (mode, email = '', notice = '', signupProfile = null) => {
     const copy = {
       login: ['Entrar na sua conta', 'Seus dados pessoais são carregados após a autenticação.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
-      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para verificar a idade e não será salva.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
+      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos. A data completa será usada apenas para calcular sua idade e não será salva.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
       'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
-      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta com segurança, informe seus dados, confirme que tem 18 anos ou mais e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
+      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta, informe seus dados e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
       recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
       'update-password': ['Atualizar senha', 'Escolha uma senha longa e exclusiva para sua conta. A redefinição não altera a senha do cofre legado; para importar dados cifrados, use a senha original dele.', []],
-      'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos Termos de Uso e da Política de Privacidade. Se recusar, você poderá confirmar a exclusão permanente da conta e dos dados associados.', []],
+      'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos documentos. Se preferir recusar, você poderá revisar as etapas para confirmar a exclusão permanente da conta.', []],
       'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; esta ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
     }[mode];
     const publicAuthMode = ['login', 'signup-profile', 'signup-access', 'recovery'].includes(mode);
@@ -1149,8 +1179,8 @@ export async function requireAccount(root, initialMode = 'login', {
     }
   };
 
-  const requireCurrentAdultProfile = async (user) => {
-    if (!hasSocialIdentity(user) || hasCompleteAdultProfile(user)) return user;
+  const requireCurrentProfile = async (user) => {
+    if (!hasSocialIdentity(user) || hasCompleteProfile(user)) return user;
     const metadata = user.user_metadata || {};
     const providerName = metadata.full_name || metadata.name || '';
     const profileDraft = {
@@ -1169,8 +1199,8 @@ export async function requireAccount(root, initialMode = 'login', {
       }
       const profile = result.signupProfile;
       if (!profile || !profile.name || !profile.preferredName
-        || !profile.birthdayReference || profile.age < 18) {
-        message = 'Preencha seus dados e confirme que tem 18 anos ou mais para continuar.';
+        || !profile.birthdayReference) {
+        message = 'Preencha seus dados e informe uma data de nascimento válida para continuar.';
         continue;
       }
       if (!result.termsAccepted) {
@@ -1201,7 +1231,7 @@ export async function requireAccount(root, initialMode = 'login', {
   };
 
   const requireCurrentLegalConsent = async (user) => {
-    user = await requireCurrentAdultProfile(user);
+    user = await requireCurrentProfile(user);
     if (!user || hasCurrentLegalConsent(user)) return user;
     let message = '';
     for (;;) {
@@ -1315,8 +1345,8 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
         if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
-          || !birthdayReference || result.signupProfile.age < 18) {
-          message = 'Preencha seus dados e confirme que tem 18 anos ou mais para criar uma conta.';
+          || !birthdayReference) {
+          message = 'Preencha seus dados e informe uma data de nascimento válida para criar uma conta.';
           continue;
         }
         profileDraft = result.signupProfile;
@@ -1325,9 +1355,9 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       if (mode === 'signup-access') {
-        if (!profileDraft || !profileDraft.birthdayReference || profileDraft.age < 18) {
+        if (!profileDraft || !profileDraft.birthdayReference) {
           mode = 'signup-profile';
-          message = 'Confirme seus dados e sua idade para continuar o cadastro.';
+          message = 'Confirme seus dados e a data de nascimento para continuar o cadastro.';
           continue;
         }
         if (!result.termsAccepted) {
