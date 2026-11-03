@@ -6,6 +6,9 @@ Use títulos claros, em português, que descrevam a mudança. O formato padrão 
 tipo(escopo): resumo com verbo no infinitivo
 ```
 
+O texto do título e o corpo devem estar em português do Brasil; não misture
+português e inglês na descrição. Os tipos (`feat`, `fix`, etc.) são os tokens
+fixos do padrão e não devem ser traduzidos.
 O escopo é opcional. Mantenha o título em até 72 caracteres, sem ponto final.
 Use um corpo após uma linha em branco quando contexto, motivação ou efeitos
 importantes não couberem no título. Prefira poucos tópicos objetivos; não repita

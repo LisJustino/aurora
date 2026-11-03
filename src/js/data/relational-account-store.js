@@ -334,7 +334,7 @@ function buildRows(userId, state, idMap) {
     });
   }
 
-  const timer = state.pomodoro;
+  const timer = state.pomodoro || {};
   const timerId = idFor(idMap, 'timer_state', 'pomodoro');
   pushRow(rows, 'timer_state', {
     id: timerId,

@@ -70,26 +70,33 @@ variáveis `VITE_*` ou no bundle do frontend.
 Não considere o site pronto para divulgação ampla até concluir e registrar estes
 itens:
 
-- **Revisão dos documentos:** obtenha revisão jurídica dos Termos e da Política
+- [ ] **Revisão dos documentos:** obtenha revisão jurídica dos Termos e da Política
   de Privacidade, especialmente sobre dados de ciclo/saúde e financeiros,
   operadores e região de hospedagem, retenção, exclusão, backups e Push. A
   revisão técnica do repositório não substitui essa validação.
-- **Configuração de produção:** confirme no projeto Supabase de produção a
+- [ ] **Configuração de produção:** confirme no projeto Supabase de produção a
   autoconfirmação de novos cadastros, as URLs de retorno permitidas, a região,
   as políticas RLS e a publicação/configuração da Edge Function de exclusão.
   A configuração de desenvolvimento não comprova a de produção.
-- **Fluxos com conta de teste:** em Preview e, depois, em Production, valide
+- [ ] **Fluxos com conta de teste:** em Preview e, depois, em Production, valide
   cadastro, login, recuperação de senha, leitura/gravação após recarregar e
   exclusão definitiva usando somente contas e dados fictícios. Não faça
   testes destrutivos em contas reais.
-- **Entrega e acessibilidade:** confira a landing e a demonstração em mobile e
+- [ ] **RLS e concorrência:** execute `supabase/tests/rls_isolation.sql` em um
+  projeto isolado, depois de aplicar as migrations; valide também duas sessões
+  autenticadas que tentem salvar a mesma linha e confirme que a segunda recebe
+  conflito recuperável, sem sobrescrever a primeira. Não use Production.
+- [ ] **Entrega e acessibilidade:** confira a landing e a demonstração em mobile e
   desktop, navegação por teclado, links dos documentos, rotas diretas, erros no
   console, cabeçalhos, links quebrados e os arquivos do PWA. Registre problemas
   conhecidos antes de divulgar.
-- **Analytics:** métricas comportamentais estão adiadas. Não adicionar scripts
-  ou eventos de terceiros por enquanto; qualquer adoção futura exige revisar a
-  Política de Privacidade, a CSP e o fluxo de aceite antes de publicar.
+- **Analytics (restrição vigente):** métricas comportamentais estão adiadas.
+  Não adicionar scripts ou eventos de terceiros por enquanto; qualquer adoção
+  futura exige revisar a Política de Privacidade, a CSP e o fluxo de aceite
+  antes de publicar.
 
-Os documentos legais ainda registram pendências de revisão e confirmação
-operacional. Esses itens não são cobertos pelo build local nem pelos testes
-automatizados.
+Registre cada conclusão com data, responsável, ambiente e evidência em local
+aprovado pelo projeto. Neste repositório, revisão jurídica e configuração/
+validação de Production permanecem pendentes: não são cobertas pelo build local
+nem pelos testes automatizados e não devem ser marcadas como concluídas por
+este checklist técnico.

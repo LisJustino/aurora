@@ -1,6 +1,69 @@
 # Testes
 
-## Aplicação web
+## Comandos e cobertura automatizada
+
+Execute na raiz do repositório:
+
+```powershell
+npm ci
+npm test
+npm run build
+npx playwright install chromium firefox webkit
+npm run test:e2e:ci
+npm --prefix worker ci
+npm --prefix worker test
+```
+
+O workflow do GitHub executa `npm test`, sobe um Postgres Supabase local
+isolado, aplica todas as migrations, roda `supabase/tests/rls_isolation.sql`
+e um conflito concorrente com duas conexões PostgreSQL, faz o build, treze
+cenários E2E em Chromium e um fluxo-smoke em Firefox e WebKit em cada push
+e pull request. Esse job usa somente containers locais descartáveis e não
+acessa projetos Supabase remotos. `npm run
+test:e2e:ci` inicia servidores Vite temporários em `127.0.0.1:5179` e
+`127.0.0.1:4180`, usa somente demonstração e dados fictícios e encerra os
+servidores ao final. Ele exige o build e o navegador Chromium instalados.
+Os cenários também verificam acessibilidade e contraste, sincronização dos
+selects customizados com os controles nativos, regressões de Finanças e
+bloqueio/restauração do scroll em diálogos e painéis móveis e desktop.
+
+Os testes de lógica e persistência usam dados simulados. A integração Supabase
+usa banco local descartável, não credenciais nem dados remotos. O teste
+concorrente cria um usuário temporário no banco local, sincroniza duas
+conexões sobre a mesma versão e confirma que a gravação obsoleta é rejeitada;
+o fixture é removido ao final. O teste de falha de persistência simula a
+indisponibilidade da RPC, verifica que a versão confirmada não avança e que uma
+tentativa posterior consegue salvar. A cobertura de backup cifrado inclui
+exportação sem texto puro, round-trip, senha incorreta, adulteração e
+preservação do fluxo de prévia; os backups comuns v1/v2 continuam aceitos pelo
+parser existente. A persistência também cobre gravação e recuperação quando o
+estado do Pomodoro não possui timer carregado.
+
+O fluxo de atualização PWA em Chromium usa um `ServiceWorkerContainer` de teste
+para conferir aviso, adiamento, nova notificação e mensagem explícita
+`SKIP_WAITING`; o ciclo real de instalação/atualização ainda deve ser conferido
+em Preview com dois builds servidos na mesma origem. Firefox e WebKit exercitam
+tarefa, diálogo, console e layout móvel; a matriz não equivale a repetir todos
+os E2E nem a testar Safari/iOS ou dispositivos físicos.
+
+## Pendências externas de lançamento
+
+- Revisão jurídica assinada dos Termos de Uso e da Política de Privacidade.
+- Conferência no Dashboard Supabase de Production: migrations, RLS,
+  autoconfirmação, URLs de retorno e Edge Function de exclusão.
+- Fluxos autenticados em contas fictícias de Preview e Production: cadastro,
+  login, recuperação, persistência após reload e exclusão definitiva.
+- Repetir em Preview a corrida de duas sessões autenticadas reais, além da
+  corrida automatizada coberta no Postgres local descartável.
+
+Esses itens exigem responsáveis, acesso e evidências externas. Build, CI e
+testes locais não os marcam como concluídos.
+
+Os registros de aprovação datados nas seções abaixo são históricos; não
+substituem uma nova execução dos comandos nem comprovam o estado atual dos
+ambientes remotos.
+
+## Roteiros manuais de regressão
 
 Confira a separação de ambientes: `.env.local` deve apontar para
 `cltymialatksylhzsitz` (`aurora-dev`); Cloudflare Preview deve receber
@@ -41,11 +104,13 @@ navegação.
 
 Ao navegar para outra área a partir de Ajustes e retornar pelo histórico ou pelo menu, confirme que “Seu perfil” é selecionado. Recarregue enquanto outra aba de Ajustes estiver aberta e confirme que essa aba permanece selecionada.
 
-Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet e a barra lateral a partir de 1200 px; a busca não aparece no cabeçalho e Ctrl+K continua abrindo a busca global. No móvel, o dock mantém quatro atalhos de área, “Mais” abre as opções restantes e “Criar” abre as ações rápidas; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
+Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet, os nomes das áreas e de “Criar” visíveis entre 1100 e 1199 px e a barra lateral a partir de 1200 px; os demais atalhos devem continuar identificáveis pelo nome ao passar o mouse ou receber foco. A busca não aparece no cabeçalho e Ctrl+K continua abrindo a busca global. No móvel, o dock mantém quatro atalhos de área, “Mais” abre as opções restantes e “Criar” abre as ações rápidas; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
 
-No Início, em 320 px, 390 px e desktop, confirme que o destaque inicial é compacto, que o plano de hoje vem antes dos resumos nos padrões novos e que uma tarefa exibida no plano não é repetida como “Próxima ação”. Preferências de ordem existentes devem continuar preservadas. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
+No Início, em 320 px, 390 px e desktop, confirme que o destaque inicial é compacto, que o plano de hoje vem antes dos resumos nos padrões novos e que uma tarefa exibida no plano não é repetida como “Próxima ação”. Preferências de ordem existentes devem continuar preservadas. Em “Primeiros passos”, confira o progresso, a sugestão única, o texto de hábitos quando ainda não existe hábito ativo, as áreas ativadas, o recolhimento e a opção de dispensar. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
 
-`node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` valida as ações rápidas, o foco por teclado, a área ativa e a transição do dock para a barra lateral entre 320 e 1440 px.
+Com uma conta fictícia autenticada, confirme que o estado do shell informa “Salvando…” durante a gravação, “Tudo salvo na sua conta” depois da confirmação e um aviso recuperável quando a gravação falha ou não há conexão. A prévia local não deve afirmar que os dados foram sincronizados.
+
+`node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` valida as ações rápidas, o foco por teclado, os rótulos da navegação em tablet, a área ativa e a transição do dock para a barra lateral entre 320 e 1440 px.
 
 `node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
 
@@ -60,10 +125,26 @@ mover o hábito e seu histórico para a lixeira por 30 dias; a ação de desfaze
 deve restaurá-los. Arquivar continua preservando o hábito na lista de
 arquivados. Confira também em largura móvel e com tema escuro.
 
-Nas “Ideias de hábitos”, confira busca por nome e descrição, busca sem
-diferenciação de acentos, filtros por categoria, contagem e estado sem
-resultados. Selecionar uma ideia deve continuar abrindo o editor sem gravar
-antes da confirmação; verifique foco/teclado e largura móvel.
+Na primeira visita a Hábitos, confirme que o estado “Dia livre” não repete o
+botão “Novo hábito”, que não há resumo semanal sem hábitos e que somente quatro
+ideias são exibidas até “Ver todas”. Buscar ou filtrar ideias deve revelar os
+resultados correspondentes, atualizar a contagem e o estado acessível do filtro.
+As quatro ideias iniciais devem representar categorias distintas. Combine os
+filtros de categoria e contexto (“Poucos minutos”, “Em casa” e “Sem
+equipamento”), confira contagens e estados selecionados e busque também por
+termos dos contextos. Cartões resumem descrições longas em até duas linhas; ao
+personalizar, a descrição completa aparece no editor sem gravar antes de salvar.
+Com um hábito ativo, confirme que a semana fica visível sem expandir os detalhes,
+que dias passados programados podem ser marcados/desmarcados e que histórico e
+ações de gerenciamento continuam acessíveis ao expandir cada seção. Lembretes
+do sistema devem começar recolhidos e manter a ativação explícita. Em 320 px,
+390 px e desktop, confirme que sete dias permanecem utilizáveis, sem overflow
+horizontal; verifique também tema escuro, teclado e movimento reduzido.
+
+Nas “Ideias de hábitos”, confira busca por nome, descrição e características,
+busca sem diferenciação de acentos, filtros combinados por categoria/contexto,
+contagem e estado sem resultados. Selecionar uma ideia deve continuar abrindo
+o editor sem gravar antes da confirmação; verifique foco/teclado e largura móvel.
 
 No cadastro, valide que erros de e-mail já associado (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) explicam que uma exclusão confirmada permite criar uma conta nova, sem restaurar dados antigos. A exclusão só é considerada concluída com a confirmação explícita da Edge Function, que chama a Admin API em modo de exclusão definitiva; erros desconhecidos mantêm uma mensagem segura e genérica.
 
@@ -132,6 +213,7 @@ node tests/e2e/legal-consent-flow.cjs http://127.0.0.1:5173
 node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5173
 node tests/e2e/notifications.cjs http://127.0.0.1:5173
 node tests/e2e/home-first-steps.cjs http://127.0.0.1:5173
+node tests/e2e/habits-app-experience.cjs http://127.0.0.1:5173
 node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
 node tests/e2e/finance-improvements.cjs http://127.0.0.1:5173
 node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
@@ -144,8 +226,10 @@ node tests/e2e/auth-preview-boundary.cjs http://127.0.0.1:5173 http://127.0.0.1:
 
 O cenário de notificações confirma que lembretes novos não abrem o painel
 automaticamente, que o indicador do sino permite encontrá-los e que abrir,
-adiar e dispensar continuam funcionando em mobile e desktop.
-- `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), os CTAs em desktop/tablet/mobile, a altura do hero em 320 px e 390 px, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
+adiar e dispensar continuam funcionando em mobile e desktop; também confere
+pausar e retomar lembretes internos e a mensagem de que avisos do sistema não
+são alterados.
+- `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), o hero compacto e os CTAs em desktop/tablet/mobile, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
 - `node tests/e2e/custom-select.cjs` valida o menu padronizado em desktop e mobile, navegação por teclado, sincronização de valor/eventos, rótulo acessível, campo desabilitado e posicionamento dentro da viewport.
 - `node tests/e2e/accessibility.cjs` valida os painéis público e autenticado (Escape, retorno de foco e semântica disclosure), movimento reduzido do sistema e preferência salva, ampliação do texto, foco visível, contraste de componentes reais nas 14 paletas e reflow em viewports de 640 e 320 CSS px. As larguras simulam a condição de reflow; não substituem teste manual de zoom do navegador.
 - `node tests/e2e/legal-consent-flow.cjs` valida o painel Aurora de reaceite, os links acessíveis dos documentos, o aceite obrigatório e os layouts mobile/desktop.
@@ -159,8 +243,10 @@ adiar e dispensar continuam funcionando em mobile e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
 - `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
-- `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
-- `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento e recorte mensal do resumo em perfil de demonstração.
+- `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, anúncio educado dos estados vazios, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
+- `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, reutilização da conta/categoria mais recente, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento e recorte mensal do resumo em perfil de demonstração.
+- `node tests/e2e/app-shell-quick-actions.cjs` verifica acionador/fechamento da busca global, conclusão e desfazer de uma tarefa, além das ações rápidas e navegação responsiva.
+- `node tests/e2e/habits-app-experience.cjs` também verifica desfazer uma marcação de hábito em dados isolados da prévia.
 - `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
 - `node tests/e2e/public-demo-interactions.cjs` verifica hábito/tarefa/timer por teclado, zero requisições e zero gravações no navegador, em 390 px e desktop.
 - **Aprovado (2026-10-30):** `node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5190` — lista compacta, filtragem, seleção por teclado/clique e validação após sair do campo, em 320 px e desktop.

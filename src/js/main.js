@@ -1,16 +1,3 @@
-import { RelationalAccountStore } from './data/relational-account-store.js';
-import {
-  clearImportedBrowserStorage,
-  containsRemovedStudyData,
-  inspectLegacySources,
-  purgeRemovedStudyDataFromBrowserStorage,
-  scanLegacyBrowserStorage,
-  unlockLegacySources,
-} from './data/legacy-import.js';
-import {
-  hasAllExpectedRecords,
-  prepareLegacyImport,
-} from './data/legacy-import-model.js';
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
 import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
@@ -47,8 +34,6 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from './features/finance/accounts.js';
-import { parseStatement } from './features/finance/statement.js';
-import { createGoogleCalendarService } from './services/google-calendar.js';
 import {
   AREA_GUIDES,
   FINANCE_PRIVACY_NOTICE,
@@ -57,6 +42,8 @@ import {
 } from './features/area-guides.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
+import { decryptBackup, encryptBackup, isEncryptedBackup } from './features/backup/crypto.js';
+import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   advancePomodoro,
   customPomodoroSettings,
@@ -88,9 +75,37 @@ import {
   schedulePomodoroPush,
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
-import { renderFooterContent } from './features/footer/view.js';
+import { renderFooterContent, renderLegalDialog } from './features/footer/view.js';
 
-const googleCalendar = createGoogleCalendarService();
+let googleCalendarService = null;
+let googleCalendarServicePromise = null;
+function loadGoogleCalendarService() {
+  if (!googleCalendarServicePromise) {
+    googleCalendarServicePromise = import('./services/google-calendar.js')
+      .then(({ createGoogleCalendarService }) => {
+        googleCalendarService = createGoogleCalendarService();
+        return googleCalendarService;
+      })
+      .catch((error) => {
+        googleCalendarServicePromise = null;
+        throw error;
+      });
+  }
+  return googleCalendarServicePromise;
+}
+const googleCalendar = {
+  isConfigured: () => Boolean(import.meta.env?.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim()),
+  isConnected: () => googleCalendarService?.isConnected() || false,
+  isPrepared: () => googleCalendarService?.isPrepared() || false,
+  clear: () => googleCalendarService?.clear(),
+  prepare: async () => (await loadGoogleCalendarService()).prepare(),
+  authorize: () => {
+    if (!googleCalendarService) throw new Error('Prepare a conexão com o Google antes de autorizar.');
+    return googleCalendarService.authorize();
+  },
+  getCalendars: async () => (await loadGoogleCalendarService()).getCalendars(),
+  getEvents: async (...args) => (await loadGoogleCalendarService()).getEvents(...args),
+};
 import { showLegalDocument } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
@@ -141,6 +156,8 @@ import {
   habitWeekReview,
   habitIsComplete,
   filterSuggestedHabits,
+  featuredHabitSuggestions,
+  habitSuggestionTags,
   habitMonthDays,
   habitMonthStats,
   habitStats,
@@ -148,8 +165,10 @@ import {
   isWaterHabit,
   isValidHabit,
   normalizeHabits,
+  remainingHabitSuggestions,
   SUGGESTED_HABITS,
   SUGGESTED_HABIT_CATEGORIES,
+  SUGGESTED_HABIT_TAGS,
   HABIT_ICONS,
   HABIT_ICON_KEYS,
   HABIT_COLORS,
@@ -330,12 +349,15 @@ const defaults = () => ({
 const SLICES = Object.keys(defaults());
 let S = defaults();
 let accountSession = null;
+let pwaRegistration = null;
+let pwaReloading = false;
+let pwaSupportPromise = null;
 const syncState = {
   pending: new Set(),
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaQuery: '', habitIdeaCategory: 'all', profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaQuery: '', habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -859,7 +881,8 @@ const Persist = {
   confirmedState: null,
   rawTables: null,
   replacing: false,
-  attach({ client, user }) {
+  async attach({ client, user }) {
+    const { RelationalAccountStore } = await import('./data/relational-account-store.js');
     this.userId = user.id;
     this.store = new RelationalAccountStore(client, user.id);
     this.confirmedState = null;
@@ -1077,6 +1100,7 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
     if (shouldRender) render();
     return false;
   }
+  if (!ui.preview && slices.includes('habits')) syncHabitReminderSchedule();
   if (shouldRender) render();
   return true;
 }
@@ -1224,6 +1248,7 @@ function notificationButton(cls, id) {
   const count = notificationCount();
   return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
 }
+const globalSearchButton = h`<button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Buscar no Aurora · Ctrl+K ou ⌘K" title="Buscar no Aurora · Ctrl+K ou ⌘K">${icon('search', 20)}<span aria-hidden="true">Buscar</span></button>`;
 const agoLabel = (at) => {
   if (!at) return '';
   const min = Math.max(0, Math.round((Date.now() - at) / 60000));
@@ -1256,9 +1281,16 @@ function upcomingReminders() {
 function notificationsHtml() {
   const items = Object.entries(ui.alerts).sort(([, a], [, b]) => (b.at || b.due || 0) - (a.at || a.due || 0));
   const upcoming = ui.notificationsOpen ? upcomingReminders() : [];
+  const remindersPaused = ui.remindersPausedUntil > Date.now();
+  const canPauseReminders = remindersPaused
+    || S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null)
+    || S.habits.some((habit) => (habit.status || 'active') === 'active' && habit.remind)
+    || items.some(([, alert]) => alert.kind !== 'pomodoro')
+    || upcoming.some((reminder) => reminder.kind === 'task' || reminder.kind === 'habit');
   const kindLabel = (a) => a.kind === 'pomodoro' ? 'Pomodoro' : a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
+    ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
       return h`<article class="notification-item is-${a.kind || 'task'}" ${habit ? raw(`style="--nc:${habitColor(habit)}"`) : ''}>
@@ -1271,6 +1303,7 @@ function notificationsHtml() {
           : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
     </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos e avisos do Pomodoro aparecem aqui.</span></div>`}
     ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
+    ${canPauseReminders && (areaOn('habits') || areaOn('pomodoro')) ? h`<a class="notification-settings-link" href="${areaOn('habits') ? '#habitos' : '#pomodoro'}">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
   </section>`;
 }
 function closeNotifications(restoreFocus = true) {
@@ -1354,7 +1387,7 @@ function shell(body) {
   const miniTimerVisible = ui.route !== 'pomodoro' && (timerRunning || timerHasProgress);
   const miniFocusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
   const miniFocusLabel = miniFocusTask?.title || timer.focusLabel || 'Seu bloco atual';
-  const saveStatus = ui.persistBlocked.size || ui.persistFailed.size ? 'warning' : 'saved';
+  const saveStatus = ui.persistBlocked.size || ui.persistFailed.size || navigator.onLine === false ? 'warning' : 'saved';
   const saveLabel = ui.preview
     ? ''
     : ui.persistBlocked.size
@@ -1363,27 +1396,41 @@ function shell(body) {
         ? 'Falha ao salvar; tente novamente'
         : syncState.pending.size
           ? 'Salvando…'
-          : '';
+          : navigator.onLine === false
+            ? 'Sem conexão; alterações não serão salvas'
+            : Persist.store && Persist.confirmedState
+              ? 'Tudo salvo na sua conta'
+              : '';
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const compactItems = menuItems.slice(0, 4);
   const secondaryItems = menuItems.slice(4);
   const hasActiveArea = Object.values(S.settings.areas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
+  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" title="${label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
+  const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
+  const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
+    ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
+    : ui.route === 'financas'
+      ? h`
+        ${S.finance.accounts.length > 1 ? h`<button type="button" data-action="quick-action-finance" data-kind="tr"><span class="ni">${icon('repeat', 18)}</span><span>Transferência</span></button>` : ''}
+        <button type="button" data-action="quick-action-finance" data-kind="in"><span class="ni">${icon('plus', 18)}</span><span>Receita</span></button>
+        <button type="button" data-action="quick-action-finance" data-kind="out"><span class="ni">${icon('arrowDown', 18)}</span><span>Despesa</span></button>
+        ${S.finance.accounts.some(isCredit) ? h`<button type="button" data-action="quick-action-finance" data-kind="card"><span class="ni">${icon('card', 18)}</span><span>Despesa cartão</span></button>` : ''}`
+      : h`<button type="button" data-action="quick-action-transaction"><span class="ni">${icon('wallet', 18)}</span><span>Lançamento</span></button>`;
   const quickActionItems = h`
     <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
     ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
-    ${areaOn('finances') ? h`<button type="button" data-action="${S.finance.accounts.length ? 'quick-action-transaction' : 'quick-action-account'}"><span class="ni">${icon('wallet', 18)}</span><span>${S.finance.accounts.length ? 'Lançamento' : 'Criar conta financeira'}</span></button>` : ''}
+    ${financeQuickActions}
     ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
   const quickActions = h`<div class="nav-quick-control">
     <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}</div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${globalSearchButton}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
@@ -1398,8 +1445,10 @@ function shell(body) {
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
       ${body}
+      ${saveLabel ? h`<div class="app-status save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</div>` : ''}
+      ${raw(renderLegalDialog())}
     </main>
-    <footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: !ui.preview, preview: ui.preview }))}${saveLabel ? h`<span class="save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</span>` : ''}</footer>
+    ${ui.preview ? h`<footer class="app-footer site-footer">${raw(renderFooterContent({ authenticated: false, preview: true, includeLegalDialog: false }))}</footer>` : ''}
   </div>`;
 }
 function persistenceNotice() {
@@ -1495,7 +1544,7 @@ const pageTitle = (title, action = '') => {
   const [eyebrow, description] = PAGE_CONTEXT[title] || [];
   return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
-const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
+const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
 const ring = (done, total) => { const c = 2 * Math.PI * 32, pc = total ? done / total : 0; return h`<div class="ringw" role="img" aria-label="${done} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pc)).toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${done}/${total}</div></div>`; };
 const areaOn = (a) => S.settings.areas[a];
 function setAreaEnabled(settings, area, enabled) {
@@ -1545,7 +1594,7 @@ function taskRow(t) {
   const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
   return h`<li class="task ${t.done ? 'done' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
-    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${t.done}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
+    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
     <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="ttl">${t.title}</span>
       <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
@@ -1708,7 +1757,113 @@ function render() {
   syncPanelScrollLocks();
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
+  renderPwaUpdateNotice();
   tick();
+}
+function renderPwaUpdateNotice() {
+  let notice = $('#pwa-update-notice');
+  if (!ui.pwaUpdateAvailable || ui.pwaUpdateDismissed || ui.dlg) {
+    notice?.remove();
+    return;
+  }
+  if (notice) return;
+  notice = document.createElement('section');
+  notice.id = 'pwa-update-notice';
+  notice.className = 'pwa-update-notice';
+  notice.setAttribute('role', 'status');
+  notice.setAttribute('aria-label', 'Atualização do Aurora disponível');
+  const message = document.createElement('p');
+  message.textContent = 'Uma nova versão do Aurora está pronta. Seus dados salvos serão mantidos.';
+  const actions = document.createElement('div');
+  actions.className = 'pwa-update-actions';
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'btn back';
+  dismiss.dataset.action = 'pwa-update-dismiss';
+  dismiss.textContent = 'Agora não';
+  const apply = document.createElement('button');
+  apply.type = 'button';
+  apply.className = 'btn primary';
+  apply.dataset.action = 'pwa-update-apply';
+  apply.textContent = 'Atualizar';
+  actions.append(dismiss, apply);
+  notice.append(message, actions);
+  document.body.append(notice);
+}
+function watchPwaRegistration(registration) {
+  pwaRegistration = registration;
+  let announcedWorker = null;
+  const announceWaitingWorker = () => {
+    const waiting = registration.waiting;
+    if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
+    announcedWorker = waiting;
+    ui.pwaUpdateAvailable = true;
+    ui.pwaUpdateDismissed = false;
+    renderPwaUpdateNotice();
+  };
+  registration.addEventListener('updatefound', () => {
+    const installing = registration.installing;
+    installing?.addEventListener('statechange', () => {
+      if (installing.state === 'installed') announceWaitingWorker();
+    });
+  });
+  announceWaitingWorker();
+  const checkForUpdate = () => {
+    if (document.visibilityState !== 'hidden') {
+      void registration.update().catch((error) => {
+        console.warn('O Aurora não conseguiu verificar se há uma atualização disponível.', error);
+      });
+    }
+  };
+  window.addEventListener('focus', checkForUpdate);
+  document.addEventListener('visibilitychange', checkForUpdate);
+}
+function registerPwaSupport() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  if (!pwaSupportPromise) {
+    pwaSupportPromise = (async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('/service-worker.js');
+        watchPwaRegistration(registration);
+        await navigator.serviceWorker.ready;
+        return registration;
+      } catch (error) {
+        pwaSupportPromise = null;
+        console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
+        ui.pushNotice = pomodoroPushErrorMessage(error);
+        if (ui.route === 'pomodoro') render();
+        return null;
+      }
+    })();
+  }
+  return pwaSupportPromise;
+}
+async function applyPwaUpdate() {
+  const waiting = pwaRegistration?.waiting;
+  if (!waiting) {
+    ui.pwaUpdateAvailable = false;
+    renderPwaUpdateNotice();
+    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.');
+    return;
+  }
+  const hasUnsavedChanges = settingsDraftDirty()
+    || Boolean(ui.profileDraft)
+    || Boolean(ui.dlg)
+    || ui.persistFailed.size > 0;
+  if (hasUnsavedChanges
+    && !await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
+  if (Persist.store && !await Persist.flush()) {
+    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.');
+    return;
+  }
+  if (pwaReloading) return;
+  pwaReloading = true;
+  const button = $('[data-action="pwa-update-apply"]');
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  }, { once: true });
+  waiting.postMessage({ type: 'SKIP_WAITING' });
 }
 function setToast(msg, undo) {
   clearTimeout(ui.toastT);
@@ -2050,7 +2205,7 @@ function discardPomodoro() {
   });
 }
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
-const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
+const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
 function backupReminderStatusForApp(now = Date.now()) {
   if (S.settings.prefs.sample || ui.backupReminderHidden) return null;
   const activityAt = [
@@ -2081,7 +2236,8 @@ const backupReminder = () => {
 
 function homeNextAction() {
   const now = Date.now(), todayKey = today(), candidates = [];
-  S.tasks.filter((task) => !task.done && (task.dueDate || task.time)).forEach((task) => {
+  S.tasks.filter((task) => !task.done && (task.dueDate || task.time)
+    && (!task.dueDate || task.dueDate > todayKey)).forEach((task) => {
     const day = task.dueDate || todayKey;
     const time = isTime(task.time) ? task.time : '12:00';
     const dueAt = new Date(`${day}T${time}:00`).getTime();
@@ -2116,7 +2272,6 @@ function homeNextAction() {
   if (!next) return '';
   if (next.type === 'task') {
     const task = next.task;
-    if (task.dueDate && task.dueDate <= todayKey) return '';
     const label = task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
     return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
   }
@@ -2145,7 +2300,7 @@ function homeHabitCheckins() {
       return h`<li class="home-habit-row">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
         <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span></span>
-        <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}" data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}" aria-pressed="${completed || skipped}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
+        <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}" data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}" aria-pressed="${String(completed || skipped)}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
       </li>`;
     })}</ul>
   </section>`;
@@ -2153,21 +2308,32 @@ function homeHabitCheckins() {
 
 function homeFirstSteps() {
   if (S.settings.prefs.firstStepsDismissed) return '';
+  const hasActiveHabit = S.habits.some((habit) => (habit.status || 'active') === 'active');
   const steps = [
     ['Criar uma tarefa', '#planejar', 'calendarCheck', S.tasks.length > 0],
-    ...(areaOn('habits') ? [['Marcar um hábito', '#habitos', 'leaf', S.habits.some((habit) => habitCompletedFor(habit, today()))]] : []),
+    ...(areaOn('habits') ? [[
+      hasActiveHabit ? 'Marcar um hábito' : 'Criar seu primeiro hábito',
+      '#habitos',
+      'leaf',
+      hasActiveHabit
+        ? S.habits.some((habit) => habitCompletedFor(habit, today()))
+        : false,
+    ]] : []),
     ...(areaOn('pomodoro') ? [['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0]] : []),
     ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0]] : []),
   ];
   if (steps.every(([, , , complete]) => complete)) return '';
-  return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
-    <header class="head"><div><p class="section-kicker">Comece com uma ação pequena</p><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2></div>
-      <button type="button" class="btn ghost sm" data-action="first-steps-dismiss">Dispensar</button>
-    </header>
-    <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete]) => h`<li class="${complete ? 'is-complete' : ''}">
-      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
-    </li>`)}</ol>
-  </section>`;
+  const completedSteps = steps.filter(([, , , complete]) => complete).length;
+  const nextStepIndex = steps.findIndex(([, , , complete]) => !complete);
+  return h`<details class="card home-first-steps" aria-labelledby="home-first-steps-title">
+    <summary class="home-first-steps-summary"><span><span class="section-kicker">Comece com uma ação pequena</span><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2><small class="home-first-steps-progress">${completedSteps} de ${steps.length} ações concluídas</small></span><span class="home-first-steps-toggle" aria-hidden="true">${icon('chevDown', 18)}</span></summary>
+    <div class="home-first-steps-content">
+      <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete], index) => h`<li class="${complete ? 'is-complete' : ''}${index === nextStepIndex ? ' is-next' : ''}">
+      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : index === nextStepIndex ? 'Sugestão para você' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
+      </li>`)}</ol>
+      <button type="button" class="btn ghost sm home-first-steps-dismiss" data-action="first-steps-dismiss">Dispensar</button>
+    </div>
+  </details>`;
 }
 
 function viewInicio() {
@@ -2195,7 +2361,6 @@ function viewInicio() {
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
-    ${areaGuideButton('inicio')}
     ${sampleBanner()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
     <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
@@ -2221,6 +2386,7 @@ function viewInicio() {
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
+    ${areaGuideButton('inicio')}
     ${homeFirstSteps()}
     ${backupReminder()}
     ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
@@ -2585,34 +2751,53 @@ function habitYearHeat(habit) {
     <p class="habit-year-legend small muted"><span class="habit-year-cell"></span>não programado <span class="habit-year-cell is-missed"></span>não feito <span class="habit-year-cell is-skipped"></span>pulado <span class="habit-year-cell is-done"></span>feito</p>
   </details>`;
 }
-function remainingHabitSuggestions() {
-  const names = new Set(S.habits.map((habit) => norm(habit.name)));
-  const hasWaterHabit = S.habits.some(isWaterHabit);
-  return SUGGESTED_HABITS.filter((suggestion) => (
-    !names.has(norm(suggestion.name))
-    && !(suggestion.id === 'water' && hasWaterHabit)
-  ));
-}
 function updateHabitIdeaFilters() {
+  const remaining = remainingHabitSuggestions(S.habits);
   const suggestions = filterSuggestedHabits(
-    remainingHabitSuggestions(),
+    remaining,
     ui.habitIdeaQuery,
     ui.habitIdeaCategory,
+    ui.habitIdeaTag,
   );
   const visibleIds = new Set(suggestions.map((suggestion) => suggestion.id));
+  const defaultView = !ui.habitIdeaQuery.trim() && ui.habitIdeaCategory === 'all' && ui.habitIdeaTag === 'all';
+  const previewOnly = defaultView && !ui.habitIdeasExpanded;
   document.querySelectorAll('[data-habit-idea]').forEach((button) => {
-    button.hidden = !visibleIds.has(button.dataset.id);
+    button.hidden = !visibleIds.has(button.dataset.id) || (previewOnly && button.dataset.preview === 'true');
   });
   document.querySelectorAll('.habit-idea-section').forEach((section) => {
     section.hidden = !section.querySelector('[data-habit-idea]:not([hidden])');
   });
-  document.querySelectorAll('[data-habit-idea-filter]').forEach((button) => {
+  document.querySelectorAll('[data-action="habit-idea-filter"]').forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.id === ui.habitIdeaCategory));
+    const count = button.querySelector('span');
+    if (count) count.textContent = String(filterSuggestedHabits(
+      remaining,
+      ui.habitIdeaQuery,
+      button.dataset.id,
+      ui.habitIdeaTag,
+    ).length);
+  });
+  document.querySelectorAll('[data-action="habit-idea-tag-filter"]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.id === ui.habitIdeaTag));
+    const count = button.querySelector('span');
+    if (count) count.textContent = String(filterSuggestedHabits(
+      remaining,
+      ui.habitIdeaQuery,
+      ui.habitIdeaCategory,
+      button.dataset.id,
+    ).length);
   });
   const count = document.querySelector('[data-habit-idea-count]');
   if (count) count.textContent = `${suggestions.length} ${plural(suggestions.length, 'ideia encontrada', 'ideias encontradas')}`;
   const emptyState = document.querySelector('[data-habit-idea-empty]');
   if (emptyState) emptyState.hidden = suggestions.length > 0;
+  const expandButton = document.querySelector('[data-action="habit-ideas-expand"]');
+  if (expandButton) {
+    expandButton.hidden = !defaultView || suggestions.length <= 4;
+    expandButton.setAttribute('aria-expanded', String(ui.habitIdeasExpanded));
+    expandButton.textContent = ui.habitIdeasExpanded ? 'Mostrar menos ideias' : `Ver todas as ${suggestions.length} ideias`;
+  }
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
 function habitWaterTracker(habit) {
@@ -2651,23 +2836,23 @@ function habitRow(habit) {
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
   return h`<li class="habit-row${done ? ' is-done' : ''}${pending ? ' is-pending' : ''}${canCheck ? '' : ' is-off'}" data-habit-id="${habit.id}" style="--hc:${color}">
-    <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}" aria-pressed="${done}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
+    <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}" aria-pressed="${String(done)}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span class="habit-circle-check">${icon('check', 22)}</span>
     </button>
     <details class="habit-more" id="d-hab-${habit.id}" ${open}>
       <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span></span>${icon('chevDown', 18, 'chev')}</summary>
       <div class="habit-more-body">
         ${habitWaterTracker(habit)}
-        <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
-          const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
-          const editable = saved && status === 'active' && w.scheduled && w.day <= today();
-          return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
-        })}</div>
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
         ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
-        ${saved ? h`<div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div>` : ''}
+        ${saved ? h`<details class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>` : ''}
       </div>
     </details>
+    <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
+      const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
+      const editable = saved && status === 'active' && w.scheduled && w.day <= today();
+      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
+    })}</div>
   </li>`;
 }
 function viewHabits() {
@@ -2678,7 +2863,8 @@ function viewHabits() {
       ? h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="alert"><p>Não foi possível carregar a área de Hábitos.</p><button class="btn" data-action="retry-habits-template">Tentar novamente</button></section>`
       : h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="status">Carregando Hábitos…</section>`;
   }
-  const suggestions = remainingHabitSuggestions();
+  const suggestions = remainingHabitSuggestions(S.habits);
+  const previewIdeas = new Set(featuredHabitSuggestions(suggestions).map(({ id }) => id));
   const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
   const archived = S.habits.filter((habit) => habit.status === 'archived');
   const overview = habitWeekOverview(
@@ -2713,20 +2899,30 @@ function viewHabits() {
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
     .map((category) => ({
       ...category,
-      habits: suggestions.filter((suggestion) => suggestion.category === category.id),
+      habits: suggestions
+        .filter((suggestion) => suggestion.category === category.id)
+        .map((suggestion) => ({ ...suggestion, tags: habitSuggestionTags(suggestion) })),
     }))
     .filter((category) => category.habits.length);
   const matchingIdeaIds = new Set(filterSuggestedHabits(
     suggestions,
     ui.habitIdeaQuery,
     ui.habitIdeaCategory,
+    ui.habitIdeaTag,
   ).map((suggestion) => suggestion.id));
   const ideaCategoryFilters = [
-    { id: 'all', title: 'Todas', count: suggestions.length },
+    { id: 'all', title: 'Todas', count: filterSuggestedHabits(suggestions, ui.habitIdeaQuery, 'all', ui.habitIdeaTag).length },
     ...suggestionGroups.map((category) => ({
       id: category.id,
       title: category.title,
-      count: category.habits.length,
+      count: filterSuggestedHabits(suggestions, ui.habitIdeaQuery, category.id, ui.habitIdeaTag).length,
+    })),
+  ];
+  const ideaTagFilters = [
+    { id: 'all', title: 'Qualquer contexto', count: filterSuggestedHabits(suggestions, ui.habitIdeaQuery, ui.habitIdeaCategory).length },
+    ...SUGGESTED_HABIT_TAGS.map((tag) => ({
+      ...tag,
+      count: filterSuggestedHabits(suggestions, ui.habitIdeaQuery, ui.habitIdeaCategory, tag.id).length,
     })),
   ];
   const slots = {
@@ -2739,16 +2935,19 @@ function viewHabits() {
       : '',
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
-      : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
+      : h`<div class="habit-empty" role="status"><span>${icon('check', 18)}</span><div><b>Dia livre</b><p>Crie um hábito ou escolha uma ideia abaixo.</p></div></div>`.s,
     'reminder-note': hasReminders
-      ? h`<div class="habit-reminder-note">
+      ? h`<details class="habit-reminder-note">
+        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos neste dispositivo' : 'Opcionais'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+        <div class="habit-reminder-content">
         <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede e do serviço de notificações.</p>
         <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos neste dispositivo' : 'Ativar avisos fora do app'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
         <p class="small muted">A inscrição é compartilhada com o Pomodoro neste dispositivo; desativá-la interrompe os avisos de ambos. O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
-      </div>`.s
+        </div>
+      </details>`.s
       : '',
-    'week-overview': h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
+    'week-overview': live.length ? h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
       <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
         : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
@@ -2774,7 +2973,7 @@ function viewHabits() {
         })}</ul>
       </details>` : ''}
       ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
-    </section>`.s,
+    </section>`.s : '',
     'other-habits': others.length
       ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
@@ -2783,11 +2982,13 @@ function viewHabits() {
         <summary><span><b>Ideias de hábitos</b><small>Encontre uma ideia e personalize antes de adicionar.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
         <div class="habit-idea-tools">
           <label class="search habit-idea-search"><span class="sr">Buscar ideias de hábitos</span>${icon('search', 18)}<input type="search" data-input="habit-ideas" value="${ui.habitIdeaQuery}" placeholder="Buscar por nome ou objetivo"></label>
-          <div class="habit-idea-filters" role="group" aria-label="Filtrar ideias por categoria">${ideaCategoryFilters.map((category) => h`<button type="button" class="habit-idea-filter" data-action="habit-idea-filter" data-id="${category.id}" aria-pressed="${ui.habitIdeaCategory === category.id}">${category.title}<span>${category.count}</span></button>`)}</div>
+          <div class="habit-idea-filter-group" role="group" aria-label="Filtrar ideias por categoria">${ideaCategoryFilters.map((category) => h`<button type="button" class="habit-idea-filter" data-action="habit-idea-filter" data-id="${category.id}" aria-pressed="${ui.habitIdeaCategory === category.id}">${category.title}<span>${category.count}</span></button>`)}</div>
+          <div class="habit-idea-filter-group habit-idea-context-filters" role="group" aria-label="Filtrar ideias por contexto">${ideaTagFilters.map((tag) => h`<button type="button" class="habit-idea-filter" data-action="habit-idea-tag-filter" data-id="${tag.id}" aria-pressed="${ui.habitIdeaTag === tag.id}">${tag.title}<span>${tag.count}</span></button>`)}</div>
           <p class="small muted" data-habit-idea-count role="status" aria-live="polite">${matchingIdeaIds.size} ${plural(matchingIdeaIds.size, 'ideia encontrada', 'ideias encontradas')}</p>
         </div>
         <p class="habit-idea-empty small muted" data-habit-idea-empty ${matchingIdeaIds.size ? raw('hidden') : ''}>Nenhuma ideia encontrada. Tente outra busca ou categoria.</p>
-        <div class="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-action="habit-idea" data-id="${idea.id}" ${matchingIdeaIds.has(idea.id) ? '' : raw('hidden')} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small><span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
+        <div class="habit-idea-categories" id="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-preview="${previewIdeas.has(idea.id) ? 'false' : 'true'}" data-action="habit-idea" data-id="${idea.id}" data-tags="${idea.tags.map(({ id }) => id).join(' ')}" ${!matchingIdeaIds.has(idea.id) || (!ui.habitIdeasExpanded && !ui.habitIdeaQuery.trim() && ui.habitIdeaCategory === 'all' && ui.habitIdeaTag === 'all' && !previewIdeas.has(idea.id)) ? raw('hidden') : ''} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small>${idea.tags.length ? h`<span class="habit-idea-tags" aria-label="Características">${idea.tags.map((tag) => h`<span class="habit-idea-tag">${tag.title}</span>`)}</span>` : ''}<span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
+        <button type="button" class="btn ghost sm habit-ideas-expand" data-action="habit-ideas-expand" aria-controls="habit-idea-categories" aria-expanded="${String(ui.habitIdeasExpanded)}" ${suggestions.length <= 4 || (ui.habitIdeaQuery.trim() || ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all') ? raw('hidden') : ''}>${ui.habitIdeasExpanded ? 'Mostrar menos ideias' : `Ver todas as ${suggestions.length} ideias`}</button>
       </details>`.s
       : '',
     'archived-habits': archived.length
@@ -3150,6 +3351,10 @@ function profileSettings(s) {
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
       <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
     </section>
+    <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
+      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Consulte os documentos do Aurora ou entre em contato.</p></div></div>
+      <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:lisjustino@gmail.com">Falar com o Aurora</a></div>
+    </section>
   </div>`;
 }
 function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEARANCE_DEFAULT) {
@@ -3240,7 +3445,22 @@ function setLegacyImportError(message) {
   ui.legacyImport.busy = false;
   render();
 }
-function prepareLegacyImportPreview(migration, sources, vaultCount) {
+let legacyImportModulesPromise;
+function loadLegacyImportModules() {
+  if (!legacyImportModulesPromise) {
+    legacyImportModulesPromise = Promise.all([
+      import('./data/legacy-import.js'),
+      import('./data/legacy-import-model.js'),
+    ]).then(([importer, model]) => ({ ...importer, ...model }))
+      .catch((error) => {
+        legacyImportModulesPromise = null;
+        throw error;
+      });
+  }
+  return legacyImportModulesPromise;
+}
+async function prepareLegacyImportPreview(migration, sources, vaultCount) {
+  const { prepareLegacyImport } = await loadLegacyImportModules();
   const browserData = migration.browserData;
   const sourceCounts = {
     browser: Object.keys(browserData.plain).length,
@@ -3281,6 +3501,10 @@ async function discoverLegacyImport() {
   };
   render();
   try {
+    const {
+      inspectLegacySources,
+      scanLegacyBrowserStorage,
+    } = await loadLegacyImportModules();
     const browserData = scanLegacyBrowserStorage(window.localStorage, accountSession.user.id);
     const discovery = await inspectLegacySources({
       client: accountSession.client,
@@ -3293,7 +3517,7 @@ async function discoverLegacyImport() {
     if (discovery.requiresUnlock) {
       migration.step = 'unlock';
     } else {
-      prepareLegacyImportPreview(migration, discovery.sources, discovery.vaultCount);
+      await prepareLegacyImportPreview(migration, discovery.sources, discovery.vaultCount);
     }
   } catch (error) {
     console.error('Aurora: a busca por dados antigos não foi concluída.', error);
@@ -3315,12 +3539,13 @@ async function unlockLegacyImport() {
   migration.error = '';
   render();
   try {
+    const { unlockLegacySources } = await loadLegacyImportModules();
     const { sources, vaultCount } = await unlockLegacySources({
       discovery: migration.discovery,
       userId: accountSession.user.id,
       password,
     });
-    prepareLegacyImportPreview(migration, sources, vaultCount);
+    await prepareLegacyImportPreview(migration, sources, vaultCount);
   } catch (error) {
     console.error('Aurora: o cofre antigo não pôde ser desbloqueado para importação.', error);
     migration.error = error instanceof Error
@@ -3346,6 +3571,14 @@ async function applyLegacyImport() {
   }
   if (settingsDraftDirty() || ui.profileDraft || ui.dlg) {
     setLegacyImportError('Salve ou feche as alterações abertas antes de importar. Nenhuma origem antiga foi alterada.');
+    return;
+  }
+  let hasAllExpectedRecords;
+  try {
+    ({ hasAllExpectedRecords } = await loadLegacyImportModules());
+  } catch (error) {
+    console.error('Aurora: não foi possível carregar o verificador da importação antiga.', error);
+    setLegacyImportError('Não foi possível carregar a verificação de dados antigos. As cópias foram preservadas; tente novamente.');
     return;
   }
   const addedTotal = Object.values(preview.plan.added).reduce((sum, count) => sum + count, 0);
@@ -3425,7 +3658,7 @@ async function applyLegacyImport() {
     render();
   }
 }
-function clearLegacyBrowserData() {
+async function clearLegacyBrowserData() {
   const migration = ui.legacyImport;
   const preview = migration.preview;
   const snapshot = preview?.browserData?.snapshot;
@@ -3436,7 +3669,17 @@ function clearLegacyBrowserData() {
     return;
   }
   migration.cleanupConfirmed = false;
-  const result = clearImportedBrowserStorage(window.localStorage, snapshot);
+  let result;
+  try {
+    const { clearImportedBrowserStorage } = await loadLegacyImportModules();
+    result = clearImportedBrowserStorage(window.localStorage, snapshot);
+  } catch (error) {
+    console.error('Aurora: não foi possível preparar a limpeza das cópias antigas.', error);
+    setLegacyImportError(error instanceof Error
+      ? error.message
+      : 'Não foi possível limpar as cópias antigas; elas continuam preservadas.');
+    return;
+  }
   result.removed.forEach((key) => { delete snapshot[key]; });
   if (result.changed.length) {
     migration.preview = null;
@@ -3525,22 +3768,22 @@ function dataSettings(p) {
   const trashEntries = p.trash.filter((entry) => !isTrashExpired(entry)).sort((a, b) => b.deletedAt - a.deletedAt);
   return h`<section class="card settings-section-card settings-backup-card">
     <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>Seus dados são protegidos por autenticação e regras individuais. O backup baixado é um arquivo <span class="case-preserve">JSON</span> em texto puro e pode conter informações financeiras e de saúde; a exportação pedirá confirmação. Proteja o arquivo fora do Aurora.</span></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O backup JSON comum não tem criptografia. Você também pode criar uma cópia cifrada com senha; ela não é salva pelo Aurora e, se for esquecida, o arquivo não poderá ser recuperado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="settings-data-actions">
       <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
         <h3 id="settings-export-title">Guardar uma cópia</h3>
-        <p>Baixe seus dados em JSON. No celular, escolha Arquivos ou Downloads e guarde o arquivo fora dos dados do navegador.</p>
+        <p>Escolha JSON comum ou uma cópia cifrada com senha. No celular, guarde o arquivo fora dos dados do navegador.</p>
         <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
-        <button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button>
+        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar JSON comum</button><button type="button" class="btn" data-action="backup-encrypt-open">${icon('lock', 18)}Exportar cifrado</button></div>
       </section>
       <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
         <h3 id="settings-restore-title">Usar uma cópia salva</h3>
         <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
-        <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2.</p>
+        <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2 e arquivos cifrados criados nesta tela.</p>
         <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
         <p class="err" id="imperr" role="alert"></p>
       </section>
@@ -3838,6 +4081,7 @@ function dlgHabitEdit() {
   const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+    ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit">
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
       ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
@@ -4000,6 +4244,23 @@ function dlgImport() {
     <div class="notice warn" role="alert">${icon('alert', 18)}<span>Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter os dados atuais, exporte um backup antes.</span></div>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="import-apply">Substituir meus dados</button>`);
 }
+function dlgBackupEncrypt() {
+  const d = ui.dlg.d;
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Proteger backup com senha<i>.</i></h2><p class="small muted">A senha é usada apenas para cifrar o arquivo e não será salva. Se esquecê-la, ninguém poderá recuperar este backup.</p></div>${closeBtn}</div>
+    <div class="form">
+      ${dlgField('Senha (12 a 72 caracteres)', h`<input id="backup-password" class="field" type="password" maxlength="72" autocomplete="new-password" spellcheck="false" data-transient-secret>`, 'full')}
+      ${dlgField('Confirmar senha', h`<input id="backup-password-confirm" class="field" type="password" maxlength="72" autocomplete="new-password" spellcheck="false" data-transient-secret>`, 'full')}
+    </div>
+    ${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}`,
+  h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="backup-encrypt-create">Baixar backup cifrado</button>`);
+}
+function dlgBackupDecrypt() {
+  const d = ui.dlg.d;
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Desbloquear backup<i>.</i></h2><p class="small muted">Digite a senha usada ao exportar. Ela será usada somente para abrir este arquivo e não será salva.</p></div>${closeBtn}</div>
+    ${dlgField('Senha do backup', h`<input id="backup-password" class="field" type="password" maxlength="72" autocomplete="current-password" spellcheck="false" data-transient-secret>`, 'full')}
+    ${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}`,
+  h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="backup-decrypt-open">Desbloquear e revisar</button>`);
+}
 function dlgAreaTutorial() {
   const guide = AREA_GUIDES[ui.dlg.d.route];
   if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível<i>.</i></h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
@@ -4084,7 +4345,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport, 'backup-encrypt': dlgBackupEncrypt, 'backup-decrypt': dlgBackupDecrypt };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -4218,6 +4479,47 @@ async function doExport() {
   downloadFile(name, json, 'application/json;charset=utf-8');
   S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
 }
+async function doEncryptedExport() {
+  if (Object.keys(ui.integrityIssues).length) {
+    toast('O backup cifrado não foi criado porque há dados locais inválidos. Baixe uma cópia de recuperação ou importe um backup confiável.');
+    return;
+  }
+  const passwordInput = $('#backup-password');
+  const confirmationInput = $('#backup-password-confirm');
+  let password = passwordInput?.value || '';
+  const confirmation = confirmationInput?.value || '';
+  if (passwordInput) passwordInput.value = '';
+  if (confirmationInput) confirmationInput.value = '';
+  if (password.length < 12 || password.length > 72) {
+    ui.dlg.d.error = 'Use uma senha de 12 a 72 caracteres.';
+    render();
+    return;
+  }
+  if (password !== confirmation) {
+    password = '';
+    ui.dlg.d.error = 'As senhas não coincidem.';
+    render();
+    return;
+  }
+
+  const button = $('[data-action="backup-encrypt-create"]');
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  try {
+    const encrypted = await encryptBackup(buildBackup(), password);
+    downloadFile(`aurora-backup-cifrado-${today()}.json`, encrypted, 'application/json;charset=utf-8');
+    ui.dlg = null;
+    render();
+    S.settings.prefs.lastBackup = new Date().toISOString();
+    commit('settings');
+    toast('Backup cifrado baixado. Guarde a senha separadamente; ela não pode ser recuperada.');
+  } catch (error) {
+    console.error('Aurora: não foi possível cifrar o backup.', error);
+    ui.dlg.d.error = error instanceof Error ? error.message : 'Não foi possível cifrar o backup.';
+    render();
+  } finally {
+    password = '';
+  }
+}
 function downloadFile(name, contents, type) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const link = document.createElement('a');
@@ -4317,13 +4619,38 @@ function parseBackup(text) {
     weight: validatedBackupSlice('weight', ex.weight),
   };
 }
-function importFile(file) {
+async function importFile(file) {
   const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m); };
   if (!file) return;
-  const fr = new FileReader();
-  fr.onerror = () => err('Não consegui ler o arquivo.');
-  fr.onload = () => { try { const parsed = parseBackup(String(fr.result)); ui.dlg = null; dlgOpen('import', { parsed }); } catch (e) { err(e.message); } };
-  fr.readAsText(file);
+  if (file.size > 7 * 1024 * 1024) return err('O arquivo excede o limite permitido para backup.');
+  let text;
+  try {
+    text = await file.text();
+  } catch (error) {
+    console.error('Aurora: não foi possível ler o arquivo de backup.', error);
+    return err('Não consegui ler o arquivo.');
+  }
+  try {
+    let document;
+    try {
+      document = JSON.parse(text);
+    } catch {
+      const parsed = parseBackup(text);
+      ui.dlg = null;
+      dlgOpen('import', { parsed });
+      return;
+    }
+    if (isEncryptedBackup(document)) {
+      ui.dlg = null;
+      dlgOpen('backup-decrypt', { envelope: document, filename: file.name, error: '' });
+      return;
+    }
+    const parsed = parseBackup(text);
+    ui.dlg = null;
+    dlgOpen('import', { parsed });
+  } catch (error) {
+    err(error instanceof Error ? error.message : 'Este arquivo não pôde ser validado.');
+  }
 }
 
 /* ---- Ações por clique ---- */
@@ -4335,6 +4662,11 @@ const ACTIONS = {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
+  'pwa-update-dismiss': () => {
+    ui.pwaUpdateDismissed = true;
+    renderPwaUpdateNotice();
+  },
+  'pwa-update-apply': () => { void applyPwaUpdate(); },
   'reload-app': () => {
     const hasUnsavedChanges = settingsDraftDirty()
       || Boolean(ui.profileDraft)
@@ -4345,18 +4677,27 @@ const ACTIONS = {
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
-  'quick-actions-toggle': () => {
+  'quick-actions-toggle': (el) => {
     const opening = !ui.quickActionsOpen;
+    const returnTarget = el.matches('.finance-fab') ? '.finance-fab' : '.nav-quick-trigger';
     ui.navigationOpen = false;
     ui.quickActionsOpen = opening;
     render();
-    requestAnimationFrame(() => document.querySelector(
-      opening ? '#quick-actions-menu button' : '.nav-quick-trigger',
-    )?.focus());
+    requestAnimationFrame(() => {
+      const target = opening
+        ? document.querySelector('#quick-actions-menu button')
+        : document.querySelector(returnTarget);
+      target?.focus();
+    });
   },
   'quick-action-task': () => { ui.quickActionsOpen = false; openTaskDialog(today()); },
   'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
   'quick-action-transaction': () => { ui.quickActionsOpen = false; newTxDlg('out'); },
+  'quick-action-finance': (el) => {
+    ui.quickActionsOpen = false;
+    const kind = el.dataset.kind;
+    newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card');
+  },
   'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
   'quick-action-pomodoro': () => { ui.quickActionsOpen = false; nav('pomodoro'); },
   'areas-nav-open': () => nav('config?section=areas-navigation'),
@@ -4392,13 +4733,45 @@ const ACTIONS = {
     render();
   },
   'task-new': (el) => openTaskDialog(isDay(el.dataset.due) ? el.dataset.due : ''),
-  'toggle': (el) => { const t = findTask(el.dataset.id); if (!t) return; t.done = !t.done; t.doneAt = t.done ? new Date().toISOString() : undefined;
-    if (t.done && t.repeat && t.repeat !== 'none' && t.dueDate) {
-      let nd = nextDue(t.dueDate, t.repeat), n = 0; while (nd < today() && n++ < 800) nd = nextDue(nd, t.repeat);
-      const nx = { ...t, id: newId(), done: false, doneAt: undefined, dueDate: nd, createdAt: Date.now(), subtasks: (t.subtasks || []).map((x) => ({ ...x, done: false })) }; delete nx.sample; S.tasks.push(nx); commit('tasks');
-      toast(`Concluída. Próxima: ${shortDate(nd)}.`, () => { t.done = false; t.doneAt = undefined; S.tasks = S.tasks.filter((x) => x.id !== nx.id); commit('tasks'); }); return;
+  'toggle': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task) return;
+    const wasDone = task.done, previousDoneAt = task.doneAt, completing = !task.done;
+    const snapshot = snapshotSlices(['tasks']);
+    task.done = completing;
+    task.doneAt = task.done ? new Date().toISOString() : undefined;
+    let nextTask = null;
+    if (task.done && task.repeat && task.repeat !== 'none' && task.dueDate) {
+      let nextDate = nextDue(task.dueDate, task.repeat), attempts = 0;
+      while (nextDate < today() && attempts++ < 800) nextDate = nextDue(nextDate, task.repeat);
+      nextTask = {
+        ...task,
+        id: newId(),
+        done: false,
+        doneAt: undefined,
+        dueDate: nextDate,
+        createdAt: Date.now(),
+        subtasks: (task.subtasks || []).map((subtask) => ({ ...subtask, done: false })),
+      };
+      delete nextTask.sample;
+      S.tasks.push(nextTask);
     }
-    commit('tasks'); if (t.done) completionFeedback(`.task[data-k="${t.id}"]`); },
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a conclusão da tarefa')) return;
+    if (completing) {
+      completionFeedback(`.task[data-k="${task.id}"]`);
+      const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
+      toast(message, () => {
+        const currentTask = findTask(task.id);
+        if (!currentTask) return;
+        const undoSnapshot = snapshotSlices(['tasks']);
+        currentTask.done = wasDone;
+        if (previousDoneAt === undefined) delete currentTask.doneAt;
+        else currentTask.doneAt = previousDoneAt;
+        if (nextTask) S.tasks = S.tasks.filter((item) => item.id !== nextTask.id);
+        saveSlicesWithRollback(['tasks'], undoSnapshot, true, 'a ação de concluir a tarefa');
+      });
+    }
+  },
   'tg-del': (el) => { ui.dlg.d.tags.splice(Number(el.dataset.i), 1); render(); },
   'tg-pick': (el) => { const a = ui.dlg.d.tags = ui.dlg.d.tags || []; if (!a.includes(el.dataset.v)) a.push(el.dataset.v); render(); },
   'mv-up': (el) => moveTask(el.dataset.id, -1),
@@ -4419,6 +4792,20 @@ const ACTIONS = {
   'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
   'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
   'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.'); },
+  'reminders-pause': () => {
+    if (ui.remindersPausedUntil > Date.now()) {
+      ui.remindersPausedUntil = 0;
+      render();
+      toast('Lembretes do app retomados.');
+      return;
+    }
+    ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
+    Object.entries(ui.alerts).forEach(([key, alert]) => {
+      if (alert.kind !== 'pomodoro') delete ui.alerts[key];
+    });
+    render();
+    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.');
+  },
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
   'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus({ preventScroll: true }); },
@@ -4537,6 +4924,7 @@ const ACTIONS = {
     if (!idea) return;
     dlgOpen('habit-edit', {
       name: idea.name,
+      suggestionDescription: idea.description,
       days: [0, 1, 2, 3, 4, 5, 6],
       remind: '',
       weeklyGoal: '',
@@ -4547,6 +4935,14 @@ const ACTIONS = {
   },
   'habit-idea-filter': (el) => {
     ui.habitIdeaCategory = el.dataset.id || 'all';
+    updateHabitIdeaFilters();
+  },
+  'habit-idea-tag-filter': (el) => {
+    ui.habitIdeaTag = el.dataset.id || 'all';
+    updateHabitIdeaFilters();
+  },
+  'habit-ideas-expand': () => {
+    ui.habitIdeasExpanded = !ui.habitIdeasExpanded;
     updateHabitIdeaFilters();
   },
   'tcal-month': (el) => {
@@ -4570,11 +4966,21 @@ const ACTIONS = {
     const day = today();
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
+    const snapshot = snapshotSlices(['habits']);
     habit.completions = habit.completions.includes(day)
       ? habit.completions.filter((completed) => completed !== day)
       : [...habit.completions, day];
-    commit('habits');
-    if (completing) completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) return;
+    if (completing) {
+      completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
+      toast('Hábito marcado como concluído.', () => {
+        const currentHabit = S.habits.find((item) => item.id === habit.id);
+        if (!currentHabit || !currentHabit.completions.includes(day)) return;
+        const undoSnapshot = snapshotSlices(['habits']);
+        currentHabit.completions = currentHabit.completions.filter((completed) => completed !== day);
+        saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do hábito');
+      });
+    }
   },
   'habit-skip': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -4588,9 +4994,16 @@ const ACTIONS = {
       if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.');
       skipped.add(day);
     }
+    const snapshot = snapshotSlices(['habits']);
     habit.skipped = [...skipped].sort();
-    commit('habits');
-    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.');
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a alteração do dia pulado')) return;
+    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? null : () => {
+      const currentHabit = S.habits.find((item) => item.id === habit.id);
+      if (!currentHabit || !(currentHabit.skipped || []).includes(day)) return;
+      const undoSnapshot = snapshotSlices(['habits']);
+      currentHabit.skipped = currentHabit.skipped.filter((skippedDay) => skippedDay !== day);
+      saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do dia pulado');
+    });
   },
   'habit-day': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -5033,6 +5446,31 @@ const ACTIONS = {
   },
   'look-cycle': cycleThemeMode,
   'export': () => { void doExport(); },
+  'backup-encrypt-open': () => dlgOpen('backup-encrypt', { error: '' }),
+  'backup-encrypt-create': () => { void doEncryptedExport(); },
+  'backup-decrypt-open': async (button) => {
+    const passwordInput = $('#backup-password');
+    let password = passwordInput?.value || '';
+    if (passwordInput) passwordInput.value = '';
+    if (password.length < 1 || password.length > 72) {
+      ui.dlg.d.error = 'Informe a senha usada ao criar este backup.';
+      render();
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      const plaintext = await decryptBackup(ui.dlg.d.envelope, password);
+      const parsed = parseBackup(plaintext);
+      ui.dlg = null;
+      dlgOpen('import', { parsed });
+    } catch (error) {
+      ui.dlg.d.error = error instanceof Error ? error.message : 'Não foi possível abrir o backup.';
+      render();
+    } finally {
+      password = '';
+    }
+  },
   'recovery-export': () => { void exportRecoveryData(); },
   'persist-retry': () => Persist.retryPending(),
   'legacy-import-discover': () => { void discoverLegacyImport(); },
@@ -5524,7 +5962,7 @@ const CHANGES = {
     const output = el.closest('label')?.querySelector('output');
     if (output) output.textContent = `${soundVolume}%`;
   },
-  'import': (el) => { const f = el.files && el.files[0]; importFile(f); el.value = ''; },
+  'import': (el) => { const f = el.files && el.files[0]; void importFile(f); el.value = ''; },
 };
 const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume', 'home-message']);
 
@@ -5547,25 +5985,26 @@ document.addEventListener('drop', (e) => { const li = e.target.closest && e.targ
 document.addEventListener('dragend', () => { ui.dragId = null; });
 let tickN = 0;
 function checkReminders() {
-  const now = Date.now(); let changed = false, added = 0;
-  S.tasks.forEach((t) => {
-    if (t.done || !t.dueDate || !t.time || t.remind == null) return;
-    const due = new Date(`${t.dueDate}T${t.time}:00`).getTime(), fire = due - Number(t.remind) * 60000, key = `${t.id}|${t.dueDate}|${t.time}|${t.remind}`;
-    if (now >= fire && now <= due + 2 * 3600000 && !ui.fired[key] && now >= (ui.snooze[key] || 0)) { ui.fired[key] = true; ui.alerts[key] = { id: t.id, title: t.title, time: t.time, due, at: now }; changed = true; added += 1; }
-  });
-  const day = today();
-  S.habits.forEach((habit) => {
-    if ((habit.status || 'active') !== 'active' || !habit.remind
-      || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day)) return;
-    const key = `habit:${habit.id}:${day}`;
-    // Janela de 15 minutos: se a aba ficou em segundo plano no minuto exato, o lembrete ainda aparece.
-    const habitAt = new Date(`${day}T${habit.remind}:00`).getTime();
-    if (now < habitAt || now > habitAt + 15 * 60000 || ui.fired[key]) return;
-    ui.fired[key] = true;
-    ui.alerts[key] = { id: habit.id, kind: 'habit', title: habit.name, time: habit.remind, at: now, detail: 'Sua rotina programada para hoje está esperando.' };
-    changed = true;
-    added += 1;
-  });
+  const now = Date.now(), day = today(); let changed = false, added = 0;
+  if (now >= ui.remindersPausedUntil) {
+    S.tasks.forEach((t) => {
+      if (t.done || !t.dueDate || !t.time || t.remind == null) return;
+      const due = new Date(`${t.dueDate}T${t.time}:00`).getTime(), fire = due - Number(t.remind) * 60000, key = `${t.id}|${t.dueDate}|${t.time}|${t.remind}`;
+      if (now >= fire && now <= due + 2 * 3600000 && !ui.fired[key] && now >= (ui.snooze[key] || 0)) { ui.fired[key] = true; ui.alerts[key] = { id: t.id, title: t.title, time: t.time, due, at: now }; changed = true; added += 1; }
+    });
+    S.habits.forEach((habit) => {
+      if ((habit.status || 'active') !== 'active' || !habit.remind
+        || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day)) return;
+      const key = `habit:${habit.id}:${day}`;
+      // Janela de 15 minutos: se a aba ficou em segundo plano no minuto exato, o lembrete ainda aparece.
+      const habitAt = new Date(`${day}T${habit.remind}:00`).getTime();
+      if (now < habitAt || now > habitAt + 15 * 60000 || ui.fired[key]) return;
+      ui.fired[key] = true;
+      ui.alerts[key] = { id: habit.id, kind: 'habit', title: habit.name, time: habit.remind, at: now, detail: 'Sua rotina programada para hoje está esperando.' };
+      changed = true;
+      added += 1;
+    });
+  }
   Object.keys(ui.alerts).forEach((k) => {
     const alert = ui.alerts[k];
     if (alert.kind === 'pomodoro') return;
@@ -5723,7 +6162,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   const target = e.target;
   if (!ui.quickActionsOpen || !(target instanceof Element)
-    || target.closest('#quick-actions-menu, .nav-quick-trigger')) return;
+    || target.closest('#quick-actions-menu, .nav-quick-trigger, .finance-fab')) return;
   ui.quickActionsOpen = false;
   render();
 });
@@ -5786,7 +6225,7 @@ document.addEventListener('input', (e) => {
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && !el.matches('[data-transient-secret]') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const draft = {
       name: $('#pname')?.value || '',
@@ -5836,7 +6275,7 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && !el.matches('[data-transient-secret]') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
   if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value !== today()) {
     ui.dlg.d.paid = false;
@@ -5988,9 +6427,30 @@ const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
   return h`<div class="fin-section-menu" role="group" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="fin-section-option ${id === key ? 'is-active' : ''}" data-action="fin-tab" data-t="${id}" aria-pressed="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
 };
-const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="tx-new">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
+const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="quick-actions-toggle" aria-label="Abrir ações rápidas de Finanças" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
 
 /* ---- Resumo ---- */
+function expenseTrendChart(ym, cur) {
+  if (ym > today().slice(0, 7)) {
+    return h`<p class="fine finance-trend-empty">Este mês ainda é futuro; não há evolução diária real para mostrar.</p>`;
+  }
+  const [year, month] = ym.split('-').map(Number);
+  const lastDay = cur ? today() : `${ym}-${pad(new Date(year, month, 0).getDate())}`;
+  const days = Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const totals = days.map((day) => S.finance.tx
+    .filter((transaction) => transaction.type === 'out' && transaction.date === day)
+    .reduce((sum, transaction) => sum + transaction.cents, 0));
+  const max = Math.max(1, ...totals);
+  const x = (index) => 16 + index * 48;
+  const y = (value) => 88 - value / max * 64;
+  const points = totals.map((value, index) => `${x(index)},${y(value)}`).join(' ');
+  const area = `M${x(0)},88 ${totals.map((value, index) => `L${x(index)},${y(value)}`).join(' ')} L${x(6)},88 Z`;
+  const labels = days.map((day, index) => `<text x="${x(index)}" y="116" text-anchor="middle">${esc(shortDate(day))}</text>`).join('');
+  const markers = totals.map((value, index) => `<circle class="finance-trend-point" cx="${x(index)}" cy="${y(value)}" r="4"><title>${esc(shortDate(days[index]))}: ${esc(money(value))}</title></circle>`).join('');
+  const summary = days.map((day, index) => `${shortDate(day)}: ${money(totals[index])}`).join('; ');
+  return raw(`<svg class="finance-trend-chart" viewBox="0 0 320 128" role="img" aria-label="Despesas nos últimos 7 dias: ${esc(summary)}"><line class="finance-trend-grid" x1="8" y1="24" x2="312" y2="24"/><line class="finance-trend-grid" x1="8" y1="56" x2="312" y2="56"/><line class="finance-trend-grid" x1="8" y1="88" x2="312" y2="88"/><path class="finance-trend-area" d="${area}"/><polyline class="finance-trend-line" points="${points}"/>${markers}${labels}</svg>`);
+}
+
 function finRitmo(ym, st, cur) {
   if (!st.outAll && !st.inAll) return '';
   const [y, m] = ym.split('-').map(Number), dim = new Date(y, m, 0).getDate(), day = cur ? Number(today().slice(8)) : dim;
@@ -6002,7 +6462,8 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="card"><div class="head"><h2>Ritmo do mês<i>.</i></h2></div>
+  return h`<section class="card finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+    ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas passaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
 }
@@ -6025,6 +6486,10 @@ function finResumo() {
   const forecast = bal + st.inPending - st.outPending;
   const result = st.inAll - st.outAll;
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
+  const pendingOut = pend.filter((t) => t.type === 'out');
+  const pendingIn = pend.filter((t) => t.type === 'in');
+  const pendingOutCents = pendingOut.reduce((sum, transaction) => sum + transaction.cents, 0);
+  const pendingInCents = pendingIn.reduce((sum, transaction) => sum + transaction.cents, 0);
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const cards = F.accounts.filter(isCredit);
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
@@ -6036,9 +6501,17 @@ function finResumo() {
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Resumo financeiro"><div class="fin-hero-top"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>${balanceSparkline()}
       <p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando lançamentos pendentes: <b>${money(forecast)}</b>` : h`${cap(ymLabel(ym))}`}</p>
-      <div class="fh-row"><div class="finance-summary-stat is-income"><span>Receitas lançadas</span><b>${money(st.inAll)}</b><small>${money(st.inPaid)} recebidas</small></div><div class="finance-summary-stat is-expense"><span>Despesas lançadas</span><b>${money(st.outAll)}</b><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></div><div class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}"><span>Resultado</span><b>${money(result)}</b><small>no mês</small></div></div></section>
+      <div class="fh-row">
+        <div class="finance-summary-stat is-income"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><small>${money(st.inPaid)} recebidas</small></div>
+        <div class="finance-summary-stat is-expense"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></div>
+        <div class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado</span><b>${money(result)}</b><small>no mês</small></div>
+        <div class="finance-summary-stat is-open"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></div>
+      </div></section>
+    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div>
+      <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
+      <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
     ${finRitmo(ym, st, cur)}
-    <div class="fin-overview-grid"><div class="fin-overview-primary">${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div><ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
+    <div class="fin-overview-grid"><div class="fin-overview-primary">
       <section class="card"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : empty('Sem despesas neste mês', 'Registre uma despesa para ver a divisão por categoria.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie')}</section></div>
       ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
@@ -6169,18 +6642,67 @@ function viewFinancas() {
 
 /* ========== Diálogos de Finanças ========== */
 const moneyIn = (c) => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
-function newTxDlg(kind = 'out') {
-  const accs = S.finance.accounts, first = accs.find((a) => !isCredit(a)) || accs[0];
-  dlgOpen('tx', { kind, amount: '', desc: '', category: kind === 'in' ? catNames('in')[0] : catNames('out')[0], accountId: first ? first.id : '', toAccountId: (accs.find((a) => a.id !== (first || {}).id) || {}).id || '', date: today(), settledDate: today(), paid: true, repeat: 'none', times: '2' });
+function newTxDlg(kind = 'out', preferCredit = false) {
+  const accs = S.finance.accounts;
+  const defaults = recentTransactionDefaults(kind, preferCredit);
+  const first = accs.find((account) => account.id === defaults.accountId)
+    || (preferCredit ? accs.find(isCredit) : null)
+    || accs.find((account) => !isCredit(account))
+    || accs[0];
+  const second = accs.find((account) => account.id === defaults.toAccountId && account.id !== first?.id)
+    || accs.find((account) => account.id !== first?.id);
+  dlgOpen('tx', {
+    kind,
+    amount: '',
+    desc: '',
+    category: defaults.category,
+    accountId: first ? first.id : '',
+    toAccountId: second?.id || '',
+    date: today(),
+    settledDate: today(),
+    paid: true,
+    repeat: 'none',
+    times: '2',
+  });
+}
+function recentTransactionDefaults(kind, preferCredit = false) {
+  const categoryType = kind === 'in' ? 'in' : 'out';
+  const categories = catNames(categoryType);
+  const accountAllowed = (account) => account && (kind === 'tr' || kind === 'in' ? !isCredit(account) : true);
+  const latest = S.finance.tx
+    .map((transaction, index) => ({ transaction, index }))
+    .filter(({ transaction }) => transaction.type === kind)
+    .sort((a, b) => Number(b.transaction.createdAt || 0) - Number(a.transaction.createdAt || 0) || b.index - a.index)
+    .map(({ transaction }) => transaction);
+  const recent = latest.find((transaction) => {
+    const account = S.finance.accounts.find((item) => item.id === transaction.accountId);
+    return accountAllowed(account)
+      && (kind === 'tr'
+        ? S.finance.accounts.some((item) => item.id === transaction.toAccountId && item.id !== account.id)
+        : categories.includes(transaction.category));
+  });
+  const preferredCredit = preferCredit
+    ? latest.find((transaction) => {
+      const account = S.finance.accounts.find((item) => item.id === transaction.accountId);
+      return isCredit(account) && categories.includes(transaction.category);
+    })
+    : null;
+  return {
+    accountId: (preferredCredit || recent)?.accountId || '',
+    category: (preferredCredit || recent)?.category || categories[0],
+    toAccountId: kind === 'tr' ? recent?.toAccountId || '' : '',
+  };
 }
 function dlgTx() {
   const d = ui.dlg.d, accs = S.finance.accounts, edit = !!d.id, tr = d.kind === 'tr', acc = accById(d.accountId);
   const kinds = [['out', 'Despesa'], ['in', 'Receita'], ['tr', 'Transferência']];
+  const formSection = (label) => h`<h3 class="finance-form-section full">${label}</h3>`;
   const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
   return dlgWrap(h`<div class="head" style="flex-wrap:nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}<i>.</i></h2>${closeBtn}</div>
     ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
     <div class="seg finance-transaction-type" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
     <form id="dlgform" class="form" data-form="dlg-tx">
+      ${formSection('Detalhes do lançamento')}
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
       ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}
@@ -6190,12 +6712,13 @@ function dlgTx() {
         ${dlgField('Ícone', h`<select data-dlg="newIcon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.newIcon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
         ${dlgField('Cor', h`<input type="color" data-dlg="newColor" value="${d.newColor || (d.newParent ? categoryMatch(d.kind === 'in' ? 'in' : 'out', d.newParent)?.category.color : LIST_COLORS[0]) || LIST_COLORS[0]}" aria-label="Cor da nova categoria">`)}
       ` : ''}
+      ${formSection(tr ? 'Contas da transferência' : 'Conta e período')}
       ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data do lançamento', h`<input type="date" data-dlg="date" value="${d.date}">`)}
       ${tr ? dlgField('Data da transferência', h`<input type="date" data-dlg="date" value="${d.date}">`, 'full') : h`<p class="fine full">Esta data organiza o lançamento no mês. Se não for hoje, ele começa como pendente.</p>`}
-      ${!tr && !isCredit(acc) ? h`<label class="row full tx-settlement-toggle"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small tx-settlement-toggle-copy"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'} Outra data desmarca esta opção automaticamente.</span></span></label>` : ''}
+      ${!tr && !isCredit(acc) ? h`${formSection('Situação do pagamento')}<label class="row full tx-settlement-toggle"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small tx-settlement-toggle-copy"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'} Outra data desmarca esta opção automaticamente.</span></span></label>` : ''}
       ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`, 'full')}<p class="fine full">Quando o valor entrou ou saiu da conta. Os relatórios por caixa usam esta data.</p>` : ''}
-      ${!edit && !tr ? h`${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`)}${d.repeat === 'parcel' ? dlgField('Parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`) : ''}${d.repeat !== 'none' ? h`<p class="fine full">${d.repeat === 'parcel' ? 'O valor total é dividido igualmente entre as parcelas, uma por mês.' : 'Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.'}</p>` : ''}` : ''}
+      ${!edit && !tr ? h`${formSection('Repetição')}${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`)}${d.repeat === 'parcel' ? dlgField('Parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`) : ''}${d.repeat !== 'none' ? h`<p class="fine full">${d.repeat === 'parcel' ? 'O valor total é dividido igualmente entre as parcelas, uma por mês.' : 'Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.'}</p>` : ''}` : ''}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
 }
@@ -6354,7 +6877,23 @@ Object.assign(ACTIONS, {
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },
   'tx-new': () => newTxDlg('out'),
   'tx-new-in': () => newTxDlg('in'),
-  'tx-kind': (el) => { const d = ui.dlg.d, k = el.dataset.k; if (d.kind === k) return; d.kind = k; d.category = k === 'in' ? catNames('in')[0] : catNames('out')[0]; if (k === 'tr' && (!d.toAccountId || d.toAccountId === d.accountId)) d.toAccountId = (S.finance.accounts.find((a) => a.id !== d.accountId) || {}).id || ''; render(); },
+  'tx-kind': (el) => {
+    const d = ui.dlg.d, kind = el.dataset.k;
+    if (d.kind === kind) return;
+    const defaults = recentTransactionDefaults(kind);
+    d.kind = kind;
+    d.category = defaults.category;
+    if (defaults.accountId) d.accountId = defaults.accountId;
+    else if ((kind === 'in' || kind === 'tr') && isCredit(accById(d.accountId))) {
+      d.accountId = (S.finance.accounts.find((account) => !isCredit(account)) || {}).id || '';
+    }
+    if (kind === 'tr') {
+      d.toAccountId = defaults.toAccountId && defaults.toAccountId !== d.accountId
+        ? defaults.toAccountId
+        : (S.finance.accounts.find((account) => account.id !== d.accountId) || {}).id || '';
+    }
+    render();
+  },
   'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', recId: t.recId || '' }); },
   'tx-paid': (el) => {
     const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
@@ -6798,6 +7337,14 @@ Object.assign(CHANGES, { 'fin-import': async (el) => {
   if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).');
   if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.');
   let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.'); }
+  let parseStatement;
+  try {
+    ({ parseStatement } = await import('./features/finance/statement.js'));
+  } catch (error) {
+    console.error('Aurora: não foi possível carregar a leitura de extratos.', error);
+    toast('Não foi possível preparar a leitura do extrato. Tente novamente.');
+    return;
+  }
   const parsed = parseStatement(text, f.name);
   if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.');
   const acc = S.finance.accounts.find((a) => !isCredit(a)) || S.finance.accounts[0], d = { file: f.name.slice(0, 40), accountId: acc.id, invert: false, truncated: parsed.truncated, rows: parsed.transactions.map((r) => ({ ...r, on: true })) };
@@ -6908,6 +7455,7 @@ function showAccountDataLoadError(root, error, user) {
 
 async function continueAuthenticatedAurora(root, user) {
   try {
+    const { purgeRemovedStudyDataFromBrowserStorage } = await import('./features/backup/removed-study-data.js');
     purgeRemovedStudyDataFromBrowserStorage(window.localStorage, user.id);
     await loadAccountData();
     initializeBirthdayFromMetadata(user);
@@ -6926,14 +7474,13 @@ async function continueAuthenticatedAurora(root, user) {
   onRoute();
   if (!profileSetupComplete()) openProfileSetup();
   setInterval(tick, 1000);
-  if ('serviceWorker' in navigator) {
+  const registration = await registerPwaSupport();
+  if (registration) {
     try {
-      await navigator.serviceWorker.register('/service-worker.js');
-      await navigator.serviceWorker.ready;
       await initializePomodoroPush();
       await syncHabitReminderSchedule();
     } catch (error) {
-      console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
+      console.error('O Aurora não conseguiu iniciar as notificações Push.', error);
       ui.pushNotice = pomodoroPushErrorMessage(error);
       if (ui.route === 'pomodoro') render();
     }
@@ -6957,7 +7504,7 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
     if (returnedToPublic) renderLanding(root);
     return;
   }
-  Persist.attach(accountSession);
+  await Persist.attach(accountSession);
   await continueAuthenticatedAurora(root, accountSession.user);
 }
 
@@ -7006,6 +7553,7 @@ async function startAurora() {
     setInterval(tick, 1000);
     return;
   }
+  if (isPublicLanding) void registerPwaSupport();
   if (routeMeta && location.hash === '#landing') {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   }

@@ -99,7 +99,7 @@
     max-width: 100%;
     padding: 4px;
     border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: color-mix(in srgb, var(--surface) 90%, transparent);
     box-shadow: 0 8px 18px -18px color-mix(in srgb, var(--ink) 48%, transparent);
   }
@@ -108,7 +108,7 @@
     flex-direction: row;
     gap: 7px;
     padding: 0 14px 0 10px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     font-size: var(--text-sm);
     font-weight: 700;
     letter-spacing: -.01em;
@@ -117,7 +117,7 @@
     width: 18px;
     height: 18px;
     background: transparent;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
   }
   .topbar .nav a[aria-current="page"] {
     background: color-mix(in srgb, var(--accent) 10%, var(--surface));
@@ -239,6 +239,20 @@
     overflow: visible;
     clip: auto;
   }
+}
+
+@media (min-width: 1100px) and (max-width: 1199px) {
+  .topbar .nav a .tab-label-group,
+  .topbar .nav .nav-quick-trigger .tab-label-group {
+    display: inline-flex;
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  .topbar .nav a { gap: 5px; padding-inline: 7px; }
+  .topbar .nav .nav-quick-trigger { width: auto; gap: 5px; padding-inline: 7px; }
 }
 
 @media (max-width: 899px) {
@@ -372,10 +386,10 @@
   }
   .app > .topbar .brand,
   :root[data-scrolled="true"] .app > .topbar .brand {
-    min-height: 48px;
+    min-height: var(--control-field);
     padding-inline: var(--space-2);
   }
-  :root[data-scrolled="true"] .app > .topbar .wordmark { font-size: 1.25rem; }
+  :root[data-scrolled="true"] .app > .topbar .wordmark { font-size: var(--text-xl); }
   .app > .topbar .nav {
     display: flex;
     width: 100%;
@@ -398,7 +412,7 @@
   .app > .topbar .nav .nav-secondary,
   .app > .topbar .nav .nav-area {
     display: flex !important;
-    min-height: 46px;
+    min-height: var(--control-md);
     flex: none;
     flex-direction: row;
     align-items: center;
@@ -437,7 +451,7 @@
   .app > .topbar .header-actions .profile-link {
     width: 40px;
     height: 40px;
-    min-height: 40px;
+    min-height: var(--control-sm);
   }
   .app > .topbar .profile-link { margin-left: auto; }
   .app > .main {
@@ -563,16 +577,19 @@
 }
 
 @media (min-width: 900px) and (max-width: 1199px) {
+  .quick-actions-menu { top: 76px; right: 16px; }
+}
+
+@media (min-width: 900px) and (max-width: 1099px) {
   .topbar .nav .nav-quick-trigger { width: 40px; padding: 0; }
   .topbar .nav .nav-quick-trigger .tab-label-group { display: none; }
-  .quick-actions-menu { top: 76px; right: 16px; }
 }
 
 @media (min-width: 1200px) {
   .app > .topbar .nav .nav-quick-control { width: 100%; order: -1; }
   .app > .topbar .nav .nav-quick-trigger {
     width: 100%;
-    min-height: 46px;
+    min-height: var(--control-md);
     justify-content: flex-start;
     gap: var(--space-3);
     padding-inline: var(--space-3);

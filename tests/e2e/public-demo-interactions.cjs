@@ -76,6 +76,22 @@ const check = (passed, name, detail = '') => {
 
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
+  const demoLayout = await page.evaluate(() => {
+    const header = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
+    const main = document.querySelector('.demo-main').getBoundingClientRect();
+    const disclaimer = document.querySelector('.demo-disclaimer').getBoundingClientRect();
+    const welcome = document.querySelector('.home-head').getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    return {
+      hasInactiveNavigation: Boolean(document.querySelector('.demo-nav')),
+      headerFillsViewport: Math.abs(header.width - viewportWidth) <= 1,
+      mainIsCentered: Math.abs(main.left - (viewportWidth - main.width) / 2) <= 1,
+      disclaimerOverlapsWelcome: disclaimer.bottom > welcome.top,
+    };
+  });
+  check(!demoLayout.hasInactiveNavigation, 'demonstração não mostra áreas sem interação');
+  check(demoLayout.headerFillsViewport && demoLayout.mainIsCentered, 'demonstração usa cabeçalho completo e conteúdo centralizado em desktop');
+  check(!demoLayout.disclaimerOverlapsWelcome, 'aviso da demonstração não cobre o cartão de boas-vindas');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

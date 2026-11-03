@@ -20,6 +20,8 @@ const check = (passed, name, detail = '') => {
   const taskSearch = page.getByRole('searchbox', { name: 'Buscar tarefas' });
   await taskSearch.fill('nao-existe-aurora');
   await page.locator('#task-results .empty').waitFor({ state: 'visible' });
+  check(await page.locator('#task-results .empty').getAttribute('role') === 'status'
+    && await page.locator('#task-results .empty').getAttribute('aria-live') === 'polite', 'estado vazio de Planejar é anunciado sem interromper');
   check(await page.locator('#task-results').getByRole('button', { name: 'Limpar filtros' }).count() === 1, 'tarefas sem resultados oferecem limpar filtros');
   await page.locator('#task-results').getByRole('button', { name: 'Limpar filtros' }).click();
   check(await page.locator('#task-results .task').count() > 0 && await taskSearch.inputValue() === '', 'limpar filtros restaura tarefas e busca');
@@ -30,6 +32,8 @@ const check = (passed, name, detail = '') => {
   const transactionSearch = page.getByRole('searchbox', { name: 'Buscar lançamentos' });
   await transactionSearch.fill('nao-existe-aurora');
   await page.locator('#tx-results .empty').waitFor({ state: 'visible' });
+  check(await page.locator('#tx-results .empty').getAttribute('role') === 'status'
+    && await page.locator('#tx-results .empty').getAttribute('aria-live') === 'polite', 'estado vazio de Finanças é anunciado sem interromper');
   check(await page.locator('#tx-results').getByRole('button', { name: 'Limpar filtros' }).count() === 1, 'lançamentos sem resultados oferecem limpar filtros');
   await page.locator('#tx-results').getByRole('button', { name: 'Limpar filtros' }).click();
   check(await page.locator('#tx-results .grp').count() > 0 && await transactionSearch.inputValue() === '', 'limpar filtros restaura lançamentos e busca');

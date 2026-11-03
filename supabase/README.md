@@ -4,6 +4,16 @@
 
 As migrations SQL ficam em `supabase/migrations/`. Elas criam e atualizam as tabelas relacionais, compatibilidade de IDs, lixeira, RPCs e políticas RLS. A migration de remoção de Estudos apaga as fatias cifradas e os registros relacionais dedicados à função; `user_keys` e as demais fatias são preservadas.
 
+### Teste local isolado
+
+O workflow do GitHub usa a configuração versionada em `supabase/config.toml`,
+inicia somente o banco local com a imagem Supabase, aplica as migrations com
+`supabase db reset --local` e executa `supabase/tests/rls_isolation.sql` com
+`psql` na porta local `54322`. Não é necessário token Supabase, projeto
+remoto, credencial de Production nem conta real. Para repetir localmente,
+instale Docker e o Supabase CLI, execute `supabase start`, `supabase db reset
+--local` e rode o SQL com `psql`; o script termina com `ROLLBACK`.
+
 Use projetos Supabase separados para desenvolvimento/teste e produção. O app local usa `VITE_SUPABASE_LOCAL_URL` e `VITE_SUPABASE_LOCAL_ANON_KEY`; Preview do Cloudflare usa `VITE_SUPABASE_TARGET=development` com `VITE_SUPABASE_PREVIEW_URL` e `VITE_SUPABASE_PREVIEW_ANON_KEY`; Production usa `VITE_SUPABASE_TARGET=production` com `VITE_SUPABASE_PRODUCTION_URL` e `VITE_SUPABASE_PRODUCTION_ANON_KEY`. O cliente rejeita qualquer URL Supabase cujo project ref não corresponda ao ambiente esperado. A unicidade de e-mail vale dentro de cada projeto, permitindo o mesmo e-mail nos dois ambientes. Aplique e valide as migrations separadamente em cada projeto, confirmando o destino antes de executar qualquer operação.
 
 Para permitir acesso imediato após o cadastro, em cada projeto abra **Authentication → Providers → Email** e desative **Confirm email**. Com essa opção ativa, o Supabase cria a conta sem emitir uma sessão e a pessoa não consegue entrar até confirmar o endereço; o app informa essa configuração e mantém reenvio para cadastros pendentes. Sem confirmação obrigatória, um e-mail digitado incorretamente pode impedir a recuperação da conta.

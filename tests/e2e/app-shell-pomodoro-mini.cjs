@@ -31,7 +31,11 @@ const check = (passed, name, detail = '') => {
   check(await mini.locator('#pomodoro-mini-phase').textContent() === 'Foco · em andamento', 'fase e estado do timer são apresentados');
 
   const runningClock = await mini.locator('#pomodoro-mini-clock').textContent();
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(
+    (initialClock) => document.querySelector('#pomodoro-mini-clock')?.textContent !== initialClock,
+    runningClock,
+    { timeout: 3500 },
+  );
   check(await mini.locator('#pomodoro-mini-clock').textContent() !== runningClock, 'tempo restante atualiza sem duplicar o timer');
 
   await miniToggle.focus();

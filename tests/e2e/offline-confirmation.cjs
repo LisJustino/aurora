@@ -25,18 +25,22 @@ const check = (passed, name, detail = '') => {
   await context.setOffline(false);
   await page.waitForFunction(() => !document.querySelector('.offline-banner'));
 
-  await page.evaluate(() => { location.hash = 'planejar'; });
-  await page.getByRole('button', { name: 'Nova tarefa' }).click();
-  await page.locator('#dlg [data-dlg="title"]').fill('Rascunho não salvo');
+  await page.evaluate(() => { location.hash = 'config?section=appearance'; });
+  await page.waitForFunction(() => location.hash === '#config?section=appearance');
+  await page.setViewportSize({ width: 1024, height: 844 });
+  await page.locator('[data-action="set-theme"][aria-pressed="false"]').first().click();
+  const saveSettings = page.locator('[data-settings-save-button]').last();
+  await saveSettings.waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !document.querySelector('[data-settings-save-button]:disabled'));
   await page.locator('[data-action="reload-app"]').click();
   const reloadConfirmation = page.locator('#dlg');
   await reloadConfirmation.getByText('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?').waitFor();
   await reloadConfirmation.getByRole('button', { name: 'Cancelar' }).click();
-  check(await page.locator('#dlg [data-dlg="title"]').inputValue() === 'Rascunho não salvo', 'cancelar recarga preserva o rascunho');
+  check(await saveSettings.isEnabled(), 'cancelar recarga preserva o rascunho de ajustes');
 
-  await page.getByRole('button', { name: 'Fechar' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => { location.hash = 'config?section=data'; });
-  await page.getByRole('button', { name: 'Exportar backup' }).click();
+  await page.getByRole('button', { name: 'Exportar JSON comum' }).click();
   const backupConfirmation = page.locator('#dlg');
   await backupConfirmation.getByText('O arquivo de backup é JSON em texto puro, sem criptografia. Ele pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
   await backupConfirmation.getByRole('button', { name: 'Cancelar' }).click();

@@ -24,7 +24,9 @@ aurora/
 │       ├── main.js            # Composição atual; ainda concentrada
 │       ├── core/              # Router e compatibilidade de rotas
 │       ├── features/           # Funcionalidades agrupadas por domínio
+│       │   ├── backup/         # Criptografia opcional e validação de backups
 │       │   ├── footer/         # Conteúdo compartilhado do footer
+│       │   ├── habits/         # Regras de domínio e template de Hábitos
 │       │   ├── home/           # Preferências e modos do Início
 │       │   └── selects/        # Combobox acessível compartilhado
 │       ├── data/              # Store relacional e importador temporário do legado
@@ -34,6 +36,7 @@ aurora/
 ├── privacy.html                # Política pública, fora da SPA autenticada
 ├── tests/                      # Testes de lógica, verificações manuais e E2E
 ├── supabase/                   # Esquema do banco e políticas
+│   ├── config.toml             # Configuração Supabase local/CI isolada
 │   └── functions/              # Edge Functions, incluindo exclusão autenticada de conta
 ├── worker/                     # Cloudflare Worker + Durable Object do Push opcional
 │   ├── src/index.js

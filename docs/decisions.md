@@ -10,8 +10,10 @@
   depoimentos, avaliações ou perfis de usuários fictícios como prova social.
 - A aplicação preserva a compatibilidade de dados e backups existentes.
   Importações e exclusões de dados legados exigem ação e confirmação explícitas.
-- Backups exportados são arquivos JSON sem criptografia; a interface deve
-  informar isso antes da exportação.
+- Backups JSON sem proteção continuam compatíveis e são exportados com aviso.
+  Também há uma opção de cifrar o mesmo conteúdo com AES-256-GCM e uma senha
+  exclusiva derivada por PBKDF2; a senha nunca é salva e não pode ser
+  recuperada se esquecida. A cópia bruta de recuperação continua sem cifra.
 - A área do Ciclo oferece informação geral, não diagnóstico nem método
   contraceptivo. Datas e dados de saúde são tratados como informação pessoal.
 - O hábito “Beber água” permite registrar cada volume em mL e acompanhar a meta
@@ -24,10 +26,18 @@
   move o hábito e seu histórico para a lixeira por 30 dias, permitindo
   restauração; arquivar continua sendo uma alternativa que preserva o hábito
   na área de Hábitos.
-- As ideias de Hábitos podem ser buscadas por nome, descrição ou categoria e
-  filtradas por categoria. Escolher uma ideia continua abrindo o editor para
-  personalização antes de gravar o hábito; busca e filtro são apenas estado
-  temporário da interface.
+- As ideias de Hábitos podem ser buscadas por nome, descrição, categoria ou
+  características práticas e filtradas por categoria e contexto. As quatro
+  sugestões iniciais priorizam categorias diferentes; se alguma já existir,
+  outras ideias completam a prévia. Descrições longas ficam resumidas nos
+  cartões e aparecem completas ao personalizar. Escolher uma ideia continua
+  abrindo o editor antes de gravar; filtros e expansão são estado temporário,
+  e as características pertencem apenas ao catálogo de sugestões, não aos
+  hábitos salvos.
+- A área de Hábitos prioriza o check-in do dia e mantém a semana visível por
+  hábito; histórico e gerenciamento continuam acessíveis em detalhes
+  recolhidos. A revisão semanal não aparece antes de existir um hábito ativo
+  ou pausado, e explicações de notificações ficam recolhidas.
 - Notificações Push do Pomodoro e dos lembretes de Hábitos são opcionais,
   ativadas por ação explícita da pessoa e limitadas aos dados necessários ao
   agendamento; nomes e conteúdo dos hábitos não são enviados ao Worker. A
@@ -136,3 +146,50 @@ persistidos no navegador ou no backend, incluídos em backups ou enviados ao
 Worker. A permissão externa pode ser removida nas configurações da Conta
 Google. A Política de Privacidade e o aceite legal passam para 1.6 antes de
 habilitar essa leitura.
+
+## Regressão automatizada e extrações de `main.js`
+
+O CI executa treze cenários E2E com Chromium contra Vite local: demonstração
+pública, Hábitos, backup cifrado, atualização PWA, estado offline, cadastro
+sem envio, navegação/ações rápidas, mini Pomodoro, limites entre prévia e build
+de produção, acessibilidade/contraste, selects nativos e customizados,
+regressões de Finanças e scroll de diálogos/painéis em mobile e desktop. O fluxo
+smoke em Firefox e WebKit cobre tarefa, diálogo, console e viewport móvel; não
+repete toda a suíte. Esses cenários usam dados fictícios e não acessam projetos
+Supabase remotos. Um job separado sobe Postgres Supabase local descartável,
+aplica as migrations, verifica RLS e força duas gravações concorrentes com a
+mesma versão, confirmando a rejeição da gravação obsoleta. A suíte não
+substitui autenticação remota, atualização PWA real hospedada, concorrência em
+Preview, exclusão real nem configuração dos ambientes publicados.
+
+Extrações de `main.js` devem começar por regras puras, mover apenas
+responsabilidades com fronteira clara e preservar o estado único da aplicação.
+O primeiro passo é manter em `features/habits/model.js` a regra pura de
+remoção das ideias de hábitos já existentes. Templates e handlers continuam
+compostos em `main.js`; a extração do monólito é incremental e não está
+concluída.
+
+## Hierarquia e retorno da área logada
+
+O Início mantém o plano de hoje antes dos resumos nos layouts padrão; ordens já
+personalizadas não são substituídas. “Primeiros passos” usa as áreas ativadas,
+mostra o progresso e destaca uma única sugestão sem abrir fluxos
+automaticamente. Em tablets largos, os rótulos das áreas e de criação ficam
+visíveis; atalhos compactos continuam identificáveis pelo nome.
+
+O shell autenticado informa quando a conta foi sincronizada, está salvando ou
+precisa de atenção por falha/conexão. A demonstração local não exibe uma
+confirmação de sincronização. Esse retorno é derivado do estado existente da
+persistência; não cria campos ou gravações adicionais.
+
+## Descoberta e controle de ações frequentes
+
+A busca global tem acionador visível no cabeçalho autenticado e continua
+disponível por Ctrl+K/⌘K. Novos lançamentos sugerem conta e categoria do último
+lançamento válido do mesmo tipo; as sugestões são derivadas dos dados
+existentes, sem preferência persistida adicional. Concluir tarefa, marcar
+hábito ou pular um dia oferece desfazer pelo toast, reutilizando a fatia atual
+e sem alterar o formato de backup. A pausa de uma hora afeta somente lembretes
+internos de tarefas e hábitos nesta instância do app; não altera permissões ou
+avisos Push do sistema. Estados vazios usam anúncio `status` educado para
+leitores de tela.
