@@ -1199,12 +1199,29 @@
   .main[data-route="config"] .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .main[data-route="config"] .settings-menu {
     display: flex;
+    flex-direction: row;
     grid-template-columns: none;
     overflow-x: auto;
     gap: 6px;
     padding: 6px var(--gut-r) 8px var(--gut-l);
     overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
+    scrollbar-width: auto;
+  }
+  .main[data-route="config"] .settings-menu::after {
+    position: sticky;
+    right: 0;
+    display: grid;
+    flex: 0 0 28px;
+    align-self: stretch;
+    place-items: center;
+    margin-left: -28px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 82%, var(--bg)) 70%);
+    color: var(--accent);
+    content: '›';
+    font-size: 1.75rem;
+    font-weight: 700;
+    pointer-events: none;
   }
   .main[data-route="config"] .settings-link {
     width: auto;
@@ -1227,6 +1244,17 @@
     white-space: normal;
   }
   .main[data-route="config"] .settings-link-icon { width: 32px; height: 32px; }
+  .main[data-route="config"] .profile-settings-actions {
+    position: sticky;
+    z-index: 1;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+    padding-block: 12px;
+    background: var(--surface);
+  }
+  .main[data-route="config"] .profile-settings-actions > .btn {
+    flex: 1 1 auto;
+    min-height: var(--control-field);
+  }
 }
 
 @media (max-width: 480px) {
@@ -1466,4 +1494,5 @@
 }
 @media (max-width: 760px) {
   .main[data-route="config"] .profile-settings-group { grid-template-columns: minmax(0, 1fr); }
+  .main[data-route="config"] .profile-settings-fields { grid-template-columns: minmax(0, 1fr); }
 }

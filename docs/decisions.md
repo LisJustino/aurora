@@ -26,14 +26,14 @@
   move o hábito e seu histórico para a lixeira por 30 dias, permitindo
   restauração; arquivar continua sendo uma alternativa que preserva o hábito
   na área de Hábitos.
-- As ideias de Hábitos podem ser buscadas por nome, descrição, categoria ou
-  características práticas e filtradas por categoria e contexto. As quatro
-  sugestões iniciais priorizam categorias diferentes; se alguma já existir,
-  outras ideias completam a prévia. Descrições longas ficam resumidas nos
-  cartões e aparecem completas ao personalizar. Escolher uma ideia continua
-  abrindo o editor antes de gravar; filtros e expansão são estado temporário,
-  e as características pertencem apenas ao catálogo de sugestões, não aos
-  hábitos salvos.
+- O catálogo de ideias de Hábitos contém 100 sugestões e os filtros de
+  categoria e contexto usam seletores com rótulos explícitos e uma ação para
+  limpar os filtros; não há busca de texto. As quatro sugestões iniciais priorizam
+  categorias diferentes; se alguma já existir, outras ideias completam a
+  prévia. Descrições longas ficam resumidas nos cartões e aparecem completas ao
+  personalizar. Escolher uma ideia continua abrindo o editor antes de gravar;
+  filtros e expansão são estado temporário, e as características pertencem
+  apenas ao catálogo de sugestões, não aos hábitos salvos.
 - A área de Hábitos prioriza o check-in do dia e mantém a semana visível por
   hábito; histórico e gerenciamento continuam acessíveis em detalhes
   recolhidos. A revisão semanal não aparece antes de existir um hábito ativo
@@ -45,6 +45,20 @@
   ambos os recursos.
 - A interface mantém suporte a teclado, leitores de tela, layouts responsivos
   e temas claro e escuro.
+- O estado de persistência do shell informa somente gravações em andamento ou
+  problemas recuperáveis; depois de salvar, não exibe uma confirmação positiva
+  persistente.
+- Os indicadores do resumo financeiro são atalhos para Lançamentos e preservam
+  o mês selecionado; receitas, despesas e pendências aplicam seus filtros,
+  enquanto Resultado abre a lista completa do mês.
+- Compras parceladas informam parcela atual e total. A data preenchida
+  corresponde à parcela atual; são criados somente os lançamentos dessa
+  parcela até a última, sem reconstruir parcelas anteriores. O valor informado
+  continua sendo o total da compra, dividido em centavos entre as parcelas.
+- O diário do Ciclo permite registrar separadamente atividade sexual com outra
+  pessoa, masturbação e a quantidade opcional de orgasmos por dia. Métodos
+  contraceptivos aparecem somente para atividade com outra pessoa; os campos
+  novos são opcionais e não alteram registros anteriores.
 - Enquanto um diálogo modal ou os painéis de notificações e acessibilidade
   estiverem abertos, o scroll do conteúdo externo fica bloqueado; ao fechá-los,
   a posição anterior da página é restaurada e o cabeçalho permanece visível.
@@ -184,12 +198,11 @@ persistência; não cria campos ou gravações adicionais.
 
 ## Descoberta e controle de ações frequentes
 
-A busca global tem acionador visível no cabeçalho autenticado e continua
-disponível por Ctrl+K/⌘K. Novos lançamentos sugerem conta e categoria do último
-lançamento válido do mesmo tipo; as sugestões são derivadas dos dados
-existentes, sem preferência persistida adicional. Concluir tarefa, marcar
-hábito ou pular um dia oferece desfazer pelo toast, reutilizando a fatia atual
-e sem alterar o formato de backup. A pausa de uma hora afeta somente lembretes
-internos de tarefas e hábitos nesta instância do app; não altera permissões ou
-avisos Push do sistema. Estados vazios usam anúncio `status` educado para
-leitores de tela.
+A busca global não tem botão no cabeçalho e permanece disponível pelo atalho
+Ctrl+K/⌘K. Novos lançamentos sugerem conta e categoria do último lançamento
+válido do mesmo tipo; as sugestões são derivadas dos dados existentes, sem
+preferência persistida adicional. Concluir tarefa, marcar hábito ou pular um
+dia oferece desfazer pelo toast, reutilizando a fatia atual e sem alterar o
+formato de backup. A pausa de uma hora afeta somente lembretes internos de
+tarefas e hábitos nesta instância do app; não altera permissões ou avisos Push
+do sistema. Estados vazios usam anúncio `status` educado para leitores de tela.

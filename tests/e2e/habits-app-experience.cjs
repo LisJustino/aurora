@@ -33,44 +33,57 @@ const check = (passed, name, detail = '') => {
     'descrições dos cartões são resumidas visualmente');
   const showAll = page.locator('[data-action="habit-ideas-expand"]');
   const totalIdeas = await page.locator('[data-habit-idea]').count();
+  check(totalIdeas === 100, 'catálogo completo mostra exatamente 100 ideias');
+  check(await page.locator('.habit-idea-tools input').count() === 0,
+    'catálogo não exibe uma busca');
   await showAll.click();
   check(await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas
     && await showAll.getAttribute('aria-expanded') === 'true', 'ação expande todas as ideias e atualiza o estado acessível');
   await showAll.click();
   check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4, 'lista de ideias pode ser recolhida');
-  const quickFilter = page.locator('[data-action="habit-idea-tag-filter"][data-id="quick"]');
-  await quickFilter.focus();
+  const contextFilter = page.getByRole('combobox', { name: 'Contexto das ideias' });
+  await contextFilter.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('p');
   await page.keyboard.press('Enter');
   const quickVisible = page.locator('[data-habit-idea]:not([hidden])');
-  check(await quickFilter.getAttribute('aria-pressed') === 'true'
+  check(await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'quick'
     && await quickVisible.count() > 0
     && await quickVisible.evaluateAll((ideas) => ideas.every((idea) => idea.dataset.tags.split(' ').includes('quick'))),
-  'tag de duração filtra ideias e atualiza estado acessível');
-  const movementFilter = page.locator('[data-action="habit-idea-filter"][data-id="movement"]');
-  await movementFilter.click();
+  'seletor de contexto funciona pelo teclado e filtra ideias');
+  const categoryFilter = page.getByRole('combobox', { name: 'Categoria das ideias' });
+  await categoryFilter.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
   const movementQuick = page.locator('[data-habit-idea]:not([hidden])');
-  check(await movementFilter.getAttribute('aria-pressed') === 'true'
+  check(await page.locator('select[data-change="habit-idea-category"]').inputValue() === 'movement'
     && await movementQuick.count() > 0
-    && await quickFilter.locator('span').textContent() === String(await movementQuick.count())
     && await movementQuick.evaluateAll((ideas) => ideas.every((idea) => (
       idea.closest('.habit-idea-section').querySelector('h3').textContent === 'Corpo e movimento'
       && idea.dataset.tags.split(' ').includes('quick')
     )))
     && await page.locator('[data-habit-idea-count]').textContent() === `${await movementQuick.count()} ideias encontradas`,
   'categoria e contexto podem ser combinados com contagem correspondente');
-  await page.locator('[data-action="habit-idea-filter"][data-id="all"]').click();
-  const noEquipmentFilter = page.locator('[data-action="habit-idea-tag-filter"][data-id="no-equipment"]');
-  await noEquipmentFilter.click();
-  check(await noEquipmentFilter.getAttribute('aria-pressed') === 'true'
+  await categoryFilter.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Enter');
+  await contextFilter.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  check(await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'no-equipment'
     && await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => ideas.length > 0
       && ideas.every((idea) => idea.dataset.tags.split(' ').includes('no-equipment'))),
   'contexto sem equipamento filtra resultados');
-  await page.locator('[data-input="habit-ideas"]').fill('sem equipamento');
-  check(await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => ideas.length > 0
-    && ideas.every((idea) => idea.dataset.tags.split(' ').includes('no-equipment'))),
-  'busca pelo nome do contexto encontra somente ideias correspondentes');
-  await page.locator('[data-input="habit-ideas"]').fill('');
-  await page.locator('[data-action="habit-idea-tag-filter"][data-id="all"]').click();
+  await page.locator('[data-action="habit-ideas-clear"]').click();
+  check(await page.locator('select[data-change="habit-idea-category"]').inputValue() === 'all'
+    && await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'all'
+    && await page.locator('[data-action="habit-ideas-clear"]').isHidden()
+    && await page.locator('[data-habit-idea]:not([hidden])').count() === 4,
+  'ação limpar filtros restaura os seletores e a prévia');
   const featuredIdea = page.locator('[data-habit-idea][data-id="reading"]');
   const readingDescription = await featuredIdea.locator('.habit-idea-copy > small').textContent();
   await featuredIdea.click();
@@ -79,12 +92,6 @@ const check = (passed, name, detail = '') => {
   await page.locator('[data-action="dlg-close"]').last().click();
   check(await page.locator('.habit-row[data-habit-id]').count() === 0,
     'abrir personalização não grava a ideia');
-  const search = page.locator('[data-input="habit-ideas"]');
-  await search.fill('meditar');
-  check(await page.locator('[data-habit-idea]:not([hidden])').count() === 1
-    && await showAll.isHidden(), 'busca revela resultados sem impor o limite da prévia');
-  await search.fill('');
-
   await page.locator('.habit-today-head [data-action="habit-new"]').click();
   await page.locator('#dlgform [data-dlg="name"]').fill('Alongar por cinco minutos');
   await page.locator('button[form="dlgform"][type="submit"]').click();
@@ -120,10 +127,16 @@ const check = (passed, name, detail = '') => {
           return { right: rect.right, height: rect.height };
         }),
       })),
+      filters: document.querySelector('.habit-idea-filter-grid')?.getBoundingClientRect(),
+      filterColumns: document.querySelector('.habit-idea-filter-grid')
+        ? getComputedStyle(document.querySelector('.habit-idea-filter-grid')).gridTemplateColumns.split(' ').length
+        : 0,
     }));
     check(!layout.overflow && layout.week.every(({ right, dots }) => (
       dots.length === 7 && dots.at(-1).right <= right + 1 && (width > 700 || dots.every(({ height }) => height >= 44))
-    )), `sem overflow e com dias utilizáveis no viewport de ${width} px`, JSON.stringify(layout));
+    )) && layout.filters?.right <= width + 1
+      && layout.filterColumns === (width <= 520 ? 1 : 2),
+    `sem overflow e filtros adaptados ao viewport de ${width} px`, JSON.stringify(layout));
   }
   await page.setViewportSize({ width: 390, height: 844 });
   const lightSurface = await page.locator('[data-habit-idea]:not([hidden])').first()

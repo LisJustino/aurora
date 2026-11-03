@@ -985,7 +985,6 @@
 }
 
 @media (max-width: 700px) {
-  .preview-shell .header-actions .global-search-trigger,
   .preview-shell .header-actions .notification-trigger,
   .preview-shell .header-actions [data-action="reload-app"] { display: none; }
   .preview-shell .header-actions { gap: 0; }

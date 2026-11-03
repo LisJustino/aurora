@@ -45,6 +45,13 @@ assert.match(financeAccountMigration, /linked_account_id uuid/i);
 assert.match(financeAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
 assert.match(financeAccountMigration, /on delete set null \(linked_account_id\)/i);
 assert.match(financeAccountMigration, /linked_account_id is null or account_type = 'credit'/i);
+const cycleIntimacyMigration = await readFile(
+  new URL('../supabase/migrations/20261102000000_cycle_intimacy_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleIntimacyMigration, /add column masturbation_activity boolean/i);
+assert.match(cycleIntimacyMigration, /add column orgasm_count integer/i);
+assert.match(cycleIntimacyMigration, /orgasm_count is null or orgasm_count between 0 and 99/i);
 
 const trashCollectionMigration = await readFile(
   new URL('../supabase/migrations/20261029040000_trash_cycle_collection.sql', import.meta.url),
@@ -188,7 +195,14 @@ const state = {
     }],
   },
   cycle: [{ start: '2026-10-25', end: '2026-10-29' }],
-  cycleLog: {},
+  cycleLog: {
+    '2026-10-28': {
+      sexualActivity: true,
+      contraceptionMethods: ['condom'],
+      masturbationActivity: true,
+      orgasmCount: 2,
+    },
+  },
   weight: [],
 };
 
@@ -218,6 +232,12 @@ assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
 assert.equal(changeByTable.get('cycle_periods')[0].start_date, '2026-10-25');
 assert.equal(changeByTable.get('cycle_periods')[0].end_date, '2026-10-29');
+const cycleDayRow = changeByTable.get('cycle_days')[0];
+assert.equal(cycleDayRow.log_date, '2026-10-28');
+assert.equal(cycleDayRow.sexual_activity, true);
+assert.deepEqual(cycleDayRow.contraception_methods, ['condom']);
+assert.equal(cycleDayRow.masturbation_activity, true);
+assert.equal(cycleDayRow.orgasm_count, 2);
 assert.equal(changeByTable.get('water_logs')[0].amount_ml, 250);
 assert.equal(changeByTable.get('water_logs')[0].recorded_at, '2026-10-29T12:00:00.000Z');
 const trashedPeriod = changeByTable.get('cycle_periods').find((row) => row.start_date === '2026-10-10');
@@ -318,6 +338,13 @@ assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
 });
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
+assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
+  sexualActivity: true,
+  contraceptionMethods: ['condom'],
+  masturbationActivity: true,
+  orgasmCount: 2,
+  sample: undefined,
+});
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);
 assert.deepEqual(loadedState.water, [{
   id: 'water-log-1',

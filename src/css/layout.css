@@ -8,6 +8,13 @@
   margin-inline: auto;
 }
 
+#app > .app-definitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .main {
   display: flex;
   flex-direction: column;
@@ -75,7 +82,7 @@
 }
 
 .wordmark {
-  font: 700 1.25rem/1 var(--font-h);
+  font: var(--weight-bold) var(--text-xl)/1 var(--font-h);
   letter-spacing: -.035em;
 }
 

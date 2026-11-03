@@ -4,6 +4,28 @@
   flex-direction: column;
   gap: 10px;
 }
+.fin-tools-actions { gap: var(--space-2); }
+.fin-import-action { cursor: pointer; }
+.finance-results-groups { display: flex; flex-direction: column; gap: var(--space-3); }
+.fin-export-actions { justify-content: space-between; }
+.finance-compare-row { min-width: 0; justify-content: space-between; flex-wrap: nowrap; }
+.fin-income { color: var(--ok); }
+.lg.finance-income { background: var(--ok); }
+.budget-total-row { justify-content: space-between; }
+.budget-summary-note { margin-top: var(--space-2); }
+.goal-item { align-items: flex-start; }
+.goal-progress { margin: var(--space-2) 0 var(--space-1); }
+.lg.finance-expense { background: var(--bad); }
+.import-row-label {
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.lg.finance-overdue { background: var(--bad); }
+.lg.finance-upcoming { background: var(--ok); }
+.lg.finance-settled { background: var(--line2); }
 
 @media (min-width: 640px) {
   .fin-tools { flex-direction: row; align-items: center; justify-content: space-between; }

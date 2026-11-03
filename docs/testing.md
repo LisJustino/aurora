@@ -102,17 +102,34 @@ de lançamento não devem se deslocar horizontalmente ao selecionar Receita ou
 Transferência; a seção ativa de Finanças deve continuar focada e visível após a
 navegação.
 
+No resumo de Finanças em desktop, “Despesas por categoria” e “Últimos
+lançamentos” ficam lado a lado; em celular, continuam empilhados.
+Os indicadores “Receitas lançadas”, “Despesas lançadas”, “Resultado” e “Em
+aberto” abrem Lançamentos para o mês selecionado, com o filtro correspondente.
+Em uma compra parcelada, confira que o formulário informa parcela atual e total;
+ao registrar, por exemplo, 3 de 10, deve criar somente 3/10 a 10/10 em meses
+consecutivos, usando a data informada para 3/10. As parcelas 1/10 e 2/10 não
+devem ser criadas, e a soma por parcela deve respeitar os centavos do total.
+
 Ao navegar para outra área a partir de Ajustes e retornar pelo histórico ou pelo menu, confirme que “Seu perfil” é selecionado. Recarregue enquanto outra aba de Ajustes estiver aberta e confirme que essa aba permanece selecionada.
 
-Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet, os nomes das áreas e de “Criar” visíveis entre 1100 e 1199 px e a barra lateral a partir de 1200 px; os demais atalhos devem continuar identificáveis pelo nome ao passar o mouse ou receber foco. A busca não aparece no cabeçalho e Ctrl+K continua abrindo a busca global. No móvel, o dock mantém quatro atalhos de área, “Mais” abre as opções restantes e “Criar” abre as ações rápidas; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
+No diário do Ciclo, confira que atividade sexual com outra pessoa e masturbação
+podem ser registradas separadamente, que os métodos contraceptivos só aparecem
+para atividade com outra pessoa e que a contagem opcional de orgasmos aceita
+0–99, incluindo zero. Salve e reabra o dia para verificar os valores; registros
+antigos de atividade e métodos devem continuar visíveis. A migration
+`20261102000000_cycle_intimacy_tracking.sql` deve ser aplicada antes de validar
+a gravação relacional dos campos novos.
+
+Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet, os nomes das áreas e de “Criar” visíveis entre 1100 e 1199 px e a barra lateral a partir de 1200 px; os demais atalhos devem continuar identificáveis pelo nome ao passar o mouse ou receber foco. A busca global não deve aparecer como botão no cabeçalho; Ctrl+K continua abrindo a busca. Entre 320 e 430 px, os nomes no dock e no menu “Mais” devem permanecer inteiros. No móvel, o dock mantém quatro atalhos de área e “Mais” abre as opções restantes e o botão “Criar”, que abre as ações rápidas sem ocupar uma coluna própria. Até 420 px, o dock fica como painel arredondado com margens laterais e largura de colunas proporcional aos rótulos. Os painéis “Mais” e “Criar” devem alinhar com as bordas do dock aberto; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador correspondente. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
 
 No Início, em 320 px, 390 px e desktop, confirme que o destaque inicial é compacto, que o plano de hoje vem antes dos resumos nos padrões novos e que uma tarefa exibida no plano não é repetida como “Próxima ação”. Preferências de ordem existentes devem continuar preservadas. Em “Primeiros passos”, confira o progresso, a sugestão única, o texto de hábitos quando ainda não existe hábito ativo, as áreas ativadas, o recolhimento e a opção de dispensar. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
 
-Com uma conta fictícia autenticada, confirme que o estado do shell informa “Salvando…” durante a gravação, “Tudo salvo na sua conta” depois da confirmação e um aviso recuperável quando a gravação falha ou não há conexão. A prévia local não deve afirmar que os dados foram sincronizados.
+Com uma conta fictícia autenticada, confirme que o shell informa “Salvando…” durante a gravação, remove o indicador depois da confirmação e mostra um aviso recuperável quando a gravação falha ou não há conexão. A prévia local não deve afirmar que os dados foram sincronizados.
 
 `node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` valida as ações rápidas, o foco por teclado, os rótulos da navegação em tablet, a área ativa e a transição do dock para a barra lateral entre 320 e 1440 px.
 
-`node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
+`node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o encaixe do tempo dentro do mostrador entre 320 e 1366 px, o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
 
 Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Verifique também a importação/exportação de backup anterior, que deve continuar compatível e usar os padrões para os campos novos ausentes.
 
@@ -127,13 +144,14 @@ arquivados. Confira também em largura móvel e com tema escuro.
 
 Na primeira visita a Hábitos, confirme que o estado “Dia livre” não repete o
 botão “Novo hábito”, que não há resumo semanal sem hábitos e que somente quatro
-ideias são exibidas até “Ver todas”. Buscar ou filtrar ideias deve revelar os
-resultados correspondentes, atualizar a contagem e o estado acessível do filtro.
-As quatro ideias iniciais devem representar categorias distintas. Combine os
-filtros de categoria e contexto (“Poucos minutos”, “Em casa” e “Sem
-equipamento”), confira contagens e estados selecionados e busque também por
-termos dos contextos. Cartões resumem descrições longas em até duas linhas; ao
-personalizar, a descrição completa aparece no editor sem gravar antes de salvar.
+ideias são exibidas até “Ver todas”. O catálogo deve conter exatamente 100
+sugestões. Buscar ou filtrar ideias deve revelar os resultados correspondentes
+e atualizar a contagem; use os seletores rotulados de categoria e contexto,
+combine os dois (“Poucos minutos”, “Em casa” e “Sem equipamento”) e confirme a
+ação “Limpar filtros”. As quatro ideias iniciais devem representar categorias
+distintas. Busque também por termos dos contextos. Cartões resumem descrições
+longas em até duas linhas; ao personalizar, a descrição completa aparece no
+editor sem gravar antes de salvar.
 Com um hábito ativo, confirme que a semana fica visível sem expandir os detalhes,
 que dias passados programados podem ser marcados/desmarcados e que histórico e
 ações de gerenciamento continuam acessíveis ao expandir cada seção. Lembretes
@@ -141,10 +159,16 @@ do sistema devem começar recolhidos e manter a ativação explícita. Em 320 px
 390 px e desktop, confirme que sete dias permanecem utilizáveis, sem overflow
 horizontal; verifique também tema escuro, teclado e movimento reduzido.
 
-Nas “Ideias de hábitos”, confira busca por nome, descrição e características,
-busca sem diferenciação de acentos, filtros combinados por categoria/contexto,
-contagem e estado sem resultados. Selecionar uma ideia deve continuar abrindo
+Nas “Ideias de hábitos”, confirme que não há campo de busca e que os filtros
+combinados por categoria/contexto atualizam a contagem e o estado sem
+resultados. Selecionar uma ideia deve continuar abrindo
 o editor sem gravar antes da confirmação; verifique foco/teclado e largura móvel.
+
+Na visão mobile, confira rótulos legíveis no dock, uma indicação visível de
+rolagem horizontal no menu de Ajustes e o botão “Salvar perfil e preferências”
+alcançável acima do dock durante a edição. Teste o perfil em 320 px, 390 px e
+desktop; no desktop, a ação de salvar deve permanecer no fluxo normal do
+formulário.
 
 No cadastro, valide que erros de e-mail já associado (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) explicam que uma exclusão confirmada permite criar uma conta nova, sem restaurar dados antigos. A exclusão só é considerada concluída com a confirmação explícita da Edge Function, que chama a Admin API em modo de exclusão definitiva; erros desconhecidos mantêm uma mensagem segura e genérica.
 
@@ -215,6 +239,7 @@ node tests/e2e/notifications.cjs http://127.0.0.1:5173
 node tests/e2e/home-first-steps.cjs http://127.0.0.1:5173
 node tests/e2e/habits-app-experience.cjs http://127.0.0.1:5173
 node tests/e2e/empty-filter-recovery.cjs http://127.0.0.1:5173
+node tests/e2e/cycle-intimacy.cjs http://127.0.0.1:5173
 node tests/e2e/finance-improvements.cjs http://127.0.0.1:5173
 node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
@@ -244,6 +269,7 @@ são alterados.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
 - `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
 - `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, anúncio educado dos estados vazios, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
+- `node tests/e2e/cycle-intimacy.cjs` verifica os registros separados de atividade sexual, masturbação e orgasmos, a relação dos métodos contraceptivos e a preservação independente dos dados.
 - `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, reutilização da conta/categoria mais recente, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento e recorte mensal do resumo em perfil de demonstração.
 - `node tests/e2e/app-shell-quick-actions.cjs` verifica acionador/fechamento da busca global, conclusão e desfazer de uma tarefa, além das ações rápidas e navegação responsiva.
 - `node tests/e2e/habits-app-experience.cjs` também verifica desfazer uma marcação de hábito em dados isolados da prévia.

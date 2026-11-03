@@ -22,6 +22,7 @@ select.ds-select__native {
 .ds-select__trigger {
   position: relative;
   display: flex;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   min-height: var(--control-field);
