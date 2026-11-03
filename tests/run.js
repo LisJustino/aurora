@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
-import { addMonths, isDay } from '../src/js/utils/dates.js';
+import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
   isPublicLandingHash,
   postSignOutPath,
@@ -114,6 +114,7 @@ import {
   isTrashExpired,
   isValidTrashEntry,
   normalizeTrash,
+  sortTrashEntriesByExpiry,
   trashDaysRemaining,
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
@@ -439,6 +440,16 @@ test('a lixeira mantém itens por 30 dias e calcula os dias restantes', () => {
   equal(isTrashExpired({ deletedAt: now - TRASH_RETENTION_MS }, now), true);
 });
 
+test('a lixeira prioriza os itens que vencem primeiro sem alterar a lista original', () => {
+  const newest = { id: 'newest', deletedAt: 3000 };
+  const oldest = { id: 'oldest', deletedAt: 1000 };
+  const entries = [newest, oldest];
+  const ordered = sortTrashEntriesByExpiry(entries);
+
+  equal(ordered.map((entry) => entry.id).join(','), 'oldest,newest');
+  equal(entries[0], newest);
+});
+
 test('transação de backup persiste todas as chaves em caso de sucesso', () => {
   const storage = new Map([['a', 'antigo-a'], ['b', 'antigo-b']]);
   const result = runStorageTransaction({
@@ -654,6 +665,11 @@ test('rejeita datas com formato incorreto ou dias inexistentes', () => {
   falsy(isDay('2024/04/30'));
   falsy(isDay(''));
   falsy(isDay(null));
+});
+
+test('normaliza datas legadas sem aceitar dias inexistentes', () => {
+  equal(normalizeDay('2024/4/30'), '2024-04-30');
+  equal(normalizeDay('2024/04/31'), '');
 });
 
 test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {

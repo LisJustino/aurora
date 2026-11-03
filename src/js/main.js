@@ -3,7 +3,7 @@ import { icon } from './utils/icons.js';
 import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
   addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
-  MESES, MESES_L, pad, pk, shortDate, today,
+  MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
 import { lockPageScroll } from './utils/scroll-lock.js';
@@ -45,7 +45,6 @@ import { renderHabitsView } from './features/habits/view.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
-import { decryptBackup, encryptBackup, isEncryptedBackup } from './features/backup/crypto.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   advancePomodoro,
@@ -213,6 +212,7 @@ import {
   isTrashExpired,
   isValidTrashEntry as isValidTrashEntryModel,
   normalizeTrash,
+  sortTrashEntriesByExpiry,
   trashDaysRemaining,
 } from './features/trash/model.js';
 import { estimatedCyclePhase } from './features/cycle/phases.js';
@@ -838,10 +838,19 @@ function normalizeSlice(k, v) {
       }
       else invalidCount++;
     });
+    const financeTx = tx.records.map((transaction) => {
+      const date = normalizeDay(transaction.date) || transaction.date;
+      const settledDate = transaction.settledDate ? normalizeDay(transaction.settledDate) || transaction.settledDate : undefined;
+      return {
+        ...transaction,
+        date,
+        ...(settledDate ? { settledDate } : {}),
+      };
+    });
     return {
       value: {
         accounts: accounts.records.map((account) => ({ ...account, type: normalizeAccountType(account.type) })),
-        tx: tx.records,
+        tx: financeTx,
         budgets,
         goals: goals.records,
         recurring: recurring.records,
@@ -3618,36 +3627,36 @@ function legacyImportPanel() {
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const failedSlices = [...ui.persistFailed];
-  const trashEntries = p.trash.filter((entry) => !isTrashExpired(entry)).sort((a, b) => b.deletedAt - a.deletedAt);
+  const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
     <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O backup JSON comum não tem criptografia. Você também pode criar uma cópia cifrada com senha; ela não é salva pelo Aurora e, se for esquecida, o arquivo não poderá ser recuperado.</span></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>Os backups JSON não têm criptografia e podem incluir dados financeiros e de saúde. Guarde os arquivos em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="settings-data-actions">
       <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
         <h3 id="settings-export-title">Guardar uma cópia</h3>
-        <p>Escolha JSON comum ou uma cópia cifrada com senha. No celular, guarde o arquivo fora dos dados do navegador.</p>
+        <p>Exporte seus dados em JSON. No celular, guarde o arquivo fora dos dados do navegador.</p>
         <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
-        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar JSON comum</button><button type="button" class="btn" data-action="backup-encrypt-open">${icon('lock', 18)}Exportar cifrado</button></div>
+        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button></div>
       </section>
       <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
         <h3 id="settings-restore-title">Usar uma cópia salva</h3>
         <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
-        <p class="small muted">São aceitos backups do Aurora nas versões 1 e 2 e arquivos cifrados criados nesta tela.</p>
+        <p class="small muted">São aceitos backups JSON do Aurora nas versões 1 e 2.</p>
         <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
         <p class="err" id="imperr" role="alert"></p>
       </section>
     </div>
   </section>
     ${legacyImportPanel()}
-    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span><i>.</i></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Depois, são removidos automaticamente. A lixeira também acompanha os backups.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span><i>.</i></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
-          return h`<li><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span class="settings-trash-expiry">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
+          return h`<li class="settings-trash-entry"><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span class="settings-trash-expiry${days <= 7 ? ' is-urgent' : ''}">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
         })}</ul>`
         : h`<div class="settings-trash-empty"><span aria-hidden="true">${icon('trash', 20)}</span><p><b>A lixeira está vazia</b><small>Quando você excluir itens, eles aparecerão aqui por até 30 dias.</small></p></div>`}
     </section>
@@ -4045,23 +4054,6 @@ function dlgImport() {
     <div class="notice warn" role="alert">${icon('alert', 18)}<span>Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter os dados atuais, exporte um backup antes.</span></div>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="import-apply">Substituir meus dados</button>`);
 }
-function dlgBackupEncrypt() {
-  const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Proteger backup com senha<i>.</i></h2><p class="small muted">A senha é usada apenas para cifrar o arquivo e não será salva. Se esquecê-la, ninguém poderá recuperar este backup.</p></div>${closeBtn}</div>
-    <div class="form">
-      ${dlgField('Senha (12 a 72 caracteres)', h`<input id="backup-password" class="field" type="password" maxlength="72" autocomplete="new-password" spellcheck="false" data-transient-secret>`, 'full')}
-      ${dlgField('Confirmar senha', h`<input id="backup-password-confirm" class="field" type="password" maxlength="72" autocomplete="new-password" spellcheck="false" data-transient-secret>`, 'full')}
-    </div>
-    ${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}`,
-  h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="backup-encrypt-create">Baixar backup cifrado</button>`);
-}
-function dlgBackupDecrypt() {
-  const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Desbloquear backup<i>.</i></h2><p class="small muted">Digite a senha usada ao exportar. Ela será usada somente para abrir este arquivo e não será salva.</p></div>${closeBtn}</div>
-    ${dlgField('Senha do backup', h`<input id="backup-password" class="field" type="password" maxlength="72" autocomplete="current-password" spellcheck="false" data-transient-secret>`, 'full')}
-    ${d.error ? h`<p class="err" role="alert">${d.error}</p>` : ''}`,
-  h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="backup-decrypt-open">Desbloquear e revisar</button>`);
-}
 function dlgAreaTutorial() {
   const guide = AREA_GUIDES[ui.dlg.d.route];
   if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível<i>.</i></h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
@@ -4146,7 +4138,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport, 'backup-encrypt': dlgBackupEncrypt, 'backup-decrypt': dlgBackupDecrypt };
+const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -4280,47 +4272,6 @@ async function doExport() {
   downloadFile(name, json, 'application/json;charset=utf-8');
   S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
 }
-async function doEncryptedExport() {
-  if (Object.keys(ui.integrityIssues).length) {
-    toast('O backup cifrado não foi criado porque há dados locais inválidos. Baixe uma cópia de recuperação ou importe um backup confiável.');
-    return;
-  }
-  const passwordInput = $('#backup-password');
-  const confirmationInput = $('#backup-password-confirm');
-  let password = passwordInput?.value || '';
-  const confirmation = confirmationInput?.value || '';
-  if (passwordInput) passwordInput.value = '';
-  if (confirmationInput) confirmationInput.value = '';
-  if (password.length < 12 || password.length > 72) {
-    ui.dlg.d.error = 'Use uma senha de 12 a 72 caracteres.';
-    render();
-    return;
-  }
-  if (password !== confirmation) {
-    password = '';
-    ui.dlg.d.error = 'As senhas não coincidem.';
-    render();
-    return;
-  }
-
-  const button = $('[data-action="backup-encrypt-create"]');
-  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
-  try {
-    const encrypted = await encryptBackup(buildBackup(), password);
-    downloadFile(`aurora-backup-cifrado-${today()}.json`, encrypted, 'application/json;charset=utf-8');
-    ui.dlg = null;
-    render();
-    S.settings.prefs.lastBackup = new Date().toISOString();
-    commit('settings');
-    toast('Backup cifrado baixado. Guarde a senha separadamente; ela não pode ser recuperada.');
-  } catch (error) {
-    console.error('Aurora: não foi possível cifrar o backup.', error);
-    ui.dlg.d.error = error instanceof Error ? error.message : 'Não foi possível cifrar o backup.';
-    render();
-  } finally {
-    password = '';
-  }
-}
 function downloadFile(name, contents, type) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const link = document.createElement('a');
@@ -4439,11 +4390,6 @@ async function importFile(file) {
       const parsed = parseBackup(text);
       ui.dlg = null;
       dlgOpen('import', { parsed });
-      return;
-    }
-    if (isEncryptedBackup(document)) {
-      ui.dlg = null;
-      dlgOpen('backup-decrypt', { envelope: document, filename: file.name, error: '' });
       return;
     }
     const parsed = parseBackup(text);
@@ -5254,31 +5200,6 @@ const ACTIONS = {
   },
   'look-cycle': cycleThemeMode,
   'export': () => { void doExport(); },
-  'backup-encrypt-open': () => dlgOpen('backup-encrypt', { error: '' }),
-  'backup-encrypt-create': () => { void doEncryptedExport(); },
-  'backup-decrypt-open': async (button) => {
-    const passwordInput = $('#backup-password');
-    let password = passwordInput?.value || '';
-    if (passwordInput) passwordInput.value = '';
-    if (password.length < 1 || password.length > 72) {
-      ui.dlg.d.error = 'Informe a senha usada ao criar este backup.';
-      render();
-      return;
-    }
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    try {
-      const plaintext = await decryptBackup(ui.dlg.d.envelope, password);
-      const parsed = parseBackup(plaintext);
-      ui.dlg = null;
-      dlgOpen('import', { parsed });
-    } catch (error) {
-      ui.dlg.d.error = error instanceof Error ? error.message : 'Não foi possível abrir o backup.';
-      render();
-    } finally {
-      password = '';
-    }
-  },
   'recovery-export': () => { void exportRecoveryData(); },
   'persist-retry': () => Persist.retryPending(),
   'legacy-import-discover': () => { void discoverLegacyImport(); },
@@ -6047,7 +5968,7 @@ document.addEventListener('input', (e) => {
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && !el.matches('[data-transient-secret]') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const draft = {
       name: $('#pname')?.value || '',
@@ -6097,7 +6018,7 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && !el.matches('[data-transient-secret]') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
   if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value !== today()) {
     ui.dlg.d.paid = false;

@@ -10,10 +10,8 @@
   depoimentos, avaliações ou perfis de usuários fictícios como prova social.
 - A aplicação preserva a compatibilidade de dados e backups existentes.
   Importações e exclusões de dados legados exigem ação e confirmação explícitas.
-- Backups JSON sem proteção continuam compatíveis e são exportados com aviso.
-  Também há uma opção de cifrar o mesmo conteúdo com AES-256-GCM e uma senha
-  exclusiva derivada por PBKDF2; a senha nunca é salva e não pode ser
-  recuperada se esquecida. A cópia bruta de recuperação continua sem cifra.
+- Backups JSON Aurora nas versões 1 e 2 continuam compatíveis e são exportados
+  com aviso. A cópia bruta de recuperação também permanece em JSON.
 - A área do Ciclo oferece informação geral, não diagnóstico nem método
   contraceptivo. Datas e dados de saúde são tratados como informação pessoal.
 - O hábito “Beber água” permite registrar cada volume em mL e acompanhar a meta
@@ -164,7 +162,7 @@ habilitar essa leitura.
 ## Regressão automatizada e extrações de `main.js`
 
 O CI executa treze cenários E2E com Chromium contra Vite local: demonstração
-pública, Hábitos, backup cifrado, atualização PWA, estado offline, cadastro
+pública, Hábitos, backup e restauração, atualização PWA, estado offline, cadastro
 sem envio, navegação/ações rápidas, mini Pomodoro, limites entre prévia e build
 de produção, acessibilidade/contraste, selects nativos e customizados,
 regressões de Finanças e scroll de diálogos/painéis em mobile e desktop. O fluxo

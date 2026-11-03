@@ -40,13 +40,17 @@ const check = (passed, name, detail = '') => {
     mobileNavLabels.push(await page.evaluate(() => ({
       width: innerWidth,
       brandHidden: getComputedStyle(document.querySelector('.topbar .wordmark')).display === 'none',
-      backgroundFits: (() => {
+      dockedAtViewportBottom: (() => {
         const nav = document.querySelector('.topbar .nav');
         const bounds = nav.getBoundingClientRect();
-        return Math.abs(bounds.left - 12) <= 1
-          && Math.abs(bounds.right - (innerWidth - 12)) <= 1
-          && Math.abs(bounds.width - (innerWidth - 24)) <= 1
-          && getComputedStyle(nav).borderTopLeftRadius === getComputedStyle(nav).borderTopRightRadius;
+        const style = getComputedStyle(nav);
+        return style.position === 'fixed'
+          && Math.abs(bounds.left) <= 1
+          && Math.abs(bounds.right - innerWidth) <= 1
+          && Math.abs(bounds.bottom - innerHeight) <= 1
+          && style.borderTopLeftRadius === style.borderTopRightRadius
+          && style.borderBottomLeftRadius === '0px'
+          && style.borderBottomRightRadius === '0px';
       })(),
       actionsInsideBackground: (() => {
         const nav = document.querySelector('.topbar .nav');
@@ -69,8 +73,8 @@ const check = (passed, name, detail = '') => {
       })(),
     })));
   }
-  check(mobileNavLabels.every(({ backgroundFits }) => backgroundFits),
-    'fundo do dock acompanha toda a largura útil da tela entre 320 e 430 px', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ dockedAtViewportBottom }) => dockedAtViewportBottom),
+    'dock ocupa a largura da tela e fica fixo no rodapé entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ actionsInsideBackground }) => actionsInsideBackground),
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
@@ -182,13 +186,19 @@ const check = (passed, name, detail = '') => {
     breakpoints.push(await page.evaluate(() => {
       const nav = document.querySelector('.topbar .nav');
       const currentLabel = nav.querySelector('a[aria-current="page"] .tab-label-group');
+      const sidebarElement = document.querySelector('.app > .topbar');
+      const sidebarBounds = sidebarElement.getBoundingClientRect();
       const sidebar = getComputedStyle(document.querySelector('.app')).gridTemplateColumns.startsWith('256px');
+      const sidebarFixed = getComputedStyle(sidebarElement).position === 'fixed'
+        && Math.abs(sidebarBounds.top) <= 1
+        && Math.abs(sidebarBounds.bottom - innerHeight) <= 1;
       const navLabels = [...nav.querySelectorAll(':scope > a .tab-label-group')];
       return {
         width: innerWidth,
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         reloadButtonVisible: getComputedStyle(nav.parentElement.querySelector('[data-action="reload-app"]')).display !== 'none',
         sidebar,
+        sidebarFixed,
         activeLabelVisible: currentLabel ? currentLabel.getBoundingClientRect().width > 0 : true,
         allNavLabelsVisible: navLabels.length > 0 && navLabels.every((label) => label.getBoundingClientRect().width > 1),
         createLabelVisible: nav.querySelector('.nav-quick-trigger .tab-label-group').getBoundingClientRect().width > 1,
@@ -201,11 +211,43 @@ const check = (passed, name, detail = '') => {
   const labeledTablet = breakpoints.find(({ width }) => width === 1100);
   check(labeledTablet?.allNavLabelsVisible && labeledTablet?.createLabelVisible, 'nomes das áreas e de Criar ficam visíveis no tablet largo');
   check(breakpoints.find(({ width }) => width === 1200)?.sidebar, 'barra lateral entra a partir de 1200 px');
+  check(breakpoints.find(({ width }) => width === 1200)?.sidebarFixed,
+    'barra lateral desktop permanece fixa na altura da janela', JSON.stringify(breakpoints.find(({ width }) => width === 1200)));
+  const sidebarItemOrder = await page.locator('.app > .topbar .nav').evaluate((nav) => (
+    [...nav.children]
+      .filter((item) => getComputedStyle(item).display !== 'none'
+        && !item.classList.contains('nav-more-menu'))
+      .map((item) => item.classList.contains('nav-quick-control')
+        ? 'criar'
+        : item.getAttribute('href'))
+  ));
+  check(sidebarItemOrder[0] === '#inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
+  const sidebarHabitsIndex = sidebarItemOrder.indexOf('#habitos');
+  const sidebarCreateIndex = sidebarItemOrder.indexOf('criar');
+  check(sidebarHabitsIndex < 0 || sidebarCreateIndex > sidebarHabitsIndex,
+    'Criar aparece depois de Hábitos na barra lateral', sidebarItemOrder.join(', '));
   check(breakpoints.find(({ width }) => width === 768)?.navPosition === 'fixed', 'dock inferior permanece em tablet estreito');
   check(breakpoints.find(({ width }) => width === 1024)?.reloadButtonVisible,
     'botão de atualização permanece disponível no layout compacto do navegador');
   check(!breakpoints.find(({ width }) => width === 1200)?.reloadButtonVisible,
     'botão de atualização não aparece na visão web');
+  const sidebarAfterRouteChanges = [];
+  for (const [hash, route] of [['#inicio', 'inicio'], ['#planejar', 'planejar']]) {
+    await page.locator(`.topbar .nav a[href="${hash}"]`).click();
+    await page.locator(`.main[data-route="${route}"]`).waitFor();
+    sidebarAfterRouteChanges.push(await page.locator('.app > .topbar').evaluate((sidebar) => {
+      const bounds = sidebar.getBoundingClientRect();
+      return {
+        position: getComputedStyle(sidebar).position,
+        top: bounds.top,
+        bottom: bounds.bottom,
+        viewportHeight: innerHeight,
+      };
+    }));
+  }
+  check(sidebarAfterRouteChanges.every(({ position, top, bottom, viewportHeight }) => (
+    position === 'fixed' && Math.abs(top) <= 1 && Math.abs(bottom - viewportHeight) <= 1
+  )), 'barra lateral não se desloca ao alternar entre telas', JSON.stringify(sidebarAfterRouteChanges));
   check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
     'busca global não aparece como botão no cabeçalho');
   await page.keyboard.press('Control+k');

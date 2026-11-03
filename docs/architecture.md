@@ -31,7 +31,6 @@ O shell, os menus e os modais são compartilhados e renderizados no elemento `#a
 - `src/js/services/pomodoro-push.js`: inscrição opt-in do timer independente e sincronização mínima de fase/horário com a API de Push. A inscrição e a credencial-capacidade ficam em `push_subscriptions`; `PushManager` mantém a inscrição do navegador.
 - `src/js/services/local-search.js`: busca local determinística.
 - `src/js/services/google-calendar.js`: autorização opt-in do Google Calendar e leitura dos calendários/eventos diretamente da API; o token e os eventos ficam somente em memória, sem persistência no estado, no banco ou no backup.
-- `src/js/features/backup/crypto.js`: envelope opcional de backup cifrado por AES-GCM/PBKDF2; o parser JSON Aurora mantém as versões 1 e 2 sem alteração.
 - `src/js/utils/`: DOM e interpolação HTML escapada, catálogo e renderer SVG compartilhado (`icons.js`), datas civis locais, valores monetários em centavos e geração de IDs. Os pontos de composição de conta, controles públicos e landing usam o mesmo renderer.
 - `src/css/design-system/`: tokens (cor, tipografia, espaço, raios, controles) e componentes-base (botões, campos, seletores, selos e estado vazio); regras e critérios em [design-system.md](./design-system.md), referência visual em [design-system.html](./design-system.html).
 - `src/css/base.css`, `layout.css`: elementos básicos e estrutura responsiva.

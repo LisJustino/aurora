@@ -24,7 +24,7 @@ aurora/
 │       ├── main.js            # Composição atual; ainda concentrada
 │       ├── core/              # Router e compatibilidade de rotas
 │       ├── features/           # Funcionalidades agrupadas por domínio
-│       │   ├── backup/         # Criptografia opcional e validação de backups
+│       │   ├── backup/         # Validação e lembretes de backup
 │       │   ├── footer/         # Conteúdo compartilhado do footer
 │       │   ├── habits/         # Regras de domínio e template de Hábitos
 │       │   ├── home/           # Preferências e modos do Início

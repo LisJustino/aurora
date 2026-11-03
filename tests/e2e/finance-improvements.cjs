@@ -18,6 +18,15 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#financas`);
   await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
+  check(await page.evaluate(() => {
+    const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+    const fab = document.querySelector('.finance-fab');
+    const fabBounds = fab.getBoundingClientRect();
+    const fabBottom = parseFloat(getComputedStyle(fab).bottom);
+    return Math.abs(nav.bottom - innerHeight) <= 1
+      && Math.abs(fabBounds.bottom - (innerHeight - fabBottom)) <= 1
+      && fabBounds.bottom <= nav.top - 12;
+  }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');
   const recent = await page.locator('.finance-recent').textContent();
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
   check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');

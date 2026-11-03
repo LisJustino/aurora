@@ -33,11 +33,10 @@ concorrente cria um usuário temporário no banco local, sincroniza duas
 conexões sobre a mesma versão e confirma que a gravação obsoleta é rejeitada;
 o fixture é removido ao final. O teste de falha de persistência simula a
 indisponibilidade da RPC, verifica que a versão confirmada não avança e que uma
-tentativa posterior consegue salvar. A cobertura de backup cifrado inclui
-exportação sem texto puro, round-trip, senha incorreta, adulteração e
-preservação do fluxo de prévia; os backups comuns v1/v2 continuam aceitos pelo
-parser existente. A persistência também cobre gravação e recuperação quando o
-estado do Pomodoro não possui timer carregado.
+tentativa posterior consegue salvar. A exportação e importação continuam
+cobrindo os backups Aurora v1/v2 e a prévia de restauração. A persistência
+também cobre gravação e recuperação quando o estado do Pomodoro não possui
+timer carregado.
 
 O fluxo de atualização PWA em Chromium usa um `ServiceWorkerContainer` de teste
 para conferir aviso, adiamento, nova notificação e mensagem explícita

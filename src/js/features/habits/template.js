@@ -1,7 +1,8 @@
-import { loadHtmlTemplate, renderHtmlTemplate } from '../../utils/html-template.js';
+import templateSource from './template.html?raw';
+import { renderHtmlTemplate } from '../../utils/html-template.js';
 
 export function loadHabitsTemplate() {
-  return loadHtmlTemplate(new URL('./template.html', import.meta.url), 'Hábitos');
+  return Promise.resolve(templateSource);
 }
 
 export function renderHabitsTemplate(template, slots) {

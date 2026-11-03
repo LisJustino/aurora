@@ -78,7 +78,7 @@ O app exige login antes de exibir ou alterar dados, mas novos cadastros não pre
 
 RLS restringe as linhas ao `auth.uid()` da sessão autenticada. Apenas URL do projeto e chave pública Supabase podem estar no build cliente; `service_role`/secret nunca deve ser usada no navegador. Os dados ficam somente em memória durante o uso e no banco, sem cache local de dados. Exceções de persistência no navegador: sessão gerenciada pelo supabase-js; cache do service worker de recursos estáticos; inscrição mantida pelo PushManager do navegador. A credencial do Worker Push é movida para `push_subscriptions`; qualquer chave antiga do Push é migrada quando possível.
 
-Backups comuns e cópias de recuperação são JSON sem criptografia; o backup comum também pode ser cifrado opcionalmente com uma senha não armazenada pelo Aurora. A cópia bruta de recuperação não tem essa opção. Os arquivos podem conter dados financeiros e de saúde; proteja-os. Se a senha do backup cifrado for esquecida, o arquivo não poderá ser recuperado.
+Backups e cópias de recuperação são arquivos JSON sem criptografia. Eles podem conter dados financeiros e de saúde; guarde-os em local privado.
 
 ### Configurar contas Supabase
 
