@@ -75,18 +75,18 @@ function pushEvent(data) {
 
 test('Push visível não duplica o aviso do sistema; Push em segundo plano o exibe', async () => {
   const harness = serviceWorkerHarness();
-  const { event, complete } = pushEvent({ title: 'Aurora · Pomodoro', body: 'Pausa curta concluída.' });
+  const { event, complete } = pushEvent({ title: 'aurora. · Pomodoro', body: 'Pausa curta concluída.' });
   harness.windows.push({ visibilityState: 'visible', url: 'https://aurora.example/' });
   harness.listeners.get('push')(event);
   await complete();
   assert.equal(harness.shown.length, 0);
 
   harness.windows[0].visibilityState = 'hidden';
-  const hiddenPush = pushEvent({ title: 'Aurora · Pomodoro', body: 'Pausa curta concluída.' });
+  const hiddenPush = pushEvent({ title: 'aurora. · Pomodoro', body: 'Pausa curta concluída.' });
   harness.listeners.get('push')(hiddenPush.event);
   await hiddenPush.complete();
   assert.equal(harness.shown.length, 1);
-  assert.equal(harness.shown[0][0], 'Aurora · Pomodoro');
+  assert.equal(harness.shown[0][0], 'aurora. · Pomodoro');
   assert.equal(harness.shown[0][1].body, 'Pausa curta concluída.');
   assert.equal(harness.shown[0][1].tag, 'aurora-pomodoro');
 });
@@ -96,7 +96,7 @@ test('aviso de hábito usa texto genérico e abre a área de Hábitos ao ser cli
   const reminder = pushEvent({ kind: 'habit-reminder' });
   harness.listeners.get('push')(reminder.event);
   await reminder.complete();
-  assert.equal(harness.shown[0][0], 'Aurora · Hábitos');
+  assert.equal(harness.shown[0][0], 'aurora. · Hábitos');
   assert.match(harness.shown[0][1].body, /horário de hábito chegou/i);
   assert.equal(harness.shown[0][1].tag, 'aurora-habits');
   assert.equal(harness.shown[0][1].data.route, 'habitos');

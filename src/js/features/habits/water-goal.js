@@ -12,10 +12,11 @@ export function estimateWaterGoal(profile) {
   if (!Number.isFinite(profile.weightKg) || profile.weightKg < 20 || profile.weightKg > 400) return null;
 
   const age = profile.age;
-  const per = !age ? 35 : age <= 17 ? 40 : age <= 55 ? 35 : age <= 65 ? 30 : 25;
+  const hasAge = Number.isInteger(age) && age >= 0 && age <= 120;
+  const per = !hasAge ? 35 : age <= 17 ? 40 : age <= 55 ? 35 : age <= 65 ? 30 : 25;
   const exact = Math.round(profile.weightKg * per);
   const ml = Math.min(4500, Math.max(1000, Math.round(exact / 50) * 50));
-  return { per, exact, ml, kg: profile.weightKg, assumed: !age };
+  return { per, exact, ml, kg: profile.weightKg, assumed: !hasAge };
 }
 
 export function parseWaterMl(value) {

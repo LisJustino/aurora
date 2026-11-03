@@ -442,12 +442,12 @@ function transition(schedule) {
 
 function notificationFor(phase) {
   if (phase === 'focus') {
-    return { title: 'Aurora · Pomodoro', body: 'A pausa terminou. Hora de retomar o foco.' };
+    return { title: 'aurora. · Pomodoro', body: 'A pausa terminou. Hora de retomar o foco.' };
   }
   if (phase === 'long-break') {
-    return { title: 'Aurora · Pomodoro', body: 'Hora da pausa.' };
+    return { title: 'aurora. · Pomodoro', body: 'Hora da pausa.' };
   }
-  return { title: 'Aurora · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa.' };
+  return { title: 'aurora. · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa.' };
 }
 
 function habitReminderNotification() {

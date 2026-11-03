@@ -1,10 +1,10 @@
-const CACHE_NAME = 'aurora-static-v8';
+const CACHE_NAME = 'aurora-static-v9';
 const API_PATH = /\/api(?:\/|$)/;
 const LEGAL_DOCUMENT = /\/(?:terms|privacy)\.html$/;
 const STATIC_ASSET = /\.(?:html|css|m?js|woff2?|ttf|otf|svg|png|jpe?g|webp|gif|ico|webmanifest)$/i;
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
@@ -109,10 +109,10 @@ self.addEventListener('push', (event) => {
     }
     const habitReminder = payload.kind === 'habit-reminder';
     const title = habitReminder
-      ? 'Aurora · Hábitos'
+      ? 'aurora. · Hábitos'
       : typeof payload.title === 'string' && payload.title.length <= 80
       ? payload.title
-      : 'Aurora · Pomodoro';
+      : 'aurora. · Pomodoro';
     const body = habitReminder
       ? 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.'
       : typeof payload.body === 'string' && payload.body.length <= 180

@@ -51,8 +51,9 @@
   --area-water: #216f86;
   --area-finances: #397650;
   --area-cycle: #8b4e78;
+  --priority-low: #3f7f93;
   --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 54%, #2d2a28), color-mix(in srgb, var(--btn) 30%, #48423d));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 52%, #71465f), color-mix(in srgb, var(--btn) 40%, #382f45));
   --on-hero-home: var(--on-btn);
   --on-hero: var(--ink);
   --shadow: 0 28px 64px -34px rgb(44 38 33 / 26%);
@@ -133,6 +134,7 @@
   --z-header: 30;
   --z-panel: 45;
   --z-dialog: 50;
+  --z-popover: 55;
   --z-toast: 60;
   --z-skip: 100;
   --r-control: 16px;
@@ -147,12 +149,15 @@
   --text-title: 1.375rem;
   --text-2xl: 1.5rem;
   --text-3xl: 1.75rem;
+  --text-4xl: 2rem;
   --text-body: var(--text-base);
+  --text-timer: clamp(2.75rem, 12vw, 4rem);
   /* Controles: altura mínima por tamanho (sm 40 · md 44 · field 48 · lg 52) */
   --control-sm: 40px;
   --control-md: var(--target-size);
   --control-field: var(--control-height);
   --control-lg: 52px;
+  --select-menu-max-height: 288px;
   /* Raios: xs 8 · sm 12 · control 16 · group 20 · card 28 · large 36 · pill */
   --r-xs: 8px;
   --r-sm: 12px;
@@ -192,8 +197,9 @@
   --area-water: #72c7d8;
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
+  --priority-low: #8ccddd;
   --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 70%, #241f1d), color-mix(in srgb, var(--btn) 52%, #302b27));
+  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
   --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
@@ -207,6 +213,7 @@
   --btn: #6f2845;
   --focus: #542135;
   --ring: #6f2845;
+  --priority-low: #17596b;
 }
 
 :root[data-theme="dark"][data-contrast="high"] {
@@ -217,4 +224,5 @@
   --btn: #a94f71;
   --focus: #fff;
   --ring: #f5c0d2;
+  --priority-low: #a6e7f5;
 }
