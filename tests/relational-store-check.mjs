@@ -49,8 +49,9 @@ const cycleIntimacyMigration = await readFile(
   new URL('../supabase/migrations/20261102000000_cycle_intimacy_tracking.sql', import.meta.url),
   'utf8',
 );
-assert.match(cycleIntimacyMigration, /add column masturbation_activity boolean/i);
-assert.match(cycleIntimacyMigration, /add column orgasm_count integer/i);
+assert.match(cycleIntimacyMigration, /add column if not exists masturbation_activity boolean/i);
+assert.match(cycleIntimacyMigration, /add column if not exists orgasm_count integer/i);
+assert.match(cycleIntimacyMigration, /if not exists \([\s\S]*cycle_days_orgasm_count_check/i);
 assert.match(cycleIntimacyMigration, /orgasm_count is null or orgasm_count between 0 and 99/i);
 
 const trashCollectionMigration = await readFile(
@@ -95,6 +96,10 @@ assert.match(rlsIsolationTest, /User A read User B vault key/i);
 assert.match(rlsIsolationTest, /User A read User B legacy data/i);
 assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
 assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
+assert.match(rlsIsolationTest, /masturbation_activity, orgasm_count/i);
+assert.match(rlsIsolationTest, /'2026-03-01', true, true, 2/i);
+assert.match(rlsIsolationTest, /'2026-03-02', true, true, 100/i);
+assert.match(rlsIsolationTest, /The orgasm count constraint accepted 100/i);
 assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
 assert.match(rlsIsolationTest, /expected_versions/i);
 assert.match(rlsIsolationTest, /version_conflict:/i);
