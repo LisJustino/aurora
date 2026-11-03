@@ -180,6 +180,8 @@ async function checkContrast(page) {
     await appPage.locator('#accessibility-motion').click();
     await appPage.locator('#accessibility-panel [data-settings-save-button]').click();
     await appPage.waitForFunction(() => document.documentElement.dataset.motion === 'reduce');
+    await appPage.keyboard.press('Escape');
+    await appPage.waitForFunction(() => document.querySelector('#accessibility-panel')?.hidden);
     await appPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;

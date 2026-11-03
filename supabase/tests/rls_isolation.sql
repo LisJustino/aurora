@@ -416,6 +416,46 @@ begin
 end;
 $$;
 
+do $$
+declare
+  target_id constant uuid := 'e7c0d0e7-fb7a-4a3f-9f72-151d6768a101';
+  stale_updated_at timestamptz;
+  error_message text;
+begin
+  select updated_at
+  into stale_updated_at
+  from public.tasks
+  where id = target_id;
+
+  if stale_updated_at is null then
+    raise exception 'The concurrency regression task is missing';
+  end if;
+
+  update public.tasks
+  set title = 'Tarefa atualizada por outra sessão'
+  where id = target_id;
+
+  begin
+    perform public.apply_relational_changes(jsonb_build_array(jsonb_build_object(
+      'table', 'tasks',
+      'rows', '[]'::jsonb,
+      'expected_versions', jsonb_build_array(jsonb_build_object(
+        'id', target_id,
+        'expected_updated_at', stale_updated_at
+      )),
+      'replace_missing', false
+    )));
+    raise exception 'The relational apply function accepted a stale version';
+  exception
+    when others then
+      get stacked diagnostics error_message = message_text;
+      if error_message not like 'version_conflict:%' then
+        raise;
+      end if;
+  end;
+end;
+$$;
+
 select set_config(
   'request.jwt.claims',
   '{"sub":"d7c0d0e7-fb7a-4a3f-9f72-151d6768a102","role":"authenticated","aal":"aal2","amr":[{"method":"totp"}]}',

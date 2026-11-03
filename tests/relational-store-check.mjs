@@ -88,6 +88,9 @@ assert.match(rlsIsolationTest, /User A read User B vault key/i);
 assert.match(rlsIsolationTest, /User A read User B legacy data/i);
 assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
 assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
+assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
+assert.match(rlsIsolationTest, /expected_versions/i);
+assert.match(rlsIsolationTest, /version_conflict:/i);
 
 const userId = 'c8f73ed5-b6d6-4f4a-9c4a-93cbcb7477ac';
 const writes = [];
@@ -408,7 +411,7 @@ const accountRows = {
     enabled_areas: { finances: true },
   }],
   tasks: [{
-    id: 'task-with-optional-fields',
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
     title: 'Tarefa válida',
     is_completed: false,
     tag: null,
@@ -427,6 +430,7 @@ const accountRows = {
     focus_seconds: 0,
     is_test_data: false,
     deleted_at: null,
+    updated_at: versionStamp,
   }],
 };
 const loadingClient = {
@@ -453,6 +457,58 @@ assert.deepEqual(loaded.finance.budgets, {});
 assert.equal(loaded.settings.onboardingComplete, true);
 assert.equal(loaded.settings.introSeen, true);
 assert.deepEqual(loaded.settings.areas, { finances: true });
+
+const recoveryCalls = [];
+let recoveryAttempts = 0;
+const recoveryClient = {
+  from(table) {
+    return {
+      select() { return this; },
+      async range() { return { data: accountRows[table] || [], error: null }; },
+    };
+  },
+  async rpc(name, args) {
+    recoveryCalls.push({ name, args });
+    recoveryAttempts += 1;
+    if (recoveryAttempts === 1) {
+      return { data: null, error: { code: '08006', message: 'connection dropped' } };
+    }
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          updated_at: '2026-10-30T12:01:00.000Z',
+        })),
+      })),
+      error: null,
+    };
+  },
+};
+const recoveryStore = new RelationalAccountStore(recoveryClient, userId);
+const recoveryBaseline = await recoveryStore.load();
+recoveryBaseline.pomodoro = null;
+const recoveryDraft = structuredClone(recoveryBaseline);
+recoveryDraft.tasks[0].title = 'Rascunho recuperável';
+const taskVersion = recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id);
+console.error = () => {};
+try {
+  await assert.rejects(
+    () => recoveryStore.save(recoveryDraft, recoveryBaseline),
+    /Não foi possível salvar as alterações na conta/,
+  );
+} finally {
+  console.error = originalConsoleError;
+}
+assert.equal(recoveryDraft.tasks[0].title, 'Rascunho recuperável', 'a falha não deve mutar o estado de origem');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), taskVersion);
+await recoveryStore.save(recoveryDraft, recoveryBaseline);
+const failedAttempt = recoveryCalls[0].args.p_changes.find(({ table }) => table === 'tasks');
+const retryAttempt = recoveryCalls[1].args.p_changes.find(({ table }) => table === 'tasks');
+assert.equal(failedAttempt.rows[0].expected_updated_at, taskVersion);
+assert.equal(retryAttempt.rows[0].expected_updated_at, taskVersion, 'a nova tentativa deve usar a versão confirmada anterior');
+assert.equal(recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id), '2026-10-30T12:01:00.000Z');
 
 const failedClient = {
   from() {

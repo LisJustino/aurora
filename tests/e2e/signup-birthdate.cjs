@@ -78,8 +78,9 @@ function localDateValue(date) {
     await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-faq')),
     'FAQ encerra o conteúdo principal antes do rodapé',
   );
+  const heroSignup = page.locator('.public-hero [data-public-action="signup"]');
   check(
-    await page.locator('#landing-main [data-public-action="signup"]').count() === 1,
+    await heroSignup.count() === 1 && await heroSignup.evaluate((button) => button.classList.contains('primary')),
     'CTA principal de cadastro permanece disponível no hero',
   );
   await page.locator('.public-faq-item').nth(1).locator('summary').click();

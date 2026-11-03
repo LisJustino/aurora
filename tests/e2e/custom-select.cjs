@@ -98,6 +98,10 @@ const url = new URL('/docs/design-system.html', base);
     await checks.goto(new URL('/tests/design-system-check.html', base).toString());
     await checks.waitForFunction(() => document.querySelector('#status')?.textContent.includes('verificações'));
     const status = await checks.locator('#status').textContent();
+    const designSystemFailures = await checks.locator('#results li')
+      .filter({ hasText: /^FALHOU/ })
+      .allTextContents();
+    assert.deepEqual(designSystemFailures, [], designSystemFailures.join('\n'));
     const tokenCheck = await checks.locator('#results li').filter({ hasText: 'Toda var(--token) usada existe' }).textContent();
     assert.match(tokenCheck, /^OK/);
     console.log(`Select design system: keyboard, native synchronization, states, themes and mobile placement passed. ${status}`);

@@ -20,9 +20,57 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
   const recent = await page.locator('.finance-recent').textContent();
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
+  check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');
+  check(await page.locator('.finance-pending-summary > div').count() === 2, 'compromissos destacam totais a pagar e receber');
+  check(await page.locator('.finance-trend-chart circle').count() === 7, 'gráfico mostra os últimos sete dias');
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('1,00');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Despesa futura de teste');
+  const futureMonthDate = new Date();
+  futureMonthDate.setDate(1);
+  futureMonthDate.setMonth(futureMonthDate.getMonth() + 1);
+  futureMonthDate.setDate(15);
+  await page.locator('#dlg [data-dlg="date"]').fill(`${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')}`);
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('.finance-trend-empty').count() === 1, 'compromissos futuros não viram evolução de despesas realizadas');
+  await page.locator('.mnav [data-n="0"]').click();
+  await page.locator('.finance-trend-chart').waitFor();
 
   await page.locator('.finance-fab').click();
+  const quickMenu = page.locator('#quick-actions-menu');
+  await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).waitFor();
+  check(await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).count() === 1, 'ações rápidas oferecem transferência');
+  check(await quickMenu.getByRole('button', { name: 'Receita', exact: true }).count() === 1, 'ações rápidas oferecem receita');
+  check(await quickMenu.getByRole('button', { name: 'Despesa', exact: true }).count() === 1, 'ações rápidas oferecem despesa');
+  await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).click();
+  const selectedCard = await page.locator('#dlg [data-dlg="accountId"] option:checked').textContent();
+  check(/cartão|crédito/i.test(selectedCard), 'despesa de cartão seleciona uma conta de crédito');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('.finance-fab').click();
+  await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="toAccountId"]').count() === 1, 'atalho de transferência abre origem e destino');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('.finance-fab').click();
+  await quickMenu.getByRole('button', { name: 'Receita', exact: true }).click();
+  check(await page.locator('.finance-transaction-type button[data-k="in"]').getAttribute('aria-pressed') === 'true', 'atalho de receita abre o tipo correto');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('.finance-fab').click();
+  await quickMenu.getByRole('button', { name: 'Despesa', exact: true }).click();
   await page.locator('#dlg [data-dlg="settledDate"]').waitFor();
+  const recentAccountOptions = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => options.map((option) => option.value));
+  const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
+  if (recentAccountOptions.length > 1) {
+    const selectedAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
+    await page.locator('#dlg [data-dlg="accountId"]').selectOption(recentAccountOptions.find((value) => value !== selectedAccount));
+  }
+  if (recentCategoryOptions.length > 1) {
+    const selectedCategory = await page.locator('#dlg [data-dlg="category"]').inputValue();
+    await page.locator('#dlg [data-dlg="category"]').selectOption(recentCategoryOptions.find((value) => value !== selectedCategory));
+  }
+  const latestAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
+  const latestCategory = await page.locator('#dlg [data-dlg="category"]').inputValue();
+  check(await page.locator('#dlgform .finance-form-section').count() >= 3, 'formulário organiza campos em seções');
   const toggleLayout = await page.locator('#dlg .tx-settlement-toggle').evaluate((toggle) => {
     const checkbox = toggle.querySelector('input').getBoundingClientRect();
     const copy = toggle.querySelector('.tx-settlement-toggle-copy').getBoundingClientRect();
@@ -59,6 +107,11 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   const recentFixedCount = await page.locator('.finance-recent .ttl').filter({ hasText: /^icloud$/i }).count();
   check(recentFixedCount === 1, 'fixa criada aparece uma vez no resumo, sem meses futuros', String(recentFixedCount));
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="accountId"]').inputValue() === latestAccount, 'novo lançamento reutiliza a conta usada por último');
+  check(await page.locator('#dlg [data-dlg="category"]').inputValue() === latestCategory, 'novo lançamento reutiliza a categoria usada por último');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
   await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
@@ -102,6 +155,7 @@ const check = (passed, name, detail = '') => {
   await page.waitForFunction(() => document.activeElement?.dataset?.t === 'lancamentos');
   check(await page.evaluate(() => document.activeElement?.dataset?.t === 'lancamentos'), 'seção escolhida permanece focada');
   await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
   await page.waitForTimeout(600);
   const positionsBefore = await page.locator('.finance-transaction-type button').evaluateAll((buttons) => {
     const dialog = document.querySelector('#dlg .dlg').getBoundingClientRect();

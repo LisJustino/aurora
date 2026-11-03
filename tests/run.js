@@ -51,14 +51,18 @@ import {
   createSuggestedHabits,
   habitColor,
   habitIconKey,
+  habitSuggestionTags,
+  featuredHabitSuggestions,
   habitIsComplete,
   habitIsSkipped,
   filterSuggestedHabits,
+  remainingHabitSuggestions,
   isWaterHabit,
   HABIT_COLORS,
   HABIT_ICON_KEYS,
   SUGGESTED_HABITS,
   SUGGESTED_HABIT_CATEGORIES,
+  SUGGESTED_HABIT_TAGS,
   habitStats,
   habitWeekReview,
   habitWeekOverview,
@@ -169,7 +173,7 @@ test('inicia os alertas antes de aguardar o service worker', () => {
   if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização dos dados autenticados.');
   const startup = source.slice(start, end);
   const timer = startup.indexOf('setInterval(tick, 1000)');
-  const serviceWorker = startup.indexOf('await navigator.serviceWorker.ready');
+  const serviceWorker = startup.indexOf('await registerPwaSupport()');
   if (timer < 0 || serviceWorker <= timer) throw new Error('O timer precisa iniciar antes do service worker.');
 });
 
@@ -1173,9 +1177,11 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  ok(SUGGESTED_HABITS.length >= 20);
+  ok(SUGGESTED_HABITS.length >= 58);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
-  for (const id of ['water', 'reading', 'training', 'pause']) ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  for (const id of ['water', 'reading', 'training', 'pause', 'dental-care', 'active-break', 'study', 'connect', 'mindful-meal', 'make-bed', 'five-minute-tidy', 'plan-rest', 'walk-with-dog', 'learn-language', 'weekly-reflection', 'try-new-recipe', 'clear-desk', 'weekly-reset']) {
+    ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
+  }
   ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados pessoais'));
   ok(SUGGESTED_HABIT_CATEGORIES.some((category) => category.title === 'Cuidados com a mente'));
   ok(SUGGESTED_HABITS.some((item) => item.id === 'skincare' && item.category === 'personal-care'));
@@ -1183,7 +1189,15 @@ test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
   for (const item of SUGGESTED_HABITS) {
     ok(HABIT_ICON_KEYS.includes(item.icon), `ícone de ${item.id}`);
     ok(HABIT_COLORS.includes(item.color), `cor de ${item.id}`);
+    const tags = habitSuggestionTags(item);
+    for (const tag of tags) ok(SUGGESTED_HABIT_TAGS.some(({ id }) => id === tag.id), `tag ${tag.id} de ${item.id}`);
   }
+  const featured = featuredHabitSuggestions(SUGGESTED_HABITS);
+  equal(featured.map(({ id }) => id).join(','), 'water,stretch,reading,fruit');
+  equal(new Set(featured.map(({ category }) => category)).size, 4);
+  const fallback = featuredHabitSuggestions(SUGGESTED_HABITS.filter(({ id }) => !['water', 'stretch', 'reading', 'fruit'].includes(id)));
+  equal(fallback.length, 4);
+  equal(new Set(fallback.map(({ category }) => category)).size, 4);
   const created = createSuggestedHabits(['sleep'], [], () => 'n1');
   equal(created[0].icon, 'moon');
   ok(isValidHabit(created[0]));
@@ -1199,9 +1213,32 @@ test('ideias de hábitos filtram por texto sem diferenciar acentos ou categoria'
   const movement = filterSuggestedHabits(SUGGESTED_HABITS, '', 'movement');
   ok(movement.length > 0);
   ok(movement.every((idea) => idea.category === 'movement'));
+  const quick = filterSuggestedHabits(SUGGESTED_HABITS, '', 'all', 'quick');
+  ok(quick.length > 0);
+  ok(quick.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'quick')));
+  const movementWithoutEquipment = filterSuggestedHabits(SUGGESTED_HABITS, '', 'movement', 'no-equipment');
+  ok(movementWithoutEquipment.length > 0);
+  ok(movementWithoutEquipment.every((idea) => idea.category === 'movement'
+    && habitSuggestionTags(idea).some(({ id }) => id === 'no-equipment')));
+  const homeSearch = filterSuggestedHabits(SUGGESTED_HABITS, 'EM CASA');
+  ok(homeSearch.length > 0);
+  ok(homeSearch.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'home')));
+  const noEquipmentSearch = filterSuggestedHabits(SUGGESTED_HABITS, 'sem equipamento');
+  ok(noEquipmentSearch.length > 0);
+  ok(noEquipmentSearch.every((idea) => habitSuggestionTags(idea).some(({ id }) => id === 'no-equipment')));
   const mind = filterSuggestedHabits(SUGGESTED_HABITS, 'mente');
   ok(mind.length > 0);
   ok(mind.some((idea) => idea.category === 'mind'));
+});
+
+test('ideias de hábitos omitem hábitos já existentes sem diferenciar acentos e água', () => {
+  const remaining = remainingHabitSuggestions([
+    { name: 'LER POR 10 MINUTOS', status: 'archived' },
+    { name: 'Hidratação personalizada', tracking: 'water' },
+  ]);
+  ok(!remaining.some((idea) => idea.id === 'reading'));
+  ok(!remaining.some((idea) => idea.id === 'water'));
+  ok(remaining.some((idea) => idea.id === 'sleep'));
 });
 
 /* ---- Pomodoro ---- */

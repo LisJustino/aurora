@@ -70,6 +70,13 @@ async function addTask(page, title, offsetMinutes) {
         assert.equal(await page.locator('#notification-panel').isVisible(), true, 'dispensar um aviso deve manter o painel aberto');
       }
 
+      await page.locator('#notification-panel [data-action="reminders-pause"]').click();
+      assert.equal(await page.locator('.notification-item').count(), 0, `${name}: pausar limpa lembretes internos ativos`);
+      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Retomar lembretes', `${name}: painel informa que a pausa está ativa`);
+      assert.match(await page.locator('#toast').textContent(), /Avisos do sistema não foram alterados/, `${name}: pausa explica que notificações do sistema não foram alteradas`);
+      await page.locator('#notification-panel [data-action="reminders-pause"]').click();
+      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Pausar por 1 hora', `${name}: lembretes podem ser retomados antes do prazo`);
+
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: não deve haver overflow horizontal`);
       console.log(`${name}: notificações aprovadas`);
       await context.close();
