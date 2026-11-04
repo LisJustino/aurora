@@ -112,6 +112,8 @@
   --text-display: clamp(1.9rem, 4vw, 2.5rem);
   --text-hero: clamp(2.1rem, 4vw, 3.3rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
+  --text-metric: clamp(2.1rem, 5vw, 3rem);
+  --text-water-total: clamp(2.75rem, 8vw, 4rem);
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -152,6 +154,7 @@
   --text-4xl: 2rem;
   --text-body: var(--text-base);
   --text-timer: clamp(2.75rem, 12vw, 4rem);
+  --text-timer-large: clamp(3rem, 12vw, 5rem);
   /* Controles: altura mínima por tamanho (sm 40 · md 44 · field 48 · lg 52) */
   --control-sm: 40px;
   --control-md: var(--target-size);

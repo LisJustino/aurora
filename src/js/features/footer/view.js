@@ -8,7 +8,15 @@ export function renderFooterContent({
   preview = false,
   demoAvailable = false,
   includeLegalDialog = true,
+  includeFaq = true,
+  pwaInstall = false,
 } = {}) {
+  const isStandalone = typeof navigator !== 'undefined' && (
+    navigator.standalone === true
+    || (typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(display-mode: standalone)').matches)
+  );
   const accountLinks = preview
     ? '<a class="footer-link" href="#config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
     : authenticated
@@ -19,15 +27,23 @@ export function renderFooterContent({
   const demoLink = demoAvailable
     ? '<button class="footer-link" type="button" data-public-action="demo">Explorar demonstração</button>'
     : '';
+  const installLink = pwaInstall && !isStandalone && typeof window !== 'undefined'
+    ? '<button class="footer-link" type="button" data-action="pwa-install">Baixar o app</button>'
+    : '';
 
   return `
     <div class="site-footer-content">
       <div class="footer-brand">
         <div class="footer-brand-mark"><img src="${brandLogo}" alt="" aria-hidden="true" width="32" height="32"><span class="wordmark">aurora<span>.</span></span></div>
+        <p>Organize sua rotina com tarefas, foco, hábitos e finanças em um único lugar.</p>
       </div>
       <nav class="footer-nav" aria-label="Conta">
         <h2>Conta</h2>
-        <div class="footer-link-list">${accountLinks}${demoLink}</div>
+        <div class="footer-link-list">${accountLinks}</div>
+      </nav>
+      <nav class="footer-nav" aria-label="Demonstração e app">
+        <h2>Uso</h2>
+        <div class="footer-link-list">${demoLink}${installLink}</div>
       </nav>
       <nav class="footer-nav" aria-label="Informações legais">
         <h2>Informações legais</h2>
@@ -36,7 +52,7 @@ export function renderFooterContent({
           <button class="footer-link" type="button" data-legal-document="privacy">Política de Privacidade</button>
         </div>
       </nav>
-      <details class="footer-faq">
+      ${includeFaq ? `<details class="footer-faq">
         <summary>Perguntas frequentes <span aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
         <div class="footer-faq-content">
           <details>
@@ -49,7 +65,7 @@ export function renderFooterContent({
           </details>
           <details>
             <summary>O que acontece sem conexão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-            <p>O Aurora avisa quando está sem conexão e bloqueia gravações. Alterações offline não são sincronizadas automaticamente.</p>
+            <p>O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente.</p>
           </details>
           <details>
             <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
@@ -65,17 +81,28 @@ export function renderFooterContent({
             </form>
           </details>
           <details>
-            <summary>Como entro em contato com a responsável?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
+            <summary>Como entro em contato com quem criou o Aurora?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
           </details>
         </div>
-      </details>
+      </details>` : ''}
       <div class="footer-meta">
         <span>© ${new Date().getFullYear()} aurora.</span>
         <button class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo</button>
       </div>
       ${includeLegalDialog ? renderLegalDialog() : ''}
     </div>`;
+}
+
+export function initializeFaqDisclosure(root) {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
+    const summary = details.querySelector(':scope > summary');
+    if (!summary || summary.dataset.expandedStateBound) return;
+    summary.dataset.expandedStateBound = 'true';
+    const syncExpanded = () => summary.setAttribute('aria-expanded', String(details.open));
+    syncExpanded();
+    details.addEventListener('toggle', syncExpanded);
+  });
 }
 
 export function renderLegalDialog() {

@@ -30,7 +30,7 @@
   .nav .nav-area { display: flex; }
   .nav a {
     min-width: 0;
-    font-size: clamp(.625rem, 3vw, .75rem);
+    font-size: var(--text-2xs);
   }
   .nav a .ni {
     width: min(100%, 42px);
@@ -184,9 +184,107 @@
 .nav-more-menu { z-index: calc(var(--z-nav) + 1); }
 
 @media (min-width: 900px) {
-  .topbar .nav .nav-secondary { display: flex !important; }
-  .topbar .nav .nav-more-trigger,
-  .topbar .nav .nav-more-menu { display: none !important; }
+  .topbar .nav .nav-secondary { display: none !important; }
+  .topbar .nav .nav-more-trigger {
+    display: inline-flex !important;
+    min-height: 34px;
+    align-items: center;
+    gap: 7px;
+    padding: 0 14px 0 10px;
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    cursor: pointer;
+  }
+  .topbar .nav .nav-more-trigger .ni {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: var(--r-pill);
+  }
+  .topbar .nav .nav-more-trigger[aria-expanded="true"],
+  .topbar .nav .nav-more-trigger[aria-current="page"] {
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: var(--accent);
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .topbar .nav {
+    position: relative;
+    overflow: visible;
+  }
+  .topbar .nav .nav-more-menu {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    display: none;
+    width: min(340px, calc(100vw - 32px));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--line-strong) 52%, transparent);
+    border-radius: var(--r);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+  }
+  .topbar .nav .nav-more-menu:not([hidden]) {
+    display: grid;
+  }
+  .topbar .nav .nav-more-menu .nav-more-link {
+    display: flex;
+    min-width: 0;
+    min-height: var(--control-field);
+    align-items: center;
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    font-size: var(--text-sm);
+  }
+  .topbar .nav .nav-more-menu .nav-more-link .ni,
+  .topbar .nav .nav-more-menu .nav-more-create .ni {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    place-items: center;
+    border-radius: var(--r-xs);
+    background: var(--soft);
+  }
+  .topbar .nav .nav-more-menu .tab-label-group {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+  }
+  .topbar .nav .nav-more-menu .nav-more-create {
+    display: flex;
+    min-height: var(--control-field);
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+    border-radius: var(--r-control);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    color: var(--accent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+  .topbar .nav .nav-more-menu .nav-more-create .ni { background: var(--soft2); }
 }
 
 @media (min-width: 900px) {
@@ -277,7 +375,7 @@
     align-items: center;
     justify-content: center;
     gap: 3px;
-    font-size: clamp(.6rem, 2.7vw, .75rem);
+    font-size: var(--text-2xs);
     font-weight: 700;
     letter-spacing: .01em;
   }
@@ -413,6 +511,7 @@
   .app {
     grid-template-columns: 256px minmax(0, 1fr);
     grid-template-rows: minmax(100vh, auto) auto;
+    grid-template-rows: minmax(100dvh, auto) auto;
     column-gap: 0;
   }
   .app > .topbar {
@@ -437,12 +536,17 @@
     border-bottom: 0;
     background: var(--surface-strong);
   }
+  :root[data-scrolled="true"] .app > .topbar {
+    min-height: 0;
+    padding-block: var(--space-5);
+    transition: none;
+  }
   .app > .topbar .brand,
   :root[data-scrolled="true"] .app > .topbar .brand {
     min-height: var(--control-field);
     padding-inline: var(--space-2);
   }
-  :root[data-scrolled="true"] .app > .topbar .wordmark { font-size: var(--text-xl); }
+  :root[data-scrolled="true"] .app > .topbar .wordmark { font-size: var(--text-title); }
   .app > .topbar .nav {
     display: flex;
     width: 100%;
@@ -450,7 +554,7 @@
     flex: 1 1 auto;
     flex-direction: column;
     align-items: stretch;
-    justify-content: flex-start;
+    justify-content: safe center;
     gap: var(--space-1);
     overflow-x: hidden;
     overflow-y: auto;
@@ -487,6 +591,12 @@
     border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
     background: color-mix(in srgb, var(--accent) 9%, var(--surface));
     color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent);
+    font-weight: 700;
+  }
+  .app > .topbar .nav a:not([aria-current="page"]):hover {
+    border-color: color-mix(in srgb, var(--line) 75%, var(--accent));
+    background: var(--soft);
   }
   .app > .topbar .nav .nav-more-trigger,
   .app > .topbar .nav .nav-more-menu,
@@ -495,7 +605,7 @@
   }
   .app > .topbar .header-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-items: center;
     gap: var(--space-1);
     margin: auto 0 0;
@@ -525,6 +635,7 @@
     grid-column: 2;
     grid-row: 1;
     min-height: 100vh;
+    min-height: 100dvh;
     padding: var(--space-6) clamp(24px, 2.4vw, 40px) var(--space-8);
   }
   .app > .app-footer {
@@ -624,7 +735,7 @@
     gap: 3px;
     padding: 0;
     border-radius: var(--r-control);
-    font-size: clamp(.625rem, 3vw, .75rem);
+    font-size: var(--text-2xs);
     letter-spacing: .01em;
   }
   .nav .nav-quick-trigger .ni {

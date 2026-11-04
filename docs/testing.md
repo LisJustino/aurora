@@ -16,16 +16,23 @@ npm --prefix worker test
 
 O workflow do GitHub executa `npm test`, sobe um Postgres Supabase local
 isolado, aplica todas as migrations, roda `supabase/tests/rls_isolation.sql`
-e um conflito concorrente com duas conexões PostgreSQL, faz o build, treze
-cenários E2E em Chromium e um fluxo-smoke em Firefox e WebKit em cada push
+e um conflito concorrente com duas conexões PostgreSQL, faz o build e executa
+quinze cenários E2E em Chromium, uma matriz móvel em WebKit/Chromium e um
+fluxo-smoke em Firefox e WebKit em cada push
 e pull request. Esse job usa somente containers locais descartáveis e não
 acessa projetos Supabase remotos. `npm run
 test:e2e:ci` inicia servidores Vite temporários em `127.0.0.1:5179` e
 `127.0.0.1:4180`, usa somente demonstração e dados fictícios e encerra os
-servidores ao final. Ele exige o build e o navegador Chromium instalados.
+servidores ao final. Ele exige o build e os navegadores Chromium e WebKit
+instalados.
 Os cenários também verificam acessibilidade e contraste, sincronização dos
-selects customizados com os controles nativos, regressões de Finanças e
-bloqueio/restauração do scroll em diálogos e painéis móveis e desktop.
+selects customizados com os controles nativos, regressões de Finanças,
+bloqueio/restauração do scroll em diálogos e comportamento não modal dos
+painéis móveis e desktop.
+A matriz móvel adicional cobre iPhone 13 Mini e iPhone 16 em WebKit, Galaxy
+S24 e Pixel 7 em Chromium, incluindo 320 px, alvos de toque, demonstração e
+console. Esses perfis emulados não substituem Safari/Chrome nativos nem testes
+em aparelhos físicos.
 
 Os testes de lógica e persistência usam dados simulados. A integração Supabase
 usa banco local descartável, não credenciais nem dados remotos. O teste
@@ -78,9 +85,21 @@ Na landing, confirme que criar conta é o CTA principal e a demonstração é a
 alternativa; o texto deve informar que finanças são registradas manualmente e
 que a demonstração usa exemplos fictícios sem salvar alterações. Não deve
 haver depoimentos fictícios, nem promessas vagas de preço ou privacidade. Em
-320 px, mobile e desktop, confira a grade de áreas, o FAQ e a ausência de
-overflow horizontal. A demonstração interativa cobre uma tarefa, um hábito e
-o Pomodoro; finanças e ciclo são apresentados, mas não simulados nela.
+320 px, mobile e desktop, confira se a proposta explica o benefício (um
+próximo passo possível e uma revisão sem cobrança), se os momentos de
+organizar, agir e rever estão claros, a grade de áreas, o FAQ e a ausência de
+overflow horizontal. A demonstração usa a navegação Hoje, Tarefas, Foco,
+Hábitos, Ciclo e Finanças; permite adicionar/concluir tarefas, marcar um hábito,
+controlar o cronômetro e explorar datas e períodos fictícios. Ciclo e Finanças
+apresentam apenas dados de exemplo, sem registros pessoais. Em desktop, confira
+a barra lateral; em celular, a navegação horizontal; confirme também que as
+ações ficam em memória e não fazem requisições nem persistem dados.
+O teste E2E também confirma que a landing e a demonstração não carregam
+`src/js/main.js`; esse módulo só deve entrar no carregamento ao iniciar a área
+protegida ou uma ação de conta.
+No shell autenticado, entre 900 e 1199 px o menu Mais abre em um painel sem
+alterar a altura do cabeçalho; a partir de 1200 px as áreas aparecem na barra
+lateral.
 
 Com uma sessão válida salva, abra a rota raiz e confirme que a área autenticada
 é carregada sem precisar tocar em “Entrar”; depois encerre a sessão e confirme
@@ -130,7 +149,7 @@ Com uma conta fictícia autenticada, confirme que o shell informa “Salvando…
 
 `node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o encaixe do tempo dentro do mostrador entre 320 e 1366 px, o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
 
-Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Verifique também a importação/exportação de backup anterior, que deve continuar compatível e usar os padrões para os campos novos ausentes.
+Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos; enquanto houver alterações pendentes, confira que os botões de salvar e descartar permanecem no fluxo da página e não cobrem os controles durante a rolagem. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Verifique também a importação/exportação de backup anterior, que deve continuar compatível e usar os padrões para os campos novos ausentes.
 
 Em Hábitos, abra “Revisar cada hábito” e confira o resumo até a data atual,
 excluindo dias pulados e sem contar dias futuros. “Ajustar” deve abrir o editor
@@ -143,9 +162,11 @@ arquivados. Confira também em largura móvel e com tema escuro.
 
 Na primeira visita a Hábitos, confirme que o estado “Dia livre” não repete o
 botão “Novo hábito”, que não há resumo semanal sem hábitos e que somente quatro
-ideias são exibidas até “Ver todas”. O catálogo deve conter exatamente 100
-sugestões. Buscar ou filtrar ideias deve revelar os resultados correspondentes
-e atualizar a contagem; use os seletores rotulados de categoria e contexto,
+ideias são exibidas em cartões compactos até “Ver todas”, sem busca, filtros ou
+títulos de categoria na prévia. “Ver todas” deve revelar o catálogo e seus
+controles. O catálogo deve conter exatamente 100 sugestões. Buscar ou filtrar
+ideias deve revelar os resultados correspondentes e atualizar a contagem; use
+os seletores rotulados de categoria e contexto,
 combine os dois (“Poucos minutos”, “Em casa” e “Sem equipamento”) e confirme a
 ação “Limpar filtros”. As quatro ideias iniciais devem representar categorias
 distintas. Busque também por termos dos contextos. Cartões resumem descrições
@@ -169,13 +190,13 @@ alcançável acima do dock durante a edição. Teste o perfil em 320 px, 390 px 
 desktop; no desktop, a ação de salvar deve permanecer no fluxo normal do
 formulário.
 
-No cadastro, valide que erros de e-mail já associado (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) explicam que uma exclusão confirmada permite criar uma conta nova, sem restaurar dados antigos. A exclusão só é considerada concluída com a confirmação explícita da Edge Function, que chama a Admin API em modo de exclusão definitiva; erros desconhecidos mantêm uma mensagem segura e genérica.
+No cadastro, valide que e-mails já associados (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) não criam uma segunda conta. A mensagem deve oferecer entrar/recuperar o acesso ou excluir a conta atual em Ajustes → Seu perfil. Teste o cancelamento da exclusão e confirme que nada é apagado; depois, em uma conta fictícia descartável, digite `EXCLUIR` e verifique que a conta só é considerada excluída com a confirmação explícita da Edge Function/Admin API. Só depois da confirmação, tente cadastrar novamente com o mesmo e-mail; os dados anteriores não podem ser restaurados. Erros desconhecidos mantêm uma mensagem segura e genérica.
 
 Nos projetos Supabase de desenvolvimento e produção, confirme que **Authentication → Providers → Email → Confirm email** está desativado. Um cadastro novo deve receber sessão imediatamente; se o provedor retornar usuário sem sessão, a tela deve apontar a configuração incompatível, não orientar a pessoa a confirmar o e-mail. Contas antigas pendentes devem receber instrução para liberação manual no Dashboard; o app não pode oferecer reenvio de confirmação. Ao abrir um callback com `error_code=otp_expired`, o login deve explicar que o link expirou, limpar parâmetros de erro da URL e manter um caminho recuperável sem expor a descrição técnica do provedor.
 
-Com Google habilitado e `/#inicio` cadastrado como URL de retorno no Supabase, teste o botão social. O retorno deve abrir a área autenticada, não a landing pública. No primeiro acesso, o OAuth também cria a conta no Supabase; nome, nome de preferência, data de nascimento válida (com idade entre 0 e 120 anos) e aceite dos documentos são obrigatórios antes de carregar os dados. Cadastros abaixo de 18 anos, inclusive com idade zero, não devem ser bloqueados. Cancelar esse cadastro deve encerrar a sessão. O login Apple/iCloud não deve aparecer nem ser aceito como novo fluxo por enquanto; a detecção de identidade Apple existente permanece para compatibilidade.
+Com Google habilitado e `/#inicio` cadastrado como URL de retorno no Supabase, confira que o login oferece “Entrar com Google” e o cadastro oferece “Criar conta com Google”, ambos com o ícone do Google; o fluxo também deve explicar que uma conta Google já vinculada pode ser usada para entrar. Teste os dois botões. O retorno deve abrir a área autenticada, não a landing pública. No primeiro acesso, o OAuth também cria a conta no Supabase; nome, nome de preferência, data de nascimento válida (com idade entre 0 e 120 anos) e aceite dos documentos são obrigatórios antes de carregar os dados. Cadastros abaixo de 18 anos, inclusive com idade zero, não devem ser bloqueados. Cancelar esse cadastro deve encerrar a sessão. O login Apple/iCloud não deve aparecer nem ser aceito como novo fluxo por enquanto; a detecção de identidade Apple existente permanece para compatibilidade.
 
-Para a integração opcional de calendário, configure `VITE_GOOGLE_CALENDAR_CLIENT_ID` com um Client ID Web dedicado, ative a Google Calendar API e cadastre a origem do app no Google Cloud. No Planejar → Calendário, “Conectar” apenas carrega a biblioteca após ação explícita; “Autorizar” pede escopo somente de leitura. Confirme que é possível escolher calendários, ver eventos no mês e no dia, navegar entre meses, atualizar e parar de exibir; nenhuma ação deve criar/alterar eventos ou persistir token/eventos após recarga. Verifique a revogação em Conta Google → Segurança e console sem tokens nem conteúdo dos eventos. A versão 1.6 dos documentos deve exigir novo aceite das contas existentes. Teste o serviço isoladamente com `node tests/google-calendar-check.mjs`. Um teste com conta Google real depende da configuração do Client ID, consentimento e eventual verificação do app no Google Cloud.
+Para a integração opcional de calendário, configure `VITE_GOOGLE_CALENDAR_CLIENT_ID` com um Client ID Web dedicado, ative a Google Calendar API e cadastre a origem do app no Google Cloud. No Planejar → Calendário, “Conectar” apenas carrega a biblioteca após ação explícita; “Autorizar” pede escopo somente de leitura. Confirme que é possível escolher calendários, ver eventos no mês e no dia, navegar entre meses, atualizar e parar de exibir; nenhuma ação deve criar/alterar eventos ou persistir token/eventos após recarga. Verifique a revogação em Conta Google → Segurança e console sem tokens nem conteúdo dos eventos. A versão 1.7 dos documentos deve exigir novo aceite das contas existentes. Teste o serviço isoladamente com `node tests/google-calendar-check.mjs`. Um teste com conta Google real depende da configuração do Client ID, consentimento e eventual verificação do app no Google Cloud.
 
 O fluxo da interface com respostas Google simuladas pode ser validado iniciando
 o Vite com qualquer Client ID de teste configurado e executando
@@ -183,6 +204,13 @@ o Vite com qualquer Client ID de teste configurado e executando
 serviços externos.
 
 Nos campos de e-mail do cadastro, login e recuperação, confira sugestões após `@`, lista inicial compacta, filtragem, seleção por teclado/toque e a possibilidade de continuar digitando um domínio que não aparece. Ao abrir o login, os campos vazios não devem exibir erros; a validação não deve mostrar erro enquanto o campo está em edição e deve avisar depois que a pessoa sair de um endereço inválido.
+
+No cadastro, confirme que e-mails divergentes impedem o envio e que endereços
+iguais sem diferenciar maiúsculas/minúsculas liberam a criação. Na recuperação,
+confirme que o limite de tentativas orienta a aguardar, mantém o formulário e
+permite tentar novamente. No callback de redefinição, teste a confirmação da
+nova senha, a limpeza dos parâmetros do callback e o novo login com a senha
+atualizada.
 
 Na etapa de perfil do cadastro em mobile, confirme que o texto introdutório redundante fica oculto para aproximar o campo de nascimento do viewport; em desktop, a introdução permanece visível. Confira também a largura do campo em 320 px e o comportamento do teclado/seletor nativo em um dispositivo físico.
 
@@ -243,33 +271,39 @@ node tests/e2e/finance-improvements.cjs http://127.0.0.1:5173
 node tests/e2e/planning-task-form.cjs http://127.0.0.1:5173
 node tests/e2e/public-demo-interactions.cjs http://127.0.0.1:5173
 node tests/e2e/signup-birthdate.cjs http://127.0.0.1:5173
+node tests/e2e/auth-flows.cjs
 node tests/e2e/custom-select.cjs http://127.0.0.1:5173
 node tests/e2e/accessibility.cjs http://127.0.0.1:5173
 node tests/e2e/auth-preview-boundary.cjs http://127.0.0.1:5173 http://127.0.0.1:4173
 ```
 
 O cenário de notificações confirma que lembretes novos não abrem o painel
-automaticamente, que o indicador do sino permite encontrá-los e que abrir,
-adiar e dispensar continuam funcionando em mobile e desktop; também confere
-pausar e retomar lembretes internos e a mensagem de que avisos do sistema não
-são alterados.
+automaticamente, que o indicador do sino permite encontrá-los sem bloquear a
+página e que abrir, adiar e dispensar continuam funcionando em mobile e
+desktop; também confere pausar e retomar lembretes internos e a mensagem de
+que avisos do sistema não são alterados.
 - `node tests/e2e/signup-birthdate.cjs` confere a grade compacta da landing (cards até 320 px, duas colunas no tablet e composição 3+2 centralizada no desktop), o hero compacto e os CTAs em desktop/tablet/mobile, o seletor de nascimento e a liberação do cadastro para menores e idade zero sem enviar o cadastro.
+- `node tests/e2e/auth-flows.cjs` inicia um Vite isolado com configuração de teste e simula endpoints Supabase no navegador; valida cadastro com e-mails confirmados, login, recuperação com limite de tentativas e redefinição com confirmação e novo login. Nenhuma solicitação é enviada a projetos remotos.
 - `node tests/e2e/custom-select.cjs` valida o menu padronizado em desktop e mobile, navegação por teclado, sincronização de valor/eventos, rótulo acessível, campo desabilitado e posicionamento dentro da viewport.
-- `node tests/e2e/accessibility.cjs` valida os painéis público e autenticado (Escape, retorno de foco e semântica disclosure), movimento reduzido do sistema e preferência salva, ampliação do texto, foco visível, contraste de componentes reais nas 14 paletas e reflow em viewports de 640 e 320 CSS px. As larguras simulam a condição de reflow; não substituem teste manual de zoom do navegador.
+- `node tests/e2e/accessibility.cjs` valida o painel público (Escape, retorno de foco e semântica disclosure), opções completas autenticadas em Ajustes, movimento reduzido do sistema e preferência salva, ampliação do texto, foco visível, contraste de componentes reais nas 14 paletas e reflow em viewports de 640 e 320 CSS px. As larguras simulam a condição de reflow; não substituem teste manual de zoom do navegador.
 - `node tests/e2e/legal-consent-flow.cjs` valida o painel Aurora de reaceite, os links acessíveis dos documentos, o aceite obrigatório e os layouts mobile/desktop.
 - **Aprovado (2026-10-29):** `node tests/e2e/notifications.cjs http://127.0.0.1:5173` — fluxo mobile/desktop, sem overflow horizontal nem erros no console.
 
 ## Prévia visual local
 
 - `node tests/e2e/dialog-mobile.cjs http://127.0.0.1:5173` — verifica diálogos móveis e desktop sem abrir o teclado automaticamente.
-- `node tests/e2e/modal-scroll-lock.cjs http://127.0.0.1:5173` — verifica que notificações, pesquisa, acessibilidade pública/autenticada e modais bloqueiam o scroll externo, mantêm o cabeçalho visível e restauram a posição ao fechar em mobile/desktop.
+- `node tests/e2e/modal-scroll-lock.cjs http://127.0.0.1:5173` — verifica que notificações e acessibilidade pública não bloqueiam o scroll; pesquisa, diálogos e modais bloqueiam e restauram a posição ao fechar em mobile/desktop.
 - **Aprovado:** `node tests/e2e/close-buttons.cjs http://127.0.0.1:5173` — os controles medem 40×40 px e mantêm raio consistente em celular e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
 - `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
 - `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, anúncio educado dos estados vazios, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
 - `node tests/e2e/cycle-intimacy.cjs` verifica os registros separados de atividade sexual, masturbação e orgasmos, a relação dos métodos contraceptivos e a preservação independente dos dados.
-- `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, reutilização da conta/categoria mais recente, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento e recorte mensal do resumo em perfil de demonstração.
+- `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, reutilização da conta/categoria mais recente, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento, recorte mensal do resumo, juros individuais, antecipação de compras e parcelamento futuro de faturas em perfil de demonstração.
+- `node tests/e2e/weekly-review-flow.cjs` valida as escolhas manter/ajustar/adiar na revisão semanal, o adiamento por sete dias com desfazer e a largura móvel.
+- `node tests/e2e/habits-app-experience.cjs` também verifica que os controles Push de Hábitos e Pomodoro deixam explícito que ativar/desativar afeta ambos.
+- O resumo “Fechamento do mês” usa competência e os lançamentos do mês selecionado; confira recebidos, pagos, pendências em contas, fixas, compras no cartão e o atalho para o filtro de pendências. Não representa fechamento contábil nem substitui a conciliação de extrato.
+- `node tests/relational-store-check.mjs` também verifica o round-trip relacional dos campos opcionais `interestCents` e `anticipatedDate`, a compatibilidade com lançamentos antigos e a migration aditiva correspondente.
 - `node tests/e2e/app-shell-quick-actions.cjs` verifica acionador/fechamento da busca global, conclusão e desfazer de uma tarefa, além das ações rápidas e navegação responsiva.
 - `node tests/e2e/habits-app-experience.cjs` também verifica desfazer uma marcação de hábito em dados isolados da prévia.
 - `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
@@ -367,6 +401,7 @@ capturas de tela ou logs.
 - **Aprovado:** `node --check` em `src/js/main.js`, `src/js/features/finance/calculations.js` e `src/js/features/finance/statement.js`.
 - **Aprovado:** `npx vite build`; entrada direta `pages/financas.html` em viewport de 390 e 1280 px, sem overflow horizontal nem erros de console. A rota exibiu o gate de autenticação.
 - **Aprovado:** `npm run build` concluiu a compilação Vite e a cópia dos arquivos estáticos, incluindo `_headers` e `_redirects`.
+- **Aprovado:** `tests/e2e/finance-improvements.cjs` confere a separação visual entre saldo e resumo mensal, a comparação de receitas/despesas, as seis seções no celular e ausência de overflow horizontal em 320 px e desktop.
 - **Não executado:** aplicação da migration em um projeto Supabase de teste, login real, sessão autenticada com os novos relatórios, reload dos dados no Supabase e validação visual da tela financeira autenticada em mobile/desktop.
 - **Limitação conhecida:** lançamentos antigos não têm data real de liquidação. Nos relatórios por caixa e no histórico do saldo, a data do lançamento é usada como aproximação até que a pessoa edite e informe uma data de pagamento/recebimento.
 - **Limitação conhecida:** pagamentos de fatura aparecem como uma categoria única no caixa; não há rateio retroativo da liquidação entre categorias das compras do cartão.

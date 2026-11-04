@@ -479,7 +479,7 @@
 .intro-dialog .dlg-foot .btn { flex: 0 1 auto; }
 .intro-dialog .dlg-foot .btn.primary { margin-left: auto; }
 .intro-dialog .wiz-h { max-width: 760px; }
-.intro-dialog .wiz-h h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
+.intro-dialog .wiz-h h2 { font-size: var(--text-section); }
 .intro-dialog .wiz-h p { max-width: 720px; line-height: 1.6; }
 .onboard-intro { display: flex; align-items: flex-start; gap: var(--space-4); }
 .onboard-brand { display: grid; flex: none; place-items: center; }

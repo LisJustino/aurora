@@ -5,7 +5,7 @@
   top: calc(68px + env(safe-area-inset-top, 0px) + 12px);
   right: max(16px, env(safe-area-inset-right, 0px));
   display: grid;
-  width: min(380px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 24px));
   max-height: min(75dvh, 600px);
   gap: var(--space-3);
   overflow-y: auto;
@@ -58,6 +58,14 @@
 }
 .accessibility-option[aria-pressed="true"] .accessibility-state { color: var(--accent); }
 .accessibility-reset { width: 100%; }
+.accessibility-advanced { border-top: 1px solid var(--line); padding-top: var(--space-2); }
+.accessibility-advanced summary { min-height: var(--control-sm); color: var(--accent); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.accessibility-advanced .accessibility-options { padding-top: var(--space-2); }
+.accessibility-settings-options {
+  width: 100%;
+  max-width: 760px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
 
 :root[data-readable="true"] {
   --font: Arial, Verdana, sans-serif;

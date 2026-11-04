@@ -14,7 +14,31 @@ export function resolveRoute(value, availableRoutes) {
 
 export function isPublicLandingHash(hash) {
   const value = String(hash || '').replace(/^#/, '').split('?')[0];
-  return ['', 'landing', 'landing-main'].includes(value);
+  return ['', 'landing', 'landing-main', 'demonstracao'].includes(value);
+}
+
+export function accountModeFromHash(hash) {
+  const [route, queryString = ''] = String(hash || '').replace(/^#/, '').split('?');
+  const params = new URLSearchParams(queryString);
+  if (route === 'entrar') return 'login';
+  if (route === 'criar-conta') return params.get('etapa') === 'acesso' ? 'signup-access' : 'signup-profile';
+  if (route === 'esqueci-senha') return 'recovery';
+  if (route === 'nova-senha') return 'update-password';
+  return null;
+}
+
+export function accountHashForMode(mode) {
+  if (mode === 'login') return '#entrar';
+  if (mode === 'signup' || mode === 'signup-profile' || mode === 'oauth-profile') return '#criar-conta';
+  if (mode === 'signup-access') return '#criar-conta?etapa=acesso';
+  if (mode === 'recovery') return '#esqueci-senha';
+  if (mode === 'update-password') return '#nova-senha';
+  if (mode === 'landing') return '#demonstracao';
+  return null;
+}
+
+export function isPublicAccountHash(hash) {
+  return accountModeFromHash(hash) !== null;
 }
 
 export function postSignOutPath(locationLike) {

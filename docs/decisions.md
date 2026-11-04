@@ -1,5 +1,12 @@
 # Princípios do produto
 
+- A promessa central do Aurora é transformar a sensação de sobrecarga em um
+  próximo passo possível e ajudar a pessoa a reconhecer seu progresso sem
+  cobrança. Tarefas, hábitos, foco, finanças e ciclo são partes de uma visão
+  pessoal integrada, não uma lista de aplicativos que precisam ser usados todos.
+  A landing deve explicar esse percurso (organizar, agir no ritmo possível e
+  rever a semana) antes de enumerar áreas; a demonstração continua identificada
+  como fictícia e limitada às interações que realmente oferece.
 - As rotas compartilham a mesma aplicação e navegação. `pages/*.html` são
   entradas da SPA, não cópias independentes das telas.
 - A demonstração pública usa dados fictícios e interações somente em memória;
@@ -53,17 +60,27 @@
   corresponde à parcela atual; são criados somente os lançamentos dessa
   parcela até a última, sem reconstruir parcelas anteriores. O valor informado
   continua sendo o total da compra, dividido em centavos entre as parcelas.
+- Juros são registrados em centavos em cada parcela, sem somar novamente ao
+  valor lançado; cada parcela pode ser editada separadamente. A antecipação
+  preserva o mês original e registra sua data. Em compras no cartão, é somente
+  uma anotação (o pagamento da fatura continua como transferência); em contas
+  não creditícias, marca a parcela como paga e usa a data no fluxo de caixa.
+- Parcelar uma fatura cria transferências mensais pendentes para a conta do
+  cartão. O principal é dividido em centavos, os juros exatos informados são
+  adicionados a cada parcela, e cada transferência só altera os saldos quando
+  marcada como paga; assim, a programação não reduz a conta de origem antes
+  do pagamento real.
 - O diário do Ciclo permite registrar separadamente atividade sexual com outra
   pessoa, masturbação e a quantidade opcional de orgasmos por dia. Métodos
   contraceptivos aparecem somente para atividade com outra pessoa; os campos
   novos são opcionais e não alteram registros anteriores.
-- Enquanto um diálogo modal ou os painéis de notificações e acessibilidade
-  estiverem abertos, o scroll do conteúdo externo fica bloqueado; ao fechá-los,
-  a posição anterior da página é restaurada e o cabeçalho permanece visível.
+- Diálogos modais bloqueiam o scroll externo e restauram a posição ao fechar.
+  O painel de notificações é um popover não modal: não bloqueia a página e
+  fecha por Escape ou clique fora. No app, preferências de acessibilidade ficam
+  em Ajustes → Personalização; a área pública mantém controles temporários no
+  cabeçalho, pois não oferece Ajustes.
 - Rolagens iniciadas pela interface respeitam tanto a preferência de movimento
-  reduzido do sistema quanto a opção salva no Aurora. O painel público de
-  acessibilidade é uma seção expansível, fecha com Escape e devolve o foco ao
-  acionador.
+  reduzido do sistema quanto a opção salva no Aurora.
 - O onboarding inicial recomenda áreas conforme as necessidades escolhidas,
   permite revisar as ativações e informa que elas podem ser alteradas depois
   em Ajustes → Áreas e navegação. Planejar permanece sempre disponível.
@@ -75,14 +92,19 @@
   Termos de Uso e da Política de Privacidade. Recusar uma atualização enquanto
   autenticada oferece exclusão permanente da conta, com confirmação digitada;
   a exclusão só é concluída depois da limpeza Push e confirmação do Supabase.
-- O cadastro não exige idade mínima. A data completa de nascimento é usada para
-  calcular a idade do perfil, mas não é armazenada.
+- O cadastro exige idade mínima de 16 anos. A data completa de nascimento é
+  usada para calcular a idade do perfil, mas não é armazenada.
 - O cadastro não exige confirmação do e-mail para liberar acesso. Projetos
   Supabase devem autoconfirmar novos cadastros; endereços incorretos podem
   impedir recuperação da conta. A landing e a etapa de cadastro devem deixar
-  esse risco claro antes da criação da conta. O app não envia links de
+  esse risco claro antes da criação da conta. A etapa de acesso pede que o
+  e-mail seja digitado duas vezes para reduzir erros de endereço. O app não envia links de
   confirmação; contas antigas pendentes precisam ser liberadas manualmente no
   Dashboard do Supabase.
+- A redefinição de senha exige confirmação da nova senha e encerra a sessão
+  depois de salvar, para que o próximo acesso confirme a senha atualizada.
+  Limites de envio da recuperação permanecem genéricos quanto à existência do
+  e-mail e orientam uma espera antes de tentar novamente.
 - Métricas comportamentais e analytics de terceiros estão adiados. Não
   adicionar scripts ou eventos de rastreamento até definir finalidade,
   minimização, retenção, transparência na Política de Privacidade e necessidade
@@ -91,13 +113,15 @@
   autorizar leitura do Google Calendar após ação explícita; não adiciona
   analytics.
 - No cadastro, um e-mail que o Supabase identifica como já associado recebe
-  orientação de que uma exclusão confirmada libera novo cadastro sem os dados
-  anteriores; erros não reconhecidos continuam sem detalhes técnicos do
-  provedor.
+  orientação de que nenhuma conta duplicada será criada. A pessoa pode entrar
+  ou recuperar o acesso; para usar o endereço em uma nova conta, precisa entrar
+  na conta atual e confirmar a exclusão permanente em Ajustes → Seu perfil.
+  Erros não reconhecidos continuam sem detalhes técnicos do provedor.
 - A exclusão confirmada da conta é definitiva. O mesmo e-mail pode ser usado
   para um novo cadastro, que recebe um novo ID e não restaura os dados da conta
   anterior; falha ou ausência de confirmação não deve ser apresentada como
-  exclusão concluída.
+  exclusão concluída. A ação exige sessão autenticada e confirmação digitada
+  `EXCLUIR`, tanto em Ajustes quanto na recusa de documentos atualizados.
 - Os documentos legais ficam acessíveis no footer em um diálogo modal, com
   páginas estáticas de fallback. O conteúdo ainda exige revisão jurídica e
   confirmação das configurações operacionais antes de publicação definitiva.
@@ -204,3 +228,20 @@ dia oferece desfazer pelo toast, reutilizando a fatia atual e sem alterar o
 formato de backup. A pausa de uma hora afeta somente lembretes internos de
 tarefas e hábitos nesta instância do app; não altera permissões ou avisos Push
 do sistema. Estados vazios usam anúncio `status` educado para leitores de tela.
+
+## Revisões semanal e mensal
+
+A revisão semanal permite manter uma tarefa planejada, abrir o editor existente
+para ajustá-la ou adiá-la sete dias. O adiamento grava somente a nova data na
+tarefa existente e oferece desfazer; não cria um registro de revisão nem altera
+o formato de backup. A revisão mensal financeira é calculada a partir dos
+lançamentos existentes para o mês selecionado: resultado por competência,
+pagamentos/recebimentos, pendências em contas, lançamentos fixos, despesas no
+cartão e principal categoria de gasto. Compras no cartão não são apresentadas
+como pagamento de conta e transferências continuam fora do resultado. O resumo
+não persiste um estado de “mês fechado” nem substitui conferência de extrato.
+
+A inscrição Push é compartilhada entre Hábitos e Pomodoro por dispositivo.
+Qualquer botão de ativação/desativação controla ambos; a interface informa essa
+consequência junto ao controle, sem sugerir preferências independentes que não
+existem.

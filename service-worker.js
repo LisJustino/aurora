@@ -1,7 +1,7 @@
-const CACHE_NAME = 'aurora-static-v9';
-const API_PATH = /\/api(?:\/|$)/;
-const LEGAL_DOCUMENT = /\/(?:terms|privacy)\.html$/;
-const STATIC_ASSET = /\.(?:html|css|m?js|woff2?|ttf|otf|svg|png|jpe?g|webp|gif|ico|webmanifest)$/i;
+const CACHE_NAME = 'aurora-static-v10';
+const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
+const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar|pomodoro)\.html|terms\.html|privacy\.html)$/i;
+const APP_SHELL_ASSET = /^\/(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf)|icons\/.+\.(?:svg|png|jpe?g|webp|ico)|favicon\.svg)$/i;
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
@@ -22,75 +22,42 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || API_PATH.test(url.pathname)) return;
 
-  if (LEGAL_DOCUMENT.test(url.pathname)) {
-    event.respondWith((async () => {
-      const cache = await caches.open(CACHE_NAME);
-      try {
-        const response = await fetch(request, { cache: 'no-cache' });
-        if (response.ok && response.type === 'basic') {
-          await cache.put(request, response.clone()).catch((error) => {
-            console.warn('O Aurora não conseguiu atualizar o documento legal no cache offline.', error);
-          });
-        }
-        return response;
-      } catch (networkError) {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        throw networkError;
-      }
-    })());
-    return;
-  }
-
-  if (STATIC_ASSET.test(url.pathname)) {
+  if (APP_SHELL_ASSET.test(url.pathname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
       const cached = await cache.match(request);
-      const update = fetch(request, { cache: 'no-cache' }).then((response) => {
-        if (!response.ok || response.type !== 'basic') return response;
-        return cache.put(request, response.clone()).then(() => response, (error) => {
-          console.warn('O Aurora não conseguiu atualizar o cache offline.', error);
-          return response;
-        });
-      });
+      if (cached) return cached;
 
-      if (cached) {
-        event.waitUntil(update.then(
-          () => {},
-          (error) => console.warn('O Aurora não conseguiu atualizar um recurso estático.', error),
-        ));
-        return cached;
+      const response = await fetch(request);
+      if (response.ok && response.type === 'basic') {
+        await cache.put(request, response.clone());
       }
-
-      try {
-        return await update;
-      } catch (networkError) {
-        const fallback = await caches.match(request);
-        if (fallback) return fallback;
-        throw networkError;
-      }
+      return response;
     })());
     return;
   }
 
-  if (request.mode !== 'navigate') return;
+  if (request.mode !== 'navigate' || !(
+    url.pathname === '/'
+    || APP_DOCUMENT.test(url.pathname)
+  )) return;
 
   event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
     try {
       const response = await fetch(request, { cache: 'no-cache' });
       if (response.ok && response.type === 'basic' && response.headers.get('Content-Type')?.startsWith('text/html')) {
-        await caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())).catch((error) => {
-          console.warn('O Aurora não conseguiu atualizar o cache offline.', error);
-        });
+        await cache.put(request, response.clone());
+        if (url.pathname === '/' || url.pathname.startsWith('/pages/')) {
+          await cache.put(new URL('./index.html', self.registration.scope).href, response.clone());
+        }
       }
       return response;
     } catch (networkError) {
-      const cached = await caches.match(request);
+      const cached = await cache.match(request);
       if (cached) return cached;
-      if (request.mode === 'navigate') {
-        const fallback = await caches.match(new URL('./index.html', self.registration.scope).href);
-        if (fallback) return fallback;
-      }
+      const fallback = await cache.match(new URL('./index.html', self.registration.scope).href);
+      if (fallback) return fallback;
       throw networkError;
     }
   })());

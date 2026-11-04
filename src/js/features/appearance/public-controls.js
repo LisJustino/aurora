@@ -1,11 +1,9 @@
 import { LOOK_DEFAULT, paletteColors } from './palettes.js';
 import { iconSvg } from '../../utils/icons.js';
 import { prefersReducedMotion } from '../../utils/motion.js';
-import { lockPageScroll } from '../../utils/scroll-lock.js';
 
 const publicLook = { ...LOOK_DEFAULT };
 let accessibilityOpen = false;
-let releaseAccessibilityScroll = null;
 let systemThemeQuery = null;
 
 const icon = iconSvg;
@@ -21,8 +19,8 @@ function accessibilityPanel() {
   return `
     <section class="accessibility-panel public-accessibility-panel" id="public-accessibility-panel" aria-labelledby="public-accessibility-title" ${accessibilityOpen ? '' : 'hidden'}>
       <header class="accessibility-head">
-        <div><h2 id="public-accessibility-title">Tema e acessibilidade</h2><p>Preferências temporárias, só nesta visita.</p></div>
-        <button type="button" class="ibtn dlg-close" data-public-control="accessibility-close" aria-label="Fechar tema e acessibilidade">${icon('close', 18)}</button>
+        <div><h2 id="public-accessibility-title">Acessibilidade</h2><p>Atalhos rápidos, temporários nesta visita.</p></div>
+        <button type="button" class="ibtn dlg-close" data-public-control="accessibility-close" aria-label="Fechar acessibilidade">${icon('close', 18)}</button>
       </header>
       <div class="accessibility-font" role="group" aria-label="Tamanho do texto">
         <span class="accessibility-group-label">Tamanho do texto</span>
@@ -32,31 +30,24 @@ function accessibilityPanel() {
           <button type="button" class="btn sm" data-public-control="font" data-step="1" aria-label="Aumentar tamanho do texto" ${fontIndex >= 2 ? 'disabled' : ''}>A+</button>
         </div>
       </div>
-      <div class="accessibility-font" role="group" aria-label="Tema">
-        <span class="accessibility-group-label">Tema</span>
-        <div class="seg" role="group" aria-label="Escolha o tema">
-          ${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, label, iconName]) => `<button type="button" data-public-control="mode" data-value="${value}" aria-pressed="${String(publicLook.mode === value)}">${icon(iconName, 16)}<span>${label}</span></button>`).join('')}
-        </div>
-      </div>
       <div class="accessibility-options">
         ${button('Alto contraste', 'contrast', publicLook.contrast, 'Reforça textos, bordas e foco.')}
-        ${button('Legibilidade aprimorada', 'readable', publicLook.readable, 'Usa fonte simples e aumenta o espaçamento entre linhas.')}
-        ${button('Destacar links', 'links', publicLook.highlightLinks, 'Sublinha os links para identificá-los com mais facilidade.')}
-        ${button('Espaçamento confortável', 'spacing', publicLook.density === 'comfy', 'Aumenta o respiro e as áreas para toque.')}
         ${button('Reduzir movimento', 'motion', publicLook.reduceMotion, 'Evita rolagens animadas e reduz animações da interface.')}
       </div>
+      <details class="accessibility-advanced">
+        <summary>Mais opções desta visita</summary>
+        <div class="accessibility-options">
+          ${button('Legibilidade aprimorada', 'readable', publicLook.readable, 'Usa fonte simples e aumenta o espaçamento entre linhas.')}
+          ${button('Destacar links', 'links', publicLook.highlightLinks, 'Sublinha os links para identificá-los com mais facilidade.')}
+          ${button('Espaçamento confortável', 'spacing', publicLook.density === 'comfy', 'Aumenta o respiro e as áreas para toque.')}
+        </div>
+      </details>
       <button type="button" class="btn accessibility-reset" data-public-control="reset">Restaurar configurações visuais</button>
     </section>`;
 }
 
 function setAccessibilityOpen(open) {
-  if (open === accessibilityOpen) return;
-  if (open) releaseAccessibilityScroll = lockPageScroll();
   accessibilityOpen = open;
-  if (!open) {
-    releaseAccessibilityScroll?.();
-    releaseAccessibilityScroll = null;
-  }
 }
 
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
@@ -67,19 +58,19 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
     const action = authMode ? `data-account-mode="${mode}"` : `data-public-action="${mode}"`;
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
     const variant = isLanding && mode === 'signup' ? 'primary' : '';
-    const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar na conta';
+    const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
     return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
-      <a class="brand public-brand-link" href="./" ${authMode ? 'data-account-mode="landing"' : 'data-public-action="landing"'} aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
+      <a class="brand public-brand-link" href="./" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
       <span class="header-actions public-header-actions">
-        ${accountAction('login', 'entrar')}
-        ${accountAction('signup', 'criar conta')}
+        ${accountAction('login', 'Entrar')}
+        ${accountAction('signup', 'Criar conta')}
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
           <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="Alternar tema: ${themeName}" title="Alternar tema">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
           <span class="accessibility-control">
-            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir tema e acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>
+            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Acessibilidade">${icon('accessibility', 20)}</button>
             ${accessibilityPanel()}
           </span>
           ${isLanding || demo ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
@@ -104,8 +95,8 @@ function applyPublicLook() {
   root.setAttribute('data-readable', String(publicLook.readable));
   root.setAttribute('data-links', publicLook.highlightLinks ? 'highlight' : 'normal');
   root.setAttribute('data-motion', publicLook.reduceMotion ? 'reduce' : 'normal');
-  const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.content = getComputedStyle(root).getPropertyValue('--bg').trim();
+  const themeColor = getComputedStyle(root).getPropertyValue('--bg').trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
   syncPublicControls();
 }
 

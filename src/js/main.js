@@ -6,9 +6,10 @@ import {
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
-import { lockPageScroll } from './utils/scroll-lock.js';
+import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
+  accountModeFromHash,
   isPublicLandingHash,
   postSignOutPath,
   redirectToPublicLanding,
@@ -24,6 +25,7 @@ import {
   isCreditAccount,
   isPaid as transactionIsPaid,
   monthStats as summarizeMonth,
+  monthlyCloseSummary as summarizeMonthlyClose,
   netAccountBalance,
   reportMonthStats,
   recurringBillsDueOn,
@@ -77,7 +79,12 @@ import {
   schedulePomodoroPush,
 } from './services/pomodoro-push.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
-import { renderFooterContent, renderLegalDialog } from './features/footer/view.js';
+import { stopLandingDemo } from './features/landing/demo.js';
+import {
+  initializeFaqDisclosure,
+  renderFooterContent,
+  renderLegalDialog,
+} from './features/footer/view.js';
 
 let googleCalendarService = null;
 let googleCalendarServicePromise = null;
@@ -108,7 +115,7 @@ const googleCalendar = {
   getCalendars: async () => (await loadGoogleCalendarService()).getCalendars(),
   getEvents: async (...args) => (await loadGoogleCalendarService()).getEvents(...args),
 };
-import { showLegalDocument } from './features/footer/legal-dialog.js';
+import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
 import { prefersReducedMotion } from './utils/motion.js';
@@ -132,6 +139,7 @@ import {
   PROFILE_AVATAR_COLORS,
   PROFILE_GREETING_STYLES,
   PROFILE_SEX,
+  timeBasedGreeting,
 } from './features/profile/model.js';
 import {
   defaultHomeLayout as defaultHomeLayoutModel,
@@ -153,6 +161,7 @@ import {
   homeAreaColorValue,
 } from './features/home/personalization.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
+import { startPwaInstallPrompt } from './services/pwa-install.js';
 import {
   habitWeeklyTarget,
   habitWeekReview,
@@ -218,6 +227,39 @@ import {
 import { estimatedCyclePhase } from './features/cycle/phases.js';
 import { CYCLE_CONTRACEPTION_METHODS, isValidCycleSexualLog } from './features/cycle/log.js';
 'use strict';
+
+function setupKeyboardViewportSafety() {
+  if (typeof window === 'undefined' || !('visualViewport' in window)) return;
+  if (window.__auroraKeyboardViewportSafety) return;
+
+  const updateKeyboardInset = () => {
+    const viewport = window.visualViewport;
+    const keyboardInset = Math.max(0, window.innerHeight - viewport.height - (viewport.offsetTop || 0));
+    document.documentElement.style.setProperty('--keyboard-offset', `${keyboardInset}px`);
+
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return;
+    if (!active.matches('input, textarea, select, [contenteditable="true"]')) return;
+    if (keyboardInset > 100) {
+      active.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }
+  };
+
+  window.visualViewport.addEventListener('resize', updateKeyboardInset);
+  window.visualViewport.addEventListener('scroll', updateKeyboardInset);
+  document.addEventListener('focusin', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
+    if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
+    target.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }, true);
+
+  window.__auroraKeyboardViewportSafety = true;
+}
+
+setupKeyboardViewportSafety();
+
 /* ========== Núcleo: templates, datas, estado e persistência ========== */
 const weekStartDay = () => { try { return settingsView().look.weekStart === 0 ? 0 : 1; } catch (e) { return 1; } };
 const REPEATS = { none: 'Nunca', day: 'Todo dia', weekday: 'Dias úteis', week: 'Toda semana', month: 'Todo mês', year: 'Todo ano' };
@@ -346,7 +388,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, vibrationEnabled: false, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -360,7 +402,17 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, accessibilityOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
+  const announcer = document.createElement('div');
+  announcer.id = 'notification-announcer';
+  announcer.className = 'sr';
+  announcer.setAttribute('role', 'status');
+  announcer.setAttribute('aria-live', 'polite');
+  announcer.setAttribute('aria-atomic', 'true');
+  document.body.append(announcer);
+  return announcer;
+})();
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -437,12 +489,13 @@ async function saveSettingsDraft() {
 }
 function settingsSaveButton(label = 'Salvar') {
   const dirty = settingsDraftDirty();
-  return h`<div class="row settings-save-actions"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button ${dirty ? '' : raw('disabled')}>${label}</button></div>`;
+  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button ${dirty ? '' : raw('disabled')}>${label}</button></div>`;
 }
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
 let habitsTemplateError = false;
 let renderedRoute = null;
+const routeScrollPositions = new Map();
 
 function normalizeSettings(s) {
   const d = defaults().settings;
@@ -507,6 +560,7 @@ function normalizeSettings(s) {
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
+  o.prefs.vibrationEnabled = prefs.vibrationEnabled === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
@@ -600,12 +654,17 @@ const isValidTransaction = (record) => isPlainObject(record)
   && isNonEmptyText(record.accountId) && isSafeInteger(record.cents) && record.cents > 0
   && isDay(record.date)
   && optional(record, 'settledDate', isDay)
+  && optional(record, 'interestCents', (value) => isSafeInteger(value) && value >= 0 && value <= record.cents)
+  && optional(record, 'anticipatedDate', isDay)
+  && optional(record, 'groupId', isText)
+  && optional(record, 'invoiceInstallment', (value) => typeof value === 'boolean')
   && optional(record, 'category', isText)
   && optional(record, 'desc', isText)
   && optional(record, 'paid', (value) => typeof value === 'boolean')
   && optional(record, 'createdAt', isFiniteValue)
   && optional(record, 'toAccountId', isNonEmptyText)
-  && (record.type !== 'tr' || isNonEmptyText(record.toAccountId));
+  && (record.type !== 'tr' || isNonEmptyText(record.toAccountId))
+  && (record.invoiceInstallment !== true || (record.type === 'tr' && isNonEmptyText(record.groupId)));
 const isValidGoal = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && isText(record.name)
   && isSafeInteger(record.targetCents) && record.targetCents > 0
@@ -1326,29 +1385,8 @@ function closeNotifications(restoreFocus = true) {
     if (trigger) trigger.focus({ preventScroll: true });
   }
 }
-function closeAccessibility(restoreFocus = true) {
-  ui.accessibilityOpen = false;
-  render();
-  if (restoreFocus) $('#accessibility-trigger')?.focus({ preventScroll: true });
-}
-let releaseNotificationScroll = null;
-let releaseAccessibilityScroll = null;
-function syncPanelScrollLocks() {
-  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
-  else if (!ui.notificationsOpen && releaseNotificationScroll) {
-    releaseNotificationScroll();
-    releaseNotificationScroll = null;
-  }
-  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
-  else if (!ui.accessibilityOpen && releaseAccessibilityScroll) {
-    releaseAccessibilityScroll();
-    releaseAccessibilityScroll = null;
-  }
-}
 function acquireActiveScrollLocks() {
   if (ui.dlg && !releaseDialogScroll) releaseDialogScroll = lockPageScroll();
-  if (ui.notificationsOpen && !releaseNotificationScroll) releaseNotificationScroll = lockPageScroll();
-  if (ui.accessibilityOpen && !releaseAccessibilityScroll) releaseAccessibilityScroll = lockPageScroll();
 }
 /* Erro junto ao campo: marca o campo, escreve a mensagem logo abaixo e leva o foco até ele.
    Só mexe no DOM do diálogo aberto; some quando a pessoa volta a digitar. Cai para o aviso se não achar o campo. */
@@ -1440,8 +1478,7 @@ function shell(body) {
   const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><span class="accessibility-control"><button type="button" id="accessibility-trigger" class="iconbtn accessibility-trigger" data-action="accessibility-toggle" aria-label="Tema e acessibilidade" aria-expanded="${String(ui.accessibilityOpen)}" aria-controls="accessibility-panel" title="Tema e acessibilidade">${icon('accessibility', 20)}</button>${accessibilityPanel()}</span><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
-    <div class="sr" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
         <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="#pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
@@ -1524,18 +1561,17 @@ function weeklyReviewView() {
     <div class="weekly-review-grid">${overdue.length ? h`<section class="card weekly-review-alert"><div class="head"><div><p class="section-kicker">Precisa de atenção</p><h2>${overdue.length} ${plural(overdue.length, 'tarefa atrasada', 'tarefas atrasadas')}<i>.</i></h2></div><button class="btn ghost sm" data-action="weekly-open-overdue">Organizar</button></div><ul class="list">${overdue.slice(0, 3).map(taskRow)}</ul></section>` : h`<section class="card weekly-review-clear"><span>${icon('check', 20)}</span><div><h2>Sem tarefas atrasadas<i>.</i></h2><p>Você pode entrar na próxima semana com mais clareza.</p></div></section>`}
     <section class="card"><div class="head"><div><p class="section-kicker">Olhando à frente</p><h2>Prioridades da próxima semana<i>.</i></h2></div><span class="small muted">${nextFirst.getDate()}–${nextLast.getDate()} ${MESES_L[nextLast.getMonth()]}</span></div>
       ${review.nextWeek.tasks.length
-        ? h`<ul class="list">${review.nextWeek.tasks.map(taskRow)}</ul>`
+        ? h`<p class="small muted weekly-plan-guidance">Para cada tarefa, mantenha a data, ajuste os detalhes ou adie por uma semana. O adiamento pode ser desfeito.</p><ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
         : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
     </section></div>
     <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="#pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
 }
 
-const greet = () => { const hr = new Date().getHours(); return hr < 5 ? 'Boa madrugada' : hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite'; };
 function profileGreeting(style) {
   if (style === 'hello') return 'Olá';
   if (style === 'oi') return 'Oi';
-  return greet();
+  return timeBasedGreeting();
 }
 function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
   const profileAppearance = normalizeProfileAppearance(appearance);
@@ -1598,17 +1634,18 @@ function dueBadge(t) {
   if (d === 1) return h`<span class="badge">Amanhã</span>`;
   return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
 }
-function taskRow(t) {
+function taskRow(t, reviewNextWeek = false) {
   const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
   const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
   const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
-  return h`<li class="task ${t.done ? 'done' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
+  return h`<li class="task ${t.done ? 'done' : ''}${reviewNextWeek ? ' weekly-plan-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
     <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
     <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="ttl">${t.title}</span>
       <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
     <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
+    ${reviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
   </li>`;
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
@@ -1644,8 +1681,8 @@ function applyTheme(theme) {
   r.setAttribute('data-readable', L.readable ? 'true' : 'false');
   r.setAttribute('data-links', L.highlightLinks ? 'highlight' : 'normal');
   r.setAttribute('data-motion', L.reduceMotion ? 'reduce' : 'normal');
-  const themeColor = document.querySelector('meta[name="theme-color"]');
-  if (themeColor) themeColor.content = getComputedStyle(r).getPropertyValue('--bg').trim();
+  const themeColor = getComputedStyle(r).getPropertyValue('--bg').trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
 }
 const systemThemeQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 let headerScrollFrame = 0;
@@ -1682,35 +1719,9 @@ function setThemeMode(mode) {
     ui.settingsDraft.look.mode = mode;
   }
   render();
-  toast(`Tema ${MODE_NAME[mode]} aplicado e salvo.`);
 }
-function accessibilityPanel() {
-  const look = settingsView().look;
-  const effectiveDark = look.mode === 'dark' || (look.mode === 'auto' && systemThemeQuery?.matches);
-  const fonts = ['s', 'm', 'l'];
-  const fontIndex = fonts.indexOf(look.font);
-  const toggle = (id, action, label, description, pressed) => h`<button type="button" id="${id}" class="accessibility-option" data-action="${action}" aria-pressed="${String(pressed)}"><span class="accessibility-option-copy"><b>${label}</b><small>${description}</small></span><span class="accessibility-state" aria-hidden="true">${pressed ? 'Ativado' : 'Desativado'}</span></button>`;
-  return h`<form class="accessibility-panel" id="accessibility-panel" data-form="settings-save" aria-labelledby="accessibility-title" ${ui.accessibilityOpen ? raw('') : raw('hidden')}>
-    <header class="accessibility-head"><div><h2 id="accessibility-title">Tema e acessibilidade</h2><p>As preferências são sincronizadas com sua conta.</p></div><button type="button" class="ibtn dlg-close" id="accessibility-close" data-action="accessibility-close" aria-label="Fechar tema e acessibilidade">${icon('close', 18)}</button></header>
-    <div class="accessibility-font" role="group" aria-label="Tamanho do texto">
-      <span class="accessibility-group-label">Tamanho do texto</span>
-      <div class="accessibility-font-controls"><button type="button" class="btn sm" id="accessibility-font-down" data-action="accessibility-font" data-step="-1" aria-label="A− Diminuir tamanho do texto" ${fontIndex <= 0 ? raw('disabled') : ''}>A−</button><button type="button" class="btn sm" id="accessibility-font-reset" data-action="accessibility-font-reset" aria-label="Restaurar tamanho padrão do texto" ${look.font === 'm' ? raw('disabled') : ''}>Padrão</button><button type="button" class="btn sm" id="accessibility-font-up" data-action="accessibility-font" data-step="1" aria-label="A+ Aumentar tamanho do texto" ${fontIndex >= fonts.length - 1 ? raw('disabled') : ''}>A+</button></div>
-    </div>
-    <div class="accessibility-font" role="group" aria-label="Tema">
-      <span class="accessibility-group-label">Tema (salvo ao tocar)</span>
-      <div class="seg">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="accessibility-mode-${value}" aria-pressed="${String(look.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>
-    </div>
-    <div class="accessibility-options">
-      ${toggle('accessibility-contrast', 'accessibility-contrast', 'Alto contraste', 'Reforça textos, bordas e foco.', look.contrast)}
-      ${toggle('accessibility-readable', 'accessibility-readable', 'Legibilidade aprimorada', 'Usa fonte simples e aumenta o espaçamento entre linhas.', look.readable)}
-      ${toggle('accessibility-links', 'accessibility-links', 'Destacar links', 'Sublinha os links para identificá-los com mais facilidade.', look.highlightLinks)}
-      ${toggle('accessibility-spacing', 'accessibility-spacing', 'Espaçamento confortável', 'Aumenta o respiro e as áreas para toque.', look.density === 'comfy')}
-      ${toggle('accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Evita rolagens animadas e reduz animações da interface.', look.reduceMotion)}
-    </div>
-    <a class="btn accessibility-more" id="accessibility-more" href="#config?section=personalization" data-action="accessibility-more">Mais opções de aparência</a>
-    <button type="button" class="btn accessibility-reset" id="accessibility-reset" data-action="accessibility-reset">Restaurar configurações visuais</button>
-    ${settingsSaveButton('Salvar configurações')}
-  </form>`;
+function accessibilityOption(id, action, label, description, pressed) {
+  return h`<button type="button" id="${id}" class="accessibility-option" data-action="${action}" aria-pressed="${String(pressed)}"><span class="accessibility-option-copy"><b>${label}</b><small>${description}</small></span><span class="accessibility-state" aria-hidden="true">${pressed ? 'Ativado' : 'Desativado'}</span></button>`;
 }
 function describeDialogOpener(target) {
   if (!(target instanceof HTMLElement) || target === document.body || target === document.documentElement) return null;
@@ -1753,6 +1764,7 @@ function render() {
   const page = (ROUTES[ui.route] || ROUTES.inicio)();
   const app = $('#app');
   app.innerHTML = shell(page).s;
+  initializeFaqDisclosure(app);
   if (routeChanged) {
     const main = app.querySelector('.main');
     if (main) main.classList.add('route-enter');
@@ -1764,7 +1776,6 @@ function render() {
   const dc = $('.dchip.on'); if (dc && dc.parentElement) { const sx = dc.parentElement; sx.scrollLeft = dc.offsetLeft - sx.clientWidth / 2 + dc.offsetWidth / 2; }
   $$('.habit-year-grid').forEach((grid) => { grid.scrollLeft = grid.scrollWidth; });
   renderDialog();
-  syncPanelScrollLocks();
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
   renderPwaUpdateNotice();
@@ -1783,7 +1794,7 @@ function renderPwaUpdateNotice() {
   notice.setAttribute('role', 'status');
   notice.setAttribute('aria-label', 'Atualização do Aurora disponível');
   const message = document.createElement('p');
-  message.textContent = 'Uma nova versão do Aurora está pronta. Seus dados salvos serão mantidos.';
+  message.textContent = 'Nova versão disponível — atualizar quando terminar o que estiver fazendo.';
   const actions = document.createElement('div');
   actions.className = 'pwa-update-actions';
   const dismiss = document.createElement('button');
@@ -1829,7 +1840,9 @@ function watchPwaRegistration(registration) {
   document.addEventListener('visibilitychange', checkForUpdate);
 }
 function registerPwaSupport() {
-  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  if (!import.meta.env.PROD
+    || import.meta.env.VITE_PWA_ENABLED === 'false'
+    || !('serviceWorker' in navigator)) return Promise.resolve(null);
   if (!pwaSupportPromise) {
     pwaSupportPromise = (async () => {
       try {
@@ -1921,10 +1934,46 @@ document.addEventListener('click', (event) => {
     resetSettingsTabBeforeLeaving();
   }
 }, true);
+let routeRenderFrame = null;
+function scheduleRouteRender() {
+  if (routeRenderFrame !== null) return;
+  routeRenderFrame = requestAnimationFrame(() => {
+    routeRenderFrame = null;
+    onRoute();
+  });
+}
+function hasUnsavedSettingsChanges() {
+  return Boolean(ui.profileDraft || settingsDraftDirty());
+}
+async function confirmLeavingSettingsRoute(route) {
+  if (!hasUnsavedSettingsChanges()) return true;
+  const next = route.split('?')[0];
+  if (ui.route === 'config' && next === 'config') return true;
+  return await confirmInDialog('Sair sem salvar?');
+}
 function nav(route) {
   if (ui.route === 'config' && route.split('?')[0] !== 'config') resetSettingsTabBeforeLeaving();
-  if (location.hash.slice(1) !== route) location.hash = route;
-  else render();
+  if (hasUnsavedSettingsChanges() && route.split('?')[0] !== ui.route) {
+    void confirmLeavingSettingsRoute(route).then((confirmed) => {
+      if (!confirmed) return;
+      if (ui.profileDraft) ui.profileDraft = null;
+      if (settingsDraftDirty()) {
+        ui.settingsDraft = null;
+        ui.settingsDraftBase = null;
+      }
+      if (location.hash.slice(1) !== route) {
+        location.hash = route;
+      } else {
+        scheduleRouteRender();
+      }
+    });
+    return;
+  }
+  if (location.hash.slice(1) !== route) {
+    location.hash = route;
+    return;
+  }
+  scheduleRouteRender();
 }
 function focusRouteTarget(id) {
   const target = document.getElementById(id);
@@ -1933,6 +1982,9 @@ function focusRouteTarget(id) {
   target.scrollIntoView({ block: 'start' });
 }
 function onRoute() {
+  const wasBooted = ui.booted;
+  const previousRoute = ui.route;
+  const previousScroll = window.scrollY;
   ui.navigationOpen = false;
   ui.quickActionsOpen = false;
   let r = location.hash.slice(1);
@@ -1946,6 +1998,8 @@ function onRoute() {
   ui.booted = true;
   const resolved = resolveRoute(r, new Set(Object.keys(ROUTES)));
   ui.route = resolved.route;
+  const routeChanged = wasBooted && previousRoute !== ui.route;
+  if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
   const targetFocus = query === 'weight' ? 'pk' : null;
   const requestedSettingsTab = settingsTabId(new URLSearchParams(query).get('section'));
   if (ui.route === 'config') {
@@ -1965,7 +2019,17 @@ function onRoute() {
       }
     });
   }
-  window.scrollTo(0, 0);
+  if (routeChanged) {
+    requestAnimationFrame(() => {
+      const heading = $('#app .main h1:not(.sr)');
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+      }
+      window.scrollTo(0, routeScrollPositions.get(ui.route) || 0);
+      syncHeaderScrollState();
+    });
+  }
 }
 
 /* ========== Páginas: Início, Planejar, Foco ========== */
@@ -1996,6 +2060,49 @@ const pomodoroSettingsForTimer = () => ({
 
 let pomodoroAudioContext = null;
 let pomodoroAudioUnavailable = false;
+let pomodoroWakeLock = null;
+let pomodoroWakeLockPending = null;
+let pomodoroWakeLockFailed = false;
+function vibrateFeedback() {
+  if (!S.settings.prefs.vibrationEnabled || typeof navigator.vibrate !== 'function') return;
+  try { navigator.vibrate(15); } catch { /* A vibração é opcional. */ }
+}
+async function syncPomodoroWakeLock() {
+  const shouldHold = S.pomodoro.startedAt !== null && document.visibilityState === 'visible';
+  if (!shouldHold) {
+    pomodoroWakeLockFailed = false;
+    const lock = pomodoroWakeLock;
+    pomodoroWakeLock = null;
+    if (lock) {
+      try { await lock.release(); } catch { /* O bloqueio de tela é opcional. */ }
+    }
+    return;
+  }
+  const wakeLock = navigator.wakeLock;
+  if (!wakeLock || typeof wakeLock.request !== 'function' || pomodoroWakeLock || pomodoroWakeLockPending || pomodoroWakeLockFailed) return;
+  pomodoroWakeLockPending = wakeLock.request('screen').then(async (lock) => {
+    if (S.pomodoro.startedAt === null || document.visibilityState !== 'visible') {
+      try { await lock.release(); } catch { /* O bloqueio de tela é opcional. */ }
+      return;
+    }
+    pomodoroWakeLock = lock;
+    lock.addEventListener('release', () => {
+      if (pomodoroWakeLock === lock) pomodoroWakeLock = null;
+      if (!pomodoroWakeLockFailed && S.pomodoro.startedAt !== null && document.visibilityState === 'visible') {
+        void syncPomodoroWakeLock();
+      }
+    }, { once: true });
+  }).catch(() => {
+    pomodoroWakeLockFailed = true;
+  }).finally(() => {
+    pomodoroWakeLockPending = null;
+  });
+  await pomodoroWakeLockPending;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') pomodoroWakeLockFailed = false;
+  void syncPomodoroWakeLock();
+});
 function activatePomodoroAudio() {
   if (pomodoroAudioUnavailable) return;
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
@@ -2169,6 +2276,7 @@ function togglePomodoroTimer() {
     timer = { ...timer, startedAt: now };
   }
   S.pomodoro = timer;
+  void syncPomodoroWakeLock();
   commit('pomodoro');
   syncPomodoroPushSchedule(timer);
   updatePomodoroMiniTimer(now);
@@ -2198,6 +2306,7 @@ function finishPomodoro() {
   const focusedSeconds = timer.elapsedSeconds + (timer.phase === 'focus' ? phaseElapsedSeconds(timer) : 0);
   if (focusTask && focusedSeconds > 0) focusTask.focusSeconds = (focusTask.focusSeconds || 0) + focusedSeconds;
   S.pomodoro = standaloneTimerReset(timer);
+  void syncPomodoroWakeLock();
   commit(...(timer.focusTaskId ? ['pomodoro', 'tasks'] : ['pomodoro']));
   syncPomodoroPushSchedule(S.pomodoro);
   toast('Sessão encerrada.');
@@ -2206,6 +2315,7 @@ function discardPomodoro() {
   const previous = S.pomodoro;
   clearPomodoroNotifications();
   S.pomodoro = standaloneTimerReset(previous);
+  void syncPomodoroWakeLock();
   commit('pomodoro');
   syncPomodoroPushSchedule(S.pomodoro);
   toast('Pomodoro descartado.', () => {
@@ -2774,9 +2884,14 @@ function updateHabitIdeaFilters() {
     && ui.habitIdeaTag === 'all'
     && !String(ui.habitIdeaQuery || '').trim();
   const previewOnly = defaultView && !ui.habitIdeasExpanded;
+  const firstUsePreview = S.habits.length === 0 && previewOnly;
   document.querySelectorAll('[data-habit-idea]').forEach((button) => {
     button.hidden = !visibleIds.has(button.dataset.id) || (previewOnly && button.dataset.preview === 'true');
   });
+  const ideaTools = document.querySelector('.habit-idea-tools');
+  if (ideaTools) ideaTools.hidden = firstUsePreview;
+  const ideaCategories = document.querySelector('.habit-idea-categories');
+  if (ideaCategories) ideaCategories.classList.toggle('is-preview', firstUsePreview);
   document.querySelectorAll('.habit-idea-section').forEach((section) => {
     section.hidden = !section.querySelector('[data-habit-idea]:not([hidden])');
   });
@@ -2937,13 +3052,14 @@ function viewPomodoro() {
               </label>
               <button type="button" class="btn" data-action="preview-pomodoro-sound">Ouvir toque</button>
             </div>
+            <label class="check free-pomodoro-auto"><input type="checkbox" data-change="vibration-enabled" ${settingsView().prefs.vibrationEnabled ? raw('checked') : ''}><span><b>Vibração leve</b><small class="muted">Ao concluir uma tarefa ou terminar um bloco de foco. Desativada por padrão.</small></span></label>
           </form>
     </details>
     <details class="card pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
-        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</small><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos nos dois' : 'Opcionais · compartilhados'}</small><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
         <div class="pomodoro-push-content">
-          <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p></div>
-          <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
+          <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p><p class="small muted">A inscrição é compartilhada com Hábitos: este controle ativa ou desativa os avisos de ambos neste dispositivo.</p></div>
+          <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
           <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
@@ -3158,7 +3274,13 @@ function aparencia(s) {
       <div class="appearance-settings-option"><span class="appearance-settings-label">Tamanho do texto</span>${settingsSegment(L, 'font', 'Tamanho do texto', [['s', 'Pequeno', '', 'sample'], ['m', 'Médio', '', 'sample'], ['l', 'Grande', '', 'sample']])}</div>
       <div class="appearance-settings-option"><span class="appearance-settings-label">Espaçamento</span>${settingsSegment(L, 'density', 'Espaçamento', [['comfy', 'Confortável'], ['compact', 'Compacto']])}</div>
     </div>`)}
-    ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`)}
+    ${group('appearance-accessibility-title', 'Acessibilidade', 'Personalize contraste, leitura, links e movimento para todas as telas.', h`<div class="accessibility-options accessibility-settings-options">
+      ${accessibilityOption('settings-accessibility-contrast', 'accessibility-contrast', 'Alto contraste', 'Reforça textos, bordas e foco.', L.contrast)}
+      ${accessibilityOption('settings-accessibility-readable', 'accessibility-readable', 'Legibilidade aprimorada', 'Usa uma fonte simples e aumenta o espaçamento entre linhas.', L.readable)}
+      ${accessibilityOption('settings-accessibility-links', 'accessibility-links', 'Destacar links', 'Sublinha os links para identificá-los com mais facilidade.', L.highlightLinks)}
+      ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
+    </div>`)}
+    ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
     ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
     ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
       <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
@@ -3167,10 +3289,19 @@ function aparencia(s) {
     ${settingsSaveButton()}
   </form>`;
 }
+function firstName(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return normalized.split(/\s+/)[0];
+}
 function profileDraftFromSettings(settings) {
+  const baseName = String(settings.profile.name || '');
+  const preferred = settings.profile.preferredName && settings.profile.preferredName.trim()
+    ? settings.profile.preferredName
+    : firstName(baseName);
   return {
-    name: settings.profile.name,
-    preferredName: settings.profile.preferredName || settings.profile.name,
+    name: baseName,
+    preferredName: preferred,
     sex: settings.profile.sex || '',
     age: settings.profile.age == null ? '' : String(settings.profile.age),
     appearance: normalizeProfileAppearance(settings.prefs.profileAppearance),
@@ -3184,37 +3315,38 @@ function profileSettings(s) {
   const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
-    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>Personalize como o Aurora se apresenta para você. Seu nome preferido, símbolo e saudação podem ser ajustados a qualquer momento.</p></div>
-    <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela inicial</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
+    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>É assim que o Aurora se apresenta para você. Mude quando quiser.</p></div>
+    <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela Início</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
     <section class="profile-settings-group" aria-labelledby="profile-name-title">
-      <div><h3 id="profile-name-title">Informações do perfil</h3><p>Você pode alterar estas informações quando quiser. Não perguntamos sua orientação sexual.</p></div>
+      <div><h3 id="profile-name-title">Informações do perfil</h3></div>
       <div class="form profile-settings-fields">
         <label class="f" for="pname">Nome<input type="text" id="pname" data-profile-field="name" value="${p.name}" maxlength="50" autocomplete="name" required></label>
-        <label class="f" for="ppreferred">Como prefere ser chamado(a)?<input type="text" id="ppreferred" data-profile-field="preferredName" value="${p.preferredName}" maxlength="50" autocomplete="nickname" required></label>
-        <label class="f" for="psex">Identidade de gênero<select id="psex" data-profile-field="sex" required aria-describedby="profile-sex-help"><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Inclui opções para pessoas cis, trans e não binárias. Você também pode preferir não informar.</span></label>
+        <label class="f" for="ppreferred">Como prefere ser chamada?<input type="text" id="ppreferred" data-profile-field="preferredName" value="${p.preferredName}" maxlength="50" autocomplete="nickname" aria-describedby="profile-preferred-help" placeholder="${firstName(p.name) || 'Elisa'}"><span class="profile-field-help" id="profile-preferred-help">É o nome que aparece na saudação.</span></label>
+        <label class="f" for="psex">Identidade de gênero · opcional<select id="psex" data-profile-field="sex" aria-describedby="profile-sex-help"><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Só você vê. Pode deixar em branco.</span></label>
+        <label class="f" for="page">Idade · opcional<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Usamos só para sugerir a meta de água nos Hábitos.</span></label>
       </div>
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
-      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Sua identidade visual</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
       <div class="profile-appearance-controls">
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo do perfil</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor do símbolo</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true"></span></button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação no Início</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Cor</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`)}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
-    <section class="profile-settings-group" aria-labelledby="profile-estimate-title">
-      <div><h3 id="profile-estimate-title">Idade</h3><p>Informe sua idade para usá-la na estimativa ao adicionar o hábito de água. Você pode deixar em branco.</p></div>
-      <div class="form profile-settings-fields">
-        <label class="f" for="page">Idade (anos)<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Informe um número inteiro entre 0 e 120 anos.</span></label>
-      </div>
-    </section>
-      <div class="row profile-settings-actions"><button class="btn primary" type="submit" ${profileDirty ? '' : raw('disabled')}>Salvar perfil e preferências</button></div>
-      </form>
+  </form>
+  </div>`;
+}
+function accountSettings(s) {
+  return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Acesso à conta<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Conta e ajuda<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+    </section>
+    <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
+      <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
     </section>
     <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
-      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Consulte os documentos do Aurora ou entre em contato.</p></div></div>
+      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
       <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:lisjustino@gmail.com">Falar com o Aurora</a></div>
     </section>
   </div>`;
@@ -3230,10 +3362,15 @@ function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEAR
 const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'personalization', calendar: 'personalization', areas: 'areas-navigation', navigation: 'areas-navigation' };
 const settingsTabId = (id) => LEGACY_SETTINGS_TABS[id] || id;
 const SETTINGS_SECTIONS = [
-  ['profile', 'Seu perfil', 'user', 'Nome, identidade de gênero e idade'],
-  ['personalization', 'Personalização', 'sun', 'Tema, cores, leitura e calendário'],
-  ['areas-navigation', 'Áreas e navegação', 'grid', 'Ativar áreas e organizar os menus'],
-  ['data', 'Dados e backup', 'archive', 'Importação e cópias de segurança'],
+  ['profile', 'Seu perfil', 'user', 'Nome, saudação e idade'],
+  ['personalization', 'Personalização', 'sun', 'Tema, cores e leitura'],
+  ['areas-navigation', 'Áreas e navegação', 'grid', 'Ativar áreas e ordenar menu'],
+  ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
+  ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
+];
+const SETTINGS_SECTION_GROUPS = [
+  { label: 'Preferências', items: ['profile', 'personalization', 'areas-navigation', 'data'] },
+  { label: 'Conta', items: ['account'] },
 ];
 function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
@@ -3693,17 +3830,37 @@ function settingsSectionContent(s, p, selectedTab) {
     case 'personalization': return aparencia(s);
     case 'areas-navigation': return areasNavigationSettings(s);
     case 'data': return dataSettings(p);
+    case 'account': return accountSettings(s);
     default: return profileSettings(s);
   }
+}
+function unsavedSettingsBanner() {
+  const hasProfile = Boolean(ui.profileDraft);
+  const hasOtherChanges = settingsDraftDirty();
+  if (!hasProfile && !hasOtherChanges) return '';
+  const mobile = window.matchMedia('(max-width: 760px)').matches;
+  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas">
+    <span>${mobile ? 'Alterações não salvas' : 'Você tem alterações não salvas'}</span>
+    <div class="settings-unsaved-actions">
+      <button type="button" class="btn sm back" data-action="profile-discard">Descartar</button>
+      <button type="button" class="btn sm primary" data-action="profile-save" ${ui.profileSaving ? raw('disabled') : ''}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+    </div>
+  </div>`;
 }
 function viewConfig() {
   const s = S.settings, p = s.prefs;
   const requestedTab = settingsTabId(ui.settingsTab);
   const selected = SETTINGS_SECTIONS.some(([id]) => id === requestedTab) ? requestedTab : 'profile';
   const content = settingsSectionContent(s, p, selected);
-  return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}
+  const menuGroups = SETTINGS_SECTION_GROUPS.map((group) => h`<div class="settings-menu-group"><span class="settings-menu-heading">${group.label}</span>${group.items.map((id) => {
+    const section = SETTINGS_SECTIONS.find(([item]) => item === id);
+    if (!section) return '';
+    const [key, label, ic, description] = section;
+    return h`<a class="settings-link" href="#config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
+  })}</div>`);
+  return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}${unsavedSettingsBanner()}
     <div class="settings-layout">
-      <nav class="settings-menu" aria-label="Opções de Ajustes"><span class="settings-menu-heading">Preferências</span>${SETTINGS_SECTIONS.map(([id, label, ic, description]) => h`<a class="settings-link" href="#config?section=${encodeURIComponent(id)}" data-action="settings-section" data-settings-tab="${id}" aria-controls="settings-content" ${selected === id ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`)}</nav>
+      <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
       <div class="settings-content" id="settings-content">${content}</div>
     </div>`;
 }
@@ -3815,6 +3972,7 @@ const dlgDiscardChanges = () => {
   if (pending?.onDiscard) pending.onDiscard();
 }
 const dlgClose = () => {
+  if (ui.dlg?.type === 'account-delete' && ui.dlg.d.pending) return;
   if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   if (ui.dlg?.type === 'onboard') {
     finishOnboard(true);
@@ -4148,6 +4306,14 @@ DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alter
    e as mudanças são agrupadas para o painel não acompanhar a animação do teclado quadro a quadro. */
 let fitTimer = 0;
 let releaseDialogScroll = null;
+let dialogHistoryEntry = false;
+let dialogHistoryScrollPosition = null;
+function restoreDialogHistoryScroll(position) {
+  if (!position) return;
+  requestAnimationFrame(() => {
+    window.scrollTo({ left: position.left, top: position.top, behavior: 'instant' });
+  });
+}
 function applyFitDlg() {
   const el = $('#dlg'), v = window.visualViewport; if (!el) return;
   const keyboard = v && window.innerHeight - v.height > 120;
@@ -4164,10 +4330,57 @@ function fitDlg() { applyFitDlg(); }
 function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(applyFitDlg, 90); }
 if (window.visualViewport) visualViewport.addEventListener('resize', fitDlgSoon);
 window.addEventListener('resize', fitDlgSoon);
+let keyboardFocusTarget = null;
+function keepKeyboardControlVisible() {
+  const viewport = window.visualViewport;
+  const target = keyboardFocusTarget;
+  if (!viewport || !target?.isConnected || window.innerHeight - viewport.height <= 120) return;
+  requestAnimationFrame(() => {
+    if (!target.isConnected) return;
+    const bounds = target.getBoundingClientRect();
+    const top = viewport.offsetTop + 12;
+    const bottom = viewport.offsetTop + viewport.height - 16;
+    if (bounds.top < top || bounds.bottom > bottom) {
+      target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }
+  });
+}
+document.addEventListener('focusin', (event) => {
+  const target = event.target;
+  keyboardFocusTarget = target instanceof HTMLElement
+    && target.matches('#app input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="range"], [type="color"]), #app textarea, #app select, #dlg input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="range"], [type="color"]), #dlg textarea, #dlg select')
+    ? target
+    : null;
+  keepKeyboardControlVisible();
+});
+document.addEventListener('focusout', (event) => {
+  if (event.target === keyboardFocusTarget) keyboardFocusTarget = null;
+});
+if (window.visualViewport) visualViewport.addEventListener('resize', keepKeyboardControlVisible);
+window.addEventListener('popstate', (event) => {
+  if (!dialogHistoryEntry || event.state?.auroraDialog === true) return;
+  dialogHistoryEntry = false;
+  const scrollPosition = dialogHistoryScrollPosition;
+  dialogHistoryScrollPosition = null;
+  if (ui.dlg) {
+    ui.dlg = null;
+    render();
+  }
+  restoreDialogHistoryScroll(scrollPosition);
+});
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
   if (!ui.dlg) {
+    if (dialogHistoryEntry) {
+      dialogHistoryEntry = false;
+      const scrollPosition = dialogHistoryScrollPosition;
+      dialogHistoryScrollPosition = null;
+      if (scrollPosition) {
+        window.addEventListener('popstate', () => restoreDialogHistoryScroll(scrollPosition), { once: true });
+      }
+      history.back();
+    }
     if (el) {
       el.remove();
       $('#app').inert = false;
@@ -4178,6 +4391,12 @@ function renderDialog() {
     releaseDialogScroll?.();
     releaseDialogScroll = null;
     return;
+  }
+  if (!dialogHistoryEntry) {
+    const state = history.state && typeof history.state === 'object' ? history.state : {};
+    dialogHistoryScrollPosition = getPageScrollPosition();
+    history.pushState({ ...state, auroraDialog: true }, '', location.href);
+    dialogHistoryEntry = true;
   }
   const isIntro = ui.dlg.type === 'intro', isCycleLog = ui.dlg.type === 'cycle-log';
   const isCyclePeriod = ui.dlg.type === 'cycle-period';
@@ -4259,7 +4478,7 @@ function buildBackup() {
       preferredName: (s.profile.preferredName || s.profile.name).slice(0, 50),
     },
     tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
-    areas: s.areas, theme: s.theme === 'custom' ? 'rose' : s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
+    areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
     extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: s.prefs, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
 async function doExport() {
@@ -4409,6 +4628,9 @@ const ACTIONS = {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
+  'pwa-install': () => {
+    startPwaInstallPrompt();
+  },
   'pwa-update-dismiss': () => {
     ui.pwaUpdateDismissed = true;
     renderPwaUpdateNotice();
@@ -4467,6 +4689,24 @@ const ACTIONS = {
     render();
     toast('Alterações descartadas.');
   },
+  'profile-discard': () => {
+    ui.profileDraft = null;
+    if (settingsDraftDirty()) {
+      ui.settingsDraft = null;
+      ui.settingsDraftBase = null;
+    }
+    render();
+    toast('Alterações descartadas.');
+  },
+  'profile-save': () => {
+    if (ui.profileDraft) {
+      void ACTIONS['settings-profile']();
+      return;
+    }
+    if (settingsDraftDirty()) {
+      void saveSettingsDraft();
+    }
+  },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
   'home-quick-focus': () => {
@@ -4509,6 +4749,7 @@ const ACTIONS = {
     }
     if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a conclusão da tarefa')) return;
     if (completing) {
+      vibrateFeedback();
       completionFeedback(`.task[data-k="${task.id}"]`);
       const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
       toast(message, () => {
@@ -4559,17 +4800,6 @@ const ACTIONS = {
   },
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
-  'accessibility-toggle': () => { ui.accessibilityOpen = !ui.accessibilityOpen; render(); if (ui.toast) renderToast(); $('#accessibility-trigger')?.focus({ preventScroll: true }); },
-  'accessibility-close': () => closeAccessibility(),
-  'accessibility-font': (el) => {
-    const fonts = ['s', 'm', 'l'];
-    const current = fonts.indexOf(settingsView().look.font);
-    const next = Math.max(0, Math.min(fonts.length - 1, current + Number(el.dataset.step)));
-    const focusId = fonts[next] === 's' ? 'accessibility-font-up'
-      : fonts[next] === 'l' ? 'accessibility-font-down' : el.id;
-    updateAccessibilityLook({ font: fonts[next] }, focusId);
-  },
-  'accessibility-font-reset': () => updateAccessibilityLook({ font: 'm' }, 'accessibility-font-up'),
   'backup-reminder-dismiss': () => { ui.backupReminderHidden = true; render(); },
   'task-focus': (el) => {
     const task = findTask(el.dataset.id);
@@ -4587,19 +4817,12 @@ const ACTIONS = {
     }
     nav('pomodoro');
   },
-  'accessibility-mode': (el) => { setThemeMode(el.dataset.v); $(`#accessibility-mode-${el.dataset.v}`)?.focus(); },
-  'accessibility-more': () => { ui.accessibilityOpen = false; },
-  'accessibility-dark': (el) => {
-    const look = settingsView().look;
-    const isDark = look.mode === 'dark' || (look.mode === 'auto' && systemThemeQuery?.matches);
-    updateAccessibilityLook({ mode: isDark ? 'light' : 'dark' }, el.id);
-  },
+  'accessibility-mode': (el) => { setThemeMode(el.dataset.v); document.getElementById(el.id)?.focus(); },
   'accessibility-contrast': (el) => updateAccessibilityLook({ contrast: !settingsView().look.contrast }, el.id),
   'accessibility-readable': (el) => updateAccessibilityLook({ readable: !settingsView().look.readable }, el.id),
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
-  'accessibility-reset': () => { ui.accessibilityOpen = false; ACTIONS['appearance-reset'](); },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-result': (el) => {
     const query = ui.dlg?.d.query || '';
@@ -4660,6 +4883,28 @@ const ACTIONS = {
   },
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
+  'weekly-keep-task': (el) => {
+    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.');
+  },
+  'weekly-defer-task': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task || task.done || !isDay(task.dueDate)) return;
+    const previousDate = task.dueDate;
+    const snapshot = snapshotSlices(['tasks']);
+    task.dueDate = addDays(task.dueDate, 7);
+    const deferredDate = task.dueDate;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o adiamento da tarefa')) return;
+    toast('Tarefa adiada por uma semana.', () => {
+      const currentTask = findTask(el.dataset.id);
+      if (!currentTask || currentTask.dueDate !== deferredDate) {
+        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.');
+        return;
+      }
+      const current = snapshotSlices(['tasks']);
+      currentTask.dueDate = previousDate;
+      saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
+    });
+  },
   'weekly-save-reflection': () => {
     const text = String($('#weekly-reflection')?.value || '').trim().slice(0, 500);
     const weekOf = weekDays(today(), weekStartDay())[0];
@@ -5378,7 +5623,61 @@ function finishOnboard(skip = false) {
 
 /* ---- Formulários ---- */
 const num = (v) => Number(String(v).replace(',', '.'));
+async function deleteAccountFromSettings(form) {
+  const submit = document.querySelector('[data-account-delete-submit]');
+  const message = form.querySelector('[data-account-delete-message]');
+  const showError = (text) => {
+    message.textContent = text;
+    message.hidden = false;
+    if (submit) submit.disabled = false;
+    if (ui.dlg?.type === 'account-delete') ui.dlg.d.pending = false;
+  };
+  if (!accountSession) return showError('Entre na conta que deseja excluir.');
+  if (ui.legacyImport.busy) return showError('Aguarde a importação terminar antes de excluir a conta.');
+  if (String(new FormData(form).get('deleteConfirmation') || '') !== 'EXCLUIR') {
+    return showError('Digite EXCLUIR exatamente como aparece para confirmar.');
+  }
+
+  if (submit) submit.disabled = true;
+  if (ui.dlg?.type === 'account-delete') ui.dlg.d.pending = true;
+  try {
+    if (!await Persist.flush()) {
+      showError('Não foi possível confirmar a sincronização dos dados. Nenhuma exclusão foi solicitada; tente novamente quando a sincronização estiver concluída.');
+      return;
+    }
+
+    const { requestAccountDeletion } = await import('./services/account-auth.js');
+    if (!await requestAccountDeletion(accountSession.client)) {
+      showError('O Aurora não recebeu confirmação da exclusão. Verifique a conexão e o estado da conta antes de tentar novamente.');
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      const subscription = await registration?.pushManager?.getSubscription();
+      if (subscription && !(await subscription.unsubscribe())) {
+        throw new Error('O navegador não confirmou a remoção da inscrição Push local.');
+      }
+    } catch (error) {
+      console.error('Aurora: a conta foi excluída, mas a inscrição Push local não foi removida.', error);
+    }
+    try {
+      const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
+      if (error) console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', error);
+    } catch (error) {
+      console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', error);
+    }
+    Persist.wipe();
+    resetGoogleCalendarState();
+    history.replaceState(null, '', postSignOutPath(location));
+    location.reload();
+  } catch (error) {
+    console.error('Aurora: não foi possível confirmar a exclusão permanente da conta.', error);
+    showError('Não foi possível confirmar a exclusão. Verifique o estado da conta antes de tentar novamente.');
+  }
+}
 const FORMS = {
+  'account-delete': deleteAccountFromSettings,
   'water-add': (f, d) => {
     const habit = S.habits.find((item) => item.id === f.dataset.id);
     if (!habit || !isWaterHabit(habit) || habit.status !== 'active') {
@@ -5407,7 +5706,8 @@ const FORMS = {
     if (saved) toast('Tarefa adicionada para hoje.');
   },
   'settings-save': saveSettingsDraft,
-  'settings-profile': () => {
+  'settings-profile': async () => {
+    if (ui.profileSaving) return;
     const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
     const ageInput = String(draft.age ?? '').trim();
     const age = ageInput ? Number(ageInput) : null;
@@ -5419,21 +5719,29 @@ const FORMS = {
       return;
     }
     const previousSettings = cloneSettings(S.settings);
-    Object.assign(S.settings.profile, {
-      name: draft.name.trim().slice(0, 50),
-      preferredName: draft.preferredName.trim().slice(0, 50),
-      sex: draft.sex,
-      age,
-    });
-    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
-    if (!saveSlices('settings')) {
-      S.settings = previousSettings;
-      render();
-      return;
-    }
-    ui.profileDraft = null;
+    ui.profileSaving = true;
     render();
-    toast('Perfil salvo.');
+    try {
+      Object.assign(S.settings.profile, {
+        name: draft.name.trim().slice(0, 50),
+        preferredName: draft.preferredName.trim().slice(0, 50),
+        sex: draft.sex,
+        age,
+      });
+      S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
+      if (!saveSlices('settings')) {
+        S.settings = previousSettings;
+        render();
+        toast('Não foi possível salvar as alterações. Tente novamente.');
+        return;
+      }
+      ui.profileDraft = null;
+      render();
+      toast('Perfil salvo.');
+    } finally {
+      ui.profileSaving = false;
+      render();
+    }
   },
   'habit': (f, d) => {
     const name = String(d.get('name') || '').trim();
@@ -5704,6 +6012,9 @@ const CHANGES = {
     const output = el.closest('label')?.querySelector('output');
     if (output) output.textContent = `${soundVolume}%`;
   },
+  'vibration-enabled': (el) => {
+    updateSettingsDraft((settings) => { settings.prefs.vibrationEnabled = el.checked; }, false);
+  },
   'import': (el) => { const f = el.files && el.files[0]; void importFile(f); el.value = ''; },
 };
 const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume', 'home-message']);
@@ -5764,8 +6075,7 @@ function checkReminders() {
   if (changed) {
     render();
     if (added) {
-      const announcer = $('#notification-announcer');
-      if (announcer) announcer.textContent = added === 1
+      if (notificationAnnouncer) notificationAnnouncer.textContent = added === 1
         ? 'Novo lembrete disponível. Abra Notificações para conferir.'
         : `${added} novos lembretes disponíveis. Abra Notificações para conferir.`;
     }
@@ -5773,6 +6083,7 @@ function checkReminders() {
 }
 function notifyPomodoroPhase(phase, timer = S.pomodoro) {
   playPomodoroSound();
+  if (phase === 'short-break' || phase === 'long-break') vibrateFeedback();
   clearPomodoroNotifications();
   const pom = pomodoroSettingsForTimer();
   const key = `pomodoro:${timer.completedPomodoros}:${phase}`;
@@ -5789,11 +6100,11 @@ function syncPomodoroTimer(now = Date.now()) {
   if (pomodoroSettingsForTimer().autoAdvance === false) {
     S.pomodoro = { ...advanced.timer, startedAt: null, phaseElapsedSeconds: 0 };
   }
+  void syncPomodoroWakeLock();
   notifyPomodoroPhase(advanced.transitions[advanced.transitions.length - 1], advanced.timer);
   commit('pomodoro');
   const pomodoroAlert = Object.values(ui.alerts).find((alert) => alert.kind === 'pomodoro');
-  const announcer = $('#notification-announcer');
-  if (pomodoroAlert && announcer) announcer.textContent = `${pomodoroAlert.title}. ${pomodoroAlert.detail} Abra Notificações para conferir.`;
+  if (pomodoroAlert) notificationAnnouncer.textContent = `${pomodoroAlert.title}. ${pomodoroAlert.detail} Abra Notificações para conferir.`;
   syncPomodoroPushSchedule(S.pomodoro);
   return true;
 }
@@ -5867,6 +6178,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 window.addEventListener('pageshow', () => {
   syncPomodoroTimer();
+  void syncPomodoroWakeLock();
 });
 document.addEventListener('keydown', (event) => {
   if (ui.route !== 'pomodoro' || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -5916,16 +6228,6 @@ document.addEventListener('click', (e) => {
     if (ui.notificationsOpen) closeNotifications(false);
   }, 0);
 });
-document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (!ui.accessibilityOpen || !(target instanceof Element) || target.closest('.accessibility-control')) return;
-  ui.accessibilityOpen = false;
-  const panel = $('#accessibility-panel');
-  const trigger = $('#accessibility-trigger');
-  if (panel) panel.hidden = true;
-  if (trigger) trigger.setAttribute('aria-expanded', 'false');
-  syncPanelScrollLocks();
-});
 document.addEventListener('submit', (e) => {
   if (e.target instanceof HTMLFormElement && e.target.matches('[data-footer-suggestion]')) {
     e.preventDefault();
@@ -5970,9 +6272,13 @@ document.addEventListener('input', (e) => {
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
   if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
+    const preferredInput = $('#ppreferred');
+    if (el.dataset.profileField === 'name' && preferredInput && !preferredInput.value.trim()) {
+      preferredInput.value = firstName(el.value || '');
+    }
     const draft = {
       name: $('#pname')?.value || '',
-      preferredName: $('#ppreferred')?.value || '',
+      preferredName: preferredInput?.value || '',
       sex: $('#psex')?.value || '',
       age: $('#page')?.value || '',
       appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
@@ -5990,6 +6296,10 @@ document.addEventListener('input', (e) => {
       ui.dlg.d.waterGoalEdited = true;
     }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
+    if (ui.dlg.type === 'payinv' && ['amount', 'times', 'interest'].includes(el.dataset.dlg)) {
+      const preview = $('#dlg [data-pay-invoice-preview]');
+      if (preview) preview.textContent = invoicePlanPreviewText(ui.dlg.d);
+    }
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterWeightKg') {
       updateWaterSuggestionWeight(el.value);
     } else if (ui.dlg.type === 'search' && el.dataset.dlg === 'query') {
@@ -5998,7 +6308,7 @@ document.addEventListener('input', (e) => {
     } else if (ui.dlg.type === 'cycle-log' && el.dataset.dlg === 'log.sexualActivity') {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
       render();
-    } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
+    } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
     }
@@ -6048,7 +6358,6 @@ document.addEventListener('keydown', (e) => {
     dlgOpen('search', { query: '' });
     return;
   }
-  if (e.key === 'Escape' && ui.accessibilityOpen) { e.preventDefault(); closeAccessibility(); return; }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
   if (e.key === 'Escape' && ui.quickActionsOpen) {
     e.preventDefault();
@@ -6125,6 +6434,21 @@ const cardInfo = (card) => calculateCardInfo(S.finance, card, today(), {
   parseDate: pk,
   accountBalance: accBalance,
 });
+function nextCardDueDate(card) {
+  const due = cardInfo(card).due;
+  if (!due) return addMonths(today(), 1);
+  if (due > today()) return due;
+  const nextMonth = shiftMonth(due.slice(0, 7), 1);
+  const lastDay = new Date(Number(nextMonth.slice(0, 4)), Number(nextMonth.slice(5, 7)), 0).getDate();
+  return `${nextMonth}-${pad(Math.min(Number(due.slice(8, 10)), lastDay))}`;
+}
+function scheduledInvoicePrincipal(cardId) {
+  return S.finance.tx
+    .filter((transaction) => transaction.invoiceInstallment
+      && transaction.toAccountId === cardId
+      && !isPaid(transaction))
+    .reduce((sum, transaction) => sum + transaction.cents - (transaction.interestCents || 0), 0);
+}
 const cardDueLabel = (date) => {
   if (!date) return '';
   const days = dayDiff(date, today());
@@ -6160,12 +6484,15 @@ function finRow(t, { showDate = false } = {}) {
     ? h`<span class="user-value">${accName(t.accountId)} → ${accName(t.toAccountId)}</span>`
     : h`<span class="expense-name">${expenseTitle(t.category)}</span> · <span class="user-value">${accName(t.accountId)}</span>`;
   const title = t.type === 'out' ? expenseTitle(t.desc || t.category) : t.desc || (tr ? 'Transferência' : t.category);
-  const canToggle = !tr && !isCredit(acc);
+  const canToggle = t.invoiceInstallment || (!tr && !isCredit(acc));
+  const paymentAction = t.invoiceInstallment
+    ? (paid ? 'Voltar parcela da fatura para pendente' : 'Marcar parcela da fatura como paga')
+    : (t.type === 'in' ? 'Marcar como recebido' : 'Marcar como pago');
   return h`<li class="fr ${paid ? '' : 'pend'}" data-k="${t.id}">
     <button class="fr-main" data-action="edit-tx" data-id="${t.id}" aria-label="Editar ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
-      <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}</span><span class="meta2">${showDate ? h`<span class="tx-date">${t.date === today() ? 'Hoje' : shortDate(t.date)}</span> · ` : ''}${sub}${paid && t.settledDate && t.settledDate !== t.date ? h` · ${t.type === 'in' ? 'recebido' : 'pago'} em ${shortDate(t.settledDate)}` : ''}${!paid ? h` · <span class="m-warn">${t.type === 'in' ? 'A receber' : 'A pagar'}${t.date < today() ? ' · atrasado' : ''}</span>` : ''}</span></span>
+      <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}</span><span class="meta2">${showDate ? h`<span class="tx-date">${t.date === today() ? 'Hoje' : shortDate(t.date)}</span> · ` : ''}${sub}${paid && t.settledDate && t.settledDate !== t.date ? h` · ${t.type === 'in' ? 'recebido' : 'pago'} em ${shortDate(t.settledDate)}` : ''}${t.type === 'out' || t.invoiceInstallment ? t.interestCents != null ? h` · ${t.interestCents === 0 ? 'Sem juros' : h`Juros ${money(t.interestCents)}`}` : '' : ''}${t.type === 'out' && t.anticipatedDate ? h` · Antecipada em ${shortDate(t.anticipatedDate)}` : ''}${!paid ? h` · <span class="m-warn">${t.type === 'in' ? 'A receber' : 'A pagar'}${t.date < today() ? ' · atrasado' : ''}</span>` : ''}</span></span>
       <span class="amt ${t.type}">${t.type === 'in' ? '+' : t.type === 'out' ? '−' : ''}${money(t.cents)}</span></button>
-    ${canToggle ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}" data-action="tx-paid" data-id="${t.id}" aria-label="${t.type === 'in' ? 'Marcar como recebido' : 'Marcar como pago'}: ${title}" title="${paid ? (t.type === 'in' ? 'Recebido' : 'Pago') : (t.type === 'in' ? 'Marcar como recebido' : 'Marcar como pago')}">${icon('check', 16)}</button>` : h`<span class="pk-sp"></span>`}
+    ${canToggle ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}" data-action="tx-paid" data-id="${t.id}" aria-label="${paymentAction}: ${title}" title="${paymentAction}">${icon('check', 16)}</button>` : h`<span class="pk-sp"></span>`}
   </li>`;
 }
 const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><button class="mlabel" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual">${cap(ymLabel(ui.finMonth))}</button><button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
@@ -6212,7 +6539,7 @@ function finRitmo(ym, st, cur) {
   return h`<section class="card finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
-    <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas passaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
+    <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
 }
 function balanceSparkline() {
   const days = Array.from({ length: 7 }, (_, index) => addDays(today(), index - 6));
@@ -6230,6 +6557,7 @@ function categoryBars(items, total) {
 }
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
+  const close = summarizeMonthlyClose(F.tx, ym, accById);
   const forecast = bal + st.inPending - st.outPending;
   const result = st.inAll - st.outAll;
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
@@ -6240,20 +6568,42 @@ function finResumo() {
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const cards = F.accounts.filter(isCredit);
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
+  const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
     .filter((transaction) => !cur || transaction.date <= today())
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 5);
   const bud = Object.entries(F.budgets).filter(([, b]) => b && b.cents > 0), budSpent = bud.reduce((s, [c]) => s + (cats.find(([n]) => n === c)?.[1] || 0), 0), budTot = bud.reduce((s, [, b]) => s + b.cents, 0);
   return h`${monthNav()}
-    <section class="fin-hero" aria-label="Resumo financeiro"><div class="fin-hero-top"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>${balanceSparkline()}
-      <p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando lançamentos pendentes: <b>${money(forecast)}</b>` : h`${cap(ymLabel(ym))}`}</p>
+    <section class="fin-hero" aria-label="Saldo atual das contas">
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras feitas no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="fin-hero-trend">${balanceSparkline()}<p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando os lançamentos pendentes: <b>${money(forecast)}</b>` : h`Resumo de ${cap(ymLabel(ym))}`}</p></div>
+    </section>
+    <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
+      <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês<i>.</i></h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
-        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><small>${money(st.inPaid)} recebidas</small></button>
-        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></button>
+        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
+        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></button>
         <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado</span><b>${money(result)}</b><small>no mês</small></button>
         <button type="button" class="finance-summary-stat is-open" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters aria-label="Ver lançamentos pendentes do mês"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></button>
-      </div></section>
+      </div>
+    </section>
+    <section class="card finance-month-close" aria-labelledby="finance-month-close-title">
+      <div class="head"><div><p class="section-kicker">Revisão por competência</p><h2 id="finance-month-close-title">Fechamento do mês<i>.</i></h2><p class="small muted">${cap(ymLabel(ym))} · compras no cartão entram no mês da compra; pagamento da fatura é uma transferência.</p></div></div>
+      <dl class="finance-close-stats">
+        <div><dt>Resultado do mês</dt><dd class="${close.resultCents < 0 ? 'is-negative' : ''}">${money(close.resultCents)}</dd></div>
+        <div><dt>Já recebido</dt><dd>${money(close.inPaid)}</dd></div>
+        <div><dt>Já pago em contas</dt><dd>${money(close.outPaid)}</dd></div>
+        <div><dt>Pendente em contas</dt><dd>${money(close.pendingInCents + close.pendingOutCents)}</dd><small>${money(close.pendingInCents)} a receber · ${money(close.pendingOutCents)} a pagar</small></div>
+        <div><dt>Lançamentos fixos</dt><dd>${money(close.recurringCents)}</dd><small>${close.recurringCount} ${plural(close.recurringCount, 'lançamento', 'lançamentos')}</small></div>
+        <div><dt>Compras no cartão</dt><dd>${money(close.cardOut)}</dd><small>Não reduz o saldo das contas neste resumo.</small></div>
+      </dl>
+      <div class="finance-close-next">${close.topExpense
+        ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
+        : h`<p>Sem despesas registradas neste mês.</p>`}
+        <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
+      </div>
+    </section>
     ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div>
       <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
       <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
@@ -6319,6 +6669,9 @@ function finLancList() {
 /* ---- Contas e cartões ---- */
 function creditCardCard(card, paymentAccounts) {
   const info = cardInfo(card), percent = card.limitCents ? Math.min(100, Math.round(info.used / card.limitCents * 100)) : 0;
+  const scheduledInstallments = S.finance.tx.filter((transaction) => transaction.invoiceInstallment
+    && transaction.toAccountId === card.id && !isPaid(transaction));
+  const scheduledTotal = scheduledInstallments.reduce((sum, transaction) => sum + transaction.cents, 0);
   const bankName = card.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, card.bank) ? BANKS[card.bank].name : card.bank;
   const paymentAccount = paymentAccounts.find((account) => account.id === card.linkedAccountId);
   const name = accountDisplayName(card);
@@ -6326,6 +6679,7 @@ function creditCardCard(card, paymentAccounts) {
     <div class="cc-inv"><span class="small muted">Compras no ciclo ${MESES_L[Number(info.ym.slice(5)) - 1]}${info.due ? ' · vence ' + shortDate(info.due) : ''}</span><b class="cc-v">${money(info.total)}</b></div>
     ${card.limitCents ? h`<div class="bar ${percent >= 100 ? 'over' : percent >= 80 ? 'near' : ''}" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado do cartão ${name}"><span style="width:${percent}%"></span></div><p class="small muted">Usado ${money(info.used)} de ${money(card.limitCents)} · disponível ${money(info.avail)}</p>` : ''}
     ${paymentAccount ? h`<p class="small muted">Conta preferencial para pagamento: <span class="user-value">${accountOptionLabel(paymentAccount)}</span></p>` : ''}
+    ${scheduledInstallments.length ? h`<p class="small muted">${scheduledInstallments.length} ${plural(scheduledInstallments.length, 'parcela de fatura programada', 'parcelas de fatura programadas')} · ${money(scheduledTotal)} pendentes. Não descontadas do saldo da conta.</p>` : ''}
     <button class="btn sm" data-action="pay-inv" data-id="${card.id}" ${info.used > 0 && paymentAccounts.length ? '' : raw('disabled')}>Pagar fatura</button></li>`;
 }
 function finContas() {
@@ -6390,6 +6744,20 @@ function viewFinancas() {
 
 /* ========== Diálogos de Finanças ========== */
 const moneyIn = (c) => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
+function anticipationCandidates(groupId, fromDate = today()) {
+  const group = S.finance.tx.filter((transaction) => (
+    transaction.groupId === groupId && transaction.type === 'out'
+  ));
+  const accountId = group[0]?.accountId;
+  const credit = isCredit(accById(accountId));
+  return group
+    .filter((transaction) => transaction.accountId === accountId
+      && transaction.date >= today()
+      && transaction.date >= fromDate
+      && !transaction.anticipatedDate
+      && (credit || !isPaid(transaction)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 function newTxDlg(kind = 'out', preferCredit = false) {
   const accs = S.finance.accounts;
   const defaults = recentTransactionDefaults(kind, preferCredit);
@@ -6409,6 +6777,7 @@ function newTxDlg(kind = 'out', preferCredit = false) {
     date: today(),
     settledDate: today(),
     paid: true,
+    interest: '0,00',
     repeat: 'none',
     currentInstallment: '1',
     installmentAmountMode: 'total',
@@ -6447,6 +6816,7 @@ const financeDialogViews = createFinanceDialogViews({
   ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
   accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
   categoryMatch, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
+  anticipationCandidates,
 });
 function dlgTx() { return financeDialogViews.transaction(); }
 function dlgCategoryManager() {
@@ -6525,6 +6895,16 @@ function dlgAccountDelete() {
     <p class="notice warn" role="alert">Você poderá restaurar esses dados por 30 dias. Depois, serão removidos automaticamente.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="acct-del-confirm">Mover para a lixeira</button>`);
 }
+function dlgPermanentlyDeleteAccount() {
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir conta e dados permanentemente?</h2>${closeBtn}</div>
+    <p class="small">Esta ação apagará sua conta e os dados associados. Não será possível recuperá-los. Um novo cadastro com este e-mail só poderá ser feito depois que a exclusão for confirmada.</p>
+    <p class="notice warn" role="alert">Backups JSON baixados no seu dispositivo não serão removidos automaticamente.</p>
+    <form id="dlgform" class="form" data-form="account-delete">
+      ${dlgField('Digite EXCLUIR para confirmar', h`<input id="f0" type="text" name="deleteConfirmation" data-dlg="deleteConfirmation" maxlength="7" pattern="EXCLUIR" autocomplete="off" required>`, 'full')}
+      <p class="notice warn full" data-account-delete-message role="alert" hidden></p>
+    </form>`,
+  h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn danger" form="dlgform" data-account-delete-submit>Excluir conta e dados</button>`);
+}
 function dlgBudget() {
   const d = ui.dlg.d;
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span><i>.</i></h2>${closeBtn}</div>
@@ -6546,12 +6926,34 @@ function dlgDeposit() {
     <form id="dlgform" class="form" data-form="dlg-deposit">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Confirmar</button>`);
 }
+function invoicePlanPreviewText(d) {
+  const principalCents = parseMoney(d.amount), interestCents = parseMoney(d.interest || ''), times = Number(d.times);
+  const totalCents = principalCents + interestCents * times;
+  if (Number.isSafeInteger(principalCents) && principalCents > 0
+    && Number.isSafeInteger(interestCents) && interestCents >= 0
+    && Number.isInteger(times) && times >= 2 && times <= 60
+    && Number.isSafeInteger(totalCents)) {
+    return `Principal em parcelas: ${brl(principalCents)}. Total programado com juros: ${brl(totalCents)}. A programação fica pendente e não reduz o saldo da conta até cada parcela ser marcada como paga.`;
+  }
+  return 'O principal será dividido em centavos pelas parcelas; os juros informados serão adicionados a cada uma. A programação fica pendente e não reduz o saldo da conta até cada parcela ser marcada como paga.';
+}
 function dlgPayInv() {
   const d = ui.dlg.d, card = accById(d.cardId), srcs = S.finance.accounts.filter((a) => !isCredit(a));
+  const installments = d.mode === 'installments';
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Pagar fatura<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">${card ? h`<span class="user-value">${accountDisplayName(card)}</span>` : ''}: o pagamento sai da conta escolhida e reduz o valor em aberto do cartão.</p>
-    <form id="dlgform" class="form" data-form="dlg-payinv">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`, 'full')}${dlgField('Pagar com', h`<select data-dlg="from">${srcs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.from ? raw('selected') : ''}>${accountOptionLabel(a)} · ${money(accBalance(a))}</option>`)}</select>`, 'full')}</form>`,
-    h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Pagar</button>`);
+    <form id="dlgform" class="form" data-form="dlg-payinv">
+      ${dlgField('Forma de pagamento', h`<select data-dlg="mode"><option value="single" ${!installments ? raw('selected') : ''}>Pagamento único</option><option value="installments" ${installments ? raw('selected') : ''}>Parcelar fatura</option></select>`, 'full')}
+      ${dlgField(h`${installments ? 'Valor da fatura a parcelar' : 'Valor'} (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`, 'full')}
+      ${dlgField('Pagar com', h`<select data-dlg="from">${srcs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.from ? raw('selected') : ''}>${accountOptionLabel(a)} · ${money(accBalance(a))}</option>`)}</select>`, 'full')}
+      ${installments ? h`
+        ${dlgField('Número de parcelas', h`<input type="number" data-dlg="times" min="2" max="60" step="1" value="${d.times || '2'}" inputmode="numeric" required>`)}
+        ${dlgField(h`Juros em cada parcela (<span class="money">R$</span>)`, h`<input class="money-input" type="text" inputmode="decimal" data-dlg="interest" value="${formatMoneyInput(d.interest || '0,00')}" required>`)}
+        ${dlgField('Vencimento da primeira parcela', h`<input type="date" data-dlg="firstDueDate" value="${d.firstDueDate || ''}" min="${today()}" required>`, 'full')}
+        <p class="fine full" data-pay-invoice-preview>${invoicePlanPreviewText(d)}</p>
+      ` : ''}
+    </form>`,
+    h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">${installments ? 'Programar parcelas' : 'Pagar'}</button>`);
 }
 function dlgTxDel() {
   const d = ui.dlg.d, t = S.finance.tx.find((x) => x.id === d.id) || {}, g = S.finance.tx.filter((x) => x.groupId === d.gid), after = g.filter((x) => x.date >= (t.date || ''));
@@ -6563,7 +6965,20 @@ function dlgTxDel() {
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
     <div class="more">${opt('one', 'Só este', '1 lançamento')}${opt('next', 'Este e os próximos', after.length + ' lançamentos')}${opt('all', 'Toda a série', g.length + ' lançamentos')}</div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
 }
-Object.assign(DLG, { txdel: dlgTxDel, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
+function dlgTxAnticipate() {
+  const d = ui.dlg.d, transaction = S.finance.tx.find((item) => item.id === d.id);
+  const installments = anticipationCandidates(d.groupId, d.fromDate), card = isCredit(accById(transaction?.accountId));
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Antecipar parcelas<i>.</i></h2>${closeBtn}</div>
+    ${card
+      ? h`<p class="small muted">Selecione as parcelas e a data do registro. No cartão, a antecipação fica anotada sem criar pagamento nem alterar saldos; o pagamento da fatura continua sendo uma transferência separada.</p>`
+      : h`<p class="small muted">Selecione as parcelas e a data em que foram pagas. Os meses originais permanecem; o pagamento será considerado no fluxo de caixa nessa data.</p>`}
+    ${installments.length ? h`<form id="dlgform" class="form" data-form="dlg-txanticipate">
+      ${dlgField('Data da antecipação', h`<input id="f0" type="date" data-dlg="date" value="${d.date}" max="${today()}" required>`, 'full')}
+      <fieldset class="finance-anticipation-list full"><legend class="small">Parcelas disponíveis</legend>${installments.map((item) => h`<label class="row"><input type="checkbox" data-advance-id="${item.id}"><span class="grow">${item.desc || 'Parcela'} · ${shortDate(item.date)}</span><b>${money(item.cents)}</b></label>`)}</fieldset>
+    </form>` : h`<p class="fine">Não há parcelas futuras disponíveis para antecipar.</p>`}`,
+    h`<button class="btn back" data-action="dlg-close">Cancelar</button>${installments.length ? h`<button class="btn primary" type="submit" form="dlgform">Confirmar antecipação</button>` : ''}`);
+}
+Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
 const F_ = () => S.finance;
@@ -6626,26 +7041,41 @@ Object.assign(ACTIONS, {
     }
     render();
   },
-  'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', recId: t.recId || '' }); },
+  'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), interest: t.interestCents == null ? '' : moneyIn(t.interestCents) || '0,00', desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', groupId: t.groupId || '', recId: t.recId || '' }); },
+  'tx-anticipate-open': () => {
+    const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
+    if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.');
+    if (!anticipationCandidates(transaction.groupId, transaction.date).length) return toast('Não há parcelas futuras disponíveis para antecipar.');
+    dlgOpen('txanticipate', { id: transaction.id, groupId: transaction.groupId, fromDate: transaction.date, date: today() });
+  },
   'tx-paid': (el) => {
     const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
     if (!transaction) return;
-    const wasPaid = isPaid(transaction), previousSettledDate = transaction.settledDate;
+    const wasPaid = isPaid(transaction), previousSettledDate = transaction.settledDate, previousAnticipatedDate = transaction.anticipatedDate;
     transaction.paid = !wasPaid;
     if (transaction.paid && !isCredit(accById(transaction.accountId))) transaction.settledDate = today();
-    else delete transaction.settledDate;
+    else {
+      delete transaction.settledDate;
+      if (!transaction.paid) delete transaction.anticipatedDate;
+    }
     commit('finance');
     if (transaction.paid) completionFeedback(`.fr[data-k="${transaction.id}"]`);
     toast(transaction.paid
-      ? (transaction.type === 'in' ? 'Marcado como recebido.' : 'Marcado como pago.')
+      ? (transaction.invoiceInstallment ? 'Parcela da fatura marcada como paga.' : transaction.type === 'in' ? 'Marcado como recebido.' : 'Marcado como pago.')
       : 'Voltou para pendente.', () => {
       transaction.paid = wasPaid;
       if (previousSettledDate) transaction.settledDate = previousSettledDate;
       else delete transaction.settledDate;
+      if (previousAnticipatedDate) transaction.anticipatedDate = previousAnticipatedDate;
+      else delete transaction.anticipatedDate;
       commit('finance');
     });
   },
   'tx-del-dlg': () => { const cur = S.finance.tx.find((x) => x.id === ui.dlg.d.id); if (!cur) return dlgClose(); dlgOpen('txdel', { id: cur.id, ...(cur.groupId && S.finance.tx.filter((x) => x.groupId === cur.groupId).length > 1 ? { gid: cur.groupId } : {}) }); },
+  'account-delete-open': () => {
+    if (!accountSession) return toast('Entre na conta que deseja excluir.');
+    dlgOpen('account-delete');
+  },
   'txdel-do': (el) => {
     const d = ui.dlg.d, t = S.finance.tx.find((x) => x.id === d.id);
     if (!t) return dlgClose();
@@ -6758,10 +7188,49 @@ Object.assign(ACTIONS, {
       cardId: card.id,
       amount: moneyIn(Math.min(info.total || info.used, info.used) || info.used),
       from: source.id,
+      mode: 'single',
+      times: '2',
+      interest: '0,00',
+      firstDueDate: nextCardDueDate(card),
     });
   },
 });
 Object.assign(FORMS, {
+  'dlg-txanticipate': () => {
+    const d = ui.dlg.d, eligible = anticipationCandidates(d.groupId, d.fromDate);
+    const selectedIds = new Set(Array.from(document.querySelectorAll('#dlg [data-advance-id]:checked'))
+      .map((input) => input.dataset.advanceId));
+    const selected = eligible.filter((transaction) => selectedIds.has(transaction.id));
+    if (!isDay(d.date) || d.date > today()) return fieldError('Informe uma data válida de antecipação, até hoje.', '[data-dlg="date"]');
+    if (!selected.length || selected.length !== selectedIds.size) return toast('Selecione uma ou mais parcelas disponíveis.');
+    const card = isCredit(accById(selected[0].accountId));
+    const previous = selected.map((transaction) => ({
+      transaction,
+      paid: Object.hasOwn(transaction, 'paid') ? transaction.paid : undefined,
+      settledDate: Object.hasOwn(transaction, 'settledDate') ? transaction.settledDate : undefined,
+      anticipatedDate: Object.hasOwn(transaction, 'anticipatedDate') ? transaction.anticipatedDate : undefined,
+    }));
+    selected.forEach((transaction) => {
+      transaction.anticipatedDate = d.date;
+      if (!card) {
+        transaction.paid = true;
+        transaction.settledDate = d.date;
+      }
+    });
+    ui.dlg = null;
+    commit('finance');
+    toast(`${selected.length} ${plural(selected.length, 'parcela antecipada', 'parcelas antecipadas')}.`, () => {
+      previous.forEach(({ transaction, paid, settledDate, anticipatedDate }) => {
+        if (paid === undefined) delete transaction.paid;
+        else transaction.paid = paid;
+        if (settledDate === undefined) delete transaction.settledDate;
+        else transaction.settledDate = settledDate;
+        if (anticipatedDate === undefined) delete transaction.anticipatedDate;
+        else transaction.anticipatedDate = anticipatedDate;
+      });
+      commit('finance');
+    });
+  },
   'dlg-tx': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), tr = d.kind === 'tr', acc = accById(d.accountId);
     if (!(cents > 0)) return fieldError('Informe um valor maior que zero.', '[data-dlg="amount"]');
@@ -6782,6 +7251,18 @@ Object.assign(FORMS, {
       if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.');
       if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.');
     }
+    const totalInstallments = d.repeat === 'parcel' ? Number(d.times) : 1;
+    const firstInstallment = d.repeat === 'parcel' ? Number(d.currentInstallment) : 1;
+    const interestInput = d.kind === 'out' && (d.id ? d.groupId : d.repeat === 'parcel')
+      ? String(d.interest || '').trim()
+      : '';
+    const interestCents = interestInput ? parseMoney(interestInput) : undefined;
+    const installmentCents = d.repeat === 'parcel' && d.installmentAmountMode !== 'installment'
+      ? Math.floor(cents / totalInstallments) + (firstInstallment === 1 ? cents % totalInstallments : 0)
+      : cents;
+    if (interestInput && (!Number.isSafeInteger(interestCents) || interestCents < 0 || interestCents > installmentCents)) {
+      return fieldError('Informe juros válidos, entre zero e o valor da parcela.', '[data-dlg="interest"]');
+    }
     const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : d.category, desc: d.desc.trim().slice(0, 80) };
     if (tr) base.toAccountId = d.toAccountId;
     const paid = tr || isCredit(acc) ? true : !!d.paid;
@@ -6791,6 +7272,9 @@ Object.assign(FORMS, {
       if (!t) return dlgClose();
       Object.assign(t, base, { cents, date: d.date, paid });
       if (!tr) delete t.toAccountId;
+      if (base.type === 'out' && d.groupId && interestCents !== undefined) t.interestCents = interestCents;
+      else delete t.interestCents;
+      if (base.type !== 'out' || (!isCredit(acc) && !paid)) delete t.anticipatedDate;
       if (settledDate) t.settledDate = settledDate;
       else delete t.settledDate;
       ui.finMonth = d.date.slice(0, 7);
@@ -6802,8 +7286,6 @@ Object.assign(FORMS, {
       const r = { id: newId(), type: d.kind, accountId: d.accountId, category: base.category, desc: base.desc, cents, day: pk(d.date).getDate(), startYM: d.date.slice(0, 7), lastYM: null, firstPaid: paid };
       recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.'); return;
     }
-    const totalInstallments = d.repeat === 'parcel' ? Number(d.times) : 1;
-    const firstInstallment = d.repeat === 'parcel' ? Number(d.currentInstallment) : 1;
     const installmentsToCreate = totalInstallments - firstInstallment + 1;
     const gid = totalInstallments > 1 ? newId() : undefined;
     for (let offset = 0; offset < installmentsToCreate; offset++) {
@@ -6822,6 +7304,7 @@ Object.assign(FORMS, {
         date: installmentDate,
         paid: installmentPaid,
         ...(!isCredit(acc) && installmentPaid ? { settledDate: offset === 0 ? settledDate : installmentDate } : {}),
+        ...(interestCents !== undefined ? { interestCents: offset === 0 ? interestCents : 0 } : {}),
         createdAt: Date.now() + offset,
         ...(totalInstallments > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${installmentNumber}/${totalInstallments})` } : {}),
       });
@@ -6899,6 +7382,45 @@ Object.assign(FORMS, {
     if (!card || !isCredit(card) || !source || isCredit(source) || source.id === card.id) return toast('Escolha um cartão e uma conta de origem válidos.');
     const outstanding = cardInfo(card).used;
     if (outstanding <= 0) return toast('Este cartão não tem valores em aberto.');
+    if (d.mode === 'installments') {
+      const times = Number(d.times), interestCents = parseMoney(d.interest);
+      const available = Math.max(0, outstanding - scheduledInvoicePrincipal(card.id));
+      if (!Number.isInteger(times) || times < 2 || times > 60) return toast('Informe de 2 a 60 parcelas.');
+      if (!isSafeInteger(interestCents) || interestCents < 0) return toast('Informe um valor válido de juros por parcela.');
+      if (!isDay(d.firstDueDate) || d.firstDueDate < today()) return toast('Informe o vencimento de hoje ou de uma data futura.');
+      if (cents > available) return toast(h`O valor a parcelar não pode ultrapassar ${money(available)} (saldo em aberto descontadas outras parcelas programadas).`);
+      const groupId = newId(), baseCents = Math.floor(cents / times), remainder = cents % times;
+      const plan = Array.from({ length: times }, (_, index) => {
+        const principalPart = baseCents + (index === 0 ? remainder : 0);
+        const installmentCents = principalPart + interestCents;
+        if (!isSafeInteger(installmentCents) || installmentCents <= 0) return null;
+        return {
+          id: newId(),
+          type: 'tr',
+          accountId: source.id,
+          toAccountId: card.id,
+          cents: installmentCents,
+          interestCents,
+          category: 'Transferência',
+          desc: `Fatura parcelada (${index + 1}/${times})`,
+          date: addMonths(d.firstDueDate, index),
+          paid: false,
+          invoiceInstallment: true,
+          groupId,
+          createdAt: Date.now() + index,
+        };
+      });
+      if (plan.some((transaction) => !transaction || !isDay(transaction.date))) {
+        return toast('Não foi possível gerar as datas ou os valores das parcelas. Revise os dados.');
+      }
+      S.finance.tx.push(...plan);
+      ui.finMonth = plan[0].date.slice(0, 7);
+      ui.dlg = null;
+      commit('finance');
+      const total = plan.reduce((sum, transaction) => sum + transaction.cents, 0);
+      return toast(`${times} parcelas programadas, totalizando ${money(total)}. O saldo da conta não foi alterado.`);
+    }
+    if (d.mode !== 'single') return toast('Escolha uma forma de pagamento válida.');
     if (cents > outstanding) return toast(h`O pagamento não pode ultrapassar o valor em aberto de ${money(outstanding)}.`);
     S.finance.tx.push({ id: newId(), type: 'tr', accountId: source.id, toAccountId: card.id, cents, category: 'Transferência', desc: 'Pagamento da fatura', date: today(), paid: true, createdAt: Date.now() });
     ui.dlg = null; commit('finance'); toast('Pagamento registrado.');
@@ -6909,8 +7431,8 @@ Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); },
 /* ---- exportar CSV ---- */
 const csvCell = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 async function finCsv() {
-  const rows = filteredTx(), head = ['Data', 'Data de pagamento/recebimento', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Situação'];
-  const lines = rows.map((t) => [t.date, t.settledDate || '', { in: 'Receita', out: 'Despesa', tr: 'Transferência' }[t.type], t.desc || '', t.category || '', accName(t.accountId), (t.type === 'out' ? -t.cents : t.cents) / 100, isPaid(t) ? 'Pago' : 'Pendente'].map(csvCell).join(';'));
+  const rows = filteredTx(), head = ['Data', 'Data de pagamento/recebimento', 'Data da antecipação', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Juros já incluídos no valor', 'Situação'];
+  const lines = rows.map((t) => [t.date, t.settledDate || '', t.anticipatedDate || '', { in: 'Receita', out: 'Despesa', tr: 'Transferência' }[t.type], t.desc || '', t.category || '', accName(t.accountId), (t.type === 'out' ? -t.cents : t.cents) / 100, t.interestCents == null ? '' : t.interestCents / 100, isPaid(t) ? 'Pago' : 'Pendente'].map(csvCell).join(';'));
   const csv = '\uFEFF' + [head.join(';'), ...lines].join('\r\n'), name = `aurora-lancamentos-${ui.finMonth}.csv`;
   if (!rows.length) return toast('Não há lançamentos para exportar neste filtro.');
   downloadFile(name, csv, 'text/csv;charset=utf-8');
@@ -7127,9 +7649,42 @@ function renderAccountLoading(root) {
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
   page.setAttribute('aria-label', 'carregando o Aurora');
+
+  const shell = document.createElement('div');
+  shell.className = 'account-loading-shell';
+
+  const brandRow = document.createElement('div');
+  brandRow.className = 'account-loading-brand-row';
+
   const brand = document.createElement('span');
   brand.className = 'account-loading-brand';
   brand.setAttribute('aria-hidden', 'true');
+
+  const mark = document.createElement('span');
+  mark.className = 'account-loading-brand-mark';
+  mark.setAttribute('aria-hidden', 'true');
+
+  const brandText = document.createElement('span');
+  brandText.className = 'account-loading-brand-text';
+  brandText.textContent = 'Aurora';
+
+  brand.append(mark, brandText);
+
+  const status = document.createElement('span');
+  status.className = 'account-loading-status';
+  status.setAttribute('aria-hidden', 'true');
+
+  const statusDot = document.createElement('span');
+  statusDot.className = 'account-loading-status-dot';
+  statusDot.setAttribute('aria-hidden', 'true');
+
+  const statusText = document.createElement('span');
+  statusText.className = 'account-loading-status-text';
+  statusText.textContent = 'Carregando';
+
+  status.append(statusDot, statusText);
+  brandRow.append(brand, status);
+
   const card = document.createElement('section');
   card.className = 'account-loading-card';
   card.setAttribute('aria-hidden', 'true');
@@ -7139,7 +7694,9 @@ function renderAccountLoading(root) {
     line.setAttribute('aria-hidden', 'true');
     card.append(line);
   }
-  page.append(brand, card);
+
+  shell.append(brandRow, card);
+  page.append(shell);
   root.replaceChildren(page);
 }
 
@@ -7217,6 +7774,7 @@ async function continueAuthenticatedAurora(root, user) {
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
   window.addEventListener('hashchange', onRoute);
   onRoute();
+  void syncPomodoroWakeLock();
   if (!profileSetupComplete()) openProfileSetup();
   setInterval(tick, 1000);
   const registration = await registerPwaSupport();
@@ -7246,8 +7804,17 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
     },
   });
   if (!accountSession) {
-    if (returnedToPublic) renderLanding(root);
+    if (returnedToPublic) {
+      initializePublicAppearance();
+      if (location.hash === '#demonstracao') renderLandingDemo(root);
+      else renderLanding(root);
+    }
     return;
+  }
+  if (accountModeFromHash(location.hash)) {
+    const url = new URL(location.href);
+    url.hash = 'inicio';
+    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }
   await Persist.attach(accountSession);
   await continueAuthenticatedAurora(root, accountSession.user);
@@ -7282,6 +7849,7 @@ function showAccountStartupError(root, message) {
 
 async function startAurora() {
   const root = document.getElementById('app');
+  startPwaInstallPrompt();
   const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
   const isPublicLanding = routeMeta && isPublicLandingHash(location.hash);
   const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));
@@ -7303,11 +7871,23 @@ async function startAurora() {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
   if (!isPublicLanding) {
-    await startAuthenticatedAurora(root);
+    const url = new URL(location.href);
+    const requestedMode = url.searchParams.get('aurora-account-mode');
+    if (requestedMode) {
+      url.searchParams.delete('aurora-account-mode');
+      history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+    const routeMode = accountModeFromHash(location.hash);
+    await startAuthenticatedAurora(
+      root,
+      routeMode || (requestedMode === 'signup' ? 'signup' : 'login'),
+      routeMeta,
+    );
     return;
   }
   initializePublicAppearance();
-  renderLanding(root);
+  if (location.hash === '#demonstracao') renderLandingDemo(root);
+  else renderLanding(root);
   const sessionRestore = (async () => {
     try {
       const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
@@ -7353,6 +7933,7 @@ async function startAurora() {
       return;
     }
     if (action !== 'login' && action !== 'signup') return;
+    stopLandingDemo(root);
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
     });
@@ -7366,48 +7947,6 @@ async function startAurora() {
     });
   });
 }
-
-document.addEventListener('click', async (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target) return;
-
-  const closeButton = target.closest('[data-legal-modal-close]');
-  if (closeButton) {
-    closeButton.closest('dialog[data-legal-modal]')?.close();
-    return;
-  }
-
-  const dialog = target.closest('dialog[data-legal-modal]');
-  if (dialog && target === dialog) {
-    dialog.close();
-    return;
-  }
-
-  const trigger = target.closest('[data-legal-document]');
-  const linkedDocument = dialog && !target.closest('[data-legal-direct]')
-    ? target.closest('a[href]')
-    : null;
-  const linkedPath = linkedDocument ? new URL(linkedDocument.href, location.href).pathname : '';
-  const documentName = trigger?.dataset.legalDocument
-    || (linkedPath === '/terms.html' ? 'terms' : linkedPath === '/privacy.html' ? 'privacy' : '');
-  if (!documentName) return;
-
-  const modal = document.querySelector('dialog[data-legal-modal]');
-  if (!(modal instanceof HTMLDialogElement)) {
-    console.error('Aurora: o diálogo de documentos legais não está disponível.');
-    return;
-  }
-  event.preventDefault();
-  await showLegalDocument(modal, documentName);
-});
-
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  const dialog = document.querySelector('dialog[data-legal-modal][open]');
-  if (!dialog) return;
-  event.preventDefault();
-  dialog.close();
-});
 
 document.addEventListener('click', async (event) => {
   const button = event.target instanceof Element ? event.target.closest('[data-account-signout]') : null;
@@ -7461,6 +8000,7 @@ document.addEventListener('submit', (event) => {
 }, true);
 
 initializeCustomSelects(document);
+initializeLegalDialogEvents();
 
 startAurora().catch((error) => {
   console.error('Aurora: a inicialização segura falhou.', error);

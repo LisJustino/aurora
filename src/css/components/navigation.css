@@ -132,15 +132,15 @@
 .notification-panel {
   position: fixed;
   z-index: var(--z-panel);
-  top: calc(60px + env(safe-area-inset-top, 0px));
-  right: max(16px, env(safe-area-inset-right, 0px));
+  top: calc(68px + env(safe-area-inset-top, 0px) + 8px);
+  right: max(12px, env(safe-area-inset-right, 0px));
   display: flex;
-  width: min(400px, calc(100vw - 32px));
-  max-height: min(72dvh, 560px);
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(72dvh, 520px);
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--r);
+  border-radius: var(--r-large);
   background: var(--surface-raised);
   box-shadow: var(--shadow);
 }
@@ -309,6 +309,12 @@ button.nav-more-link { width: 100%; border: 0; background: transparent; color: i
 html[data-scroll-locked="true"] .app > .topbar,
 html[data-scroll-locked="true"] .public-site > .public-topbar {
   transform: translate(var(--scroll-lock-offset-x), var(--scroll-lock-offset-y));
+}
+
+@media (min-width: 701px) {
+  html[data-scroll-locked="true"] .app > .topbar {
+    transform: translate(var(--scroll-lock-offset-x), 0);
+  }
 }
 
 .topbar .nav a {

@@ -1,13 +1,14 @@
 {
-  "name": "aurora. | Organização pessoal",
-  "short_name": "aurora.",
+  "name": "Aurora",
+  "short_name": "Aurora",
+  "lang": "pt-BR",
   "description": "Organize tarefas, foco, rotina e finanças em um só lugar.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#1c1b19",
-  "theme_color": "#1c1b19",
+  "background_color": "#e8e6e0",
+  "theme_color": "#e8e6e0",
   "icons": [
     {
       "src": "./icons/aurora-192.png",
@@ -24,6 +25,26 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Hoje",
+      "short_name": "Hoje",
+      "url": "./#inicio",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Tarefas",
+      "short_name": "Tarefas",
+      "url": "./#planejar",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Foco",
+      "short_name": "Foco",
+      "url": "./#pomodoro",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     }
   ]
 }

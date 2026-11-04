@@ -48,9 +48,13 @@ check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), '
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
 
 // base.css fixa 16 px no elemento raiz: é a base de todos os rem, por isso é a única exceção.
-const fontLiterals = offenders(/font-size:\s*(?:\d*\.?\d+(?:rem|px)|\d+\.\d+em)\s*[;}]/g)
-  .filter((item) => item !== 'base.css: font-size: 16px;');
-check(!fontLiterals.length, 'Tamanhos de fonte usam --text-* (exceto clamp e o mínimo de 16 px dos campos)', fontLiterals.slice(0, 6).join(' | '));
+const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|vw|vh)\b[^;{}]*[;}]/g)
+  .filter((item) => ![
+    'base.css: font-size: 16px;',
+    'design-system/fields.css: font-size: max(16px, var(--text-base));',
+    'design-system/custom-selects.css: font-size: max(16px, var(--text-base));',
+  ].includes(item));
+check(!fontSizeLiterals.length, 'Tamanhos de fonte usam tokens --text-* (com mínimo de 16 px nos campos)', fontSizeLiterals.slice(0, 6).join(' | '));
 const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
 check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', fontShorthandLiterals.slice(0, 6).join(' | '));
 

@@ -1,0 +1,409 @@
+.main[data-route="config"] {
+  --settings-surface: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  --settings-edge: color-mix(in srgb, var(--accent) 16%, var(--line));
+  --settings-card-gap: var(--space-4);
+  --settings-card-padding: clamp(var(--space-4), 3vw, var(--space-6));
+}
+
+.main[data-route="config"] > .page-title {
+  min-height: 148px;
+  padding: clamp(24px, 4vw, 36px);
+  border-color: var(--settings-edge);
+  border-radius: var(--r-large);
+  background:
+    radial-gradient(ellipse at 92% 18%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 22rem),
+    linear-gradient(118deg, color-mix(in srgb, var(--accent) 9%, var(--surface-strong)), var(--surface-strong) 72%);
+  box-shadow: var(--card-shadow);
+}
+
+.main[data-route="config"] > .page-title::after {
+  top: 50%;
+  right: clamp(22px, 5vw, 54px);
+  width: 92px;
+  height: 92px;
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  box-shadow:
+    0 0 0 14px color-mix(in srgb, var(--accent) 5%, transparent),
+    0 0 0 30px color-mix(in srgb, var(--accent) 3%, transparent);
+  transform: translateY(-50%);
+}
+
+.main[data-route="config"] > .page-title .page-title-copy { gap: var(--space-2); }
+.main[data-route="config"] > .page-title h1 { font-size: var(--text-page-title); }
+.main[data-route="config"] > .page-title p { max-width: 56ch; font-size: var(--text-base); }
+
+.main[data-route="config"] .settings-layout {
+  grid-template-columns: minmax(220px, 252px) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(18px, 2.8vw, 32px);
+}
+
+.main[data-route="config"] .settings-menu {
+  top: 84px;
+  max-height: calc(100dvh - 104px);
+  gap: 12px;
+  padding: 14px;
+  border-color: var(--settings-edge);
+  border-radius: var(--r-large);
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--settings-surface) 55%);
+  box-shadow: var(--shadow-sm);
+}
+
+.main[data-route="config"] .settings-menu-heading {
+  margin: 0 4px 2px;
+  padding: 5px 8px 10px;
+  border-bottom-color: var(--line);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.main[data-route="config"] .settings-menu-group { gap: 5px; }
+.main[data-route="config"] .settings-menu-group + .settings-menu-group {
+  margin-top: 0;
+  padding-top: 9px;
+}
+
+.main[data-route="config"] .settings-link {
+  position: relative;
+  min-height: 62px;
+  grid-template-columns: 38px minmax(0, 1fr) 14px;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--r-control);
+}
+
+.main[data-route="config"] .settings-link::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: -1px;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: transparent;
+  content: "";
+}
+
+.main[data-route="config"] .settings-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.main[data-route="config"] .settings-link[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.main[data-route="config"] .settings-link[aria-current="page"]::before { background: var(--accent); }
+.main[data-route="config"] .settings-link-icon {
+  width: 36px;
+  height: 36px;
+  border-color: transparent;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent);
+}
+
+.main[data-route="config"] .settings-link[aria-current="page"] .settings-link-icon {
+  background: var(--btn);
+  color: var(--on-btn);
+}
+
+.main[data-route="config"] .settings-link-copy { gap: 3px; }
+.main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.main[data-route="config"] .settings-link-copy small { font-size: var(--text-2xs); line-height: 1.35; }
+.main[data-route="config"] .settings-link-arrow { width: 14px; }
+
+.main[data-route="config"] .settings-content {
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.main[data-route="config"] .settings-content > .card {
+  max-width: none;
+  border-color: var(--settings-edge);
+  border-radius: var(--r-large);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 2.5%, var(--surface-strong)), var(--surface-strong) 38%);
+  box-shadow: var(--card-shadow);
+}
+
+.main[data-route="config"] .settings-content > .card,
+.main[data-route="config"] .settings-content > .profile-settings-container > .card,
+.main[data-route="config"] .settings-content > .settings-account-list > .card {
+  gap: var(--settings-card-gap);
+  padding: var(--settings-card-padding);
+}
+
+.main[data-route="config"] .settings-section-heading > p,
+.main[data-route="config"] .profile-settings-heading > p,
+.main[data-route="config"] .appearance-settings-heading > div > p {
+  max-width: 64ch;
+  line-height: 1.6;
+}
+
+.main[data-route="config"] .profile-settings-container { gap: var(--space-4); }
+.main[data-route="config"] .profile-settings { gap: var(--space-5); }
+.main[data-route="config"] .profile-settings-heading h2,
+.main[data-route="config"] .appearance-settings-heading h2 { font-size: var(--text-2xl); }
+
+.main[data-route="config"] .profile-greeting-preview {
+  padding: clamp(var(--space-4), 3vw, var(--space-5));
+  border-color: color-mix(in srgb, var(--accent) 23%, var(--line));
+  border-radius: var(--r);
+  background:
+    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 48%),
+    color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+
+.main[data-route="config"] .profile-settings-group,
+.main[data-route="config"] .appearance-settings-group {
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.main[data-route="config"] .profile-settings-group[aria-labelledby="profile-name-title"] {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+}
+.main[data-route="config"] .profile-settings-group[aria-labelledby="profile-name-title"] > div:first-child {
+  margin-bottom: var(--space-1);
+}
+.main[data-route="config"] .profile-settings-fields {
+  width: 100%;
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
+}
+
+.main[data-route="config"] .profile-settings-group + .profile-settings-group,
+.main[data-route="config"] .appearance-settings-group + .appearance-settings-group {
+  border-top: 1px solid var(--line);
+}
+
+.main[data-route="config"] .profile-settings-group h3,
+.main[data-route="config"] .appearance-settings-copy h3 { font-size: var(--text-lg); }
+
+.main[data-route="config"] .appearance-settings-heading {
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.main[data-route="config"] .profile-appearance-controls {
+  gap: var(--space-3);
+}
+.main[data-route="config"] .profile-appearance-option {
+  grid-template-columns: minmax(108px, 140px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+.main[data-route="config"] .profile-appearance-option .seg { max-width: 420px; }
+.main[data-route="config"] .appearance-settings-controls { gap: var(--space-5); }
+.main[data-route="config"] .appearance-preset,
+.main[data-route="config"] .settings-data-action,
+.main[data-route="config"] .areas-navigation-item {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.main[data-route="config"] .appearance-preset {
+  min-height: 76px;
+  padding: var(--space-4);
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+
+.main[data-route="config"] .appearance-preset:hover { transform: translateY(-1px); }
+.main[data-route="config"] .appearance-preset[aria-pressed="true"] { border-color: var(--accent); }
+
+.main[data-route="config"] .areas-navigation-item {
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r);
+  box-shadow: 0 8px 18px -18px var(--ink);
+}
+
+.main[data-route="config"] .areas-navigation-settings { gap: var(--settings-card-gap); }
+.main[data-route="config"] .areas-navigation-controls { gap: var(--space-3); }
+.main[data-route="config"] .settings-data-action {
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--r);
+}
+
+.main[data-route="config"] .settings-data-action h3 { font-size: var(--text-lg); }
+.main[data-route="config"] .settings-data-action-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r-control);
+}
+
+.main[data-route="config"] .settings-data-trash .trash-list > li {
+  padding: var(--space-3);
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.main[data-route="config"] .settings-data-care .settings-data-danger {
+  border-color: color-mix(in srgb, var(--bad) 42%, var(--line));
+  background: color-mix(in srgb, var(--bad-soft) 56%, var(--surface));
+}
+
+.main[data-route="config"] .settings-account-list { gap: var(--space-4); }
+.main[data-route="config"] .account-session-card .settings-section-heading,
+.main[data-route="config"] .account-delete-card .settings-section-heading,
+.main[data-route="config"] .account-resources-card .settings-section-heading {
+  align-items: center;
+}
+
+.main[data-route="config"] .settings-unsaved-bar {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+
+:root[data-density="compact"] .main[data-route="config"] {
+  --settings-card-gap: var(--space-3);
+  --settings-card-padding: var(--space-3);
+}
+
+@container (max-width: 620px) {
+  .main[data-route="config"] .profile-settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main[data-route="config"] .profile-appearance-option {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 900px) and (min-width: 761px) {
+  .main[data-route="config"] .settings-layout {
+    grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .main[data-route="config"] .settings-link {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .main[data-route="config"] .settings-link-arrow { display: none; }
+  .main[data-route="config"] .settings-link-copy small { display: none; }
+}
+
+@media (max-width: 760px) {
+  .main[data-route="config"] > .page-title {
+    min-height: 110px;
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .main[data-route="config"] > .page-title::after {
+    right: 18px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .main[data-route="config"] > .page-title .page-title-copy { max-width: calc(100% - 76px); }
+  .main[data-route="config"] > .page-title p { display: block; font-size: var(--text-sm); }
+  .main[data-route="config"] .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .main[data-route="config"] .settings-menu {
+    position: relative;
+    top: auto;
+    display: flex;
+    max-height: none;
+    gap: var(--space-2);
+    margin-inline: calc(-1 * var(--gut-l)) calc(-1 * var(--gut-r));
+    padding: 8px var(--gut-r);
+    overflow-x: auto;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--bg);
+    box-shadow: none;
+    scrollbar-width: thin;
+    overscroll-behavior-inline: contain;
+  }
+
+  .main[data-route="config"] .settings-menu-group {
+    display: contents;
+  }
+
+  .main[data-route="config"] .settings-menu-heading { display: none; }
+  .main[data-route="config"] .settings-menu-group + .settings-menu-group { padding: 0; border: 0; }
+  .main[data-route="config"] .settings-link {
+    display: flex;
+    width: auto;
+    min-width: 92px;
+    min-height: 72px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 10px;
+    border-color: transparent;
+    text-align: center;
+  }
+
+  .main[data-route="config"] .settings-link::before,
+  .main[data-route="config"] .settings-link-arrow { display: none; }
+  .main[data-route="config"] .settings-link-icon { width: 32px; height: 32px; }
+  .main[data-route="config"] .settings-link-copy { width: 100%; align-items: center; }
+  .main[data-route="config"] .settings-link-copy b { font-size: var(--text-xs); }
+  .main[data-route="config"] .settings-link-copy small { display: none; }
+  .main[data-route="config"] .settings-content > .card,
+  .main[data-route="config"] .settings-content > .profile-settings-container > .card,
+  .main[data-route="config"] .settings-content > .settings-account-list > .card {
+    --settings-card-padding: var(--space-4);
+  }
+}
+
+@media (max-width: 520px) {
+  .main[data-route="config"] > .page-title { min-height: 100px; padding: var(--space-4); }
+  .main[data-route="config"] > .page-title h1 { font-size: var(--text-3xl); }
+  .main[data-route="config"] > .page-title p { max-width: 34ch; font-size: var(--text-xs); }
+  .main[data-route="config"] > .page-title::after { right: 12px; width: 48px; height: 48px; }
+  .main[data-route="config"] > .page-title .page-title-copy { max-width: calc(100% - 50px); }
+  .main[data-route="config"] .settings-content > .card,
+  .main[data-route="config"] .settings-content > .profile-settings-container > .card,
+  .main[data-route="config"] .settings-content > .settings-account-list > .card {
+    --settings-card-padding: var(--space-3);
+    border-radius: var(--r);
+  }
+  .main[data-route="config"] .settings-section-heading > p { font-size: var(--text-sm); }
+  .main[data-route="config"] .appearance-settings-heading { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .main[data-route="config"] .appearance-settings-heading > .btn { justify-self: start; }
+  .main[data-route="config"] .profile-settings-group,
+  .main[data-route="config"] .appearance-settings-group { padding: var(--space-3) 0 0; }
+  .main[data-route="config"] .settings-data-action { padding: var(--space-4); }
+  .main[data-route="config"] .areas-navigation-controls { align-items: flex-start; }
+  .main[data-route="config"] .settings-save-actions > .btn { flex: 1 1 auto; }
+  .main[data-route="config"] .settings-unsaved-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+  .main[data-route="config"] .settings-unsaved-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .main[data-route="config"] .settings-unsaved-actions > .btn { min-width: 0; padding-inline: var(--space-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main[data-route="config"] .appearance-preset { transition: none; }
+  .main[data-route="config"] .appearance-preset:hover { transform: none; }
+}
