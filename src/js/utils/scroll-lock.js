@@ -21,6 +21,12 @@ function restoreProperties(element, properties) {
   });
 }
 
+export function getPageScrollPosition() {
+  return originalState
+    ? { left: originalState.scrollX, top: originalState.scrollY }
+    : { left: window.scrollX, top: window.scrollY };
+}
+
 export function lockPageScroll() {
   let released = false;
   if (activeLocks === 0) {
@@ -61,6 +67,17 @@ export function lockPageScroll() {
     restoreProperties(document.body, state.body);
     if (state.scrollLocked === null) document.documentElement.removeAttribute('data-scroll-locked');
     else document.documentElement.setAttribute('data-scroll-locked', state.scrollLocked);
-    window.scrollTo(state.scrollX, state.scrollY);
+    const restoreScroll = () => {
+      if (activeLocks > 0) return;
+      window.scrollTo({
+        left: state.scrollX,
+        top: state.scrollY,
+        behavior: 'instant',
+      });
+    };
+    restoreScroll();
+    if (window.scrollX !== state.scrollX || window.scrollY !== state.scrollY) {
+      window.requestAnimationFrame(restoreScroll);
+    }
   };
 }

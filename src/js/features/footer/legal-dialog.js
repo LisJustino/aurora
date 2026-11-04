@@ -4,6 +4,9 @@ const LEGAL_DOCUMENTS = Object.freeze({
   terms: Object.freeze({ title: 'Termos de Uso', path: '/terms.html' }),
   privacy: Object.freeze({ title: 'Política de Privacidade', path: '/privacy.html' }),
 });
+let legalDialogEventsInitialized = false;
+const legalDialogReturnFocus = new WeakMap();
+const legalDialogScrollState = new WeakMap();
 
 async function loadLegalDocument(name) {
   const documentInfo = LEGAL_DOCUMENTS[name];
@@ -43,7 +46,7 @@ function showLegalDocumentFallback(dialog, names) {
   content.setAttribute('aria-busy', 'false');
 }
 
-export async function showLegalDocument(dialog, name) {
+export async function showLegalDocument(dialog, name, savedScrollPosition = { left: window.scrollX, top: window.scrollY }) {
   const documentInfo = LEGAL_DOCUMENTS[name];
   if (!documentInfo || !(dialog instanceof HTMLDialogElement)) return false;
   const title = dialog.querySelector('[data-legal-dialog-title]');
@@ -58,17 +61,32 @@ export async function showLegalDocument(dialog, name) {
   content.setAttribute('aria-busy', 'true');
   delete dialog.dataset.legalDocument;
   if (!dialog.open) {
+    const trigger = legalDialogReturnFocus.get(dialog) ?? document.activeElement;
+    if (!legalDialogReturnFocus.has(dialog)) {
+      legalDialogReturnFocus.set(dialog, trigger instanceof HTMLElement ? trigger : document.body);
+    }
+    legalDialogScrollState.set(dialog, savedScrollPosition);
     const unlockScroll = lockPageScroll();
     const releaseOnClose = () => {
       dialog.removeEventListener('close', releaseOnClose);
       unlockScroll();
+      const restoreScroll = legalDialogScrollState.get(dialog) ?? savedScrollPosition;
+      legalDialogScrollState.delete(dialog);
+      const returnFocus = legalDialogReturnFocus.get(dialog);
+      legalDialogReturnFocus.delete(dialog);
+      window.scrollTo({ left: restoreScroll.left, top: restoreScroll.top, behavior: 'auto' });
+      if (returnFocus instanceof HTMLElement && returnFocus.isConnected) {
+        returnFocus.focus({ preventScroll: true });
+      }
     };
-    dialog.addEventListener('close', releaseOnClose);
+    dialog.addEventListener('close', releaseOnClose, { once: true });
     try {
       dialog.showModal();
     } catch (error) {
       dialog.removeEventListener('close', releaseOnClose);
       unlockScroll();
+      legalDialogScrollState.delete(dialog);
+      legalDialogReturnFocus.delete(dialog);
       throw error;
     }
   }
@@ -87,4 +105,75 @@ export async function showLegalDocument(dialog, name) {
     showLegalDocumentFallback(dialog, [name]);
     return false;
   }
+}
+
+export function initializeLegalDialogEvents() {
+  if (legalDialogEventsInitialized) return;
+  legalDialogEventsInitialized = true;
+
+  document.addEventListener('click', async (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+
+    const closeButton = target.closest('[data-legal-modal-close]');
+    if (closeButton) {
+      closeButton.closest('dialog[data-legal-modal]')?.close();
+      return;
+    }
+
+    const dialog = target.closest('dialog[data-legal-modal]');
+    if (dialog && target === dialog) {
+      const bounds = dialog.getBoundingClientRect();
+      const isBackdrop = event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom;
+      if (isBackdrop) dialog.close();
+      return;
+    }
+
+    const trigger = target.closest('[data-legal-document]');
+    const linkedDocument = dialog && !target.closest('[data-legal-direct]')
+      ? target.closest('a[href]')
+      : null;
+    const linkedPath = linkedDocument ? new URL(linkedDocument.href, location.href).pathname : '';
+    const documentName = trigger?.dataset.legalDocument
+      || (linkedPath === '/terms.html' ? 'terms' : linkedPath === '/privacy.html' ? 'privacy' : '');
+    if (!documentName) return;
+
+    const modal = document.querySelector('dialog[data-legal-modal]');
+    if (!(modal instanceof HTMLDialogElement)) {
+      console.error('Aurora: o diálogo de documentos legais não está disponível.');
+      return;
+    }
+    event.preventDefault();
+    if (!modal.open) legalDialogReturnFocus.set(modal, trigger || linkedDocument || document.activeElement);
+    await showLegalDocument(modal, documentName);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const dialog = document.querySelector('dialog[data-legal-modal][open]');
+    if (!dialog) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      dialog.close();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...dialog.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )].filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
+    if (!focusable.length) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 }

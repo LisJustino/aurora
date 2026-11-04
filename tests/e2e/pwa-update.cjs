@@ -46,7 +46,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
   await page.goto(BASE);
   const notice = page.locator('#pwa-update-notice');
   await notice.waitFor({ state: 'visible' });
-  assert.match(await notice.innerText(), /nova versão.*dados salvos serão mantidos/i);
+  assert.match(await notice.innerText(), /nova versão.*atualizar quando terminar/i);
   assert.deepEqual(await page.evaluate(() => window.__pwaMessages || []), []);
 
   await notice.getByRole('button', { name: 'Agora não' }).click();

@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Política de Privacidade do Aurora e informações sobre o tratamento de dados pessoais.">
-  <meta name="aurora-legal-version" content="1.6">
-  <meta name="theme-color" content="#f3f0f2" media="(prefers-color-scheme: light)">
+  <meta name="aurora-legal-version" content="1.7">
+  <meta name="theme-color" content="#e8e6e0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
   <link rel="stylesheet" href="/src/css/main.css">
@@ -16,21 +16,21 @@
   <header class="legal-header">
     <a class="legal-brand" href="/" aria-label="aurora., página inicial">aurora<span>.</span></a>
     <nav aria-label="Documentos legais">
-      <a href="/terms.html">Termos de Uso</a>
+      <a href="/terms.html" target="_blank" rel="noopener noreferrer">Termos de Uso</a>
     </nav>
   </header>
   <main class="legal-document" id="conteudo">
-    <p class="legal-eyebrow">aurora. · versão 1.6 · 2 de novembro de 2026</p>
+    <p class="legal-eyebrow">aurora. · versão 1.7 · 3 de novembro de 2026</p>
     <h1>Política de Privacidade</h1>
     <section>
       <h2>1. Quem responde pelos dados</h2>
-      <p>A responsável pelo Aurora e contato para assuntos de privacidade é Elisa da Silva Justino, pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>. Esta política descreve o funcionamento atual do aplicativo, mas não substitui a validação das configurações de produção.</p>
+      <p>Quem administra o Aurora e atende assuntos de privacidade é Elisa da Silva Justino, pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>. Esta política descreve o funcionamento atual do aplicativo, mas não substitui a validação das configurações de produção.</p>
     </section>
 
     <section>
       <h2>2. Dados tratados</h2>
       <ul>
-        <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para calcular a idade do perfil, sem idade mínima para cadastro; o Aurora registra a idade calculada, a data de referência da idade e o mês/dia do aniversário, não a data completa de nascimento.</li>
+        <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para calcular a idade do perfil e exige pelo menos 16 anos para o cadastro; o Aurora registra a idade calculada, a data de referência da idade e o mês/dia do aniversário, não a data completa de nascimento.</li>
         <li><strong>Conteúdo que você adiciona:</strong> tarefas, preferências e registros das áreas disponíveis, que podem incluir informações sobre saúde e ciclo menstrual, além de dados financeiros e de rotina.</li>
         <li><strong>Google Calendar opcional:</strong> após sua autorização separada, o Aurora lê nomes de calendários e eventos (título, data e horário) para exibi-los em Planejar. A integração usa acesso somente de leitura.</li>
         <li><strong>Aceite dos documentos:</strong> versão dos Termos de Uso e da Política de Privacidade, além do instante do aceite, associados aos metadados da conta.</li>
@@ -48,19 +48,19 @@
       <h2>4. Onde e como são tratados</h2>
       <p>A autenticação e os dados da conta são processados pelo Supabase configurado para o serviço. As regras de acesso do banco restringem os registros à conta autenticada, mas os dados relacionais não são criptografados de ponta a ponta pelo Aurora. A região de hospedagem precisa ser confirmada nas configurações de produção.</p>
       <p>A conexão com Google Calendar exige uma autorização separada e explícita, limitada à leitura. O navegador solicita diretamente à API do Google os calendários selecionados e seus eventos no mês exibido. Os nomes, títulos, datas, horários e o token de acesso ficam somente na memória da aba: não são enviados ao Supabase ou ao Worker, nem gravados em armazenamento local, backups ou registros do Aurora. O token expira ou é descartado ao fechar/recarregar a aba; você também pode remover a permissão nas configurações da Conta Google. O Google processa as solicitações conforme seus próprios termos e política de privacidade.</p>
-      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. Os lembretes de Hábitos podem se repetir semanalmente até que você os edite ou desative os avisos; a inscrição Push é compartilhada com o Pomodoro neste dispositivo. A permissão não é solicitada automaticamente, e a entrega pode atrasar ou não ocorrer por limitações de rede, navegador, sistema operacional ou serviço Push. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo; dados do aplicativo não são gravados ali. O service worker armazena recursos estáticos do aplicativo.</p>
+      <p>Se você ativar avisos Push, o Cloudflare Worker e o serviço Push do navegador recebem os dados mínimos descritos acima para entregar os avisos. Os lembretes de Hábitos podem se repetir semanalmente até que você os edite ou desative os avisos; a inscrição Push é compartilhada com o Pomodoro neste dispositivo. A permissão não é solicitada automaticamente, e a entrega pode atrasar ou não ocorrer por limitações de rede, navegador, sistema operacional ou serviço Push. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo. O app atual mantém os dados de uso em memória e os grava no Supabase, mas versões anteriores podem ter deixado dados pessoais nas chaves `aurora.app.*` e em caches cifrados locais; esses dados podem permanecer até você revisar a importação e a limpeza em Ajustes. Uma chave legada de autorização Push também pode existir até a migração da inscrição. O `PushManager` mantém a inscrição Push quando ativada, e o service worker armazena recursos estáticos do aplicativo.</p>
       <p>Backups exportados são arquivos JSON sem criptografia e ficam sob seu controle depois do download. O Aurora não os envia automaticamente como parte da exportação.</p>
     </section>
 
     <section>
       <h2>5. Compartilhamento</h2>
-      <p>Os provedores de autenticação, banco de dados e, quando ativado, notificações Push participam da operação dos recursos que você utiliza. Se conectar o Google Calendar, o Google processa a autorização e as solicitações de leitura feitas pelo navegador. Se enviar uma sugestão, os provedores de e-mail escolhidos por você também a processam para entregá-la à responsável. Dados podem ainda ser tratados quando necessário para cumprir uma obrigação legal ou proteger direitos e segurança, nos limites aplicáveis. A responsável deve confirmar os contratos e configurações dos provedores antes da publicação.</p>
+      <p>Os provedores de autenticação, banco de dados e, quando ativado, notificações Push participam da operação dos recursos que você utiliza. Se conectar o Google Calendar, o Google processa a autorização e as solicitações de leitura feitas pelo navegador. Se enviar uma sugestão, os provedores de e-mail escolhidos por você também a processam para entregá-la ao contato do Aurora. Dados podem ainda ser tratados quando necessário para cumprir uma obrigação legal ou proteger direitos e segurança, nos limites aplicáveis. Elisa deve confirmar os contratos e configurações dos provedores antes da publicação.</p>
     </section>
 
     <section>
       <h2>6. Retenção e exclusão</h2>
       <p>Os dados ficam associados à conta para permitir o uso do Aurora. Quando uma pessoa autenticada recusa uma versão atualizada destes documentos, o aplicativo apresenta um aviso e exige uma confirmação final digitando <strong>EXCLUIR</strong>. Confirmada a ação, a função segura do Supabase exclui a conta de autenticação e os registros associados no banco. Se houver inscrição Push, a remoção no serviço externo é tentada antes; se essa etapa ou a exclusão falhar, o aplicativo informa que a conta não foi excluída e permite tentar novamente ou voltar para aceitar.</p>
-      <p>A exclusão da conta não apaga arquivos JSON que você já baixou nem cópias que você tenha guardado fora do Aurora. Backups baixados devem ser removidos separadamente dos dispositivos e locais onde foram guardados. Obrigações legais e prazos de retenção aplicáveis devem ser confirmados pela responsável e pelos provedores antes da publicação.</p>
+      <p>A exclusão da conta não apaga arquivos JSON que você já baixou nem cópias que você tenha guardado fora do Aurora. Backups baixados devem ser removidos separadamente dos dispositivos e locais onde foram guardados. Obrigações legais e prazos de retenção aplicáveis devem ser confirmados por Elisa e pelos provedores antes da publicação.</p>
     </section>
 
     <section>
@@ -70,12 +70,12 @@
 
     <section>
       <h2>8. Segurança e atualizações</h2>
-      <p>O Aurora aplica autenticação e regras de acesso por conta, mas nenhum serviço conectado à internet pode prometer segurança absoluta. Proteja seu dispositivo, sua senha e os arquivos de backup. A versão e a data de atualização desta política aparecem neste documento; a forma de comunicar mudanças deve ser definida pelo responsável antes da publicação.</p>
+      <p>O Aurora aplica autenticação e regras de acesso por conta, mas nenhum serviço conectado à internet pode prometer segurança absoluta. Proteja seu dispositivo, sua senha e os arquivos de backup. A versão e a data de atualização desta política aparecem neste documento; Elisa deve definir como comunicar mudanças antes da publicação.</p>
     </section>
 
     <footer class="legal-document-footer">
       <a href="/">Voltar ao Aurora</a>
-      <span>Versão 1.6 · última atualização: 2 de novembro de 2026</span>
+      <span>Versão 1.7 · última atualização: 3 de novembro de 2026</span>
     </footer>
   </main>
 </body>

@@ -15,6 +15,17 @@ const check = (passed, name, detail = '') => {
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
+  const selectAccount = async (accountId) => {
+    const select = page.locator('#dlg [data-dlg="accountId"]');
+    const options = await select.locator('option').evaluateAll((items) => items.map((option) => ({
+      value: option.value,
+      label: option.textContent.trim(),
+    })));
+    const optionName = options.find((option) => option.value === accountId)?.label;
+    if (!optionName) throw new Error(`A conta ${accountId} não está disponível no formulário: ${JSON.stringify(options)}`);
+    await page.getByRole('combobox', { name: 'Conta', exact: true }).click();
+    await page.getByRole('option', { name: optionName, exact: true }).click();
+  };
 
   await page.goto(`${BASE}/?preview#financas`);
   await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
@@ -28,9 +39,23 @@ const check = (passed, name, detail = '') => {
       && fabBounds.bottom <= nav.top - 12;
   }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');
   const recent = await page.locator('.finance-recent').textContent();
+  const selectedMonth = await page.locator('.mnav .mlabel').textContent();
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
   check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');
-  const selectedMonth = await page.locator('.mnav .mlabel').textContent();
+  check(await page.locator('.finance-month-snapshot').count() === 1
+    && await page.locator('.fin-hero .finance-summary-stat').count() === 0, 'saldo e indicadores mensais aparecem em blocos separados');
+  check(await page.locator('.fh-row .finance-flow-track').count() === 2, 'resumo compara visualmente receitas e despesas');
+  check(await page.locator('.finance-month-close').count() === 1
+    && await page.locator('.finance-close-stats > div').count() === 6,
+  'fechamento mensal resume recebidos, pagos, pendências, fixas e cartões');
+  check((await page.locator('.finance-month-close').textContent()).includes('Maior categoria de despesa')
+    && (await page.locator('.finance-month-close').textContent()).includes('pagamento da fatura é uma transferência'),
+  'fechamento identifica atenção por categoria e explica o tratamento do cartão');
+  await page.locator('.finance-month-close').getByRole('button', { name: 'Conferir pendências' }).click();
+  check(await page.locator('.scroll-x button[data-action="fin-filter"][data-f="pendentes"]').getAttribute('aria-pressed') === 'true',
+    'fechamento abre diretamente as pendências do mês');
+  check(await page.locator('.mnav .mlabel').textContent() === selectedMonth, 'atalho do fechamento preserva o mês selecionado');
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.getByRole('button', { name: 'Ver receitas lançadas no mês' }).click();
   const revenueRows = await page.locator('#tx-results .fr').evaluateAll((rows) => rows.map((row) => row.querySelector('.amt')?.classList.contains('in') ?? false));
   check(await page.locator('.fin-section-option[data-t="lancamentos"]').getAttribute('aria-pressed') === 'true', 'indicador de receitas abre Lançamentos');
@@ -51,6 +76,10 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.finance-trend-chart circle').count() === 7, 'gráfico mostra os últimos sete dias');
   await page.locator('.finance-fab').click();
   await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  check(await page.evaluate(() => (
+    getComputedStyle(document.documentElement).backgroundColor
+      === getComputedStyle(document.body).backgroundColor
+  )), 'fundo do documento permanece aplicado enquanto a modal está aberta');
   await page.locator('#dlg [data-dlg="amount"]').fill('1,00');
   await page.locator('#dlg [data-dlg="desc"]').fill('Despesa futura de teste');
   const futureMonthDate = new Date();
@@ -70,7 +99,7 @@ const check = (passed, name, detail = '') => {
   const nonCreditAccount = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => (
     options.find((option) => !/cartão|crédito/i.test(option.textContent))?.value
   ));
-  await page.locator('#dlg [data-dlg="accountId"]').selectOption(nonCreditAccount);
+  await selectAccount(nonCreditAccount);
   const installmentDate = new Date();
   installmentDate.setDate(1);
   installmentDate.setMonth(installmentDate.getMonth() + 2);
@@ -80,11 +109,17 @@ const check = (passed, name, detail = '') => {
   await page.locator('#dlg [data-dlg="repeat"]').selectOption('parcel');
   check(await page.locator('#dlg [data-dlg="currentInstallment"]').count() === 1, 'parcelamento permite informar a parcela atual');
   check(await page.locator('#dlg [data-dlg="times"]').getAttribute('max') === '60', 'parcelamento mantém limite de 60 parcelas');
+  check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'parcelamento permite informar juros da parcela atual');
+  await page.locator('#dlg [data-dlg="interest"]').fill('0,10');
   await page.locator('#dlg [data-dlg="currentInstallment"]').fill('11');
   await page.locator('#dlg [data-dlg="times"]').fill('10');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="currentInstallment"]').count() === 1, 'parcelamento rejeita parcela atual maior que o total');
   await page.locator('#dlg [data-dlg="currentInstallment"]').fill('3');
+  await page.locator('#dlg [data-dlg="interest"]').fill('1,50');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros maiores que o valor individual da parcela são rejeitados');
+  await page.locator('#dlg [data-dlg="interest"]').fill('0,10');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   await page.locator('.fin-section-option[data-t="lancamentos"]').click();
   await page.locator('.mnav [data-n="-1"]').click();
@@ -105,13 +140,152 @@ const check = (passed, name, detail = '') => {
   check(!earlierInstallments.some((title) => title.startsWith('Série parcelada de teste'))
     && !immediatelyEarlierInstallments.some((title) => title.startsWith('Série parcelada de teste')), 'parcelamento não cria parcelas anteriores à atual');
   check(generatedInstallments.every((row) => row?.amount.includes('1,00')), '3/10 a 10/10 são criadas mensalmente com a divisão correta dos centavos');
+  check(await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (10/10)' }).locator('.meta2').textContent()
+    .then((text) => text.includes('Sem juros')), 'parcelas seguintes podem ser explicitamente sem juros');
+  for (let month = 0; month < 6; month++) await page.locator('.mnav [data-n="-1"]').click();
+  await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }).locator('[data-action="edit-tx"]').click();
+  await page.locator('#dlg [data-dlg="interest"]').fill('999,00');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros acima do valor da parcela são rejeitados');
+  await page.locator('#dlg [data-dlg="interest"]').fill('0,25');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  const editedInstallment = page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' });
+  const editedInstallmentMeta = await editedInstallment.locator('.meta2').textContent();
+  const hasEditedInterest = editedInstallmentMeta.includes('0,25');
+  check(hasEditedInterest, 'juros podem ser ajustados em cada parcela', hasEditedInterest ? '' : editedInstallmentMeta);
+  await page.locator('.scroll-x button[data-action="fin-filter"][data-f="todos"]').evaluate((button) => button.click());
+  await editedInstallment.locator('[data-action="edit-tx"]').click();
+  await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
+  check(await page.locator('#dlg input[data-advance-id]').count() > 0, 'antecipação permite selecionar parcelas futuras');
+  await page.locator('#dlg input[data-advance-id]').first().check();
+  await page.getByRole('button', { name: 'Confirmar antecipação' }).click();
+  const anticipationToast = await page.locator('.toast-message').textContent().catch(() => '');
+  const anticipatedInstallment = page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' });
+  const anticipatedInstallmentMeta = await anticipatedInstallment.locator('.meta2').textContent();
+  const accountAnticipationApplied = anticipatedInstallmentMeta.includes('Antecipada em') && anticipatedInstallmentMeta.includes('pago em');
+  check(accountAnticipationApplied, 'antecipar parcela de conta registra pagamento sem deslocar o mês',
+    accountAnticipationApplied ? '' : `${anticipatedInstallmentMeta}; aviso: ${anticipationToast}`);
   await page.locator('.mnav [data-n="0"]').click();
+
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('60,00');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Série de cartão antecipável');
+  const creditAccount = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => (
+    options.find((option) => /cartão|crédito/i.test(option.textContent))?.value
+  ));
+  await selectAccount(creditAccount);
+  await page.locator('#dlg [data-dlg="date"]').fill(currentInstallmentDate);
+  await page.locator('#dlg [data-dlg="repeat"]').selectOption('parcel');
+  await page.locator('#dlg [data-dlg="times"]').fill('3');
+  await page.locator('#dlg [data-dlg="interest"]').fill('0,50');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  await page.locator('.scroll-x button[data-action="fin-filter"][data-f="todos"]').evaluate((button) => button.click());
+  const cardInstallment = page.locator('#tx-results .fr').filter({ hasText: 'Série de cartão antecipável (1/3)' });
+  const cardRowExists = await cardInstallment.count() === 1;
+  const cardRows = await page.locator('#tx-results .fr .ttl').allTextContents();
+  check(cardRowExists, 'compra parcelada no cartão cria a primeira parcela',
+    cardRowExists ? '' : `${cardRows.join(' | ')}; aviso: ${await page.locator('.toast-message').textContent().catch(() => '')}`);
+  if (cardRowExists) {
+    const originalCardMonth = await page.locator('.mnav .mlabel').textContent();
+    const originalCardDateHeader = await cardInstallment.evaluate((row) => row.closest('.grp')?.querySelector('.gh')?.textContent);
+    check(await cardInstallment.locator('.meta2').textContent().then((text) => text.includes('0,50')), 'juros da parcela de cartão aparecem sem alterar o valor da parcela');
+    await cardInstallment.locator('[data-action="edit-tx"]').click();
+    await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
+    const cardAnticipationDialog = page.locator('#dlg');
+    check(await cardAnticipationDialog.locator('input[data-advance-id]').count() === 3
+      && await cardAnticipationDialog.textContent().then((text) => text.includes('sem criar pagamento nem alterar saldos')), 'cartão oferece antecipação sem criar pagamento ou alterar saldos');
+    check(await cardAnticipationDialog.locator('.dlg').evaluate((dialog) => {
+      const bounds = dialog.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth;
+    }), 'diálogo de antecipação cabe na largura móvel');
+    await cardAnticipationDialog.locator('input[data-advance-id]').first().check();
+    await page.getByRole('button', { name: 'Confirmar antecipação' }).click();
+    const annotatedCardInstallment = page.locator('#tx-results .fr').filter({ hasText: 'Série de cartão antecipável (1/3)' });
+    const cardAnticipationApplied = await annotatedCardInstallment.locator('.meta2').textContent().then((text) => text.includes('Antecipada em'))
+      && await page.locator('.mnav .mlabel').textContent() === originalCardMonth
+      && await annotatedCardInstallment.evaluate((row) => row.closest('.grp')?.querySelector('.gh')?.textContent) === originalCardDateHeader
+      && await annotatedCardInstallment.locator('.amt').textContent().then((text) => text.includes('20,00'));
+    check(cardAnticipationApplied, 'antecipação no cartão preserva mês, data e valor originais');
+    await page.locator('.mnav [data-n="0"]').click();
+  }
+
+  await page.locator('.fin-section-option[data-t="cartoes"]').click();
+  const invoicePayButton = page.locator('button[data-action="pay-inv"]').first();
+  const invoiceCardId = await invoicePayButton.getAttribute('data-id');
+  await invoicePayButton.click();
+  await page.locator('#dlg [data-dlg="mode"]').selectOption('installments');
+  const invoiceSourceId = await page.locator('#dlg [data-dlg="from"]').inputValue();
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,01');
+  await page.locator('#dlg [data-dlg="times"]').fill('3');
+  await page.locator('#dlg [data-dlg="interest"]').fill('1,00');
+  const firstInvoiceDue = await page.locator('#dlg [data-dlg="firstDueDate"]').inputValue();
+  check(firstInvoiceDue >= await page.locator('#dlg [data-dlg="firstDueDate"]').getAttribute('min'), 'parcelamento sugere um vencimento futuro');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="contas"]').click();
+  const accountBalanceText = async () => {
+    const balance = page.locator(`.acc[data-id="${invoiceSourceId}"] b`);
+    if (!await balance.count()) {
+      const state = await page.evaluate(() => ({
+        activeTab: document.querySelector('.fin-section-option[aria-pressed="true"]')?.dataset.t,
+        accounts: [...document.querySelectorAll('.acc')].map((account) => ({
+          id: account.dataset.id,
+          label: account.getAttribute('aria-label'),
+        })),
+        accountSection: document.querySelector('.fin-section-content')?.innerText,
+      }));
+      throw new Error(`Conta de origem ${invoiceSourceId} não está na lista: ${JSON.stringify(state)}`);
+    }
+    return balance.textContent();
+  };
+  const balanceBeforeInvoicePlan = await accountBalanceText();
+
+  await page.locator('.fin-section-option[data-t="cartoes"]').click();
+  await page.locator(`button[data-action="pay-inv"][data-id="${invoiceCardId}"]`).click();
+  await page.locator('#dlg [data-dlg="mode"]').selectOption('installments');
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,01');
+  await page.locator('#dlg [data-dlg="times"]').fill('3');
+  await page.locator('#dlg [data-dlg="interest"]').fill('1,00');
+  await page.locator('#dlg [data-dlg="firstDueDate"]').fill(firstInvoiceDue);
+  check(await page.locator('#dlg').textContent().then((text) => text.includes('R$ 15,01')),
+    'prévia soma os juros de cada parcela ao principal');
+  await page.getByRole('button', { name: 'Programar parcelas' }).click();
+  check((await page.locator('.toast-message').textContent()).includes('saldo da conta não foi alterado'),
+    'programar fatura informa que não houve débito imediato');
+  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=..').textContent()
+    .then((text) => text.includes('3 parcelas de fatura programadas') && text.includes('R$ 15,01')),
+    'cartão mostra a quantidade e o total das parcelas futuras');
+  await page.locator('.fin-section-option[data-t="contas"]').click();
+  const balanceAfterPlan = await accountBalanceText();
+  check(balanceAfterPlan === balanceBeforeInvoicePlan, 'programar parcelas não reduz o saldo da conta de origem');
+
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  await page.locator('.scroll-x button[data-action="fin-filter"][data-f="pendentes"]').evaluate((button) => button.click());
+  const invoicePlanRow = page.locator('#tx-results .fr').filter({ hasText: 'Fatura parcelada (1/3)' });
+  check(await invoicePlanRow.count() === 1
+    && await invoicePlanRow.locator('.amt').textContent().then((text) => text.includes('5,01'))
+    && await invoicePlanRow.locator('.meta2').textContent().then((text) => text.includes('Juros') && text.includes('1,00'))
+    && await invoicePlanRow.locator('[data-action="tx-paid"]').getAttribute('aria-checked') === 'false',
+  'cada parcela aparece como transferência pendente com principal e juros discriminados');
+  await invoicePlanRow.locator('[data-action="tx-paid"]').click();
+  await page.locator('.scroll-x button[data-action="fin-filter"][data-f="todos"]').evaluate((button) => button.click());
+  check(await invoicePlanRow.locator('[data-action="tx-paid"]').getAttribute('aria-checked') === 'true',
+    'parcela futura da fatura pode ser marcada como paga');
+  await page.locator('.fin-section-option[data-t="contas"]').click();
+  const balanceAfterFirstInstallment = await accountBalanceText();
+  check(balanceAfterFirstInstallment !== balanceAfterPlan, 'marcar uma parcela como paga atualiza o saldo da conta de origem');
+  await page.locator('.fin-section-option[data-t="cartoes"]').click();
+  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=..').textContent()
+    .then((text) => text.includes('2 parcelas de fatura programadas') && text.includes('R$ 10,00')),
+    'pagamento de uma parcela atualiza o total programado restante');
 
   await page.locator('.finance-fab').click();
   await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
   await page.locator('#dlg [data-dlg="amount"]').fill('25,50');
   await page.locator('#dlg [data-dlg="desc"]').fill('Parcela com valor informado');
-  await page.locator('#dlg [data-dlg="accountId"]').selectOption(nonCreditAccount);
+  await selectAccount(nonCreditAccount);
   await page.locator('#dlg [data-dlg="date"]').fill(currentInstallmentDate);
   await page.locator('#dlg [data-dlg="repeat"]').selectOption('parcel');
   check(await page.locator('#dlg [data-dlg="installmentAmountMode"]').count() === 1, 'parcelamento permite informar o valor de cada parcela');
@@ -149,7 +323,7 @@ const check = (passed, name, detail = '') => {
   const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
   if (recentAccountOptions.length > 1) {
     const selectedAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
-    await page.locator('#dlg [data-dlg="accountId"]').selectOption(recentAccountOptions.find((value) => value !== selectedAccount));
+    await selectAccount(recentAccountOptions.find((value) => value !== selectedAccount));
   }
   if (recentCategoryOptions.length > 1) {
     const selectedCategory = await page.locator('#dlg [data-dlg="category"]').inputValue();
@@ -285,6 +459,10 @@ const check = (passed, name, detail = '') => {
     return recent.top >= categories.bottom;
   });
   check(overviewMobileLayout, 'composição do mês e últimos lançamentos continuam empilhados no celular');
+  check(await page.locator('.fin-section-menu').evaluate((menu) => (
+    menu.scrollWidth <= menu.clientWidth
+      && menu.querySelectorAll('.fin-section-option').length === 6
+  )), 'todas as seções ficam visíveis sem rolagem horizontal no celular');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

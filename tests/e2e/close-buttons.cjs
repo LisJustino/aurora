@@ -18,7 +18,6 @@ await p.evaluate(()=>{location.hash='financas'}); await p.waitForTimeout(300); a
 await p.evaluate(()=>location.hash='financas');
 await p.evaluate(()=>location.hash='inicio'); await p.waitForTimeout(350); await p.keyboard.press('Control+k'); await p.waitForTimeout(450); await measure('busca'); await p.evaluate(()=>document.querySelector('[data-action="dlg-close"]')?.click()); await p.waitForTimeout(300); await p.reload(); await p.waitForTimeout(500);
 await p.evaluate(()=>location.hash='inicio'); await p.waitForTimeout(300);
-await act('inicio','[data-action="accessibility-toggle"]','tema e acessibilidade');
 await act('inicio','[data-action="toggle-notifications"]','notificações');
 await act('config?section=data','[data-action="wipe-ask"]','apagar dados');
 console.log('== '+n+'\n'+rows.join('\n'));}

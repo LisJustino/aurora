@@ -26,6 +26,7 @@ import {
   accountBalance,
   byCategory as summarizeByCategory,
   monthStats,
+  monthlyCloseSummary,
   netAccountBalance,
   netAccountBalanceOn,
   reportMonthStats,
@@ -201,18 +202,34 @@ test('confirmações nativas foram substituídas e o feedback de persistência n
 });
 
 test('landing comunica valor, demonstração e privacidade financeira com precisão', () => {
-  const root = { innerHTML: '' };
-  renderLanding(root);
+  const root = { innerHTML: '', querySelectorAll: () => [] };
+  const previousDocument = globalThis.document;
+  const documentStub = { title: '' };
+  globalThis.document = documentStub;
+  try {
+    renderLanding(root);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+  if (documentStub.title !== 'aurora. — mais clareza para a sua rotina') {
+    throw new Error('A landing deve atualizar o título da aba.');
+  }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Mais clareza para a sua semana',
-    'registre suas finanças manualmente',
-    'Criar conta e começar',
-    'Explorar a demonstração',
+    'Menos ruído. Mais clareza no dia',
+    'Da cabeça cheia a um próximo passo possível',
+    'Registre receitas, despesas e cartões manualmente',
+    'Criar conta',
+    'Explorar demonstração',
+    'Escolha como quer começar',
+    'sem cadastro e sem salvar alterações',
     'não são salvas nem sincronizadas',
     'Finanças manuais',
     'O Aurora não se conecta a bancos',
     'associados à sua conta',
+    'não são criptografados de ponta a ponta',
+    'href="./privacy.html"',
     'Acompanhe períodos e sintomas',
   ];
   expectedContent.forEach((text) => {
@@ -238,9 +255,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
-  const landingView = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
-  if (!landingView.includes('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.')) {
-    throw new Error('A demonstração precisa informar quais recursos não são interativos.');
+  const demoView = readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
+  if (!demoView.includes("['today', 'Hoje', 'home']")
+    || !demoView.includes("['finance', 'Finanças', 'wallet']")
+    || !demoView.includes('nada é salvo')
+    || !demoView.includes("state.tasks.push")) {
+    throw new Error('A demonstração precisa apresentar navegação e interações locais com dados fictícios.');
   }
 });
 
@@ -509,6 +529,12 @@ test('transação identifica quando o próprio rollback falha', () => {
   equal(result.rollbackFailed, true);
 });
 
+test('o backup preserva o tema personalizado em vez de reverter para a paleta base', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  ok(source.includes("theme: s.theme"), 'o backup precisa manter a seleção de tema atual');
+  ok(!source.includes("theme: s.theme === 'custom' ? 'rose' : s.theme"), 'não pode forçar a cor personalizada de volta para a paleta rosé');
+});
+
 test('reconhece objetos simples e rejeita formatos incompatíveis', () => {
   truthy(isPlainObject({ value: 1 }));
   equal(isPlainObject([]), false);
@@ -697,7 +723,7 @@ test('descarta opções de menu desconhecidas ao normalizar preferências', () =
   truthy(isValidMenuOrder(oldOrder));
   truthy(isValidVisibleMenuItems(oldVisibleItems));
   equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,financas,agua,ciclo,habitos');
+  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,habitos,financas,ciclo,agua');
   falsy(isValidMenuOrder([...oldOrder, 'retired']));
   falsy(isValidVisibleMenuItems([...oldVisibleItems, 'retired']));
 });
@@ -926,6 +952,37 @@ test('resume mensal distingue transferência e compra no cartão', () => {
   equal(summary.outPaid, 2500);
   equal(summary.cardOut, 1500);
   equal(summary.tx.length, 3);
+});
+
+test('fechamento mensal resume pendências, fixas e cartão em centavos', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking' },
+    { id: 'card', type: 'credit' },
+  ];
+  const transactions = [
+    { type: 'in', date: '2026-10-01', cents: 10000, paid: true, accountId: 'checking' },
+    { type: 'out', date: '2026-10-02', cents: 2500, paid: true, accountId: 'checking', category: 'Mercado' },
+    { type: 'out', date: '2026-10-03', cents: 1000, paid: false, accountId: 'checking', category: 'Moradia', recId: 'rent' },
+    { type: 'out', date: '2026-10-04', cents: 750, paid: false, accountId: 'card', category: 'Transporte' },
+    { type: 'out', date: '2026-10-05', cents: 2000, paid: true, accountId: 'checking', category: 'Moradia', recId: 'utilities' },
+    { type: 'tr', date: '2026-10-06', cents: 7000, paid: true, accountId: 'checking' },
+    { type: 'out', date: '2026-09-30', cents: 9000, paid: false, accountId: 'checking', category: 'Fora do mês' },
+  ];
+  const summary = monthlyCloseSummary(
+    transactions,
+    '2026-10',
+    (id) => accounts.find((account) => account.id === id),
+  );
+
+  equal(summary.resultCents, 3750);
+  equal(summary.inPaid, 10000);
+  equal(summary.outPaid, 4500);
+  equal(summary.pendingInCents, 0);
+  equal(summary.pendingOutCents, 1000);
+  equal(summary.recurringCents, 3000);
+  equal(summary.recurringCount, 2);
+  equal(summary.cardOut, 750);
+  equal(summary.topExpense.join(':'), 'Moradia:3000');
 });
 
 test('notificações incluem apenas contas fixas pendentes com vencimento hoje', () => {

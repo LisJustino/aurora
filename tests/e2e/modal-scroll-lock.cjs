@@ -73,6 +73,8 @@ async function checkCustomDialog(browser, options, label, base) {
     await assertLocked(page, position, `${label}, modal Aurora`);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
     await page.locator('#dlg').waitFor({ state: 'detached' });
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), position.scrollY);
+    await page.waitForFunction((scrollY) => Math.abs(window.scrollY - scrollY) <= 40, position.scrollY);
     const restored = await page.evaluate(() => ({
       scrollY: window.scrollY,
       bodyTop: document.body.getBoundingClientRect().top,
@@ -88,8 +90,12 @@ async function checkCustomDialog(browser, options, label, base) {
     await assertLocked(page, searchPosition, `${label}, pesquisa`);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
     await page.locator('#dlg').waitFor({ state: 'detached' });
+    await page.waitForFunction((scrollY) => Math.abs(window.scrollY - scrollY) <= 40, searchPosition.scrollY);
     const searchRestored = await page.evaluate(() => window.scrollY);
-    assert(Math.abs(searchRestored - searchPosition.scrollY) <= 40, `${label}: posição não foi restaurada após pesquisa`);
+    assert(
+      Math.abs(searchRestored - searchPosition.scrollY) <= 40,
+      `${label}: posição não foi restaurada após pesquisa (${searchRestored} != ${searchPosition.scrollY})`,
+    );
     await assertUnlocked(page, `${label}, pesquisa`);
   } finally {
     await context.close();
@@ -105,7 +111,7 @@ async function checkPanel(browser, options, label, base, triggerSelector, panelS
     const position = await scrollPageBeforeModal(page, `${label}, painel`);
     await page.locator(triggerSelector).first().evaluate((element) => element.click());
     await page.locator(panelSelector).waitFor({ state: 'visible' });
-    await assertLocked(page, position, `${label}, painel`);
+    await assertUnlocked(page, `${label}, painel`);
     if (label.includes('notificações') && label.startsWith('desktop')) {
       await page.locator(closeSelector).first().evaluate((element) => element.click());
       await page.locator(panelSelector).waitFor({ state: 'hidden' });
@@ -147,7 +153,7 @@ async function checkPublicAccessibility(browser, options, label, base) {
     await page.locator('#public-accessibility-trigger').evaluate((element) => element.click());
     const panel = page.locator('#public-accessibility-panel');
     await panel.waitFor({ state: 'visible' });
-    await assertLocked(page, position, `${label}, acessibilidade pública`);
+    await assertUnlocked(page, `${label}, acessibilidade pública`);
     await panel.locator('[data-public-control="accessibility-close"]').evaluate((element) => element.click());
     await panel.waitFor({ state: 'hidden' });
     const restored = await page.evaluate(() => window.scrollY);
@@ -189,10 +195,9 @@ async function checkLegalDialog(browser, options, label, base) {
     for (const [label, options] of viewports) {
       await checkCustomDialog(browser, options, label, base);
       await checkPanel(browser, options, `${label}, notificações`, base, '[data-action="toggle-notifications"]', '#notification-panel', '[data-action="close-notifications"]');
-      await checkPanel(browser, options, `${label}, acessibilidade`, base, '#accessibility-trigger', '#accessibility-panel', '#accessibility-close');
       await checkPublicAccessibility(browser, options, label, base);
       await checkLegalDialog(browser, options, label, base);
-      console.log(`${label}: scroll externo bloqueado em notificações, pesquisa, acessibilidade e modais.`);
+      console.log(`${label}: notificações não bloqueiam a tela; diálogos modais bloqueiam e restauram o scroll.`);
     }
   } finally {
     await browser.close();

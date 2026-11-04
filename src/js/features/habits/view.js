@@ -24,6 +24,12 @@ export function renderHabitsView(dependencies) {
   }
   const suggestions = remainingHabitSuggestions(S.habits);
   const previewIdeas = new Set(featuredHabitSuggestions(suggestions).map(({ id }) => id));
+  const firstUse = S.habits.length === 0;
+  const initialIdeaPreview = firstUse
+    && !ui.habitIdeasExpanded
+    && ui.habitIdeaCategory === 'all'
+    && ui.habitIdeaTag === 'all'
+    && !String(ui.habitIdeaQuery || '').trim();
   const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
   const archived = S.habits.filter((habit) => habit.status === 'archived');
   const overview = habitWeekOverview(
@@ -82,12 +88,13 @@ export function renderHabitsView(dependencies) {
       : h`<div class="habit-empty" role="status"><span>${icon('check', 18)}</span><div><b>Dia livre</b><p>Crie um hábito ou escolha uma ideia abaixo.</p></div></div>`.s,
     'reminder-note': hasReminders
       ? h`<details class="habit-reminder-note">
-        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos neste dispositivo' : 'Opcionais'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos nos dois' : 'Opcionais · compartilhados'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
         <div class="habit-reminder-content">
         <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede e do serviço de notificações.</p>
-        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos neste dispositivo' : 'Ativar avisos fora do app'}</button>
+        <p>Este interruptor controla a inscrição compartilhada de Hábitos e Pomodoro neste dispositivo; não há controles independentes. Os lembretes de hábitos só são enviados nos horários configurados.</p>
+        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
-        <p class="small muted">A inscrição é compartilhada com o Pomodoro neste dispositivo; desativá-la interrompe os avisos de ambos. O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
+        <p class="small muted">O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
         </div>
       </details>`.s
       : '',
@@ -122,9 +129,9 @@ export function renderHabitsView(dependencies) {
       ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
     'habit-ideas': suggestions.length
-      ? h`<details class="card habit-ideas" id="d-ideas" ${ideasOpen}>
-        <summary><span><b>Ideias de hábitos</b><small>Encontre uma ideia e personalize antes de adicionar.</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
-        <div class="habit-idea-tools">
+      ? h`<details class="card habit-ideas${firstUse ? ' is-first-use' : ''}" id="d-ideas" ${ideasOpen}>
+        <summary><span><b>${firstUse ? 'Escolha seus primeiros hábitos' : 'Ideias de hábitos'}</b><small>${firstUse ? 'Comece com uma pequena mudança; você pode personalizar depois.' : 'Encontre uma ideia e personalize antes de adicionar.'}</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
+        <div class="habit-idea-tools" ${initialIdeaPreview ? raw('hidden') : ''}>
           <label class="search habit-idea-search"><span class="sr">Buscar ideias de hábitos</span>${icon('search', 18)}<input type="search" data-input="habit-ideas-search" value="${ui.habitIdeaQuery || ''}" placeholder="Buscar por nome ou descrição" autocomplete="off"></label>
           <div class="habit-idea-filter-grid">
             <label class="f"><span>Categoria</span><select data-change="habit-idea-category" aria-label="Categoria das ideias">
@@ -140,7 +147,7 @@ export function renderHabitsView(dependencies) {
           <div class="habit-idea-filter-status"><p class="small muted" data-habit-idea-count role="status" aria-live="polite">${matchingIdeaIds.size} ${plural(matchingIdeaIds.size, 'ideia encontrada', 'ideias encontradas')}</p><button type="button" class="btn ghost sm" data-action="habit-ideas-clear" ${ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all' || ui.habitIdeaQuery ? '' : raw('hidden')}>Limpar filtros</button></div>
         </div>
         <p class="habit-idea-empty small muted" data-habit-idea-empty ${matchingIdeaIds.size ? raw('hidden') : ''}>Nenhuma ideia encontrada. Ajuste os filtros.</p>
-        <div class="habit-idea-categories" id="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-preview="${previewIdeas.has(idea.id) ? 'false' : 'true'}" data-action="habit-idea" data-id="${idea.id}" data-tags="${idea.tags.map(({ id }) => id).join(' ')}" ${!matchingIdeaIds.has(idea.id) || (!ui.habitIdeasExpanded && ui.habitIdeaCategory === 'all' && ui.habitIdeaTag === 'all' && !String(ui.habitIdeaQuery || '').trim() && !previewIdeas.has(idea.id)) ? raw('hidden') : ''} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small>${idea.tags.length ? h`<span class="habit-idea-tags" aria-label="Características">${idea.tags.map((tag) => h`<span class="habit-idea-tag">${tag.title}</span>`)}</span>` : ''}<span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
+        <div class="habit-idea-categories${initialIdeaPreview ? ' is-preview' : ''}" id="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-preview="${previewIdeas.has(idea.id) ? 'false' : 'true'}" data-action="habit-idea" data-id="${idea.id}" data-tags="${idea.tags.map(({ id }) => id).join(' ')}" ${!matchingIdeaIds.has(idea.id) || (!ui.habitIdeasExpanded && ui.habitIdeaCategory === 'all' && ui.habitIdeaTag === 'all' && !String(ui.habitIdeaQuery || '').trim() && !previewIdeas.has(idea.id)) ? raw('hidden') : ''} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small>${idea.tags.length ? h`<span class="habit-idea-tags" aria-label="Características">${idea.tags.map((tag) => h`<span class="habit-idea-tag">${tag.title}</span>`)}</span>` : ''}<span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
         <button type="button" class="btn ghost sm habit-ideas-expand" data-action="habit-ideas-expand" aria-controls="habit-idea-categories" aria-expanded="${String(ui.habitIdeasExpanded)}" ${suggestions.length <= 4 || (ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all' || ui.habitIdeaQuery) ? raw('hidden') : ''}>${ui.habitIdeasExpanded ? 'Mostrar menos ideias' : `Ver todas as ${suggestions.length} ideias`}</button>
       </details>`.s
       : '',

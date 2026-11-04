@@ -82,6 +82,10 @@
 .review-stats .stat small { display: block; margin-top: 4px; color: var(--muted); font-size: var(--text-2xs); line-height: 1.4; }
 .weekly-reflection .f { margin-top: var(--space-2); }
 .weekly-reflection textarea { width: 100%; resize: vertical; }
+.weekly-plan-guidance { margin: 0 0 var(--space-2); }
+.weekly-plan-task { flex-wrap: wrap; }
+.weekly-plan-actions { display: flex; min-width: 0; flex: 1 0 100%; grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding-top: 4px; }
+.weekly-plan-actions .btn { min-height: var(--target-size); }
 .review-habits { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .review-habits h3 { margin-bottom: 4px; }
 .review-habits p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
@@ -129,6 +133,8 @@
   .weekly-review-hero { align-items: stretch; flex-direction: column; }
   .weekly-review-actions { justify-content: stretch; }
   .weekly-review-actions .btn { flex: 1; }
+  .weekly-plan-actions { justify-content: stretch; }
+  .weekly-plan-actions .btn { flex: 1 1 120px; }
   .review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .weekly-review-grid { grid-template-columns: minmax(0, 1fr); }
   .week-days { grid-template-columns: minmax(0, 1fr); }
@@ -271,7 +277,13 @@
 .habit-idea-filter-status [hidden] { display: none; }
 .habit-idea-tools > p, .habit-idea-empty { margin: 0; }
 .habit-idea-categories { display: grid; gap: 18px; padding-top: 4px; }
+.habit-idea-categories.is-preview { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
 .habit-idea-section { display: grid; gap: 8px; }
+.habit-idea-categories.is-preview .habit-idea-section,
+.habit-idea-categories.is-preview .habit-idea-grid { display: contents; }
+.habit-idea-categories.is-preview .habit-idea-section[hidden] { display: none; }
+.habit-idea-categories.is-preview .habit-idea-section h3,
+.habit-idea-categories.is-preview .habit-idea-tags { display: none; }
 .habit-idea-section h3 { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 .habit-idea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 10px; }
 .habit-idea {

@@ -22,7 +22,20 @@ async function run() {
       });
       assert.equal(await page.locator('.account-field-error').count(), 0, 'abrir login não deve exibir erros nos campos vazios');
       assert.equal(await page.locator('[aria-invalid="true"]').count(), 0, 'campos do login não devem iniciar inválidos visualmente');
-      assert.equal(await page.getByRole('button', { name: 'Entrar' }).isDisabled(), true, 'login vazio deve permanecer desabilitado');
+      assert.equal(await page.getByRole('button', { name: 'Entrar', exact: true }).isDisabled(), true, 'login vazio deve permanecer desabilitado');
+      assert.equal(await page.getByRole('button', { name: 'Entrar com Google' }).count(), 1, 'login deve oferecer entrada com Google');
+      assert.equal(await page.locator('.account-google-icon[aria-hidden="true"]').count(), 1, 'botão Google deve mostrar o ícone decorativo');
+
+      await page.evaluate(async () => {
+        const { createAccountForm } = await import('/src/js/services/account-auth.js');
+        createAccountForm(document.querySelector('#app'), {
+          title: 'Seu perfil',
+          description: 'Comece com seus dados básicos.',
+          mode: 'signup-profile',
+        });
+      });
+      assert.equal(await page.getByRole('button', { name: 'Criar conta com Google' }).count(), 1, 'cadastro inicial deve oferecer criação com Google');
+      assert.match(await page.locator('.account-oauth-note').textContent(), /criar uma conta Aurora ou acessar uma já vinculada/i, 'cadastro explica o uso de uma conta Google existente');
 
       await page.evaluate(async () => {
         const { createAccountForm } = await import('/src/js/services/account-auth.js');
@@ -33,7 +46,7 @@ async function run() {
         });
       });
 
-      const email = page.getByRole('textbox', { name: 'E-mail' });
+      const email = page.getByRole('textbox', { name: 'E-mail', exact: true });
       await email.fill('elisa@');
       const popup = page.locator('.account-email-suggestions');
       assert.equal(await popup.isVisible(), true, 'sugestões devem abrir depois de @');

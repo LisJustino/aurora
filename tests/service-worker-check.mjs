@@ -4,7 +4,12 @@ import { runInNewContext } from 'node:vm';
 
 const source = await readFile(new URL('../service-worker.js', import.meta.url), 'utf8');
 const handlers = new Map();
+const stored = new Map();
 let skipWaitingCalls = 0;
+const cache = {
+  match: async (request) => stored.get(typeof request === 'string' ? request : request.url),
+  put: async (request, response) => stored.set(typeof request === 'string' ? request : request.url, response),
+};
 const self = {
   location: { origin: 'https://aurora.test' },
   registration: { scope: 'https://aurora.test/' },
@@ -12,13 +17,35 @@ const self = {
   addEventListener: (type, handler) => handlers.set(type, handler),
   skipWaiting: async () => { skipWaitingCalls += 1; },
 };
+const fetchCalls = [];
+const htmlResponse = {
+  ok: true,
+  type: 'basic',
+  headers: { get: () => 'text/html; charset=utf-8' },
+  clone() { return this; },
+};
+const assetResponse = {
+  ok: true,
+  type: 'basic',
+  headers: { get: () => 'application/javascript' },
+  clone() { return this; },
+};
 
 runInNewContext(source, {
   self,
   URL,
   Promise,
-  caches: { keys: async () => [], open: async () => ({}) },
-  fetch: async () => { throw new Error('fetch should not run in this test'); },
+  caches: { keys: async () => [], open: async () => cache, match: cache.match },
+  fetch: async (request, options) => {
+    fetchCalls.push({ request, options });
+    if (new URL(typeof request === 'string' ? request : request.url).pathname === '/pages/inicio.html') {
+      throw new Error('offline');
+    }
+    return new URL(typeof request === 'string' ? request : request.url).pathname.endsWith('.html')
+      || new URL(typeof request === 'string' ? request : request.url).pathname === '/'
+      ? htmlResponse
+      : assetResponse;
+  },
   console,
 });
 
@@ -36,12 +63,41 @@ handlers.get('message')({
 await waitUntilPromise;
 assert.equal(skipWaitingCalls, 1, 'only the explicit message should activate the waiting worker');
 
-let handledByWorker = false;
-handlers.get('fetch')({
-  request: { method: 'GET', url: 'https://aurora.test/api/account', mode: 'cors' },
-  respondWith: () => { handledByWorker = true; },
+const dispatchFetch = async (request) => {
+  let responsePromise;
+  handlers.get('fetch')({
+    request,
+    respondWith: (promise) => { responsePromise = promise; },
+  });
+  return responsePromise;
+};
+const request = (path, mode = 'cors') => ({
+  method: 'GET',
+  url: `https://aurora.test${path}`,
+  mode,
 });
-assert.equal(handledByWorker, false, 'API responses must remain outside the service-worker cache');
-assert.match(source, /aurora-static-v9/);
 
-console.log('Service worker: atualização sob demanda e exclusão de APIs do cache verificadas.');
+assert.equal(await dispatchFetch(request('/api/account')), undefined, 'API responses must remain outside the cache');
+assert.equal(await dispatchFetch(request('/rest/v1/tasks')), undefined, 'Supabase REST responses must remain outside the cache');
+assert.equal(await dispatchFetch(request('/assets/app-abc12345.js?session=private')), undefined, 'query-string requests must not be cached');
+assert.equal(await dispatchFetch(request('/service-worker.js')), undefined, 'the worker script must be revalidated by the browser');
+assert.equal(await dispatchFetch(request('/manifest.webmanifest')), undefined, 'the manifest must not be cached by the worker');
+
+const assetRequest = request('/assets/app-abc12345.js');
+assert.equal(await dispatchFetch(assetRequest), assetResponse);
+const fetchCountAfterAssetMiss = fetchCalls.length;
+assert.equal(await dispatchFetch(assetRequest), assetResponse, 'app assets should be cache-first');
+assert.equal(fetchCalls.length, fetchCountAfterAssetMiss, 'cached app assets should not be fetched again');
+
+const rootRequest = request('/', 'navigate');
+assert.equal(await dispatchFetch(rootRequest), htmlResponse);
+assert.equal(fetchCalls.at(-1).options.cache, 'no-cache', 'HTML navigations must prefer the network');
+const indexFallback = stored.get('https://aurora.test/index.html');
+assert.equal(indexFallback, htmlResponse, 'the HTML shell should be available as an offline fallback');
+assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), htmlResponse, 'offline routes should fall back to the HTML shell');
+
+assert.match(source, /aurora-static-v10/);
+assert.match(source, /APP_SHELL_ASSET/);
+assert.match(source, /APP_DOCUMENT/);
+
+console.log('Service worker: shell restrito, cache-first de assets, HTML network-first e atualização sob demanda verificados.');

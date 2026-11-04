@@ -31,6 +31,15 @@ const settledDateMigration = await readFile(
 );
 assert.match(settledDateMigration, /add column if not exists settled_date date/i);
 assert.doesNotMatch(settledDateMigration, /update\s+public\.finance_transactions/i);
+const installmentFinanceMigration = await readFile(
+  new URL('../supabase/migrations/20261104000000_finance_installment_interest_and_anticipation.sql', import.meta.url),
+  'utf8',
+);
+assert.match(installmentFinanceMigration, /add column if not exists interest_cents bigint/i);
+assert.match(installmentFinanceMigration, /add column if not exists anticipated_date date/i);
+assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
+assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
+assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
 const financeAccountMigration = await readFile(
   new URL('../supabase/migrations/20261030110000_finance_account_types_and_card_link.sql', import.meta.url),
   'utf8',
@@ -181,7 +190,7 @@ const state = {
       { id: 'cash-legacy', name: 'Carteira antiga', type: 'cash', initialCents: 500 },
     ],
     tx: [
-      { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', desc: 'Teste' },
+      { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', interestCents: 34, anticipatedDate: '2026-10-30', invoiceInstallment: true, desc: 'Teste' },
       { id: 'tx-legacy', type: 'in', accountId: 'account-1', cents: 2500, date: '2026-10-27', desc: 'Antigo' },
       { id: 'tx-cash', type: 'in', accountId: 'cash-legacy', cents: 500, date: '2026-10-26', desc: 'Saldo preservado' },
       { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
@@ -342,7 +351,13 @@ assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
   shortcuts: ['task', 'pomodoro'],
 });
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
+assert.equal(loadedState.finance.tx[0].interestCents, 34);
+assert.equal(loadedState.finance.tx[0].anticipatedDate, '2026-10-30');
+assert.equal(loadedState.finance.tx[0].invoiceInstallment, true);
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
+assert.equal(loadedState.finance.tx[1].interestCents, undefined);
+assert.equal(loadedState.finance.tx[1].anticipatedDate, undefined);
+assert.equal(loadedState.finance.tx[1].invoiceInstallment, undefined);
 assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
   sexualActivity: true,
   contraceptionMethods: ['condom'],

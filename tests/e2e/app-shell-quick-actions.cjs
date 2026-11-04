@@ -192,7 +192,7 @@ const check = (passed, name, detail = '') => {
       const sidebarFixed = getComputedStyle(sidebarElement).position === 'fixed'
         && Math.abs(sidebarBounds.top) <= 1
         && Math.abs(sidebarBounds.bottom - innerHeight) <= 1;
-      const navLabels = [...nav.querySelectorAll(':scope > a .tab-label-group')];
+      const navLabels = [...nav.querySelectorAll(':scope > a.nav-primary .tab-label-group')];
       return {
         width: innerWidth,
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -200,7 +200,7 @@ const check = (passed, name, detail = '') => {
         sidebar,
         sidebarFixed,
         activeLabelVisible: currentLabel ? currentLabel.getBoundingClientRect().width > 0 : true,
-        allNavLabelsVisible: navLabels.length > 0 && navLabels.every((label) => label.getBoundingClientRect().width > 1),
+        primaryLabelsVisible: navLabels.length > 0 && navLabels.every((label) => label.getBoundingClientRect().width > 1),
         createLabelVisible: nav.querySelector('.nav-quick-trigger .tab-label-group').getBoundingClientRect().width > 1,
         navPosition: getComputedStyle(nav).position,
       };
@@ -209,10 +209,60 @@ const check = (passed, name, detail = '') => {
   check(breakpoints.every(({ overflow }) => !overflow), 'sem overflow horizontal entre 768 e 1440 px', JSON.stringify(breakpoints));
   check(breakpoints.find(({ width }) => width === 1024)?.activeLabelVisible, 'nome da área atual permanece visível em tablet');
   const labeledTablet = breakpoints.find(({ width }) => width === 1100);
-  check(labeledTablet?.allNavLabelsVisible && labeledTablet?.createLabelVisible, 'nomes das áreas e de Criar ficam visíveis no tablet largo');
+  check(labeledTablet?.primaryLabelsVisible && labeledTablet?.createLabelVisible, 'nomes da navegação principal e de Criar ficam visíveis no tablet largo');
   check(breakpoints.find(({ width }) => width === 1200)?.sidebar, 'barra lateral entra a partir de 1200 px');
   check(breakpoints.find(({ width }) => width === 1200)?.sidebarFixed,
     'barra lateral desktop permanece fixa na altura da janela', JSON.stringify(breakpoints.find(({ width }) => width === 1200)));
+  for (const width of [900, 1024, 1199]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(100);
+    check(await moreMenu.isHidden(), `menu Mais fica fechado em ${width} px`);
+    const compactHeaderHeight = await page.locator('.topbar').evaluate((header) => header.getBoundingClientRect().height);
+    await moreTrigger.click();
+    await moreMenu.waitFor({ state: 'visible' });
+    const compactMenuLayout = await page.evaluate(() => {
+      const header = document.querySelector('.topbar').getBoundingClientRect();
+      const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+      const menu = document.querySelector('#nav-more-menu');
+      const menuBounds = menu.getBoundingClientRect();
+      return {
+        headerHeight: header.height,
+        menuPosition: getComputedStyle(menu).position,
+        menuBelowNav: menuBounds.top >= nav.bottom,
+        menuWithinViewport: menuBounds.left >= 0 && menuBounds.right <= innerWidth,
+        linksFit: [...menu.querySelectorAll('.nav-more-link, .nav-more-create')].every((item) => (
+          item.scrollWidth <= item.clientWidth + 1
+          && item.getBoundingClientRect().width > 0
+        )),
+      };
+    });
+    check(compactMenuLayout.headerHeight === compactHeaderHeight && compactMenuLayout.menuPosition === 'absolute',
+      `menu Mais flutua sem alterar o cabeçalho em ${width} px`, JSON.stringify(compactMenuLayout));
+    check(compactMenuLayout.menuBelowNav && compactMenuLayout.menuWithinViewport && compactMenuLayout.linksFit,
+      `menu Mais cabe na tela e mantém os rótulos em ${width} px`, JSON.stringify(compactMenuLayout));
+    await moreTrigger.click();
+    check(await moreMenu.isHidden(), `acionador Mais fecha o painel em ${width} px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/?preview#config?section=areas-navigation`);
+  const cycleAreaToggle = page.locator('[data-change="area"][data-area="cycle"]');
+  const cycleMenuToggle = page.locator('#menu-visible-ciclo');
+  const cycleWasEnabled = await cycleAreaToggle.isChecked();
+  const cycleWasVisible = await cycleMenuToggle.isChecked();
+  await cycleAreaToggle.check();
+  await cycleMenuToggle.check();
+  if (!cycleWasEnabled || !cycleWasVisible) await page.locator('[data-settings-save-button]').click();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="#ciclo"]');
+  await cycleSidebarLink.waitFor({ state: 'visible' });
+  check(await cycleSidebarLink.isVisible(), 'Ciclo ativo aparece como link direto na barra lateral desktop');
+  const sidebarHeaderActions = await page.locator('.app > .topbar .header-actions').evaluate((actions) => ({
+    visibleButtons: [...actions.children].filter((button) => getComputedStyle(button).display !== 'none').length,
+    columns: getComputedStyle(actions).gridTemplateColumns.split(' ').length,
+  }));
+  check(sidebarHeaderActions.columns === sidebarHeaderActions.visibleButtons,
+    'controles da barra lateral não reservam coluna vazia', JSON.stringify(sidebarHeaderActions));
   const sidebarItemOrder = await page.locator('.app > .topbar .nav').evaluate((nav) => (
     [...nav.children]
       .filter((item) => getComputedStyle(item).display !== 'none'
@@ -232,6 +282,20 @@ const check = (passed, name, detail = '') => {
   check(!breakpoints.find(({ width }) => width === 1200)?.reloadButtonVisible,
     'botão de atualização não aparece na visão web');
   const sidebarAfterRouteChanges = [];
+  await page.evaluate(() => {
+    window.__appRootMutations = 0;
+    window.__appRootObserver = new MutationObserver((records) => {
+      window.__appRootMutations += records.filter((record) => record.target.id === 'app').length;
+    });
+    window.__appRootObserver.observe(document.querySelector('#app'), { childList: true });
+  });
+  const rendersBeforeRouteChange = await page.evaluate(() => window.__appRootMutations);
+  await page.locator('.app > .topbar .nav a[href="#inicio"]').click();
+  await page.locator('.main[data-route="inicio"]').waitFor();
+  await page.waitForTimeout(100);
+  const routeRenderCount = await page.evaluate((before) => window.__appRootMutations - before, rendersBeforeRouteChange);
+  check(routeRenderCount === 1, 'trocar de tela renderiza o shell uma única vez', String(routeRenderCount));
+  await page.evaluate(() => window.__appRootObserver.disconnect());
   for (const [hash, route] of [['#inicio', 'inicio'], ['#planejar', 'planejar']]) {
     await page.locator(`.topbar .nav a[href="${hash}"]`).click();
     await page.locator(`.main[data-route="${route}"]`).waitFor();
