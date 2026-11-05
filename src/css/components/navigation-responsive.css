@@ -153,7 +153,11 @@
     grid-template-columns: minmax(0, 1fr) max-content;
     gap: 4px;
   }
-  .topbar .brand { min-width: 0; }
+  .topbar .brand {
+    width: fit-content;
+    min-width: 0;
+    justify-self: start;
+  }
   .topbar .header-actions { gap: 2px; }
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
 }

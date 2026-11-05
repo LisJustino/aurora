@@ -1178,6 +1178,7 @@
   background: color-mix(in srgb, var(--surface-strong) 94%, var(--bg));
   box-shadow: var(--card-shadow);
 }
+.settings-unsaved-bar[hidden] { display: none; }
 .settings-unsaved-bar > span {
   color: var(--ink);
   font-weight: 700;

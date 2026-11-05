@@ -425,7 +425,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
   const announcer = document.createElement('div');
   announcer.id = 'notification-announcer';
@@ -478,11 +478,32 @@ function withoutRemovedStudyTrash(entries) {
 }
 function refreshSettingsSaveControls() {
   const dirty = settingsDraftDirty();
-  document.querySelectorAll('[data-settings-save-button]').forEach((button) => { button.disabled = !dirty; });
+  const saving = ui.settingsSaving || ui.profileSaving;
+  document.querySelectorAll('[data-settings-save-button]').forEach((button) => {
+    button.disabled = !dirty || saving;
+    button.textContent = saving ? 'Salvando...' : button.dataset.settingsSaveLabel || 'Salvar alterações';
+    button.setAttribute('aria-busy', String(saving));
+  });
   document.querySelectorAll('[data-settings-discard-button]').forEach((button) => {
-    button.disabled = !dirty;
+    button.disabled = !dirty || saving;
     button.hidden = !dirty;
   });
+  refreshUnsavedSettingsBanner();
+}
+function refreshUnsavedSettingsBanner() {
+  const banner = document.querySelector('.settings-unsaved-bar');
+  if (!banner) return;
+  const dirty = Boolean(ui.profileDraft || settingsDraftDirty());
+  const saving = ui.profileSaving || ui.settingsSaving;
+  banner.hidden = !dirty;
+  const discardButton = banner.querySelector('[data-action="profile-discard"]');
+  if (discardButton) discardButton.disabled = !dirty || saving;
+  const saveButton = banner.querySelector('[data-action="profile-save"]');
+  if (saveButton) {
+    saveButton.disabled = !dirty || saving;
+    saveButton.textContent = saving ? 'Salvando...' : 'Salvar alterações';
+    saveButton.setAttribute('aria-busy', String(saving));
+  }
 }
 function updateSettingsDraft(update, shouldRender = true) {
   if (!ui.settingsDraft) {
@@ -497,30 +518,84 @@ function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
 async function saveSettingsDraft() {
-  if (!settingsDraftDirty()) return;
-  const previousSettings = S.settings;
+  if (!settingsDraftDirty() || ui.settingsSaving || ui.profileSaving) return;
+  const previousSettings = cloneSettings(S.settings);
+  const draft = settingsView();
+  ui.settingsSaving = true;
+  render();
   try {
-    S.settings = normalizeSettings(settingsView());
+    S.settings = normalizeSettings(draft);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
-      render();
       return;
     }
+    if (!ui.preview && !(await Persist.flush())) {
+      S.settings = previousSettings;
+      return;
+    }
+    ui.settingsDraft = null;
+    ui.settingsDraftBase = null;
+    toast(ui.preview
+      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
+      : 'Configurações salvas.');
   } catch (error) {
     console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
     S.settings = previousSettings;
-    render();
     toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.');
+  } finally {
+    ui.settingsSaving = false;
+    render();
+  }
+}
+async function saveProfileDraft() {
+  if (ui.profileSaving || ui.settingsSaving) return;
+  const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+  const ageInput = String(draft.age ?? '').trim();
+  const age = ageInput ? Number(ageInput) : null;
+  if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
+  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
+  if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
+    toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
+    $('#page')?.focus();
     return;
   }
-  ui.settingsDraft = null;
-  ui.settingsDraftBase = null;
+  const previousSettings = cloneSettings(S.settings);
+  ui.profileSaving = true;
   render();
-  if (await Persist.flush()) toast('Configurações salvas.');
+  try {
+    Object.assign(S.settings.profile, {
+      name: draft.name.trim().slice(0, 50),
+      preferredName: draft.preferredName.trim().slice(0, 50),
+      sex: draft.sex,
+      age,
+    });
+    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
+    if (!saveSlices('settings')) {
+      S.settings = previousSettings;
+      toast('Não foi possível salvar as alterações. Tente novamente.');
+      return;
+    }
+    if (!ui.preview && !(await Persist.flush())) {
+      S.settings = previousSettings;
+      return;
+    }
+    ui.profileDraft = null;
+    toast(ui.preview
+      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
+      : 'Perfil salvo.');
+  } catch (error) {
+    S.settings = previousSettings;
+    console.error('Aurora: não foi possível salvar o perfil.', error);
+    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.');
+  } finally {
+    ui.profileSaving = false;
+    render();
+  }
 }
-function settingsSaveButton(label = 'Salvar') {
+function settingsSaveButton(label = 'Salvar alterações') {
   const dirty = settingsDraftDirty();
-  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button ${dirty ? '' : raw('disabled')}>${label}</button></div>`;
+  const saving = ui.settingsSaving || ui.profileSaving;
+  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty && !saving ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button data-settings-save-label="${label}" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : label}</button></div>`;
 }
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
@@ -3972,13 +4047,13 @@ function settingsSectionContent(s, p, selectedTab) {
 function unsavedSettingsBanner() {
   const hasProfile = Boolean(ui.profileDraft);
   const hasOtherChanges = settingsDraftDirty();
-  if (!hasProfile && !hasOtherChanges) return '';
-  const mobile = window.matchMedia('(max-width: 760px)').matches;
-  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas">
-    <span>${mobile ? 'Alterações não salvas' : 'Você tem alterações não salvas'}</span>
+  const dirty = hasProfile || hasOtherChanges;
+  const saving = ui.profileSaving || ui.settingsSaving;
+  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas" ${dirty ? '' : raw('hidden')}>
+    <span>Alterações não salvas</span>
     <div class="settings-unsaved-actions">
-      <button type="button" class="btn sm back" data-action="profile-discard">Descartar</button>
-      <button type="button" class="btn sm primary" data-action="profile-save" ${ui.profileSaving ? raw('disabled') : ''}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+      <button type="button" class="btn back" data-action="profile-discard" ${dirty && !saving ? '' : raw('disabled')}>Descartar alterações</button>
+      <button type="button" class="btn primary" data-action="profile-save" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : 'Salvar alterações'}</button>
     </div>
   </div>`;
 }
@@ -4841,7 +4916,7 @@ const ACTIONS = {
     toast('Alterações descartadas.');
   },
   'profile-save': async () => {
-    if (ui.profileDraft) await ACTIONS['settings-profile']();
+    if (ui.profileDraft) await saveProfileDraft();
     if (!ui.profileDraft && settingsDraftDirty()) await saveSettingsDraft();
   },
   'focus-quick-task': () => openTaskDialog(today()),
@@ -5856,43 +5931,7 @@ const FORMS = {
     if (saved) toast('Tarefa adicionada para hoje.');
   },
   'settings-save': saveSettingsDraft,
-  'settings-profile': async () => {
-    if (ui.profileSaving) return;
-    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
-    const ageInput = String(draft.age ?? '').trim();
-    const age = ageInput ? Number(ageInput) : null;
-    if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
-    if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-    if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
-      toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
-      $('#page')?.focus();
-      return;
-    }
-    const previousSettings = cloneSettings(S.settings);
-    ui.profileSaving = true;
-    render();
-    try {
-      Object.assign(S.settings.profile, {
-        name: draft.name.trim().slice(0, 50),
-        preferredName: draft.preferredName.trim().slice(0, 50),
-        sex: draft.sex,
-        age,
-      });
-      S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
-      if (!saveSlices('settings')) {
-        S.settings = previousSettings;
-        render();
-        toast('Não foi possível salvar as alterações. Tente novamente.');
-        return;
-      }
-      ui.profileDraft = null;
-      render();
-      toast('Perfil salvo.');
-    } finally {
-      ui.profileSaving = false;
-      render();
-    }
-  },
+  'settings-profile': saveProfileDraft,
   'habit': (f, d) => {
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
@@ -6437,8 +6476,7 @@ document.addEventListener('input', (e) => {
       appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
     };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
-    const saveButton = $('#profile-settings-form [type="submit"]');
-    if (saveButton) saveButton.disabled = !ui.profileDraft;
+    refreshUnsavedSettingsBanner();
     const previewName = $('#profile-preview-name');
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
     const previewGreeting = $('#profile-preview-greeting');

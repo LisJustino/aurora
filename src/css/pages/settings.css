@@ -13,9 +13,10 @@
 
 .main[data-route="config"] .settings-menu {
   top: 84px;
-  max-height: calc(100dvh - 104px);
+  max-height: none;
   gap: 12px;
   padding: 14px;
+  overflow: visible;
   border-color: var(--settings-edge);
   border-radius: var(--r-large);
   background:
@@ -282,19 +283,18 @@
   .main[data-route="config"] .settings-menu {
     position: relative;
     top: auto;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     max-height: none;
-    gap: var(--space-2);
+    gap: var(--space-1);
     margin-inline: calc(-1 * var(--gut-l)) calc(-1 * var(--gut-r));
     padding: 8px var(--gut-r);
-    overflow-x: auto;
+    overflow: visible;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
     background: var(--bg);
     box-shadow: none;
-    scrollbar-width: thin;
-    overscroll-behavior-inline: contain;
   }
 
   .main[data-route="config"] .settings-menu-group {
@@ -305,14 +305,14 @@
   .main[data-route="config"] .settings-menu-group + .settings-menu-group { padding: 0; border: 0; }
   .main[data-route="config"] .settings-link {
     display: flex;
-    width: auto;
-    min-width: 92px;
-    min-height: 72px;
-    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 84px;
+    flex: none;
     flex-direction: column;
     justify-content: center;
-    gap: 5px;
-    padding: 7px 10px;
+    gap: 4px;
+    padding: 6px 4px;
     border-color: transparent;
     text-align: center;
   }
@@ -356,6 +356,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .main[data-route="config"] .settings-unsaved-actions > .btn { min-width: 0; padding-inline: var(--space-2); }
+}
+
+@media (max-width: 380px) {
+  .main[data-route="config"] .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
