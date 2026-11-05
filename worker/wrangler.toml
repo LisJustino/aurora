@@ -4,7 +4,7 @@ compatibility_date = "2026-10-27"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ALLOWED_ORIGINS = "https://aurora-9ze.pages.dev"
+ALLOWED_ORIGINS = "https://aurora-rotinas.com.br,https://aurora-9ze.pages.dev"
 ENVIRONMENT = "production"
 VAPID_PUBLIC_KEY = "BJiYgEm_z-KPe2APskeKEOG7hJlKYkdmBdR3A6givGtSPMf2VR4K2qDLTZSMs_lh7QVVbeyI7abVNGiaogEgxiw"
 

@@ -88,6 +88,9 @@ function localDateValue(date) {
   check(/acesso é liberado assim que a conta é criada/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
   check(/erro de digitação pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
   await page.getByRole('button', { name: /criar conta/i }).first().click();
+  await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
+  check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');
+  check(await page.locator('.account-google-icon').count() === 1, 'opção de cadastro inclui o ícone do Google');
 
   const birthDate = page.locator('#account-birthDate');
   const initialState = await birthDate.evaluate((input) => {
@@ -106,8 +109,16 @@ function localDateValue(date) {
   check(initialState.appearance !== 'none', 'aparência e controle nativos estão ativos', initialState.appearance);
   check(initialState.width > 0 && initialState.right <= initialState.viewportWidth, 'campo cabe na viewport de 320 px');
   check(initialState.scrollWidth <= initialState.viewportWidth, 'cadastro não tem overflow horizontal em 320 px');
+  check(
+    await page.locator('#account-age-status').evaluate((status) => status.hidden && !status.textContent.trim()),
+    'campo de nascimento não mostra erro antes de ser tocado',
+  );
 
   await page.locator('#account-name').fill('Pessoa de teste');
+  check(
+    await page.locator('#account-preferredName').inputValue() === 'Pessoa',
+    'nome preferido recebe o primeiro nome automaticamente',
+  );
   await page.locator('#account-preferredName').fill('Teste');
   await birthDate.fill('2000-10-29');
   check(
@@ -117,19 +128,27 @@ function localDateValue(date) {
   check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data válida libera a etapa seguinte');
 
   const minorDate = new Date();
-  minorDate.setFullYear(minorDate.getFullYear() - 17);
+  minorDate.setFullYear(minorDate.getFullYear() - 15);
   await birthDate.fill(localDateValue(minorDate));
   check(
-    (await page.locator('#account-age-status').textContent()).includes('17 anos'),
-    'data de menor de idade calcula a idade',
+    /pelo menos 16 anos/i.test(await page.locator('#account-age-status').textContent()),
+    'cadastro informa que a idade é inferior ao mínimo',
   );
-  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data de menor libera a etapa seguinte');
+  check(await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade inferior a 16 bloqueia o cadastro');
+  const minimumAgeDate = new Date();
+  minimumAgeDate.setFullYear(minimumAgeDate.getFullYear() - 16);
+  await birthDate.fill(localDateValue(minimumAgeDate));
+  check(
+    (await page.locator('#account-age-status').textContent()).includes('16 anos'),
+    'idade mínima de 16 anos pode continuar o cadastro',
+  );
+  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade mínima libera a etapa seguinte');
   await birthDate.fill(localDateValue(new Date()));
   check(
-    (await page.locator('#account-age-status').textContent()).includes('0 anos'),
-    'idade zero também pode continuar o cadastro',
+    /pelo menos 16 anos/i.test(await page.locator('#account-age-status').textContent()),
+    'idade zero é identificada como inferior ao mínimo',
   );
-  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade zero não bloqueia o cadastro');
+  check(await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade zero bloqueia o cadastro');
   check(errors.length === 0, 'sem erros JavaScript', errors.slice(0, 3).join(' | '));
 
   await page.setViewportSize({ width: 390, height: 844 });

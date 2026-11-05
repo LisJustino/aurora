@@ -42,7 +42,7 @@ export const AREA_GUIDES = {
     video: new URL('../../assets/tutorials/financas.webm', import.meta.url).href,
     fallbackVideo: new URL('../../assets/tutorials/financas.mp4', import.meta.url).href,
     steps: [
-      { title: 'Comece pelas contas', text: 'Cadastre manualmente uma conta ou carteira e informe o saldo inicial que deseja acompanhar. O Aurora não importa saldos do banco por conta própria.' },
+      { title: 'Comece pelas contas', text: 'Cadastre manualmente uma conta ou carteira e informe o saldo inicial que deseja acompanhar. O Aurora não importa saldos bancários por conta própria.' },
       { title: 'Registre cada movimentação', text: 'Adicione receitas e despesas com valor, data, categoria e conta. Os valores são aqueles que você informar.' },
       { title: 'Transfira sem duplicar gastos', text: 'Ao mover dinheiro entre suas contas, use transferência e escolha origem e destino. Ela altera os saldos, mas não entra como receita nem despesa.' },
       { title: 'Acompanhe e corrija', text: 'Consulte os resumos, filtros e relatórios com base nos registros feitos. Se algo estiver errado, edite ou remova o lançamento correspondente.' },

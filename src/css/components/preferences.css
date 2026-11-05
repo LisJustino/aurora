@@ -238,6 +238,36 @@
 }
 .settings-trash-empty p { display: grid; gap: 3px; margin: 0; }
 .settings-trash-empty small { color: var(--muted); line-height: 1.4; }
+.settings-data-migration > summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+  list-style: none;
+  cursor: pointer;
+}
+.settings-data-migration > summary::-webkit-details-marker { display: none; }
+.settings-data-migration > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--r-control);
+}
+.settings-data-migration-copy { display: grid; min-width: 0; gap: 3px; }
+.settings-data-migration-copy b { font-size: var(--text-sm); font-weight: 650; }
+.settings-data-migration-copy small { color: var(--muted); line-height: 1.4; }
+.settings-data-migration-indicator {
+  display: flex;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.settings-data-migration[open] > summary {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.settings-data-migration[open] .settings-data-migration-indicator { transform: rotate(180deg); }
+.settings-data-migration-content { display: grid; gap: var(--space-4); }
 .settings-data-migration .legacy-import-stage {
   padding: var(--space-4);
   border: 1px solid var(--line);

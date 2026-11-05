@@ -13,7 +13,7 @@ function parseLocalEnvelope(raw, key) {
   try {
     envelope = JSON.parse(raw);
   } catch {
-    throw new Error(`O dado antigo "${key}" não é um JSON válido. Ele foi preservado; nada foi importado.`);
+    throw new Error(`O dado antigo "${key}" está em um formato inválido. Ele foi preservado; nada foi importado.`);
   }
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
     || !Object.hasOwn(envelope, 'v')

@@ -13,9 +13,13 @@ import {
   isPasswordRecoveryCallback,
   LEGAL_DOCUMENT_VERSION,
   meetsPasswordRequirements,
+  passwordRecoveryErrorMessage,
   getEmailDomainSuggestions,
+  requestAccountDeletion,
   signupErrorMessage,
 } from '../src/js/services/account-auth.js';
+import { accountHashForMode, accountModeFromHash, isPublicLandingHash } from '../src/js/core/router.js';
+import { timeBasedGreeting } from '../src/js/features/profile/model.js';
 import {
   createAuthSessionStorage,
   resolveSupabaseConfig,
@@ -151,11 +155,30 @@ assert.equal(isExistingAccountSignup({ code: 'weak_password' }), false);
 assert.equal(isAccountDeletionConfirmed(null, { deleted: true }), true);
 assert.equal(isAccountDeletionConfirmed(null, { deleted: false }), false);
 assert.equal(isAccountDeletionConfirmed({ message: 'failed' }, { deleted: true }), false);
-assert.match(signupErrorMessage({ code: 'user_already_exists' }), /ainda está associado a uma conta/);
+let deletionFunctionName = '';
+assert.equal(await requestAccountDeletion({
+  functions: {
+    invoke: async (name) => {
+      deletionFunctionName = name;
+      return { data: { deleted: true }, error: null };
+    },
+  },
+}), true);
+assert.equal(deletionFunctionName, 'delete-account');
+const originalConsoleError = console.error;
+console.error = () => {};
+try {
+  assert.equal(await requestAccountDeletion({
+    functions: { invoke: async () => ({ data: { deleted: false }, error: null }) },
+  }), false);
+} finally {
+  console.error = originalConsoleError;
+}
+assert.match(signupErrorMessage({ code: 'user_already_exists' }), /já está vinculado a uma conta, então não criamos outra/);
 assert.match(signupErrorMessage(null, {
   session: null,
   user: { identities: [] },
-}), /criar uma conta nova, sem recuperar os dados anteriores/);
+}), /Ajustes → Seu perfil → Excluir conta/);
 assert.match(signupErrorMessage({ code: 'weak_password' }), /requisitos de segurança/);
 assert.match(signupErrorMessage({ code: 'invalid_email' }), /e-mail foi digitado corretamente/);
 assert.match(signupErrorMessage({ status: 429 }), /Muitas tentativas/);
@@ -169,17 +192,19 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: LEGAL_DOCUMENT_VERSION,
   privacy_policy_version: LEGAL_DOCUMENT_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.6');
+assert.equal(LEGAL_DOCUMENT_VERSION, '1.7');
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
-const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261030234700_signup_allow_any_age.sql', import.meta.url), 'utf8');
-assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.6">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.6">/);
-assert.match(termsDocument, /cadastro não exige idade mínima/i);
-assert.match(signupAgeMigration, /age between 0 and 120/);
-assert.match(signupAgeMigration, /profile_age < 0 or profile_age > 120/);
+const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.7">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.7">/);
+assert.match(termsDocument, /pelo menos 16 anos/i);
+assert.match(privacyDocument, /pelo menos 16 anos/i);
+assert.match(signupAgeMigration, /metadata_age::integer < 16/);
+assert.match(signupAgeMigration, /message = 'signup_minimum_age'/);
+assert.match(signupAgeMigration, /make_date\(2000, birth_month, birth_day\)/);
 assert.match(termsDocument, /provedor deve permitir o acesso sem confirmação do e-mail/);
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
@@ -189,11 +214,18 @@ assert.match(landingSource, /erro de digitação pode impedir a recuperação da
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
+    terms_version: '1.7',
+    privacy_policy_version: '1.7',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), true);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
     terms_version: '1.6',
     privacy_policy_version: '1.6',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
-}), true);
+}), false);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.4',
@@ -253,7 +285,10 @@ assert.doesNotMatch(accountAuthSource, /auth\.resend\(/);
 assert.doesNotMatch(accountAuthSource, /verify-email/);
 assert.match(accountAuthSource, /confirme-a manualmente em Authentication → Users/);
 assert.match(accountAuthSource, /provider: result\.oauthProvider/);
-assert.match(accountAuthSource, /Continuar com Google \(Gmail\)/);
+assert.match(accountAuthSource, /Entrar com Google/);
+assert.match(accountAuthSource, /Criar conta com Google/);
+assert.match(accountAuthSource, /account-google-icon/);
+assert.match(accountAuthSource, /mode === 'login' \|\| mode === 'signup-profile'/);
 assert.doesNotMatch(accountAuthSource, /Continuar com Apple \(iCloud\)/);
 assert.match(accountAuthSource, /result\.oauthProvider !== 'google'/);
 assert.match(accountAuthSource, /oauth-profile/);
@@ -266,6 +301,12 @@ assert.equal(meetsPasswordRequirements('Abcdefg!'), false);
 assert.equal(meetsPasswordRequirements('Abcdef1g'), false);
 assert.equal(meetsPasswordRequirements(`A${'b'.repeat(69)}1!`), true);
 assert.equal(meetsPasswordRequirements(`A${'b'.repeat(70)}1!`), false);
+assert.match(passwordRecoveryErrorMessage({ code: 'over_email_send_rate_limit' }), /aguarde alguns minutos/i);
+assert.match(passwordRecoveryErrorMessage({ status: 429 }), /aguarde alguns minutos/i);
+assert.equal(
+  passwordRecoveryErrorMessage({ code: 'unexpected_error' }),
+  'Não foi possível concluir a solicitação. Confira os dados e tente novamente.',
+);
 
 const today = new Date(2026, 9, 29, 12);
 assert.equal(calculateAge('2008-10-29', today), 18);
@@ -274,5 +315,19 @@ assert.equal(calculateAge('2008-10-28', today), 18);
 assert.equal(calculateAge('2000-02-30', today), null);
 assert.equal(calculateAge('2027-01-01', today), null);
 assert.equal(calculateAge('1900-01-01', today), null);
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 4, 59)), 'Boa noite');
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 5, 0)), 'Bom dia');
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 11, 59)), 'Bom dia');
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 12, 0)), 'Boa tarde');
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 17, 59)), 'Boa tarde');
+assert.equal(timeBasedGreeting(new Date(2026, 10, 3, 18, 0)), 'Boa noite');
+assert.equal(isPublicLandingHash('#demonstracao'), true);
+assert.equal(accountModeFromHash('#entrar'), 'login');
+assert.equal(accountModeFromHash('#criar-conta'), 'signup-profile');
+assert.equal(accountModeFromHash('#criar-conta?etapa=acesso'), 'signup-access');
+assert.equal(accountModeFromHash('#esqueci-senha'), 'recovery');
+assert.equal(accountModeFromHash('#nova-senha'), 'update-password');
+assert.equal(accountHashForMode('login'), '#entrar');
+assert.equal(accountHashForMode('signup-access'), '#criar-conta?etapa=acesso');
 
 console.log('account-auth-check: all checks passed');

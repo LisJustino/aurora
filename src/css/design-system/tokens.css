@@ -112,6 +112,8 @@
   --text-display: clamp(1.9rem, 4vw, 2.5rem);
   --text-hero: clamp(2.1rem, 4vw, 3.3rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
+  --text-metric: clamp(2.1rem, 5vw, 3rem);
+  --text-water-total: clamp(2.75rem, 8vw, 4rem);
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -152,6 +154,7 @@
   --text-4xl: 2rem;
   --text-body: var(--text-base);
   --text-timer: clamp(2.75rem, 12vw, 4rem);
+  --text-timer-large: clamp(3rem, 12vw, 5rem);
   /* Controles: altura mínima por tamanho (sm 40 · md 44 · field 48 · lg 52) */
   --control-sm: 40px;
   --control-md: var(--target-size);
@@ -203,6 +206,43 @@
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
   --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #1c1b19;
+    --bg-strong: #242320;
+    --surface: #272522;
+    --surface-strong: #272522;
+    --surface-raised: #302c28;
+    --surface-soft: #302c28;
+    --ink: #f2efeb;
+    --muted: #c8c2bb;
+    --line: rgba(205, 196, 186, 0.17);
+    --line-strong: #938b82;
+    --accent: color-mix(in srgb, var(--p) 72%, #fff);
+    --soft: color-mix(in srgb, var(--p) 12%, var(--surface));
+    --soft2: color-mix(in srgb, var(--p) 20%, var(--surface));
+    --ring: color-mix(in srgb, var(--p) 72%, #fff);
+    --focus-soft: color-mix(in srgb, var(--p) 24%, transparent);
+    --focus: #edc6bc;
+    --ok: #8bd0a6;
+    --ok-soft: #203329;
+    --warn: #f0bf76;
+    --warn-soft: #392b19;
+    --bad: #f2959e;
+    --bad-soft: #3a2227;
+    --area-water: #72c7d8;
+    --area-finances: #8fcea0;
+    --area-cycle: #d997bd;
+    --priority-low: #8ccddd;
+    --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
+    --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
+    --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
+    --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
+    --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
+  }
 }
 
 :root[data-contrast="high"] {
