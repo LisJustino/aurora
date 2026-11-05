@@ -27,9 +27,19 @@ const check = (passed, name, detail = '') => {
   await page.goto(BASE);
   check(mainModuleRequests.length === 0, 'landing pública não baixa o módulo completo antes da autenticação');
   check(await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).count() === 1, 'landing apresenta o benefício principal do Aurora');
-  check(await page.getByRole('heading', { name: 'Da cabeça cheia a um próximo passo possível' }).count() === 1
-    && await page.locator('.public-journey-step').count() === 3,
-  'landing mostra como o Aurora transforma organização em ações e revisão semanal');
+  check(await page.getByText('Da cabeça cheia a um próximo passo possível').count() === 1
+    && await page.locator('.public-journey-step').count() === 3
+    && await page.locator('.public-journey').count() === 0,
+  'landing mostra como o Aurora transforma organização em ações e revisão semanal dentro de uma única seção');
+  check(await page.getByText('Planner de tarefas, hábitos, foco e finanças em um só lugar.').count() === 1
+    && await page.getByText('Totalmente grátis').count() > 0
+    && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1,
+  'landing explica o produto, informa que é grátis e mostra a transparência do criador');
+  check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
+    && await page.locator('.public-faq form[data-footer-suggestion]').count() === 0
+    && await page.locator('.public-footer form[data-footer-suggestion]').count() === 1,
+  'FAQ começa por preço e o formulário de sugestão fica no rodapé');
+  check(await page.locator('.public-value-media').count() === 5, 'cada área tem um espaço para vídeo mudo');
   check(await page.getByText('profissional e mãe').count() === 0
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
@@ -93,7 +103,7 @@ const check = (passed, name, detail = '') => {
   await page.mouse.click(1, 1);
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
-  await page.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
+  await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
   check(mainModuleRequests.length === 0, 'demonstração pública não baixa o módulo completo');
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(await page.locator('.demo-nav-link').count() === 6, 'demonstração oferece navegação pelas áreas do app');
@@ -162,7 +172,7 @@ const check = (passed, name, detail = '') => {
   }));
   check(storageAfter === storageBefore, 'interações não gravam dados no navegador');
   check(interactionRequests.length === 0, 'interações não fazem requisições de rede', interactionRequests.join(', '));
-  check(await page.getByRole('button', { name: 'Criar conta' }).count() > 0, 'CTA para criar conta permanece disponível');
+  check(await page.getByRole('link', { name: 'Criar conta' }).count() > 0, 'CTA para criar conta permanece disponível');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em 390 px');
 
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -178,7 +188,7 @@ const check = (passed, name, detail = '') => {
   });
   check(demoLayout.sidebarVisible, 'demonstração usa a navegação lateral do app no desktop');
   check(demoLayout.mainFitsWorkspace, 'conteúdo respeita a coluna ao lado da navegação');
-  await page.getByRole('button', { name: 'Voltar à página inicial' }).click();
+  await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
   check(
     await page.locator('.public-journey-grid').evaluate((grid) => {
       const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().left));

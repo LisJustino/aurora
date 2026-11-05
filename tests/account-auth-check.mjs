@@ -19,6 +19,10 @@ import {
   signupErrorMessage,
 } from '../src/js/services/account-auth.js';
 import {
+  NATIVE_AUTH_REDIRECT_URL,
+  parseNativeAuthCallback,
+} from '../src/js/utils/native-auth-callback.js';
+import {
   accountHashForMode,
   accountModeFromHash,
   accountModeFromLocation,
@@ -198,14 +202,14 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: LEGAL_DOCUMENT_VERSION,
   privacy_policy_version: LEGAL_DOCUMENT_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.7');
+assert.equal(LEGAL_DOCUMENT_VERSION, '1.8');
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
-assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.7">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.7">/);
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.8">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.8">/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);
@@ -220,8 +224,8 @@ assert.match(landingSource, /erro de digitação pode impedir a recuperação da
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
-    terms_version: '1.7',
-    privacy_policy_version: '1.7',
+    terms_version: '1.8',
+    privacy_policy_version: '1.8',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
@@ -250,6 +254,25 @@ assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
 assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/');
 assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/');
+assert.equal(NATIVE_AUTH_REDIRECT_URL, 'br.com.aurora.rotinas://auth/callback');
+assert.deepEqual(parseNativeAuthCallback('br.com.aurora.rotinas://auth/callback?code=abc'), {
+  code: 'abc',
+  error: '',
+  recovery: false,
+});
+assert.deepEqual(parseNativeAuthCallback('br.com.aurora.rotinas://auth/callback?code=abc&type=recovery'), {
+  code: 'abc',
+  error: '',
+  recovery: true,
+});
+assert.deepEqual(parseNativeAuthCallback('br.com.aurora.rotinas://auth/callback?error=access_denied'), {
+  code: '',
+  error: 'access_denied',
+  recovery: false,
+});
+assert.equal(parseNativeAuthCallback('https://aurora-rotinas.com.br/auth/callback?code=abc'), null);
+assert.equal(parseNativeAuthCallback('br.com.aurora.rotinas://other/callback?code=abc'), null);
+assert.equal(parseNativeAuthCallback(`br.com.aurora.rotinas://auth/callback?code=${'x'.repeat(3000)}`).code, '');
 assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',

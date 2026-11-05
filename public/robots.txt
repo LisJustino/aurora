@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /pages/
+
+Sitemap: https://aurora-rotinas.com.br/sitemap.xml

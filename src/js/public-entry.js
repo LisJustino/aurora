@@ -10,9 +10,17 @@ import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
-import { isAppInstalled, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
+if (isNativeApp()) {
+  void import('./services/native-auth.js')
+    .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
+    .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
+  void import('./services/pomodoro-push.js')
+    .catch((error) => console.error('O Aurora não conseguiu preparar as notificações nativas.', error));
+}
 const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
 const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));
 let publicPwaCleanup = () => {};
@@ -110,6 +118,7 @@ async function loadApplication(mode = 'login') {
 function startPublicPwaSupport() {
   if (!import.meta.env.PROD
     || import.meta.env.VITE_PWA_ENABLED === 'false'
+    || isNativeApp()
     || !('serviceWorker' in navigator)) return;
   let active = true;
   let cleanupRegistration = () => {};
@@ -238,7 +247,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       document.title = 'Demonstração | aurora.';
     } else {
       renderLanding(root);
-      document.title = 'aurora. — mais clareza para a sua rotina';
+      document.title = 'aurora. — planner semanal, hábitos e finanças em um só lugar';
     }
     updatePublicConnectionNotice();
   };
@@ -301,11 +310,22 @@ if (localPreview || !publicEntryRoute || installedLanding) {
 
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const action = event.target instanceof Element
-      ? event.target.closest('[data-public-action]')?.dataset.publicAction
+    const installAction = event.target instanceof Element
+      ? event.target.closest('[data-action="pwa-install"]')
       : null;
-    if (action === 'landing') {
+    if (installAction) {
+      showPwaInstallPrompt();
+      return;
+    }
+    const trigger = event.target instanceof Element ? event.target.closest('[data-public-action]') : null;
+    const action = trigger?.dataset.publicAction;
+    if (trigger instanceof HTMLAnchorElement) {
+      // Cliques com modificador seguem a navegação nativa (nova aba, nova janela).
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
+      if (trigger.getAttribute('aria-disabled') === 'true') return;
+    }
+    if (action === 'landing') {
       const url = new URL(location.href);
       url.pathname = '/';
       url.hash = '';
@@ -334,10 +354,16 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     }
     if (action !== 'login' && action !== 'signup') return;
 
-    const buttons = [...root.querySelectorAll('[data-public-action]')].filter((button) => button instanceof HTMLButtonElement);
+    const buttons = [...root.querySelectorAll('[data-public-action="login"], [data-public-action="signup"], [data-public-action="demo"]')];
+    const setBusy = (control, busy) => {
+      if (control instanceof HTMLButtonElement) control.disabled = busy;
+      else if (busy) control.setAttribute('aria-disabled', 'true');
+      else control.removeAttribute('aria-disabled');
+    };
     buttons.forEach((button) => {
-      button.disabled = true;
+      setBusy(button, true);
       button.setAttribute('aria-busy', 'true');
+      if (button.dataset.publicAction === 'demo') return;
       const label = button.textContent?.trim();
       if (label && !button.dataset.defaultLabel) button.dataset.defaultLabel = label;
       if (button.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
@@ -352,7 +378,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       showEntryError(root);
     } finally {
       buttons.forEach((button) => {
-        button.disabled = false;
+        setBusy(button, false);
         button.removeAttribute('aria-busy');
         const defaultLabel = button.dataset.defaultLabel;
         if (defaultLabel) button.textContent = defaultLabel;

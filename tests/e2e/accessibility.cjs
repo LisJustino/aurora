@@ -109,14 +109,14 @@ async function checkContrast(page) {
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
     assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
-    await publicPage.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
+    await publicPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
     await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
     await systemPage.goto(BASE);
-    await systemPage.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
+    await systemPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
     await systemPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;

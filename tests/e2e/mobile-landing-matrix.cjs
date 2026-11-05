@@ -15,6 +15,13 @@ function check(passed, profile, name, detail = '') {
 }
 
 async function checkLanding(page, profile, viewportLabel) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
+  if (await page.evaluate(() => innerWidth <= 700)) {
+    await page.locator('.public-hero .preview-picture-light .preview-capture').evaluate((image) => image.decode());
+  }
   const metrics = await page.evaluate(() => {
     const rect = (selector) => {
       const element = document.querySelector(selector);
@@ -144,6 +151,19 @@ async function checkAccountScreen(page, profile, viewportLabel) {
 
       await page.goto(BASE);
       await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).waitFor();
+      if (profile.browser === webkit) {
+        const installNotice = page.locator('#pwa-install-notice');
+        check(await installNotice.count() === 0,
+          profile.name, 'instruções de instalação não cobrem a landing automaticamente');
+        const installLink = page.getByRole('button', { name: 'Baixar o app' });
+        await installLink.scrollIntoViewIfNeeded();
+        await installLink.click();
+        check(await installNotice.isVisible()
+          && await installNotice.getByText(/No Safari, toque em Compartilhar/).isVisible(),
+        profile.name, 'instruções de instalação aparecem após solicitação explícita');
+        await installNotice.getByRole('button', { name: 'Agora não' }).click();
+        await page.evaluate(() => window.scrollTo(0, 0));
+      }
       await page.setViewportSize({ width: 1280, height: 900 });
       await checkLanding(page, profile.name, 'desktop');
       await page.setViewportSize(devices[profile.name].viewport);
@@ -155,7 +175,7 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await checkLanding(page, profile.name, '520px');
       await page.setViewportSize(devices[profile.name].viewport);
 
-      await page.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
+      await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
       await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
       check(await page.locator('.demo-nav-link').count() === 6,
         profile.name, 'demonstração expõe navegação das seis áreas');
@@ -193,7 +213,7 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       if (await installNotice.count()) {
         await installNotice.getByRole('button', { name: 'Agora não' }).click();
       }
-      await page.getByRole('button', { name: 'Voltar à página inicial' }).click();
+      await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
       await page.locator('.public-site > .public-topbar [data-public-action="login"]').click();
       await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
       await checkAccountScreen(page, profile.name, 'login');

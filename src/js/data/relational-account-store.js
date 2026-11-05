@@ -1028,7 +1028,8 @@ export class RelationalAccountStore {
       console.error('Aurora: não foi possível ler a inscrição Push da conta.', error);
       throw new Error('Não foi possível verificar os avisos Push da conta.');
     }
-    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint);
+    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint
+      || (item.subscription?.provider === 'fcm' && item.subscription?.token === endpoint));
     return row ? {
       id: row.id,
       clientId: row.worker_client_id,
@@ -1036,6 +1037,18 @@ export class RelationalAccountStore {
       subscription: row.subscription,
       enabled: row.is_enabled,
     } : null;
+  }
+
+  async hasPushSubscriptionProvider(provider) {
+    const { data, error } = await this.client
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', this.userId);
+    if (error) {
+      console.error('Aurora: não foi possível verificar as inscrições Push da conta.', error);
+      throw new Error('Não foi possível verificar os avisos Push da conta.');
+    }
+    return (data || []).some((item) => item.subscription?.provider === provider);
   }
 
   async savePushSubscription(credentials, subscription) {

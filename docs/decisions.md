@@ -255,3 +255,25 @@ Hashes de rota publicados anteriormente continuam aceitos e são normalizados
 para os caminhos canônicos, preservando compatibilidade com favoritos e links
 antigos. O fallback do Cloudflare Pages continua servindo a entrada da SPA para
 os caminhos diretos.
+
+## Aplicativos para Android e iOS
+
+Capacitor é a camada de empacotamento dos aplicativos de loja; o mesmo build
+Vite continua atendendo o site e o PWA. O `applicationId`/bundle ID escolhido
+antes da primeira publicação é `br.com.aurora.rotinas`. O fluxo web
+`npm run build` não sincroniza nem depende dos projetos nativos; o fluxo
+`npm run build:native` cria o build e copia os assets para `android/` e `ios/`.
+Login Google e recuperação de senha retornam por
+`br.com.aurora.rotinas://auth/callback`; a URL deve ser permitida no Supabase
+de cada ambiente e o app troca o código PKCE no retorno. Configuração e teste
+em aparelho continuam necessários. Push nativo via FCM está integrado, mas
+depende de projeto Firebase/APNs, secrets e validação em aparelhos; Google
+Calendar ainda precisa de adaptação. Os ícones/splash das plataformas são derivados de
+`assets/icon.png` e não substituem o manifest/ícones do PWA. Gerar projetos
+Capacitor não equivale a aprovação ou prontidão para as lojas.
+
+## Landing pré-renderizada
+
+A copy da landing prioriza conversão: H1 com subtítulo curto, CTAs “Começar grátis” e “Ver demo em 1 minuto”, aviso de que o Aurora é totalmente grátis, faixa de transparência do criador (sem números ou depoimentos inventados; nome e foto podem ser adicionados depois) e FAQ que começa por preço, celular/instalação e exportação. Os vídeos dos cartões são injetados só no navegador por `landing/media.js`, nunca no HTML pré-renderizado, porque os assets têm hash do build. Os vídeos atuais são tutoriais em slides, não capturas reais da interface; capturas por aba ficam como trabalho futuro.
+
+O build (`npm run build`) executa `scripts/prerender-landing.mjs`, que injeta o HTML da landing (`landingMarkup()`) em `dist/index.html` para buscadores, prévias e leitores de tela. O esqueleto de carregamento do código-fonte vai para `<template id="app-skeleton">`; o script externo `public/landing-guard.js` (compatível com a CSP, sem script inline) restaura o esqueleto fora de `/` e em PWA instalado, evitando mostrar a landing antes da rota correta. No desenvolvimento só o esqueleto aparece. As capturas da landing são WebP (~22 KB cada); a variante escura usa `loading="lazy"` e só é baixada com o tema escuro, e a fonte principal tem `preload` no `index.html`. Ao hidratar, a landing é recriada com a animação de entrada desativada (`is-hydrated`).

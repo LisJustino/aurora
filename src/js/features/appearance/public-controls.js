@@ -21,6 +21,10 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
     const variant = (isLanding || demo) && mode === 'signup' ? 'primary' : '';
     const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
+    if (!authMode) {
+      const href = mode === 'signup' ? '/criar-conta' : '/entrar';
+      return `<a class="btn ${variant} public-account-action" href="${href}" data-public-action="${mode}" aria-label="${accessibleLabel}">${label}</a>`;
+    }
     return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
   return `

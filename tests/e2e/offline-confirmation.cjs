@@ -70,17 +70,32 @@ const check = (passed, name, detail = '') => {
         window.dispatchEvent(new PopStateEvent('popstate'));
       }, section);
       await page.locator(`.settings-link[data-settings-tab="${section}"][aria-current="page"]`).waitFor();
-      if (width === 390 && section === 'profile') {
-        check(
-          (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil.',
-          'título do perfil sem pontuação duplicada',
-        );
-        const menuCueVisible = await page.evaluate(() => {
+      if (width <= 760 && section === 'profile') {
+        if (width === 390) {
+          check(
+            (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil.',
+            'título do perfil sem pontuação duplicada',
+          );
+        }
+        const menuLayout = await page.evaluate(() => {
           const menu = document.querySelector('.settings-menu');
-          return menu.scrollWidth > menu.clientWidth
-            && getComputedStyle(menu, '::after').display !== 'none';
+          const menuRect = menu.getBoundingClientRect();
+          const links = [...menu.querySelectorAll('.settings-link')];
+          return {
+            columns: getComputedStyle(menu).gridTemplateColumns.split(' ').length,
+            expectedColumns: innerWidth <= 380 ? 2 : 3,
+            fits: menu.scrollWidth === menu.clientWidth
+              && links.length === 6
+              && links.every((link) => {
+                const rect = link.getBoundingClientRect();
+                return rect.width > 0 && rect.left >= menuRect.left && rect.right <= menuRect.right;
+              }),
+          };
         });
-        check(menuCueVisible, 'menu móvel indica que há mais abas para rolar');
+        check(
+          menuLayout.fits && menuLayout.columns === menuLayout.expectedColumns,
+          'menu móvel exibe todas as abas em grade responsiva',
+        );
       }
       const cardSpacing = await page.locator(
         '.settings-content > .card, .settings-content > .profile-settings-container > .card, .settings-content > .settings-account-list > .card',

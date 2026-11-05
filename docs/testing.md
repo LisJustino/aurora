@@ -8,6 +8,7 @@ Execute na raiz do repositório:
 npm ci
 npm test
 npm run build
+npm run test:seo
 npx playwright install chromium firefox webkit
 npm run test:e2e:ci
 npm --prefix worker ci
@@ -16,7 +17,9 @@ npm --prefix worker test
 
 O workflow do GitHub executa `npm test`, sobe um Postgres Supabase local
 isolado, aplica todas as migrations, roda `supabase/tests/rls_isolation.sql`
-e um conflito concorrente com duas conexões PostgreSQL, faz o build e executa
+e um conflito concorrente com duas conexões PostgreSQL, faz o build, roda
+`npm run test:seo` (title, description, imagem social, ícones do manifest,
+JSON-LD, `robots.txt` e `sitemap.xml` em `dist/`) e executa
 quinze cenários E2E em Chromium, uma matriz móvel em WebKit/Chromium e um
 fluxo-smoke em Firefox e WebKit em cada push
 e pull request. Esse job usa somente containers locais descartáveis e não
@@ -80,6 +83,8 @@ deve recusar target ausente, URL de outro projeto ou chave ausente sem iniciar
 autenticação. Com ambos projetos configurados, use o mesmo e-mail para criar
 uma conta em cada um e confirme os dois usuários nos respectivos painéis
 Supabase; não reutilize dados de produção durante a validação.
+
+Após `npm run build`, `dist/index.html` deve ter o `h1` da landing, `data-prerendered`, o template do esqueleto e nenhuma URL `file://`. Com `vite preview`, `/` mostra a landing sem JavaScript e `/inicio` e `/demonstracao` mostram só o esqueleto. Sem configuração do Supabase o preview exibe “Acesso indisponível”; rode a matriz móvel de login no servidor de desenvolvimento.
 
 Na landing, confirme que criar conta é o CTA principal e a demonstração é a
 alternativa; o texto deve informar que finanças são registradas manualmente e
@@ -328,6 +333,21 @@ que avisos do sistema não são alterados.
 - A falha de gravação de Finanças em Production exige verificar no Dashboard do projeto `aurora-prod` as migrations pendentes, especialmente `20261030110000_finance_account_types_and_card_link.sql`, e registrar o erro da requisição/RPC antes de aplicar qualquer mudança. A validação de uma migration no projeto dev não confirma o estado de Production.
 - O erro `23503` em `finance_transactions_recurrence_owner_fkey` indica que um lançamento recorrente foi enviado antes da recorrência referenciada; o teste relacional confirma que `finance_recurrences` é persistida antes de `finance_transactions`, sem alterar IDs ou schema.
 - **Pendente:** testar concorrência real contra PostgreSQL/Supabase; não há banco local de teste configurado neste ambiente.
+
+## Projetos Android e iOS
+
+`npm run build:native` valida o build web e sincroniza seus assets com Android e
+iOS. Confira que `npm run build` continua servindo o site sem acessar os
+projetos nativos. Confira também o ícone de lançamento Android nas densidades,
+o ícone iOS RGB 1024 × 1024 e a tela de abertura da marca em tema claro/escuro.
+Os testes unitários de conta validam a aceitação exclusiva
+do callback `br.com.aurora.rotinas://auth/callback`, tipos de retorno,
+recuperação e limites do código. Abertura e compilação Android exigem Android
+Studio e SDK; compilar/assinar iOS exige macOS e Xcode. Configure a URL de
+retorno no Supabase de teste e valide login Google, recuperação, rotas diretas,
+teclado e retorno do navegador em aparelhos físicos antes de qualquer
+submissão. A sincronização não valida esses fluxos nem substitui revisão das
+lojas.
 
 ## Worker de notificações
 

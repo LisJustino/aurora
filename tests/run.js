@@ -219,7 +219,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
-  if (documentStub.title !== 'aurora. — mais clareza para a sua rotina') {
+  if (documentStub.title !== 'aurora. — planner semanal, hábitos e finanças em um só lugar') {
     throw new Error('A landing deve atualizar o título da aba.');
   }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -229,6 +229,14 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Registre receitas, despesas e cartões manualmente',
     'Criar conta',
     'Explorar demonstração',
+    'Começar grátis',
+    'Ver demo em 1 minuto',
+    'Planner de tarefas, hábitos, foco e finanças em um só lugar.',
+    'Totalmente grátis',
+    'Feito por uma pessoa só, com cuidado',
+    'data-landing-video="ciclo"',
+    'Posso exportar meus dados?',
+    'data-footer-suggestion',
     'Escolha como quer começar',
     'sem cadastro e sem salvar alterações',
     'não são salvas nem sincronizadas',
@@ -257,12 +265,21 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
   }
-  if (!entryHtml.includes('<title>aurora. — mais clareza para a sua rotina</title>')
-    || !entryHtml.includes('property="og:title" content="aurora. — mais clareza para a sua rotina"')
-    || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
+  const landingTitle = 'aurora. — planner de tarefas, hábitos, foco e finanças';
+  if (!entryHtml.includes(`<title>${landingTitle}</title>`)
+    || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
+    || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
-  const demoView = readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
+  if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
+    || !entryHtml.includes('/landing-guard.js') || entryHtml.includes('Preparando seu espaço')) {
+    throw new Error('A entrada precisa exibir o esqueleto da landing e carregar o guard externo.');
+  }
+  const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
+  if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
+    throw new Error('O build precisa pré-renderizar a landing sem URLs file://.');
+  }
+  const demoView =  readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
   if (!demoView.includes("['today', 'Hoje', 'home']")
     || !demoView.includes("['finance', 'Finanças', 'wallet']")
     || !demoView.includes('nada é salvo')

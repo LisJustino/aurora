@@ -14,8 +14,8 @@ await Promise.all([
   copyFile(resolve(root, '404.html'), resolve(output, '404.html')),
   copyFile(resolve(root, '_headers'), resolve(output, '_headers')),
   copyFile(resolve(root, '_redirects'), resolve(output, '_redirects')),
-  copyFile(resolve(root, 'src', 'assets', 'landing-desktop.png'), resolve(outputAssets, 'landing-desktop.png')),
-  copyFile(resolve(root, 'src', 'assets', 'landing-mobile.png'), resolve(outputAssets, 'landing-mobile.png')),
-  copyFile(resolve(root, 'src', 'assets', 'landing-desktop-dark.png'), resolve(outputAssets, 'landing-desktop-dark.png')),
-  copyFile(resolve(root, 'src', 'assets', 'landing-mobile-dark.png'), resolve(outputAssets, 'landing-mobile-dark.png')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-desktop.webp'), resolve(outputAssets, 'landing-desktop.webp')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-mobile.webp'), resolve(outputAssets, 'landing-mobile.webp')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-desktop-dark.webp'), resolve(outputAssets, 'landing-desktop-dark.webp')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-mobile-dark.webp'), resolve(outputAssets, 'landing-mobile-dark.webp')),
 ]);

@@ -7,7 +7,8 @@ O front do Aurora usa `https://aurora-rotinas.com.br` como origem principal no C
 - Conta Cloudflare com Workers/Durable Objects habilitados e Node.js/npm atuais.
 - Site Aurora publicado por HTTPS no Cloudflare Pages.
 - Origem pública principal do site: `https://aurora-rotinas.com.br`; a allowlist mantém também `https://aurora-9ze.pages.dev` durante a transição.
-- Para iPhone/iPad: iOS/iPadOS 16.4 ou posterior.
+- Para Web Push no iPhone/iPad: iOS/iPadOS 16.4 ou posterior. O app nativo usa
+  FCM e exige projeto Firebase/APNs configurado.
 
 Este repositório não contém credenciais Cloudflare nem a chave privada VAPID. Não coloque segredos no Git nem em variáveis do GitHub. `VAPID_SUBJECT` deve ser configurado como secret do Worker, embora o contato seja transmitido como metadado VAPID ao serviço Push.
 
@@ -24,7 +25,7 @@ Este repositório não contém credenciais Cloudflare nem a chave privada VAPID.
    O gerador cria `worker/.dev.vars`, arquivo local ignorado pelo Git, com a chave pública e a privada. Se o arquivo já existir, o gerador não o substitui. Guarde a chave privada com segurança.
 
 2. Confira `worker/wrangler.toml`:
-   - As origens padrão são `https://aurora-rotinas.com.br,https://aurora-9ze.pages.dev`. Mantenha apenas as origens publicadas e necessárias, separadas por vírgula; não use `*`, caminho ou barra final.
+   - As origens padrão incluem `https://aurora-rotinas.com.br`, `https://aurora-9ze.pages.dev` e os esquemas nativos exatos `capacitor://localhost`/`https://localhost`. Mantenha somente as origens web publicadas e os esquemas nativos necessários, separados por vírgula; não use `*`, caminho ou barra final.
    - A chave pública é gerada localmente e já está configurada no TOML. Se gerar outra chave, atualize as variáveis pública e local correspondentes.
    - Não declare `VAPID_SUBJECT` no TOML. Configure-o como secret do Worker em produção e desenvolvimento, usando o contato operacional autorizado no formato `mailto:...`.
    - Escolha dois `namespace_id` numéricos livres para os bindings Cloudflare Rate Limiting: `REGISTER_RATE_LIMIT` limita novos registros por endereço de rede e `API_RATE_LIMIT` limita chamadas autenticadas por instalação. Não armazene a chave privada no arquivo TOML.
@@ -55,7 +56,19 @@ Este repositório não contém credenciais Cloudflare nem a chave privada VAPID.
 
 ### Desenvolvimento local
 
-Com `worker/.dev.vars` configurado, inicie o Worker em `worker/` com `npm run dev`. Para desenvolvimento com Vite, configure temporariamente a URL local do Worker e mantenha `ALLOWED_ORIGINS = "http://localhost:5173"` no ambiente `development`. O Worker local aceita HTTP apenas nesse ambiente; no deploy, exige origem HTTPS. Solicitar permissão ou ativar uma inscrição local ainda pode enviar avisos reais ao navegador de teste, por isso use um perfil isolado.
+Com `worker/.dev.vars` configurado, inicie o Worker em `worker/` com `npm run dev`. Para desenvolvimento com Vite, configure temporariamente a URL local do Worker e mantenha `ALLOWED_ORIGINS = "http://localhost:5173,capacitor://localhost,https://localhost"` no ambiente `development`. O Worker local aceita HTTP apenas nesse ambiente; no deploy, exige origem HTTPS ou os dois esquemas nativos exatos. Solicitar permissão ou ativar uma inscrição local ainda pode enviar avisos reais ao navegador de teste, por isso use um perfil isolado.
+
+## Push nos apps Android/iOS
+
+O Worker entrega Push nativo por Firebase Cloud Messaging, sem mudar o fluxo
+Web Push acima. Para criar o projeto Firebase, configurar o token FCM nos dois
+sistemas, associar a chave APNs e adicionar secrets sem versionar credenciais,
+siga a seção [Push nativo com FCM](./native-apps.md#push-nativo-com-fcm).
+`FCM_PROJECT_ID` é uma variável do Worker; `FCM_CLIENT_EMAIL` e
+`FCM_PRIVATE_KEY` são secrets. O serviço nativo só aparece como configurado
+quando os três valores estão válidos. Tokens e horários ficam no Worker e o
+token também fica associado à conta em `push_subscriptions`, protegido por
+RLS. Desativar os avisos ou excluir a conta remove o token remoto.
 
 ## Ativar no app
 
@@ -66,7 +79,7 @@ Com `worker/.dev.vars` configurado, inicie o Worker em `worker/` com `npm run de
 
 ## Privacidade e limites
 
-- A API recebe a inscrição Push, uma credencial aleatória por instalação e, conforme o recurso, os parâmetros do Pomodoro ou apenas dias da semana, horário local, fuso e um identificador opaco para os lembretes. Os avisos de Hábitos usam texto genérico. O servidor guarda apenas o hash da credencial.
+- A API recebe uma inscrição Web Push ou token FCM, uma credencial aleatória por instalação e, conforme o recurso, os parâmetros do Pomodoro ou apenas dias da semana, horário local, fuso e um identificador opaco para os lembretes. Os avisos de Hábitos usam texto genérico. O servidor guarda apenas o hash da credencial.
 - Tarefas, nomes/rótulos de hábitos, perfil, histórico, dados financeiros, demais fatias e backups não são transmitidos ao Worker. A credencial do cliente fica em `push_subscriptions`, protegida por RLS por usuário. A antiga chave `aurora.push.pomodoro` só é lida para migrar uma inscrição existente e removida após a confirmação da gravação no banco.
 - A Durable Object conserva uma inscrição e um alarme compartilhado por instalação; o alarme atende ao timer e aos lembretes recorrentes. O horizonte de quatro horas se aplica ao agendamento do Pomodoro. Os bindings Cloudflare Rate Limiting limitam registro e solicitações autenticadas sem armazenar dados extras no objeto.
 - CORS exige uma origem configurada exatamente; a API não aceita credenciais de cookies. O endpoint de Push precisa usar HTTPS e um domínio de serviço conhecido. As entradas JSON têm tamanho e formato limitados.
@@ -76,6 +89,6 @@ Com `worker/.dev.vars` configurado, inicie o Worker em `worker/` com `npm run de
 
 ## Testes
 
-- `npm test` em `worker/` valida CORS, limite de registro, credencial, entradas, horizonte, horários recorrentes/fuso e avanço/cancelamento dos alarmes sem acessar uma conta Cloudflare.
+- `npm test` em `worker/` valida CORS, limite de registro, credencial, entradas Web Push/FCM, entrega FCM simulada, horizonte, horários recorrentes/fuso e avanço/cancelamento dos alarmes sem acessar uma conta Cloudflare.
 - A aplicação local é iniciada por `npm run dev` (Vite). Consulte [testing.md](./testing.md) para os comandos e limites de validação.
-- A integração real de entrega, instalação na Tela de Início, permissão e som precisam ser verificadas depois do deploy, em dispositivo próprio; os testes de unidade não simulam um Push Service ou iPhone real.
+- A integração real de entrega, instalação na Tela de Início, permissões e apresentação precisam ser verificadas depois do deploy, em dispositivos próprios; os testes de unidade não simulam FCM, APNs ou um aparelho real.

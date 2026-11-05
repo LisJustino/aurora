@@ -1,6 +1,8 @@
 # Instalação e uso offline
 
-O manifest e os ícones atuais tornam o Aurora instalável em navegadores compatíveis. Ele declara o nome Aurora, idioma pt-BR, abertura independente e atalhos para Hoje, Tarefas e Foco. Quando o navegador oferece `beforeinstallprompt`, o app mostra o convite de instalação; no Safari de iPhone/iPad, explica **Compartilhar → Adicionar à Tela de Início**. O convite não aparece no modo instalado.
+O manifest e os ícones atuais tornam o Aurora instalável em navegadores compatíveis. Ele declara o nome Aurora, idioma pt-BR, abertura independente e atalhos para Hoje, Tarefas e Foco. Quando o navegador oferece `beforeinstallprompt`, o app mostra o convite de instalação; no Safari de iPhone/iPad, explica **Compartilhar → Adicionar à Tela de Início** quando a pessoa toca em **Baixar o app** no rodapé, sem cobrir a landing automaticamente. O convite não aparece no modo instalado.
+
+No pacote Android/iOS, o shell é servido pelos assets incluídos no app Capacitor. O registro do service worker e os convites de instalação PWA não são executados nesse runtime; isso não altera o PWA nem o deploy web. OAuth nativo e FCM estão integrados, mas exigem configuração externa e teste em aparelho; Google Calendar ainda precisa de adaptação.
 
 O service worker é registrado somente no build de produção, com suporte do navegador e quando `VITE_PWA_ENABLED` não está definido como `false`. O manifest e o script do worker usam `Cache-Control: no-cache` na publicação. O worker mantém somente o shell estático: arquivos sob `/assets/` e ícones; assets são cache-first e navegações HTML, incluindo caminhos de rota como `/financas`, são network-first, com fallback para `index.html` offline. O shell é armazenado sem a query da rota; valores de query, Supabase e caminhos de API não são persistidos no cache. O app não salva dados pessoais em Cache Storage; autenticação continua usando apenas a persistência de sessão configurada no Supabase. Recursos do site que não fazem parte do shell (por exemplo, capturas e vídeos) não são armazenados pelo worker. Os avisos Push opcionais do Pomodoro e dos lembretes de Hábitos usam a API externa descrita em [pomodoro-push.md](./pomodoro-push.md).
 
@@ -10,7 +12,7 @@ Uma versão nova fica aguardando em vez de substituir imediatamente uma sessão 
 
 No iPhone/iPad, abra o site no Safari e use **Compartilhar → Adicionar à Tela de Início**. As entradas da aplicação declaram o ícone Apple e os metadados para abrir em modo independente. Se uma versão instalada anteriormente não abrir, remova somente o atalho antigo da tela inicial, abra o site novamente no Safari e adicione-o outra vez; os dados da conta não são apagados ao remover o atalho. A instalação e os recursos offline exigem conexão HTTPS.
 
-No iPhone/iPad, o Push exige iOS/iPadOS 16.4 ou posterior e o app aberto como PWA independente. O pedido de permissão só ocorre ao tocar em **Ativar avisos** em Pomodoro ou Hábitos. A entrega e o som não são garantidos pelo app; consulte o guia Push para limites e implantação.
+Para Web Push em iPhone/iPad, o requisito é iOS/iPadOS 16.4 ou posterior e o Aurora aberto como PWA independente. No app nativo, o Push usa FCM/APNs. Em ambos os casos, o pedido de permissão só ocorre ao tocar em **Ativar avisos** em Pomodoro ou Hábitos. A entrega e o som não são garantidos pelo app; consulte o guia Push para limites e implantação.
 
 ## Teste em um celular Android na rede local
 

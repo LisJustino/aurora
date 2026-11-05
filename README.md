@@ -2,6 +2,10 @@
 
 Aurora é uma aplicação web responsiva de organização pessoal. A interface usa HTML, CSS próprio e JavaScript em módulos ES; Vite é usado apenas para empacotar a SPA, sem React ou TypeScript.
 
+## Aplicativos para Android e iOS
+
+O site continua sendo publicado normalmente no Cloudflare Pages. Capacitor adiciona projetos nativos que empacotam o mesmo build web; `npm run build` continua sendo o fluxo exclusivo do site e `npm run build:native` gera o build e sincroniza os arquivos para Android/iOS. Consulte [docs/native-apps.md](./docs/native-apps.md) para configurar e validar os projetos. Os ícones e telas de abertura nativos já usam a marca Aurora; ainda faltam validar OAuth no Supabase, configurar e testar FCM/APNs, adaptar Google Calendar nativo, finalizar políticas/metadados das lojas e testar em aparelhos antes da submissão.
+
 ## Executar
 
 No PowerShell, na raiz do repositório, instale as dependências e crie o arquivo local de ambiente:
@@ -93,11 +97,11 @@ Antes de publicar, revise a configuração de autenticação, as migrations e as
 
 Os avisos de mudança de fase e os lembretes de hábitos podem ser ativados explicitamente nas respectivas áreas. Sem ativação, nenhuma permissão é solicitada; o horário de um hábito continua sendo apenas uma preferência para avisos enquanto o app está aberto.
 
-Para publicar o backend separado no Cloudflare e conectar o front do Cloudflare Pages, siga [docs/pomodoro-push.md](./docs/pomodoro-push.md). O deploy requer uma conta Cloudflare, Node.js/npm e configuração manual do endereço da API, da origem CORS e de secrets VAPID. Nenhum segredo deve ser incluído no repositório. As configurações do front estão em [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
+Para publicar o backend separado no Cloudflare e conectar o front do Cloudflare Pages, siga [docs/pomodoro-push.md](./docs/pomodoro-push.md). O deploy requer uma conta Cloudflare, Node.js/npm e configuração manual do endereço da API, das origens CORS e dos secrets VAPID. Os apps nativos também exigem Firebase/APNs, `FCM_PROJECT_ID` e secrets FCM no Worker, conforme [docs/native-apps.md](./docs/native-apps.md). Nenhum segredo deve ser incluído no repositório. As configurações do front estão em [docs/cloudflare-pages.md](./docs/cloudflare-pages.md).
 
-Quando ativado, o Supabase guarda a inscrição Push e a credencial exclusiva desta instalação sob RLS por usuário; o Worker armazena a programação mínima da próxima fase ou os dias, horários e fuso dos lembretes de Hábitos. Nenhum nome de tarefa/hábito, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado ao Worker. A inscrição é compartilhada neste dispositivo; desativá-la interrompe os avisos de ambos. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
+Quando ativado, o Supabase guarda a inscrição Push e a credencial exclusiva desta instalação sob RLS por usuário; o Worker armazena o endpoint Web Push ou token FCM e a programação mínima da próxima fase ou os dias, horários e fuso dos lembretes de Hábitos. No app nativo, Firebase Cloud Messaging entrega os avisos; no iOS, o Firebase encaminha pela APNs. Nenhum nome de tarefa/hábito, perfil, histórico, dados de outras áreas ou conteúdo do backup é enviado ao Worker. A inscrição é compartilhada neste dispositivo; desativá-la interrompe os avisos de ambos. A entrega depende do navegador, do sistema operacional, da rede e do serviço Push; não é garantida.
 
-Em iPhone, Push requer iOS/iPadOS 16.4 ou posterior e o Aurora instalado na Tela de Início, aberto como PWA independente. A origem precisa ser HTTPS e a permissão deve ser concedida após tocar em **Ativar avisos**. O iOS pode suspender páginas e áudio; Push é uma notificação do sistema, mas a execução/entrega não é um alarme garantido. O som existente do Pomodoro não é garantido com o app em segundo plano ou a tela bloqueada.
+Para Web Push em iPhone/iPad, use iOS/iPadOS 16.4 ou posterior e o Aurora instalado na Tela de Início, aberto como PWA independente. No app da loja, o Push usa FCM/APNs e exige a configuração nativa documentada; a permissão continua sendo solicitada somente após tocar em **Ativar avisos**. A entrega não é um alarme garantido e o som do Pomodoro não é garantido com o app em segundo plano ou a tela bloqueada.
 
 ## Testes e limitações
 

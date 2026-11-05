@@ -90,11 +90,11 @@ export function renderHabitsView(dependencies) {
       ? h`<details class="habit-reminder-note">
         <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos nos dois' : 'Opcionais · compartilhados'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
         <div class="habit-reminder-content">
-        <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede e do serviço de notificações.</p>
+        <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede, das permissões e do serviço de notificações.</p>
         <p>Este interruptor controla a inscrição compartilhada de Hábitos e Pomodoro neste dispositivo; não há controles independentes. Os lembretes de hábitos só são enviados nos horários configurados.</p>
         <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
-        <p class="small muted">O serviço recebe somente dias, horários e fuso, sem nomes de hábitos.</p>
+        <p class="small muted">O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
         </div>
       </details>`.s
       : '',
