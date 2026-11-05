@@ -190,11 +190,16 @@ combinados por categoria/contexto atualizam a contagem e o estado sem
 resultados. Selecionar uma ideia deve continuar abrindo
 o editor sem gravar antes da confirmação; verifique foco/teclado e largura móvel.
 
-Na visão mobile, confira rótulos legíveis no dock, uma indicação visível de
-rolagem horizontal no menu de Ajustes e o botão “Salvar perfil e preferências”
-alcançável acima do dock durante a edição. Teste o perfil em 320 px, 390 px e
-desktop; no desktop, a ação de salvar deve permanecer no fluxo normal do
-formulário.
+Na visão mobile, confira rótulos legíveis no dock e que apenas a marca e os
+controles do cabeçalho sejam clicáveis (o espaço vazio não deve navegar). As
+seis opções do menu de Ajustes aparecem em grade sem rolagem própria, e o botão
+“Salvar alterações” fica alcançável acima do dock durante a edição. Confirme
+que ele aparece assim que um campo do perfil muda, que o sucesso só é anunciado
+após a gravação ser confirmada e que, em caso de falha, as alterações continuam
+disponíveis para nova tentativa. Na prévia de desenvolvimento, o aviso deve
+deixar claro que as alterações são temporárias. Teste o perfil em 320 px,
+390 px e desktop; no desktop, a ação de salvar deve permanecer no fluxo normal
+do formulário.
 
 No cadastro, valide que e-mails já associados (incluindo a resposta sem sessão com lista de identidades vazia do Supabase) não criam uma segunda conta. A mensagem deve oferecer entrar/recuperar o acesso ou excluir a conta atual em Ajustes → Seu perfil. Teste o cancelamento da exclusão e confirme que nada é apagado; depois, em uma conta fictícia descartável, digite `EXCLUIR` e verifique que a conta só é considerada excluída com a confirmação explícita da Edge Function/Admin API. Só depois da confirmação, tente cadastrar novamente com o mesmo e-mail; os dados anteriores não podem ser restaurados. Erros desconhecidos mantêm uma mensagem segura e genérica.
 
