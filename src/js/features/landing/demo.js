@@ -38,7 +38,7 @@ function renderTaskRows(tasks) {
   return `<ul class="list demo-task-list">${tasks.map((task) => `
     <li class="task ${task.done ? 'done' : task.id === nextTaskId ? 'is-next' : ''}">
       <button type="button" class="chk" role="checkbox" aria-checked="${String(task.done)}" aria-label="${task.done ? 'Reabrir' : 'Concluir'}: ${escapeDemoText(task.title)}" data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
-      <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta">${task.done ? 'Concluída' : 'Seu próximo passo'} · exemplo</span></div>
+      <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta">${task.done ? '<span>Concluída</span>' : task.id === nextTaskId ? '<span class="m-warn">Próximo passo</span>' : '<span class="m-warn">Hoje</span>'}<span>Exemplo</span></span></div>
     </li>`).join('')}</ul>`;
 }
 
@@ -71,32 +71,58 @@ function renderPageHeading(eyebrow, title, description = '') {
   return `<header class="demo-page-heading"><div><p class="section-kicker">${eyebrow}</p><h1 tabindex="-1">${title}</h1>${description ? `<p>${description}</p>` : ''}</div></header>`;
 }
 
-function renderToday(state) {
-  const completed = state.tasks.filter((task) => task.done).length;
-  const total = state.tasks.length;
-  return `
-    <header class="demo-home-heading">
-      <div class="demo-home-copy">
-        <p class="date">${timeBasedGreeting()}, pessoa.</p><h1 tabindex="-1">Um dia no seu ritmo</h1>
-        <button type="button" class="btn" data-demo-view="tasks">${demoIcon('calendarCheck', 17)}Planejar o dia</button>
-      </div>
-      <section class="demo-summary-card" aria-label="Progresso de hoje">
-        <div class="demo-progress-ring" role="img" aria-label="${completed} de ${total} passos feitos"><span>${completed}/${total}</span></div>
-        <div><h2>Pequenos passos contam</h2><p aria-live="polite">${completed} de ${total} passos feitos</p></div>
-      </section>
-    </header>
-    <div class="demo-dashboard-grid">
-      <div class="demo-dashboard-column">
-        <section class="card demo-today-tasks" aria-labelledby="demo-today-tasks-title">
-          <div class="head"><div><p class="section-kicker">Seu próximo passo</p><h2 id="demo-today-tasks-title">Para hoje</h2><span class="pill" aria-label="${total} tarefas">${total}</span></div></div>
-          ${renderTaskRows(state.tasks)}
-        </section>
-        <section class="demo-day-note"><p class="section-kicker">Um fechamento possível</p><h2>Hoje, você esteve aqui.</h2><p>O restante pode esperar até amanhã.</p></section>
-      </div>
-      <div class="demo-dashboard-column">${renderFocusCard(state)}${renderHabitCard(state)}</div>
-    </div>`;
+function demoNotice() {
+  return `<div class="notice warn sample-banner" role="note">${demoIcon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus; nada é salvo.</div><button type="button" class="btn sm" data-public-action="signup">Criar conta</button></div>`;
 }
 
+function renderHomeTask(task) {
+  return `<li class="task ${task.done ? 'done' : ''}">
+      <button type="button" class="chk" role="checkbox" aria-checked="${String(task.done)}" aria-label="${task.done ? 'Reabrir' : 'Concluir'}: ${escapeDemoText(task.title)}" data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
+      <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta"><span class="m-warn">Hoje</span><span>Exemplo</span></span></div>
+    </li>`;
+}
+
+function renderToday(state) {
+  const done = state.tasks.filter((task) => task.done);
+  const open = state.tasks.filter((task) => !task.done);
+  const completed = done.length;
+  const total = state.tasks.length;
+  const circumference = 2 * Math.PI * 32;
+  const offset = circumference * (1 - completed / total);
+  const lead = open.length ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.';
+  const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).format(new Date()).replace(/[.,]/g, '').replace(/^(\S+) /, '$1, ');
+  return `
+    <header class="home-head" aria-labelledby="demo-greeting">
+      <div>
+        <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
+        <h1 id="demo-greeting" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span><i>.</i></h1>
+        <p class="lead" aria-live="polite">${lead}</p>
+        <div class="home-head-actions"><button type="button" class="home-action" data-demo-view="tasks">${demoIcon('plus', 18)}Ver tarefas de exemplo${demoIcon('chevRight', 16)}</button></div>
+      </div>
+      <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
+    </header>
+    ${demoNotice()}
+    <div class="home-dashboard no-optional-areas">
+      <div class="home-primary">
+        <section class="card home-today-card" aria-labelledby="demo-today-tasks-title">
+          <div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="demo-today-tasks-title">Hoje<i>.</i></h2></div><div class="row"><button type="button" class="btn ghost sm" data-demo-view="tasks">Ver planejamento</button></div></div>
+          <div class="home-task-groups">
+            ${open.length ? `<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${demoIcon('calendarCheck', 15)}Para hoje <span>${open.length}</span></h3><ul class="list">${open.map(renderHomeTask).join('')}</ul></section>` : ''}
+            ${done.length ? `<details class="home-completed"><summary>${demoIcon('check', 15)}Concluídas hoje <span class="home-completed-count">${done.length}</span></summary><ul class="list">${done.map(renderHomeTask).join('')}</ul></details>` : ''}
+          </div>
+        </section>
+        <section class="strip" aria-label="Resumo do dia">
+          <a href="#demonstracao" data-demo-view="tasks"><b>${total}</b><span>Tarefas hoje</span></a>
+          <a href="#demonstracao" data-demo-view="tasks"><b>0</b><span>Atrasadas</span></a>
+          <a href="#demonstracao" data-demo-view="tasks"><b>${open.length}</b><span>Pendentes</span></a>
+        </section>
+        <section class="card home-quick-card" aria-labelledby="demo-quick-title">
+          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
+          <form class="home-quick-form" data-demo-form="task"><label class="sr" for="demo-home-task">Nova tarefa para hoje</label><input id="demo-home-task" name="title" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${demoIcon('plus', 16)}Adicionar</button></form>
+        </section>
+      </div>
+    </div>`;
+}
 function renderTasks(state) {
   const completed = state.tasks.filter((task) => task.done).length;
   return `${renderPageHeading('Seu planejamento', 'Tarefas', 'Organize o que precisa acontecer, sem exigir que tudo seja para hoje.')}
@@ -140,6 +166,10 @@ function renderFinance(state) {
 
 function renderDemoScreen(state) {
   if (state.view === 'today') return renderToday(state);
+  return demoNotice() + renderDemoArea(state);
+}
+
+function renderDemoArea(state) {
   if (state.view === 'tasks') return renderTasks(state);
   if (state.view === 'focus') {
     return `${renderPageHeading('Seu tempo', 'Foco', 'Escolha uma duração e experimente um período para você.')}
@@ -156,7 +186,7 @@ function renderDemoScreen(state) {
 }
 
 function renderNavigation(state) {
-  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<button type="button" class="demo-nav-link ${state.view === id ? 'is-current' : ''}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}>${demoIcon(iconName, 18)}<span>${label}</span></button>`).join('');
+  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-primary demo-nav-link ${state.view === id ? 'is-current' : ''}" href="#demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
 }
 
 function updateTimer(root, state) {
@@ -214,28 +244,19 @@ export function renderLandingDemo(root) {
   root.innerHTML = `
     <div class="app demo-app">
       <a class="skip" href="#demo-main" data-public-action="skip">Pular para o conteúdo principal</a>
-      <aside class="demo-sidebar" aria-label="Navegação da demonstração">
-        <a class="brand public-brand-link demo-sidebar-brand" href="./" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${new URL('../../../../icons/favicon.svg', import.meta.url).href}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
-        <nav class="demo-nav" aria-label="Áreas de exemplo">${renderNavigation(state)}</nav>
-        <footer class="demo-sidebar-footer">
-          <button type="button" class="footer-link" data-demo-action="help">Ajuda e sobre</button>
-          <div><button type="button" class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="privacy">Privacidade</button></div>
-        </footer>
-      </aside>
-      <div class="demo-workspace">
-        ${renderPublicHeader({ demo: true })}
-        <p class="demo-banner"><strong>Modo demonstração.</strong> Os exemplos são fictícios e nada é salvo.</p>
-        <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
-          <div class="demo-screen" data-demo-screen></div>
-          <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, foco, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><button class="btn primary" type="button" data-public-action="signup">Criar conta</button><button class="btn" type="button" data-public-action="landing">Voltar à página inicial</button></div></section>
-        </main>
-      </div>
+      ${renderPublicHeader({ demo: true }).replace('<span class="header-actions public-header-actions">', `<nav class="nav demo-nav" aria-label="Áreas de exemplo">${renderNavigation(state)}</nav><span class="header-actions public-header-actions">`)}
+      <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
+        <div class="demo-screen" data-demo-screen></div>
+        <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, foco, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><button class="btn primary" type="button" data-public-action="signup">Criar conta</button><button class="btn" type="button" data-public-action="landing">Voltar à página inicial</button></div></section>
+        <footer class="demo-footer"><button type="button" class="footer-link" data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="privacy">Privacidade</button></footer>
+      </main>
     </div>`;
 
   const onClick = (event) => {
     if (!(event.target instanceof Element)) return;
     const viewButton = event.target.closest('[data-demo-view]');
-    if (viewButton instanceof HTMLButtonElement) {
+    if (viewButton instanceof HTMLElement) {
+      event.preventDefault();
       state.view = viewButton.dataset.demoView;
       updateDemoView(root, state, true);
       root.querySelector('[data-demo-screen] h1')?.scrollIntoView({

@@ -366,6 +366,17 @@ const BANKS = {
   sicredi: { name: 'Sicredi', logo: new URL('../assets/bank-logos/01181521.svg', import.meta.url).href },
   sicoob: { name: 'Sicoob', logo: new URL('../assets/bank-logos/02038232.svg', import.meta.url).href },
 };
+const findBankByName = (value, allowPrefix = false) => {
+  const query = norm(String(value || '').trim());
+  if (!query) return null;
+  const entries = Object.entries(BANKS);
+  return entries.find(([key, bank]) => norm(key) === query || norm(bank.name) === query)
+    || (allowPrefix ? entries.find(([, bank]) => norm(bank.name).startsWith(query)) : null)
+    || null;
+};
+const bankFieldValue = (value) => value === OTHER_BANK
+  ? 'Outro / não listado'
+  : Object.hasOwn(BANKS, value) ? BANKS[value].name : value || '';
 const AREAS = { pomodoro: ['Pomodoro', 'Timer para alternar blocos de foco e pausa'], finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
 const SEX = PROFILE_SEX;
 const hasRequiredProfile = (profile) => typeof profile?.name === 'string'
@@ -6314,6 +6325,16 @@ document.addEventListener('input', (e) => {
       ui.dlg.d.waterGoalEdited = true;
     }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
+    if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
+      const bank = findBankByName(el.value, true);
+      const logo = $('#dlg [data-bank-preview-logo]');
+      const fallback = $('#dlg [data-bank-preview-fallback]');
+      if (logo && fallback) {
+        if (bank) logo.querySelector('img').src = bank[1].logo;
+        logo.hidden = !bank;
+        fallback.hidden = Boolean(bank);
+      }
+    }
     if (ui.dlg.type === 'payinv' && ['amount', 'times', 'interest'].includes(el.dataset.dlg)) {
       const preview = $('#dlg [data-pay-invoice-preview]');
       if (preview) preview.textContent = invoicePlanPreviewText(ui.dlg.d);
@@ -6652,7 +6673,19 @@ function filteredTx() {
     if (f === 'pendentes' ? isPaid(t) : (f !== 'todos' && t.type !== f)) return false;
     if (ui.finCat && t.category !== ui.finCat) return false;
     if (ui.finAcc && t.accountId !== ui.finAcc && t.toAccountId !== ui.finAcc) return false;
-    return !q || norm(t.desc || '').includes(q) || norm(t.category || '').includes(q);
+    if (!q) return true;
+    const accounts = [accById(t.accountId), accById(t.toAccountId)].filter(Boolean);
+    const searchTerms = [
+      t.desc,
+      t.category,
+      t.type === 'in' ? 'receita' : t.type === 'out' ? 'despesa' : 'transferência',
+      ...accounts.flatMap((account) => [
+        accountDisplayName(account),
+        accountTypeLabel(account),
+        bankFieldValue(account.bank),
+      ]),
+    ];
+    return searchTerms.some((term) => norm(term || '').includes(q));
   }).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
 }
 function txListHtml() {
@@ -6676,7 +6709,7 @@ function finLancList() {
   const st = monthStats(ui.finMonth);
   return h`${monthNav()}${finTools()}
     <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
-      <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Buscar" data-input="fin-search"></label>
+      <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
       <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
@@ -6879,24 +6912,14 @@ function dlgAccount() {
     savings: 'Dinheiro guardado e separado.',
     investment: 'Investimentos acompanhados junto ao saldo total.',
   };
-  const bankOption = (key, name) => {
-    const logo = key && Object.hasOwn(BANKS, key)
-      ? accountChip({ bank: key, type: 'checking' })
-      : catChip({ c: '#5fa68a', i: 'bank' });
-    return h`<label class="bank-choice"><input type="radio" name="account-bank" data-dlg="bank" value="${key}" ${d.bank === key ? raw('checked') : ''}><span class="bank-choice-icon">${logo}</span><span class="bank-choice-name">${name}</span></label>`;
-  };
-  const bankOptions = [
-    ...Object.entries(BANKS).map(([key, bank]) => [key, bank.name]),
-    ['', 'Não informar'],
-    [OTHER_BANK, 'Outro / não listado'],
-    ...(d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) ? [[d.bank, d.bank]] : []),
-  ];
+  const bankValue = bankFieldValue(d.bank);
+  const initialBank = findBankByName(bankValue, true);
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
       ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
-      <fieldset class="f full bank-field"><legend class="f-label">Banco ou instituição</legend><div class="bank-picker" role="radiogroup" aria-label="Banco ou instituição">${bankOptions.map(([key, name]) => bankOption(key, name))}</div></fieldset>
-      <p class="small muted full">O nome da conta pode ser personalizado. Os logotipos identificam as instituições; o Aurora não se conecta a bancos.</p>
+      ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field')}
+      <p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>
       ${card ? h`${dlgField('Conta para pagar a fatura (opcional)', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select>`, 'full')}<p class="small muted full">Essa conta será pré-selecionada no pagamento. Você ainda poderá escolher outra antes de confirmar.</p>` : ''}
       ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
       ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
@@ -7334,12 +7357,14 @@ Object.assign(FORMS, {
     if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.');
     const linkedAccount = d.type === 'credit' && d.linkedAccountId ? accById(d.linkedAccountId) : null;
     if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.');
-    if (d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) && (!current || current.bank !== d.bank)) return toast('Escolha um banco ou instituição válido.');
+    const bankName = String(d.bank || '').trim().slice(0, 40);
+    const knownBank = findBankByName(bankName);
+    const bank = norm(bankName) === norm('Outro / não listado') ? OTHER_BANK : knownBank ? knownBank[0] : bankName;
     const bal = d.balance.trim() ? parseMoney(d.balance) : 0, lim = d.limit && d.limit.trim() ? parseMoney(d.limit) : 0;
     if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.');
     const cl = d.closing.trim() ? Number(d.closing) : 0, du = d.due.trim() ? Number(d.due) : 0;
     if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.');
-    const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank: d.bank || '' }), type: d.type, bank: d.bank || '', initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
+    const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank }), type: d.type, bank, initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
     if (linkedAccount) patch.linkedAccountId = linkedAccount.id;
     if (d.id) {
       Object.assign(current, patch);

@@ -23,9 +23,9 @@ export function renderLanding(root) {
       <main class="public-main" id="landing-main" tabindex="-1">
         <section class="public-hero public-hero-card" aria-labelledby="landing-title">
           <div class="public-copy">
-            <p class="public-eyebrow"><span aria-hidden="true"></span> Um espaço para a vida real</p>
+            <p class="public-eyebrow"><span aria-hidden="true"></span> Planner pessoal para quem vive com a cabeça cheia</p>
             <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
-            <p class="public-lead">Reúna tarefas, hábitos, foco e registros pessoais em um só lugar. Escolha um próximo passo para hoje e ajuste a semana sem se cobrar tanto.</p>
+            <p class="public-lead">Chega de alternar entre agenda, notas, app de hábitos e planilha de gastos. No Aurora você abre uma tela, vê o que importa hoje e dá o próximo passo em segundos — sem lista infinita e sem culpa quando o dia foge do plano.</p>
             <div class="public-actions">
               <button class="btn primary large" type="button" data-public-action="signup">Criar conta</button>
               <button class="btn large" type="button" data-public-action="demo">Explorar demonstração</button>
@@ -43,9 +43,9 @@ export function renderLanding(root) {
           </figure>
           <div class="public-hero-support">
             <ul class="public-proof" aria-label="Informações práticas sobre o Aurora">
-              <li><strong>Teste sem conta</strong><span>com exemplos fictícios</span></li>
-              <li><strong>Finanças manuais</strong><span>sem conexão bancária</span></li>
-              <li><strong>Seus registros</strong><span>na sua conta Aurora</span></li>
+              <li><strong>Veja funcionando em 1 minuto</strong><span>demonstração sem cadastro</span></li>
+                            <li><strong>Tudo em um app só</strong><span>tarefas, hábitos, foco, finanças e ciclo</span></li>
+                            <li><strong>Finanças manuais</strong><span>sem conexão bancária, você registra o que quiser</span></li>
             </ul>
             <p class="public-reassurance">${demoIcon('lock', 17)}<span>Na demonstração, tarefas, hábitos e Pomodoro usam exemplos fictícios; suas alterações não são salvas nem sincronizadas.</span></p>
           </div>
@@ -60,17 +60,17 @@ export function renderLanding(root) {
             <article class="card public-journey-step">
               <span class="public-journey-number" aria-hidden="true">01</span>
               <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-              <div><h3>Tire da cabeça</h3><p>Organize compromissos e tarefas por dia; deixe o que ainda não tem data para decidir depois.</p></div>
+              <div><h3>Despeje tudo, sem organizar</h3><p>Anote tarefas e compromissos como vierem. O que não tem data fica guardado para decidir depois.</p></div>
             </article>
             <article class="card public-journey-step">
               <span class="public-journey-number" aria-hidden="true">02</span>
               <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
-              <div><h3>Faça caber no dia</h3><p>Acompanhe hábitos e use o foco no tempo que você tem. Seu plano pode mudar junto com a rotina.</p></div>
+              <div><h3>Veja só o que cabe hoje</h3><p>Uma tela com suas tarefas, hábitos e um timer de foco. Dia puxado? Reduza o plano em vez de abandonar tudo.</p></div>
             </article>
             <article class="card public-journey-step">
               <span class="public-journey-number" aria-hidden="true">03</span>
               <span class="public-value-icon" aria-hidden="true">${demoIcon('chart', 22)}</span>
-              <div><h3>Reconheça o que avançou</h3><p>Reveja tarefas, hábitos e gastos da semana para ajustar o que vem pela frente.</p></div>
+              <div><h3>Perceba o que avançou</h3><p>No fim da semana, veja o que você concluiu, quais hábitos se mantiveram e para onde foi o dinheiro.</p></div>
             </article>
           </div>
         </section>
@@ -103,7 +103,7 @@ export function renderLanding(root) {
           <div class="public-cta-copy">
             <p class="public-eyebrow">Comece pelo que mais pede atenção</p>
             <h2 id="public-cta-title">Escolha como quer começar</h2>
-            <p>Crie uma conta para salvar seus registros ou explore a demonstração com exemplos fictícios — sem cadastro e sem salvar alterações.</p>
+            <p>Sinta o Aurora na prática com a demonstração (exemplos fictícios, sem cadastro e sem salvar alterações) ou crie sua conta e comece com os seus próprios registros.</p>
           </div>
           <div class="public-actions">
             <button class="btn primary large" type="button" data-public-action="signup">Criar conta</button>

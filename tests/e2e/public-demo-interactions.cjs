@@ -95,9 +95,9 @@ const check = (passed, name, detail = '') => {
   check(true, 'clique no fundo fecha o modal legal');
   await page.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
   check(mainModuleRequests.length === 0, 'demonstração pública não baixa o módulo completo');
-  await page.getByRole('heading', { name: 'Um dia no seu ritmo' }).waitFor();
+  await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(await page.locator('.demo-nav-link').count() === 6, 'demonstração oferece navegação pelas áreas do app');
-  check(await page.getByText('Modo demonstração.', { exact: false }).count() === 1, 'a demonstração deixa claro que os dados são fictícios e temporários');
+  check(await page.getByText('dados de exemplo', { exact: false }).count() === 1, 'a demonstração deixa claro que os dados são fictícios e temporários');
   await page.waitForTimeout(500);
   const storageBefore = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
@@ -105,7 +105,7 @@ const check = (passed, name, detail = '') => {
   }));
   collectRequests = true;
 
-  await page.getByRole('button', { name: 'Tarefas', exact: true }).click();
+  await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
   const task = page.locator('[data-task-id="read"]');
   await task.focus();
   await page.keyboard.press('Space');
@@ -117,14 +117,14 @@ const check = (passed, name, detail = '') => {
     && await page.getByText('3 de 4 feitos').count() === 1,
   'tarefas de exemplo podem ser adicionadas apenas durante a demonstração');
 
-  await page.getByRole('button', { name: 'Hábitos', exact: true }).click();
+  await page.getByRole('link', { name: 'Hábitos', exact: true }).click();
   const habit = page.getByRole('button', { name: 'Marcar hoje' });
   await habit.focus();
   await page.keyboard.press('Enter');
   check(await page.getByRole('button', { name: 'Desmarcar hoje' }).getAttribute('aria-pressed') === 'true', 'hábito fictício pode ser marcado pelo teclado');
   check((await page.locator('[data-demo-habit-count]').textContent()).includes('3'), 'resumo semanal do hábito é atualizado');
 
-  await page.getByRole('button', { name: 'Foco', exact: true }).click();
+  await page.getByRole('link', { name: 'Foco', exact: true }).click();
   await page.getByRole('button', { name: '15 min' }).click();
   const timer = page.locator('[data-demo-timer]');
   const initialTime = await timer.textContent();
@@ -149,10 +149,10 @@ const check = (passed, name, detail = '') => {
     && await page.getByRole('button', { name: 'Iniciar foco' }).isEnabled(),
   'cronômetro concluído pode ser reiniciado sem sair da demonstração');
 
-  await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
+  await page.getByRole('link', { name: 'Ciclo', exact: true }).click();
   await page.locator('[data-demo-action="cycle-day"][data-day="13"]').click();
   check(await page.getByText('Dia 13 · exemplo').count() === 1, 'calendário de ciclo permite navegar por dias fictícios');
-  await page.getByRole('button', { name: 'Finanças', exact: true }).click();
+  await page.getByRole('link', { name: 'Finanças', exact: true }).click();
   await page.getByRole('button', { name: 'Mês anterior' }).click();
   check(await page.getByRole('heading', { name: 'Setembro de 2026' }).count() === 1, 'finanças permite comparar meses fictícios');
 
@@ -167,18 +167,17 @@ const check = (passed, name, detail = '') => {
 
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
+  await page.setViewportSize({ width: 1366, height: 900 });
   const demoLayout = await page.evaluate(() => {
-    const header = document.querySelector('.demo-workspace > .topbar').getBoundingClientRect();
-    const sidebar = document.querySelector('.demo-sidebar').getBoundingClientRect();
+    const sidebar = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
     const main = document.querySelector('.demo-main').getBoundingClientRect();
     return {
-      sidebarVisible: sidebar.width >= 180 && sidebar.right <= header.left + 1,
-      headerFillsWorkspace: Math.abs(header.width - (document.documentElement.clientWidth - sidebar.width)) <= 1,
+      sidebarVisible: sidebar.width >= 180 && sidebar.left === 0 && sidebar.bottom >= innerHeight,
       mainFitsWorkspace: main.left >= sidebar.right && main.right <= document.documentElement.clientWidth,
     };
   });
-  check(demoLayout.sidebarVisible, 'demonstração usa navegação lateral no desktop');
-  check(demoLayout.headerFillsWorkspace && demoLayout.mainFitsWorkspace, 'cabeçalho e conteúdo respeitam a coluna da demonstração');
+  check(demoLayout.sidebarVisible, 'demonstração usa a navegação lateral do app no desktop');
+  check(demoLayout.mainFitsWorkspace, 'conteúdo respeita a coluna ao lado da navegação');
   await page.getByRole('button', { name: 'Voltar à página inicial' }).click();
   check(
     await page.locator('.public-journey-grid').evaluate((grid) => {
