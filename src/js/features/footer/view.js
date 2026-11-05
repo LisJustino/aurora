@@ -10,6 +10,7 @@ export function renderFooterContent({
   includeLegalDialog = true,
   includeFaq = true,
   pwaInstall = false,
+  suggestionForm = false,
 } = {}) {
   const isStandalone = typeof navigator !== 'undefined' && (
     navigator.standalone === true
@@ -23,9 +24,9 @@ export function renderFooterContent({
     ? `<a class="footer-link" href="/config">Perfil e ajustes</a><button class="footer-link" type="button" data-account-signout>Sair da conta</button>`
     : accountError
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
-      : `<button class="footer-link" type="button" data-public-action="login">Entrar</button><button class="footer-link" type="button" data-public-action="signup">Criar conta</button>`;
+      : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
   const demoLink = demoAvailable
-    ? '<button class="footer-link" type="button" data-public-action="demo">Explorar demonstração</button>'
+    ? '<a class="footer-link" href="/demonstracao" data-public-action="demo">Explorar demonstração</a>'
     : '';
   const installLink = pwaInstall && !isStandalone && typeof window !== 'undefined'
     ? '<button class="footer-link" type="button" data-action="pwa-install">Baixar o app</button>'
@@ -84,6 +85,22 @@ export function renderFooterContent({
             <summary>Como entro em contato com quem criou o Aurora?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
           </details>
+        </div>
+      </details>` : ''}
+      ${suggestionForm ? `<details class="footer-faq footer-suggestion">
+        <summary>Enviar uma sugestão <span aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
+        <div class="footer-faq-content">
+          <p>O formulário abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas nem informações pessoais sensíveis.</p>
+          <form class="footer-suggestion-form" data-footer-suggestion>
+            <label for="footer-suggestion-name">Seu nome (opcional)</label>
+            <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
+            <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
+            <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
+            <label for="footer-suggestion-message">Sua sugestão</label>
+            <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
+            <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
+            <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
+          </form>
         </div>
       </details>` : ''}
       <div class="footer-meta">

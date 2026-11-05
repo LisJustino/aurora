@@ -10,6 +10,7 @@ import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
   accountModeFromLocation,
+  accountPathForMode,
   isDemoLocation,
   isPublicLandingLocation,
   postSignOutPath,
@@ -102,6 +103,11 @@ function loadGoogleCalendarServiceFactory() {
         googleCalendarServicePromise = null;
         throw error;
       });
+      window.addEventListener('aurora:push-notification', (event) => {
+        const kind = event.detail?.kind;
+        if (kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
+        else if (kind === 'pomodoro') toast('Uma nova fase do Pomodoro começou.');
+      });
   }
   return googleCalendarServicePromise;
 }
@@ -173,7 +179,8 @@ import {
   homeAreaColorValue,
 } from './features/home/personalization.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
-import { startPwaInstallPrompt } from './services/pwa-install.js';
+import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isNativeApp } from './utils/platform.js';
 import {
   habitWeeklyTarget,
   habitWeekReview,
@@ -1958,6 +1965,7 @@ function watchPwaRegistration(registration) {
 function registerPwaSupport() {
   if (!import.meta.env.PROD
     || import.meta.env.VITE_PWA_ENABLED === 'false'
+    || isNativeApp()
     || !('serviceWorker' in navigator)) return Promise.resolve(null);
   if (!pwaSupportPromise) {
     pwaSupportPromise = (async () => {
@@ -2318,7 +2326,7 @@ async function syncHabitReminderSchedule() {
     if (reminders.length) await scheduleHabitPushReminders(reminders);
     else await cancelHabitPushReminders();
     ui.habitPushNotice = reminders.length
-      ? 'Lembretes atualizados. A entrega depende da rede, do serviço e das permissões do navegador.'
+      ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPomodoroPushStatus().native ? 'do dispositivo' : 'do navegador'}.`
       : 'Não há horários de lembrete ativos para enviar ao serviço.';
     return true;
   } catch (error) {
@@ -3260,7 +3268,7 @@ function viewPomodoro() {
           <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p><p class="small muted">A inscrição é compartilhada com Hábitos: este controle ativa ou desativa os avisos de ambos neste dispositivo.</p></div>
           <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
+          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe o token de notificação e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o sistema pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
     </details>
     ${pomodoroHistoryCard(timer)}`;
@@ -4853,7 +4861,7 @@ const ACTIONS = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
   'pwa-install': () => {
-    startPwaInstallPrompt();
+    showPwaInstallPrompt();
   },
   'pwa-update-dismiss': () => {
     ui.pwaUpdateDismissed = true;
@@ -5896,6 +5904,7 @@ async function deleteAccountFromSettings(form) {
     } catch (error) {
       console.error('Aurora: a conta foi excluída, mas a inscrição Push local não foi removida.', error);
     }
+    intentionalSignOut = true;
     try {
       const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (error) console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', error);
@@ -7924,6 +7933,7 @@ function showAccountDataLoadError(root, error, user) {
   exit.textContent = 'Sair';
   exit.addEventListener('click', async () => {
     exit.disabled = true;
+    intentionalSignOut = true;
     try {
       const { error: signOutError } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (signOutError) throw signOutError;
@@ -7973,7 +7983,7 @@ async function continueAuthenticatedAurora(root, user) {
   if (!profileSetupComplete()) openProfileSetup();
   setInterval(tick, 1000);
   const registration = await registerPwaSupport();
-  if (registration) {
+  if (registration || isNativeApp()) {
     try {
       await initializePomodoroPush();
       await syncHabitReminderSchedule();
@@ -7987,12 +7997,51 @@ async function continueAuthenticatedAurora(root, user) {
   Persist.retryPending();
 }
 
+const RETURN_TO_KEY = 'aurora:return-to';
+const SESSION_EXPIRED_KEY = 'aurora:session-expired';
+const RETURN_TO_PATTERN = /^\/(?:inicio|planejar|pomodoro|financas|habitos|ciclo|config)(?:\?[\w=&%.-]*)?$/;
+let intentionalSignOut = false;
+
+function readStorage(key) {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function writeStorage(key, value) {
+  try {
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch { /* storage indisponível */ }
+}
+
+function rememberRequestedRoute() {
+  if (accountModeFromLocation(location) || isPublicLandingLocation(location)) return;
+  const path = routePathFor(`${routeFromLocation(location, new Set(Object.keys(ROUTES))).route}${location.search}`);
+  if (RETURN_TO_PATTERN.test(path)) writeStorage(RETURN_TO_KEY, path);
+}
+
+function watchSessionExpiry(client) {
+  client.auth.onAuthStateChange((event) => {
+    if (event !== 'SIGNED_OUT' || intentionalSignOut || !accountSession) return;
+    const returnTo = `${location.pathname}${location.search}`;
+    accountSession = null;
+    if (RETURN_TO_PATTERN.test(returnTo)) writeStorage(RETURN_TO_KEY, returnTo);
+    writeStorage(SESSION_EXPIRED_KEY, '1');
+    Persist.wipe();
+    resetGoogleCalendarState();
+    history.replaceState(null, '', accountPathForMode('login'));
+    location.reload();
+  });
+}
+
 async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
   const { requireAccount } = await import('./services/account-auth.js');
   renderAccountLoading(root);
   let returnedToPublic = false;
+  rememberRequestedRoute();
+  const sessionExpired = readStorage(SESSION_EXPIRED_KEY) === '1';
+  writeStorage(SESSION_EXPIRED_KEY, null);
   accountSession = await requireAccount(root, initialMode, {
     allowPublicReturn,
+    initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
     onPublicReturn: () => { returnedToPublic = true; },
     onAccountDeleted: () => {
       redirectToPublicLanding(location);
@@ -8006,14 +8055,21 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
     }
     return;
   }
+  const returnTo = readStorage(RETURN_TO_KEY);
+  writeStorage(RETURN_TO_KEY, null);
   if (accountModeFromLocation(location)) {
     const url = new URL(location.href);
-    url.pathname = '/inicio';
-    url.searchParams.delete('etapa');
-    url.hash = '';
-    history.replaceState(null, '', `${url.pathname}${url.search}`);
+    if (returnTo && RETURN_TO_PATTERN.test(returnTo)) {
+      history.replaceState(null, '', returnTo);
+    } else {
+      url.pathname = '/inicio';
+      url.searchParams.delete('etapa');
+      url.hash = '';
+      history.replaceState(null, '', `${url.pathname}${url.search}`);
+    }
   }
   await Persist.attach(accountSession);
+  watchSessionExpiry(accountSession.client);
   await continueAuthenticatedAurora(root, accountSession.user);
 }
 
@@ -8113,9 +8169,14 @@ async function startAurora() {
   })();
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const action = event.target instanceof Element ? event.target.closest('[data-public-action]')?.dataset.publicAction : null;
-    if (action === 'landing') {
+    const trigger = event.target instanceof Element ? event.target.closest('[data-public-action]') : null;
+    const action = trigger?.dataset.publicAction;
+    if (trigger instanceof HTMLAnchorElement) {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
+      if (trigger.getAttribute('aria-disabled') === 'true') return;
+    }
+    if (action === 'landing') {
       renderLanding(root);
       return;
     }
@@ -8135,6 +8196,7 @@ async function startAurora() {
     stopLandingDemo(root);
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
+      else if (button.dataset.publicAction !== 'skip' && button.dataset.publicAction !== 'landing') button.setAttribute('aria-disabled', 'true');
     });
     if (await sessionRestore) return;
     startAuthenticatedAurora(root, action, true).catch((error) => {
@@ -8170,9 +8232,10 @@ document.addEventListener('click', async (event) => {
       return;
     }
   }
+  intentionalSignOut = true;
   const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
   if (error) {
-    button.disabled = false;
+    intentionalSignOut = false;
     toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
     return;
   }
@@ -8200,6 +8263,11 @@ document.addEventListener('submit', (event) => {
 
 initializeCustomSelects(document);
 initializeLegalDialogEvents();
+if (isNativeApp()) {
+  void import('./services/native-auth.js')
+    .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
+    .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
+}
 
 startAurora().catch((error) => {
   console.error('Aurora: a inicialização segura falhou.', error);

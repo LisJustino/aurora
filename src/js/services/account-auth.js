@@ -19,10 +19,12 @@ import {
   isPublicLandingLocation,
 } from '../core/router.js';
 import { iconSvg } from '../utils/icons.js';
+import { isNativeApp } from '../utils/platform.js';
+import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.7';
+export const LEGAL_DOCUMENT_VERSION = '1.8';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -1562,12 +1564,21 @@ export async function requireAccount(root, initialMode = 'login', {
         setRememberSession(result.rememberSession);
         setSubmitPending(result.submit, true);
         result.providerButtons.forEach((button) => { button.disabled = true; });
-        const { error: oauthError } = await client.auth.signInWithOAuth({
-          provider: result.oauthProvider,
-          options: {
-            redirectTo: getOAuthRedirectUrl(location.origin),
-          },
-        });
+        let oauthError;
+        try {
+          if (isNativeApp()) {
+            const { startNativeOAuth } = await import('./native-auth.js');
+            await startNativeOAuth(client, result.oauthProvider);
+          } else {
+            const oauthResult = await client.auth.signInWithOAuth({
+              provider: result.oauthProvider,
+              options: { redirectTo: getOAuthRedirectUrl(location.origin) },
+            });
+            oauthError = oauthResult.error;
+          }
+        } catch (error) {
+          oauthError = error;
+        }
         if (oauthError) {
           console.error(`Aurora: não foi possível iniciar o acesso por ${result.oauthProvider}.`, oauthError);
           setSubmitPending(result.submit, false);
@@ -1580,7 +1591,9 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'recovery') {
         setSubmitPending(result.submit, true);
         const { error: recoveryError } = await client.auth.resetPasswordForEmail(email, {
-          redirectTo: `${location.origin}${location.pathname}`,
+          redirectTo: isNativeApp()
+            ? NATIVE_AUTH_REDIRECT_URL
+            : `${location.origin}${location.pathname}`,
         });
         message = recoveryError
           ? passwordRecoveryErrorMessage(recoveryError)

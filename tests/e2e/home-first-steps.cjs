@@ -47,8 +47,8 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 390, height: 844 });
 
   await page.getByRole('link', { name: 'Personalizar início' }).click();
-  await page.locator('.home-layout-settings').waitFor({ state: 'visible' });
-  check(await page.locator('.areas-navigation-settings').count() === 1, 'atalho abre as opções de personalização da Home');
+  await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
+  check(await page.locator('.areas-navigation-settings').count() === 1, 'atalho abre as opções de áreas e menu');
   check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo ao navegar para Ajustes');
   await page.locator('.nav a[href="/inicio"]').click();
   await card.waitFor({ state: 'visible' });

@@ -3,43 +3,84 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Planeje sua semana, acompanhe hábitos e organize suas finanças com clareza. Explore a demonstração fictícia ou crie sua conta no Aurora.">
+  <meta name="description" content="Planeje a semana, acompanhe hábitos, foco e finanças em um só lugar. Teste grátis, sem cadastro.">
   <link rel="canonical" href="https://aurora-rotinas.com.br/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:site_name" content="aurora.">
-  <meta property="og:title" content="aurora. — mais clareza para a sua rotina">
-  <meta property="og:description" content="Planeje sua semana, acompanhe hábitos e organize suas finanças com clareza. Explore a demonstração fictícia ou crie sua conta no Aurora.">
+  <meta property="og:title" content="aurora. — planner de tarefas, hábitos, foco e finanças">
+  <meta property="og:description" content="Planeje a semana, acompanhe hábitos, foco e finanças em um só lugar. Teste grátis, sem cadastro.">
   <meta property="og:url" content="https://aurora-rotinas.com.br/">
-  <meta property="og:image" content="https://aurora-rotinas.com.br/src/assets/landing-desktop.png">
-  <meta property="og:image:alt" content="Tela do aurora. com tarefas e foco; dados fictícios da demonstração.">
-  <meta property="og:image:width" content="1440">
-  <meta property="og:image:height" content="900">
+  <meta property="og:image" content="https://aurora-rotinas.com.br/og/aurora-1200x630.png">
+  <meta property="og:image:alt" content="aurora. — planner semanal, hábitos e finanças em um só lugar.">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="aurora. — mais clareza para a sua rotina">
-  <meta name="twitter:description" content="Planeje sua semana, acompanhe hábitos e organize suas finanças com clareza. Explore a demonstração fictícia ou crie sua conta no Aurora.">
-  <meta name="twitter:image" content="https://aurora-rotinas.com.br/src/assets/landing-desktop.png">
-  <meta name="twitter:image:alt" content="Tela do aurora. com tarefas e foco; dados fictícios da demonstração.">
+  <meta name="twitter:title" content="aurora. — planner de tarefas, hábitos, foco e finanças">
+  <meta name="twitter:description" content="Planeje a semana, acompanhe hábitos, foco e finanças em um só lugar. Teste grátis, sem cadastro.">
+  <meta name="twitter:image" content="https://aurora-rotinas.com.br/og/aurora-1200x630.png">
+  <meta name="twitter:image:alt" content="aurora. — planner semanal, hábitos e finanças em um só lugar.">
   <meta name="theme-color" content="#e8e6e0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Aurora">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="manifest" href="%BASE_URL%manifest.webmanifest">
-  <title>aurora. — mais clareza para a sua rotina</title>
+  <title>aurora. — planner de tarefas, hábitos, foco e finanças</title>
   <meta name="aurora-route" content="landing">
+  <link rel="preload" href="./src/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./src/css/main.css">
+  <script type="application/ld+json">
+  [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "aurora.",
+      "url": "https://aurora-rotinas.com.br/",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "pt-BR",
+      "description": "Planner de tarefas, hábitos, foco e finanças em um só lugar.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "O Aurora é grátis?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. O Aurora é totalmente grátis e não pede cartão de crédito." } },
+        { "@type": "Question", "name": "Funciona no celular?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. A página se adapta a telas pequenas e pode ser instalada como app. Ela abre em tela cheia, mas precisa de conexão para gravar seus dados." } },
+        { "@type": "Question", "name": "Posso exportar meus dados?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Em Ajustes você baixa um backup em JSON com seus registros, com opção de proteger o arquivo com senha. As Finanças também exportam em CSV." } },
+        { "@type": "Question", "name": "Como meus dados são protegidos?", "acceptedAnswer": { "@type": "Answer", "text": "Os registros salvos ficam associados à sua conta, e as regras de acesso do banco restringem os dados à conta autenticada. Eles não são criptografados de ponta a ponta. Leia a Política de Privacidade para conhecer detalhes e limitações." } },
+        { "@type": "Question", "name": "O Aurora se conecta ao meu banco?", "acceptedAnswer": { "@type": "Answer", "text": "Não. Receitas, despesas e cartões são registrados manualmente; o Aurora não se conecta a contas bancárias." } },
+        { "@type": "Question", "name": "Preciso confirmar meu e-mail?", "acceptedAnswer": { "@type": "Answer", "text": "Não. O acesso é liberado assim que a conta é criada. Confira o endereço antes: um erro de digitação pode impedir a recuperação da senha." } },
+        { "@type": "Question", "name": "Posso apagar minha conta?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Você pode iniciar a exclusão permanente nas configurações; o Aurora pede confirmação antes de apagar a conta e os dados associados." } },
+        { "@type": "Question", "name": "A demonstração usa meus dados?", "acceptedAnswer": { "@type": "Answer", "text": "Não. Ela usa apenas informações fictícias, não acessa sua conta e não salva alterações." } },
+        { "@type": "Question", "name": "Preciso de uma conta?", "acceptedAnswer": { "@type": "Answer", "text": "Você pode explorar a demonstração sem cadastro. Para guardar seus próprios registros, crie uma conta." } },
+        { "@type": "Question", "name": "O que acontece sem conexão?", "acceptedAnswer": { "@type": "Answer", "text": "O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente." } }
+      ]
+    }
+  ]
+  </script>
 </head>
 <body>
-  <div id="app"><main class="account-loading" role="status" aria-busy="true">
-    <div class="account-loading-content">
-      <span class="account-loading-brand-text" aria-hidden="true">aurora<span class="account-loading-brand-dot">.</span></span>
-      <span class="account-loading-indicator" aria-hidden="true"></span>
-      <p class="account-loading-message">Preparando seu espaço…</p>
+  <div id="app"><main class="app-skeleton" role="status" aria-busy="true" aria-label="Carregando aurora">
+    <div class="app-skeleton-header" aria-hidden="true">
+      <span class="account-loading-brand-text">aurora<span class="account-loading-brand-dot">.</span></span>
+      <span class="app-skeleton-pill"></span>
     </div>
+    <div class="app-skeleton-hero" aria-hidden="true">
+      <span class="app-skeleton-line is-title"></span>
+      <span class="app-skeleton-line is-short"></span>
+      <span class="app-skeleton-line"></span>
+      <span class="app-skeleton-pill"></span>
+    </div>
+    <span class="app-skeleton-card" aria-hidden="true"></span>
   </main></div>
+  <script src="/landing-guard.js"></script>
   <noscript>Para autenticar sua conta e salvar seus dados com segurança, é necessário ativar o JavaScript.</noscript>
   <script type="module" src="./src/js/public-entry.js"></script>
 </body>

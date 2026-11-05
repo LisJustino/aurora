@@ -72,7 +72,7 @@ function renderPageHeading(eyebrow, title, description = '') {
 }
 
 function demoNotice() {
-  return `<div class="notice warn sample-banner" role="note">${demoIcon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus; nada é salvo.</div><button type="button" class="btn sm" data-public-action="signup">Criar conta</button></div>`;
+  return `<div class="notice warn sample-banner" role="note">${demoIcon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus; nada é salvo.</div><a class="btn sm" href="/criar-conta" data-public-action="signup">Criar conta</a></div>`;
 }
 
 function renderHomeTask(task) {
@@ -247,7 +247,7 @@ export function renderLandingDemo(root) {
       ${renderPublicHeader({ demo: true }).replace('<span class="header-actions public-header-actions">', `<nav class="nav demo-nav" aria-label="Áreas de exemplo">${renderNavigation(state)}</nav><span class="header-actions public-header-actions">`)}
       <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
         <div class="demo-screen" data-demo-screen></div>
-        <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, foco, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><button class="btn primary" type="button" data-public-action="signup">Criar conta</button><button class="btn" type="button" data-public-action="landing">Voltar à página inicial</button></div></section>
+        <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, foco, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><a class="btn primary" href="/criar-conta" data-public-action="signup">Criar conta</a><a class="btn" href="/" data-public-action="landing">Voltar à página inicial</a></div></section>
         <footer class="demo-footer"><button type="button" class="footer-link" data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="privacy">Privacidade</button></footer>
       </main>
     </div>`;

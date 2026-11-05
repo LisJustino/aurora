@@ -303,6 +303,10 @@ async function main() {
     await page.goto(`${BASE}/demonstracao`);
     await page.locator('#demo-main').waitFor();
     assert.equal(await page.title(), 'Demonstração | aurora.');
+    await page.goto(`${BASE}/planejar`);
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/entrar', 'rota protegida sem sessão deve redirecionar ao login');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('aurora:return-to')), '/planejar', 'rota pedida deve ser guardada para depois do login');
     await page.goto(BASE);
 
     await page.evaluate(async () => {
