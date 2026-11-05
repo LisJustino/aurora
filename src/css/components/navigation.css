@@ -156,6 +156,16 @@
 }
 .notification-head h2 { font-size: var(--text-lg); }
 .notification-head .small { display: inline-flex; margin-top: 6px; padding: 3px 9px; border-radius: var(--r-pill); background: var(--soft); color: var(--muted); font-size: var(--text-xs); }
+.notification-controls {
+  display: grid;
+  gap: 10px;
+  padding: 12px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.notification-controls > div { display: grid; gap: 4px; }
+.notification-controls b { color: var(--ink); font-size: var(--text-sm); }
+.notification-controls small { color: var(--muted); line-height: 1.45; }
+.notification-controls .btn { justify-self: start; }
 .notification-section-title { margin: 12px 18px 0; color: var(--muted); font-size: var(--text-2xs); font-weight: 800; letter-spacing: .08em; }
 .notification-list { display: grid; gap: 8px; overflow-y: auto; padding: 10px; }
 .notification-item {
@@ -271,6 +281,18 @@ button.nav-more-link { width: 100%; border: 0; background: transparent; color: i
 .notification-upcoming .nu-time { flex: none; min-width: 5ch; color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 700; }
 .notification-upcoming li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notification-upcoming small { flex: none; color: var(--muted); font-size: var(--text-xs); }
+.notification-settings-link {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.notification-settings-link:hover { color: var(--accent); }
 .notification-panel { overflow-y: auto; }
 .notification-panel .notification-list { overflow: visible; }
 .notification-meta .notification-x { width: var(--control-sm); height: var(--control-sm); min-width: var(--control-sm); min-height: var(--control-sm); margin: -8px -8px -8px 0; }
@@ -301,6 +323,8 @@ button.nav-more-link { width: 100%; border: 0; background: transparent; color: i
 
 .wordmark { font-size: var(--text-title); }
 .brand .wordmark i { color: var(--accent); }
+.app > .topbar .wordmark,
+.account-public-header .wordmark { display: none; }
 .topbar .brand,
 .topbar .wordmark { transition: min-height var(--duration-base) var(--ease-standard), font-size var(--duration-base) var(--ease-standard); }
 :root[data-scrolled="true"] .topbar .brand { min-height: var(--control-sm); }

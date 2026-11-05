@@ -30,6 +30,14 @@ const check = (passed, name, detail = '') => {
   }), 'abrir modal não foca um campo nem abre o teclado');
   const timeBox = await page.locator('#dlg input[type="time"]').boundingBox();
   check(Boolean(timeBox && timeBox.x >= 0 && timeBox.x + timeBox.width <= 390), 'campo de horário cabe na largura mobile');
+  check(await page.locator('#dlg .task-icon-picker input[type="radio"]').count() >= 20, 'formulário oferece uma variedade de ícones');
+  await page.getByRole('radio', { name: 'Estudos' }).check();
+  await page.locator('#dlg [data-dlg="title"]').fill('Revisar leitura');
+  await page.locator('#dlg button[form="dlgform"]').click();
+  const createdTask = page.locator('.task').filter({ hasText: 'Revisar leitura' });
+  check(await createdTask.locator('.task-title-icon').count() === 1, 'ícone escolhido aparece na tarefa criada');
+  await createdTask.locator('.tt[data-action="edit-task"]').click();
+  check(await page.locator('#dlg [data-dlg="icon"][value="book"]').isChecked(), 'ícone permanece selecionado ao editar');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
   await page.setViewportSize({ width: 320, height: 568 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Planejar não tem overflow horizontal em 320 px');

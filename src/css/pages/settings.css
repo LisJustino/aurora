@@ -5,33 +5,6 @@
   --settings-card-padding: clamp(var(--space-4), 3vw, var(--space-6));
 }
 
-.main[data-route="config"] > .page-title {
-  min-height: 148px;
-  padding: clamp(24px, 4vw, 36px);
-  border-color: var(--settings-edge);
-  border-radius: var(--r-large);
-  background:
-    radial-gradient(ellipse at 92% 18%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 22rem),
-    linear-gradient(118deg, color-mix(in srgb, var(--accent) 9%, var(--surface-strong)), var(--surface-strong) 72%);
-  box-shadow: var(--card-shadow);
-}
-
-.main[data-route="config"] > .page-title::after {
-  top: 50%;
-  right: clamp(22px, 5vw, 54px);
-  width: 92px;
-  height: 92px;
-  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
-  box-shadow:
-    0 0 0 14px color-mix(in srgb, var(--accent) 5%, transparent),
-    0 0 0 30px color-mix(in srgb, var(--accent) 3%, transparent);
-  transform: translateY(-50%);
-}
-
-.main[data-route="config"] > .page-title .page-title-copy { gap: var(--space-2); }
-.main[data-route="config"] > .page-title h1 { font-size: var(--text-page-title); }
-.main[data-route="config"] > .page-title p { max-width: 56ch; font-size: var(--text-base); }
-
 .main[data-route="config"] .settings-layout {
   grid-template-columns: minmax(220px, 252px) minmax(0, 1fr);
   align-items: start;
@@ -302,19 +275,6 @@
 }
 
 @media (max-width: 760px) {
-  .main[data-route="config"] > .page-title {
-    min-height: 110px;
-    padding: var(--space-4) var(--space-5);
-  }
-
-  .main[data-route="config"] > .page-title::after {
-    right: 18px;
-    width: 64px;
-    height: 64px;
-  }
-
-  .main[data-route="config"] > .page-title .page-title-copy { max-width: calc(100% - 76px); }
-  .main[data-route="config"] > .page-title p { display: block; font-size: var(--text-sm); }
   .main[data-route="config"] .settings-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
@@ -371,11 +331,6 @@
 }
 
 @media (max-width: 520px) {
-  .main[data-route="config"] > .page-title { min-height: 100px; padding: var(--space-4); }
-  .main[data-route="config"] > .page-title h1 { font-size: var(--text-3xl); }
-  .main[data-route="config"] > .page-title p { max-width: 34ch; font-size: var(--text-xs); }
-  .main[data-route="config"] > .page-title::after { right: 12px; width: 48px; height: 48px; }
-  .main[data-route="config"] > .page-title .page-title-copy { max-width: calc(100% - 50px); }
   .main[data-route="config"] .settings-content > .card,
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {

@@ -51,7 +51,7 @@ const check = (passed, name, detail = '') => {
   await page.evaluate(() => { location.hash = 'config?section=data'; });
   await page.getByRole('button', { name: 'Exportar backup' }).click();
   const backupConfirmation = page.locator('#dlg');
-  await backupConfirmation.getByText('O arquivo de backup é JSON em texto puro, sem criptografia. Ele pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
+  await backupConfirmation.getByText('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
   await backupConfirmation.getByRole('button', { name: 'Cancelar' }).click();
   check(await backupConfirmation.count() === 0, 'cancelar exportação fecha apenas a confirmação');
   const overflows = [];

@@ -682,7 +682,7 @@ export function createAccountForm(root, {
     appendLegalConsent(form, { updatedDocuments: mode === 'legal-consent' });
   }
   if (mode === 'delete-account') {
-    form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os backups JSON baixados não são apagados pelo Aurora.'));
+    form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os arquivos de backup que você baixou não são apagados pelo Aurora.'));
     const confirmation = createField(
       form,
       'Digite EXCLUIR para confirmar',

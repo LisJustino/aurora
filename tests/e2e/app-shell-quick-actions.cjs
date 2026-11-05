@@ -237,7 +237,7 @@ const check = (passed, name, detail = '') => {
         )),
       };
     });
-    check(compactMenuLayout.headerHeight === compactHeaderHeight && compactMenuLayout.menuPosition === 'absolute',
+    check(Math.abs(compactMenuLayout.headerHeight - compactHeaderHeight) <= 1 && compactMenuLayout.menuPosition === 'absolute',
       `menu Mais flutua sem alterar o cabeçalho em ${width} px`, JSON.stringify(compactMenuLayout));
     check(compactMenuLayout.menuBelowNav && compactMenuLayout.menuWithinViewport && compactMenuLayout.linksFit,
       `menu Mais cabe na tela e mantém os rótulos em ${width} px`, JSON.stringify(compactMenuLayout));

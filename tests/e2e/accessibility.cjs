@@ -106,6 +106,12 @@ async function checkContrast(page) {
     await publicPage.emulateMedia({ reducedMotion: 'no-preference' });
 
     const trigger = publicPage.getByRole('button', { name: 'Abrir acessibilidade' });
+    assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
+    assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
+
+    await publicPage.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
+    await publicPage.getByRole('button', { name: 'Tarefas', exact: true }).waitFor();
+    assert.equal(await trigger.count(), 1, 'acessibilidade continua disponível na demonstração');
     assert.equal(await trigger.getAttribute('aria-haspopup'), null, 'o disclosure não deve ser anunciado como menu');
     await trigger.click();
     const panel = publicPage.locator('#public-accessibility-panel');
@@ -130,8 +136,6 @@ async function checkContrast(page) {
     assert.equal(await publicPage.locator('html').getAttribute('data-motion'), 'reduce');
     await publicPage.keyboard.press('Escape');
 
-    await publicPage.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
-    await publicPage.getByRole('button', { name: 'Tarefas', exact: true }).waitFor();
     await publicPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;
@@ -176,6 +180,8 @@ async function checkContrast(page) {
     await appPage.goto(previewUrl.toString());
     await completeProfile(appPage);
     assert.equal(await appPage.locator('#accessibility-trigger').count(), 0, 'acessibilidade não fica no cabeçalho autenticado');
+    assert.equal(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra apenas o ícone da marca');
     assert.equal(await appPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho');
     await appPage.evaluate(() => { location.hash = 'config?section=personalization'; });
     await appPage.locator('#settings-accessibility-readable').waitFor();

@@ -95,7 +95,7 @@ export function renderFooterContent({
 }
 
 export function initializeFaqDisclosure(root) {
-  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item, details.public-faq-more').forEach((details) => {
     const summary = details.querySelector(':scope > summary');
     if (!summary || summary.dataset.expandedStateBound) return;
     summary.dataset.expandedStateBound = 'true';

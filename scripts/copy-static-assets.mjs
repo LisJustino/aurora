@@ -16,4 +16,6 @@ await Promise.all([
   copyFile(resolve(root, '_redirects'), resolve(output, '_redirects')),
   copyFile(resolve(root, 'src', 'assets', 'landing-desktop.png'), resolve(outputAssets, 'landing-desktop.png')),
   copyFile(resolve(root, 'src', 'assets', 'landing-mobile.png'), resolve(outputAssets, 'landing-mobile.png')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-desktop-dark.png'), resolve(outputAssets, 'landing-desktop-dark.png')),
+  copyFile(resolve(root, 'src', 'assets', 'landing-mobile-dark.png'), resolve(outputAssets, 'landing-mobile-dark.png')),
 ]);

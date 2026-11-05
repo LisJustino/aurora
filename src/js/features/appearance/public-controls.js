@@ -53,11 +53,16 @@ function setAccessibilityOpen(open) {
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const isLanding = !demo && !authMode;
   const themeName = { auto: 'automático', light: 'claro', dark: 'escuro' }[publicLook.mode];
+  const accessibilityControls = isLanding ? '' : `
+          <span class="accessibility-control">
+            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Acessibilidade">${icon('accessibility', 20)}</button>
+            ${accessibilityPanel()}
+          </span>`;
   const accountAction = (mode, label) => {
     const isCurrentMode = authMode === mode;
     const action = authMode ? `data-account-mode="${mode}"` : `data-public-action="${mode}"`;
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
-    const variant = isLanding && mode === 'signup' ? 'primary' : '';
+    const variant = (isLanding || demo) && mode === 'signup' ? 'primary' : '';
     const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
     return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
@@ -69,10 +74,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
         ${accountAction('signup', 'Criar conta')}
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
           <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="Alternar tema: ${themeName}" title="Alternar tema">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
-          <span class="accessibility-control">
-            <button type="button" id="public-accessibility-trigger" class="iconbtn accessibility-trigger" data-public-control="accessibility-toggle" aria-label="Abrir acessibilidade" aria-expanded="${String(accessibilityOpen)}" aria-controls="public-accessibility-panel" title="Acessibilidade">${icon('accessibility', 20)}</button>
-            ${accessibilityPanel()}
-          </span>
+          ${accessibilityControls}
           ${isLanding || demo ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
         </span>
       </span>
