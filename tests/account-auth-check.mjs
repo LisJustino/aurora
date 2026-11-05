@@ -248,8 +248,8 @@ assert.equal(hasCurrentLegalConsent({
 }), false);
 assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
-assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/inicio');
-assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/inicio');
+assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/');
+assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/');
 assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',
