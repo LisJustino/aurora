@@ -1,0 +1,77 @@
+.main > .page-title {
+  position: relative;
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  overflow: hidden;
+  padding: var(--space-5) var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 20%, var(--line));
+  border-radius: var(--r-large);
+  background: var(--hero);
+  box-shadow: var(--card-shadow);
+}
+
+.main > .page-title::after {
+  position: absolute;
+  top: 50%;
+  right: var(--space-5);
+  width: 72px;
+  height: 72px;
+  border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 28%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--area-tone, var(--accent)) 5%, transparent),
+    0 0 0 24px color-mix(in srgb, var(--area-tone, var(--accent)) 3%, transparent);
+  content: "";
+  transform: translateY(-50%);
+}
+
+.main > .page-title .page-title-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: var(--space-1);
+  max-width: min(70ch, calc(100% - 120px));
+}
+
+.main > .page-title .page-title-eyebrow {
+  color: var(--area-tone, var(--accent));
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: .1em;
+}
+
+.main > .page-title h1 {
+  position: relative;
+  z-index: 1;
+  font-size: var(--text-page-title);
+  letter-spacing: -.055em;
+}
+
+.main > .page-title h1 i { color: var(--area-tone, var(--accent)); }
+
+.main > .page-title p {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.main > .page-title:has(.finance-page-action)::after { display: none; }
+
+@media (max-width: 700px) {
+  .main > .page-title {
+    min-height: 78px;
+    padding: var(--space-4);
+    border-radius: var(--r);
+  }
+
+  .main > .page-title::after {
+    top: 50%;
+    right: var(--space-4);
+    width: 54px;
+    height: 54px;
+  }
+
+  .main > .page-title .page-title-copy { max-width: calc(100% - 68px); }
+  .main > .page-title p { display: none; }
+}

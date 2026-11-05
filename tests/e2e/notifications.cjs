@@ -64,6 +64,9 @@ async function addTask(page, title, offsetMinutes) {
       assert.equal(await page.locator('.notification-section-title').textContent(), 'Agora');
       assert.equal(await page.locator('.notification-upcoming h3').textContent(), 'Ainda hoje');
       assert.equal(await page.locator('.notification-upcoming li').count(), 1, `${name}: deve exibir o próximo lembrete`);
+      assert.equal(await page.locator('.notification-controls').evaluate((el) => getComputedStyle(el).display), 'grid', `${name}: controles devem manter espaçamento em grade`);
+      assert.equal(await page.locator('.notification-controls small').evaluate((el) => getComputedStyle(el).display), 'block', `${name}: explicação deve ficar abaixo do título`);
+      assert.equal(await page.locator('.notification-settings-link').evaluate((el) => getComputedStyle(el).display), 'flex', `${name}: link de ajustes deve manter ícone e texto alinhados`);
 
       if (name === 'mobile') {
         await page.locator('[data-action="rem-snooze"][data-min="60"]').first().click();

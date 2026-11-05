@@ -75,7 +75,7 @@ async function vapidKeys() {
 async function environment(overrides = {}) {
   const keys = await vapidKeys();
   const env = {
-    ALLOWED_ORIGINS: 'https://aurora-9ze.pages.dev',
+    ALLOWED_ORIGINS: 'https://aurora-rotinas.com.br,https://aurora-9ze.pages.dev',
     ENVIRONMENT: 'production',
     VAPID_PUBLIC_KEY: keys.publicKey,
     VAPID_PRIVATE_KEY: keys.privateKey,
@@ -140,6 +140,9 @@ test('CORS é exato, e a configuração pública expõe somente a chave VAPID p�
   const env = await environment();
   const blocked = await call(env, '/api/config', { origin: 'https://attacker.example' });
   assert.equal(blocked.response.status, 403);
+  const customDomain = await call(env, '/api/config', { origin: 'https://aurora-rotinas.com.br' });
+  assert.equal(customDomain.response.status, 200);
+  assert.equal(customDomain.response.headers.get('Access-Control-Allow-Origin'), 'https://aurora-rotinas.com.br');
   const config = await call(env, '/api/config');
   assert.equal(config.response.status, 200);
   assert.equal(config.body.publicKey, env.VAPID_PUBLIC_KEY);

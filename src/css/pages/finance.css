@@ -610,52 +610,6 @@
 }
 .main[data-route="financas"] { --area-tone: var(--area-finances); }
 
-.main[data-route="financas"] > .page-title {
-  position: relative;
-  display: flex;
-  min-height: 112px;
-  align-items: center;
-  overflow: hidden;
-  padding: 24px 26px;
-  border: 1px solid color-mix(in srgb, var(--area-tone) 20%, var(--line));
-  border-radius: var(--r-large);
-  background:
-    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--area-tone) 17%, transparent), transparent 18%),
-    linear-gradient(135deg, color-mix(in srgb, var(--area-tone) 7%, var(--surface)), var(--surface-strong) 60%);
-  box-shadow: 0 18px 36px -30px color-mix(in srgb, var(--area-tone) 46%, transparent);
-}
-.main[data-route="financas"] > .page-title::after {
-  position: absolute;
-  top: 18px;
-  right: 24px;
-  width: 72px;
-  height: 72px;
-  border: 1px solid color-mix(in srgb, var(--area-tone) 28%, transparent);
-  border-radius: 50%;
-  box-shadow: 0 0 0 12px color-mix(in srgb, var(--area-tone) 5%, transparent), 0 0 0 24px color-mix(in srgb, var(--area-tone) 3%, transparent);
-  content: "";
-}
-.main[data-route="financas"] > .page-title h1 { position: relative; z-index: 1; }
-.main[data-route="financas"] > .page-title .page-title-copy {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 3px;
-  max-width: min(70ch, calc(100% - 120px));
-}
-.main[data-route="financas"] > .page-title .page-title-eyebrow {
-  color: var(--area-tone);
-  font-size: var(--text-2xs);
-  font-weight: 800;
-  letter-spacing: .1em;
-}
-.main[data-route="financas"] > .page-title p {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-.main[data-route="financas"] > .page-title h1 i { color: var(--area-tone); }
-
 /* A ação primária de Finanças vive no cabeçalho no desktop, sem sobrepor cards. */
 .finance-page-action {
   position: absolute;
@@ -665,7 +619,6 @@
   min-height: var(--control-md);
   transform: translateY(-50%);
 }
-.main[data-route="financas"] > .page-title:has(.finance-page-action)::after { display: none; }
 @media (min-width: 900px) {
   .main[data-route="financas"] > .finance-fab { display: none; }
   .main[data-route="financas"] .fab-clearance { display: none; }
@@ -708,10 +661,6 @@
 }
 
 @media (max-width: 700px) {
-  .main[data-route="financas"] > .page-title { min-height: 78px; padding: 16px; border-radius: var(--r); }
-  .main[data-route="financas"] > .page-title::after { top: 14px; right: 18px; width: 54px; height: 54px; }
-  .main[data-route="financas"] > .page-title .page-title-copy { max-width: calc(100% - 68px); }
-  .main[data-route="financas"] > .page-title p { display: none; }
   .main[data-route="financas"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }
 }
 

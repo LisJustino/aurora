@@ -19,12 +19,12 @@
 .main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: clamp(var(--space-6), 3vw, var(--space-7));
   width: 100%;
   max-width: none;
   min-width: 0;
   margin-inline: auto;
-  padding: 24px var(--gut-r) calc(var(--nav-h) + 36px + env(safe-area-inset-bottom, 0px)) var(--gut-l);
+  padding: clamp(var(--space-6), 3vw, var(--space-7)) var(--gut-r) calc(var(--nav-h) + 36px + env(safe-area-inset-bottom, 0px)) var(--gut-l);
 }
 
 .main.route-enter { animation: route-enter var(--duration-fast) var(--ease-standard) both; }
@@ -147,7 +147,7 @@
 .nav-enable-areas .ni { background: var(--soft2); color: var(--accent); }
 
 @media (min-width: 900px) {
-  .main { padding: 0 clamp(20px, 4vw, 52px) 80px; }
+  .main { padding: clamp(var(--space-6), 3vw, var(--space-7)) clamp(20px, 4vw, 52px) 80px; }
   .app-footer { padding: 12px clamp(20px, 4vw, 52px) 24px; }
   .topbar {
     min-height: 68px;
@@ -172,18 +172,8 @@
 }
 
 @media (max-width: 480px) {
-  .main { gap: 24px; padding-top: 12px; }
   .nav { bottom: 0; width: 100%; margin: 0; border-radius: var(--r-large) var(--r-large) 0 0; }
 }
-
-.main { gap: clamp(24px, 3vw, 36px); }
-
-@media (max-width: 480px) {
-  .main { gap: 22px; }
-}
-
-/* Linguagem compartilhada das áreas: cada tema mantém sua cor, mas usa a mesma estrutura. */
-.main { padding-top: clamp(24px, 3vw, 40px); }
 
 @media (max-width: 700px) {
   .main { padding-bottom: calc(var(--nav-h) + 64px + env(safe-area-inset-bottom, 0px)); }

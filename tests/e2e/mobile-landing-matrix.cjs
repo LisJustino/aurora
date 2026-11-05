@@ -44,6 +44,10 @@ async function checkLanding(page, profile, viewportLabel) {
       title: rect('.public-hero h1'),
       hero: rect('.public-hero'),
       preview: rect('.public-hero .product-preview'),
+      previewImage: (() => {
+        const image = document.querySelector('.public-hero .preview-picture-light .preview-capture');
+        return image ? { loaded: image.complete && image.naturalWidth > 0, alt: image.alt } : null;
+      })(),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
         return { width: bounds.width, height: bounds.height };
@@ -53,13 +57,17 @@ async function checkLanding(page, profile, viewportLabel) {
 
   check(metrics.pageWidth <= metrics.viewportWidth, profile, `sem overflow horizontal (${viewportLabel})`,
     `${metrics.pageWidth}px / ${metrics.viewportWidth}px`);
-  check(metrics.brand?.visible && metrics.wordmark?.visible, profile, `marca completa visível (${viewportLabel})`);
+  check(metrics.brand?.visible
+    && (metrics.viewportWidth <= 900 ? !metrics.wordmark?.visible : metrics.wordmark?.visible),
+  profile, `marca usa só o ícone no mobile e o nome no desktop (${viewportLabel})`);
   check(metrics.headerActions && metrics.brand.right <= metrics.headerActions.left + 1,
     profile, `marca e ações do cabeçalho não se sobrepõem (${viewportLabel})`);
-  check(metrics.viewportWidth > 450 || metrics.signupHeader === null || !metrics.signupHeader.visible,
-    profile, `cabeçalho móvel evita duplicar o CTA de cadastro (${viewportLabel})`);
-  check(metrics.viewportWidth > 700 || !metrics.preview?.visible,
-    profile, `prévia não comprime o hero em telas móveis (${viewportLabel})`);
+  check(metrics.signupHeader?.visible,
+    profile, `cabeçalho mostra o CTA de cadastro (${viewportLabel})`);
+  check(metrics.viewportWidth > 700 || metrics.preview?.visible,
+    profile, `prévia aparece no hero móvel (${viewportLabel})`);
+  check(metrics.viewportWidth > 700 || (metrics.previewImage?.loaded && /tarefas de exemplo/i.test(metrics.previewImage.alt)),
+    profile, `captura móvel está carregada e tem texto alternativo (${viewportLabel})`);
   check(metrics.title?.visible && metrics.title.width > 0 && metrics.title.height > 0,
     profile, `título principal visível (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
@@ -136,6 +144,9 @@ async function checkAccountScreen(page, profile, viewportLabel) {
 
       await page.goto(BASE);
       await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).waitFor();
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await checkLanding(page, profile.name, 'desktop');
+      await page.setViewportSize(devices[profile.name].viewport);
       await checkLanding(page, profile.name, 'perfil do aparelho');
 
       await page.setViewportSize({ width: 320, height: 720 });
@@ -153,6 +164,25 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       check(await page.locator('.demo-nav-link').evaluateAll((links) =>
         links.every((link) => link.getBoundingClientRect().height >= 44)),
       profile.name, 'navegação da demonstração tem alvos de toque de 44px');
+      check(await page.locator('.demo-nav-link').evaluateAll((links) =>
+        links.every((link) => {
+          const label = link.querySelector('span');
+          return label && label.scrollWidth <= label.clientWidth;
+        })),
+      profile.name, 'rótulos da navegação da demonstração não são cortados');
+      check(await page.locator('.demo-app .brand .wordmark').evaluateAll((wordmarks) =>
+        wordmarks.every((wordmark) => getComputedStyle(wordmark).display === 'none')),
+      profile.name, 'demonstração mostra apenas o ícone da marca');
+      if (devices[profile.name].viewport.width <= 700) {
+        check(await page.locator('.demo-nav').evaluate((nav) =>
+          getComputedStyle(nav).position === 'fixed' && nav.getBoundingClientRect().bottom === innerHeight),
+        profile.name, 'dock móvel fixo respeita a borda inferior da tela');
+        check(await page.locator('.demo-workspace > .public-topbar [data-public-action="signup"]').evaluate((button) =>
+          button.classList.contains('primary'))
+          && !(await page.locator('.demo-workspace > .public-topbar [data-public-action="login"]').evaluate((button) =>
+            button.classList.contains('primary'))),
+        profile.name, 'cadastro é primário e entrar permanece secundário no cabeçalho');
+      }
       await page.getByRole('button', { name: 'Tarefas', exact: true }).click();
       check(await page.getByRole('button', { name: 'Tarefas', exact: true }).evaluate((button) =>
         button.classList.contains('is-current')),

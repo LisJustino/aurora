@@ -77,8 +77,8 @@
 - Diálogos modais bloqueiam o scroll externo e restauram a posição ao fechar.
   O painel de notificações é um popover não modal: não bloqueia a página e
   fecha por Escape ou clique fora. No app, preferências de acessibilidade ficam
-  em Ajustes → Personalização; a área pública mantém controles temporários no
-  cabeçalho, pois não oferece Ajustes.
+  em Ajustes → Personalização, sem atalho no cabeçalho. A landing também não
+  exibe esse atalho; demonstração e gate de conta mantêm controles temporários.
 - Rolagens iniciadas pela interface respeitam tanto a preferência de movimento
   reduzido do sistema quanto a opção salva no Aurora.
 - O onboarding inicial recomenda áreas conforme as necessidades escolhidas,

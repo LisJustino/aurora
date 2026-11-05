@@ -1,12 +1,12 @@
 # Deployar avisos Push de Pomodoro e Hábitos
 
-O front do Aurora será hospedado no Cloudflare Pages em `https://aurora-9ze.pages.dev`; um domínio personalizado pode ser conectado depois. Este recurso opcional usa um Cloudflare Worker com Durable Objects e Web Push; não exige nem cria um backend para tarefas, perfil, finanças ou backups. Registros legados de Estudos não participam deste fluxo.
+O front do Aurora usa `https://aurora-rotinas.com.br` como origem principal no Cloudflare Pages. A origem `https://aurora-9ze.pages.dev` permanece autorizada durante a transição. Este recurso opcional usa um Cloudflare Worker com Durable Objects e Web Push; não exige nem cria um backend para tarefas, perfil, finanças ou backups. Registros legados de Estudos não participam deste fluxo.
 
 ## Pré-requisitos
 
 - Conta Cloudflare com Workers/Durable Objects habilitados e Node.js/npm atuais.
 - Site Aurora publicado por HTTPS no Cloudflare Pages.
-- Origem pública exata do site: `https://aurora-9ze.pages.dev`; configure-a também na allowlist CORS do Worker. Se adicionar domínio personalizado, atualize a allowlist e publique o Worker novamente.
+- Origem pública principal do site: `https://aurora-rotinas.com.br`; a allowlist mantém também `https://aurora-9ze.pages.dev` durante a transição.
 - Para iPhone/iPad: iOS/iPadOS 16.4 ou posterior.
 
 Este repositório não contém credenciais Cloudflare nem a chave privada VAPID. Não coloque segredos no Git nem em variáveis do GitHub. `VAPID_SUBJECT` deve ser configurado como secret do Worker, embora o contato seja transmitido como metadado VAPID ao serviço Push.
@@ -24,7 +24,7 @@ Este repositório não contém credenciais Cloudflare nem a chave privada VAPID.
    O gerador cria `worker/.dev.vars`, arquivo local ignorado pelo Git, com a chave pública e a privada. Se o arquivo já existir, o gerador não o substitui. Guarde a chave privada com segurança.
 
 2. Confira `worker/wrangler.toml`:
-   - A origem padrão está configurada como `https://aurora-9ze.pages.dev`. Se usar domínio próprio, substitua-a pela origem HTTPS correspondente. Liste várias origens separadas por vírgula somente se realmente forem necessárias; não use `*`, caminho ou barra final.
+   - As origens padrão são `https://aurora-rotinas.com.br,https://aurora-9ze.pages.dev`. Mantenha apenas as origens publicadas e necessárias, separadas por vírgula; não use `*`, caminho ou barra final.
    - A chave pública é gerada localmente e já está configurada no TOML. Se gerar outra chave, atualize as variáveis pública e local correspondentes.
    - Não declare `VAPID_SUBJECT` no TOML. Configure-o como secret do Worker em produção e desenvolvimento, usando o contato operacional autorizado no formato `mailto:...`.
    - Escolha dois `namespace_id` numéricos livres para os bindings Cloudflare Rate Limiting: `REGISTER_RATE_LIMIT` limita novos registros por endereço de rede e `API_RATE_LIMIT` limita chamadas autenticadas por instalação. Não armazene a chave privada no arquivo TOML.

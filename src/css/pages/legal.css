@@ -157,7 +157,7 @@
 }
 
 .legal-modal::backdrop {
-  background: rgb(24 18 23 / 48%);
+  background: color-mix(in srgb, var(--ink) 48%, transparent);
 }
 
 .legal-modal > .legal-modal-header {
@@ -222,21 +222,6 @@
 .legal-modal-header :focus-visible {
   outline: 3px solid var(--ring);
   outline-offset: var(--space-half);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .legal-page {
-    color-scheme: dark;
-    --bg: #1c1b19;
-    --surface: #272522;
-    --ink: #f2efeb;
-    --muted: #c8c2bb;
-    --line: rgba(205, 196, 186, 0.17);
-    --line-strong: #938b82;
-    --accent: color-mix(in srgb, var(--p) 72%, #fff);
-    --warn: #f0bf76;
-    --warn-soft: #392b19;
-  }
 }
 
 @media (max-width: 520px) {

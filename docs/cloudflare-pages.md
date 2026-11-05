@@ -42,6 +42,23 @@ Configure também as URLs de redirecionamento no Supabase para cada origem
 publicada e para os ambientes de desenvolvimento necessários.
 Alterações de variáveis só entram em vigor no próximo build/deploy do Pages.
 
+## Domínio próprio
+
+O domínio principal do site é `https://aurora-rotinas.com.br/`. No projeto
+Cloudflare Pages, abra **Settings → Custom domains** e adicione
+`aurora-rotinas.com.br`; conclua também os registros DNS indicados pelo
+Cloudflare no provedor que administra o domínio. Não substitua o domínio
+`pages.dev` durante a transição: ele continua disponível como origem legada
+até a validação do novo endereço. O domínio `www` não está configurado como
+alias.
+
+Depois que o domínio estiver ativo, publique um novo deploy e valide HTTPS,
+rotas e autenticação. Se os avisos Push estiverem ativos, publique também o
+Worker a partir de `worker/` com `npm run deploy`; o deploy do Pages não
+atualiza o Worker. As URLs permitidas no Supabase e as origens autorizadas no
+Google OAuth também precisam incluir o novo endereço; consulte
+[`supabase/README.md`](../supabase/README.md).
+
 ## Banco e autenticação
 
 Antes de liberar o app, revise e aplique as migrations de

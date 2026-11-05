@@ -17,6 +17,31 @@ let temporaryDirectory;
   });
   await page.goto(`${BASE}/?preview#config?section=data`);
   const backupInput = page.locator('input[data-change="import"]');
+  const backupCardText = await page.locator('.settings-backup-card').innerText();
+  if (/\bjson\b/i.test(backupCardText)) {
+    throw new Error('A área de backup ainda mostra o termo técnico JSON.');
+  }
+  const legacyImport = page.locator('details.settings-data-migration');
+  const legacySummary = legacyImport.locator('summary');
+  if (await legacyImport.evaluate((element) => element.open)) {
+    throw new Error('A importação de dados antigos deve ficar recolhida inicialmente.');
+  }
+  await legacySummary.focus();
+  await page.keyboard.press('Enter');
+  if (!(await legacyImport.evaluate((element) => element.open))) {
+    throw new Error('A importação de dados antigos não abriu pelo teclado.');
+  }
+  await page.keyboard.press('Enter');
+  if (await legacyImport.evaluate((element) => element.open)) {
+    throw new Error('A importação de dados antigos não fechou pelo teclado.');
+  }
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) {
+      throw new Error(`A área de backup tem overflow horizontal em ${width}px.`);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
 
   await page.getByRole('button', { name: 'Exportar backup' }).click();
   const plainDownloadPromise = page.waitForEvent('download');

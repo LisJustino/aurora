@@ -44,6 +44,7 @@ import {
 } from './features/area-guides.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
 import { renderHabitsView } from './features/habits/view.js';
+import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
@@ -612,6 +613,7 @@ const isValidTask = (record) => isPlainObject(record)
   && optional(record, 'tag', isText)
   && optional(record, 'dueDate', (value) => value === null || isDay(value))
   && optional(record, 'priority', (value) => ['low', 'normal', 'high'].includes(value))
+  && optional(record, 'icon', isTaskIconKey)
   && optional(record, 'createdAt', isFiniteValue)
   && optional(record, 'focusSeconds', (value) => Number.isSafeInteger(value) && value >= 0)
   && optional(record, 'doneAt', (value) => value === undefined || isIsoTimestamp(value))
@@ -1639,9 +1641,10 @@ function taskRow(t, reviewNextWeek = false) {
   const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
   const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
+  const taskIcon = taskIconKey(t.icon);
   return h`<li class="task ${t.done ? 'done' : ''}${reviewNextWeek ? ' weekly-plan-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
     <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
-    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="ttl">${t.title}</span>
+    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span></span>
       <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
     <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
@@ -2393,7 +2396,7 @@ function homeNextAction() {
   if (next.type === 'task') {
     const task = next.task;
     const label = task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
-    return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
+    return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon(taskIconKey(task.icon) || 'calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
   }
   if (next.type === 'habit') {
     const habit = next.habit;
@@ -3715,8 +3718,15 @@ function legacyImportPanel() {
     ['Revisar e importar', 'Confira o resumo antes de gravar'],
     ['Conferir e limpar', 'Apagar cópias locais é opcional'],
   ];
-  return h`<section class="card settings-section-card settings-data-migration" aria-labelledby="legacy-import-title">
-    <div class="settings-section-heading"><h2 id="legacy-import-title">Trazer dados antigos para esta conta<i>.</i></h2><p>Este roteiro encontra cópias neste navegador e no cofre antigo. Primeiro apenas localiza; você revisa antes de importar. Nada é apagado automaticamente.</p></div>
+  const expanded = migration.step !== 'start' || migration.busy || Boolean(migration.error) || migration.completed;
+  return h`<details class="card settings-section-card settings-data-migration" ${expanded ? raw('open') : ''}>
+    <summary class="settings-data-migration-summary">
+      <span class="settings-data-action-icon" aria-hidden="true">${icon('archive', 19)}</span>
+      <span class="settings-data-migration-copy"><b>Importar dados de uma versão anterior</b><small>Para quem precisa recuperar cópias antigas do Aurora</small></span>
+      <span class="settings-data-migration-indicator" aria-hidden="true">${icon('chevDown', 18)}</span>
+    </summary>
+    <div class="settings-data-migration-content">
+    <div class="settings-section-heading"><p>Procure cópias deste navegador ou do cofre antigo. A busca não altera nada; você revisa antes de importar.</p></div>
     <ol class="legacy-import-steps" aria-label="Etapas para trazer dados antigos">${steps.map(([title, detail], index) => {
       const step = index + 1;
       const state = step < activeStep ? 'is-complete' : step === activeStep ? 'is-current' : '';
@@ -3759,7 +3769,8 @@ function legacyImportPanel() {
       </div>` : h`<p class="small muted">Não há cópias reconhecidas neste navegador para apagar. O cofre antigo da sua conta continua preservado.</p>`}
     </div>` : ''}
     ${migration.completed && preview?.cleanup ? h`<p class="small ${preview.cleanup.failed || preview.cleanup.changed ? 'err' : 'muted'}" role="${preview.cleanup.failed || preview.cleanup.changed ? 'alert' : 'status'}">${preview.cleanup.message}</p>` : ''}
-  </section>`;
+    </div>
+  </details>`;
 }
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
@@ -3767,14 +3778,14 @@ function dataSettings(p) {
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
     <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>Os backups JSON não têm criptografia e podem incluir dados financeiros e de saúde. Guarde os arquivos em um local privado.</span></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros e de saúde. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="settings-data-actions">
       <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
         <h3 id="settings-export-title">Guardar uma cópia</h3>
-        <p>Exporte seus dados em JSON. No celular, guarde o arquivo fora dos dados do navegador.</p>
+        <p>Baixe uma cópia dos seus dados para guardar em segurança. No celular, salve o arquivo fora dos dados do navegador.</p>
         <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
         <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button></div>
       </section>
@@ -3782,7 +3793,7 @@ function dataSettings(p) {
         <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
         <h3 id="settings-restore-title">Usar uma cópia salva</h3>
         <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
-        <p class="small muted">São aceitos backups JSON do Aurora nas versões 1 e 2.</p>
+        <p class="small muted">Escolha um arquivo de backup exportado pelo Aurora.</p>
         <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
         <p class="err" id="imperr" role="alert"></p>
       </section>
@@ -4021,6 +4032,10 @@ function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
     <form id="dlgform" class="form task-form" data-form="dlg-task">${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
+      <fieldset class="task-icon-field full"><legend>Ícone <span>(opcional)</span></legend><div class="task-icon-picker">
+        <label title="Sem ícone"><input type="radio" name="task-icon" value="" data-dlg="icon" ${!taskIconKey(d.icon) ? raw('checked') : ''}><span>${icon('close', 18)}<i class="sr">Sem ícone</i></span></label>
+        ${TASK_ICONS.map(([key, label]) => h`<label title="${label}"><input type="radio" name="task-icon" value="${key}" data-dlg="icon" aria-label="${label}" ${taskIconKey(d.icon) === key ? raw('checked') : ''}><span>${icon(key, 20)}<i class="sr">${label}</i></span></label>`)}
+      </div></fieldset>
       ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input class="task-time-input" type="time" data-dlg="time" value="${d.time || ''}">`)}
       ${dlgField('Repetir', h`<select data-dlg="repeat">${Object.entries(REPEATS).map(([k, v]) => h`<option value="${k}" ${k === (d.repeat || 'none') ? raw('selected') : ''}>${v}</option>`)}</select>`)}
       ${dlgField('Lembrete', h`<select data-dlg="remind" ${d.time ? '' : raw('disabled')}>${REMINDS.map(([k, v]) => h`<option value="${k}" ${String(d.remind == null ? '' : d.remind) === k ? raw('selected') : ''}>${v}</option>`)}</select>${d.time ? '' : h`<span class="task-field-help">Escolha uma hora para ativar.</span>`}`)}
@@ -4196,7 +4211,7 @@ function dlgExport() {
       h`<button class="btn" data-action="recovery-export">Baixar cópia de recuperação</button><button class="btn back" data-action="dlg-close">Fechar</button>`);
   }
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
-    <p class="small muted">O download direto não está disponível aqui. Copie o texto e salve em um arquivo <b>${ui.dlg.d.kind === 'csv' ? '.csv' : '.json'}</b>${ui.dlg.d.kind === 'csv' ? '.' : '; depois dá para importá-lo.'}</p>
+    <p class="small muted">${ui.dlg.d.kind === 'csv' ? 'O download direto não está disponível aqui. Copie o texto e salve em um arquivo .csv.' : 'O download direto não está disponível aqui. Copie o conteúdo e salve em um arquivo de backup para importar depois.'}</p>
     <textarea id="exp" readonly rows="8" style="font-family:ui-monospace,monospace;font-size:.75rem">${ui.dlg.d.json}</textarea>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="copy-export">Copiar</button>`);
 }
@@ -4422,7 +4437,7 @@ function renderDialog() {
 /* ========== Ações, formulários, importação/exportação e arranque ========== */
 const findTask = (id) => S.tasks.find((t) => t.id === id);
 const mkTask = (o) => ({ id: newId(), title: '', done: false, tag: 'Pessoal', dueDate: null, priority: 'normal', createdAt: Date.now(), ...o });
-const taskDraft = (due = '') => ({ create: true, title: '', due, time: '', repeat: 'none', remind: '', priority: 'normal', tags: [], notes: '', subs: [] });
+const taskDraft = (due = '') => ({ create: true, title: '', due, time: '', repeat: 'none', remind: '', priority: 'normal', icon: '', tags: [], notes: '', subs: [] });
 const openTaskDialog = (due = '') => dlgOpen('task', taskDraft(due));
 const toast = setToast;
 
@@ -4477,7 +4492,7 @@ function buildBackup() {
       name: s.profile.name.slice(0, 50),
       preferredName: (s.profile.preferredName || s.profile.name).slice(0, 50),
     },
-    tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
+    tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
     areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
     extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: s.prefs, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
@@ -4486,7 +4501,7 @@ async function doExport() {
     toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.');
     return;
   }
-  if (!await confirmInDialog('O arquivo de backup é JSON em texto puro, sem criptografia. Ele pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
+  if (!await confirmInDialog('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
   const json = buildBackup(), name = `aurora-backup-${today()}.json`;
   downloadFile(name, json, 'application/json;charset=utf-8');
   S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
@@ -4503,7 +4518,7 @@ async function exportRecoveryData() {
     toast('Não há dados bloqueados disponíveis para exportar.');
     return;
   }
-  if (!await confirmInDialog('A cópia de recuperação contém registros relacionais da conta em JSON sem criptografia, inclusive dados de saúde e finanças. Proteja o arquivo e não o compartilhe. Deseja continuar?')) return;
+  if (!await confirmInDialog('A cópia de recuperação contém dados da conta, inclusive informações de saúde e finanças, e não tem proteção própria por senha. Guarde-a em um local privado e não a compartilhe. Deseja continuar?')) return;
   const recovery = JSON.stringify({
     app: 'aurora-recovery',
     version: 1,
@@ -4532,7 +4547,7 @@ function validatedBackupSlice(key, value) {
 }
 function parseBackup(text) {
   if (text.length > 5 * 1024 * 1024) throw new Error('O arquivo excede o limite de 5 MB.');
-  let j; try { j = JSON.parse(text); } catch (e) { throw new Error('O arquivo não é um JSON válido.'); }
+  let j; try { j = JSON.parse(text); } catch { throw new Error('Não foi possível reconhecer este arquivo como um backup do Aurora.'); }
   if (!isPlainObject(j) || j.app !== 'aurora' || ![1, 2].includes(j.version) || !isPlainObject(j.data)
     || (j.extras !== undefined && !isPlainObject(j.extras))) throw new Error('Este arquivo não é um backup compatível do Aurora.');
   const d = j.data, ex = j.extras || {};
@@ -4546,7 +4561,7 @@ function parseBackup(text) {
   const sourceTasks = backupRecords(d.tasks, (task) => isPlainObject(task) && isText(task.title)
     && isValidTask({ ...task, id: isNonEmptyText(task.id) ? task.id : 'backup-task' }), 'tarefas');
   const ids = new Set(), uniq = (x) => { if (typeof x.id !== 'string' || !x.id || ids.has(x.id)) x.id = newId(); ids.add(x.id); return x; };
-  const tasks = sourceTasks.map((t) => uniq({ id: t.id, title: t.title.slice(0, 120), done: !!t.done, tag: typeof t.tag === 'string' ? t.tag : 'Pessoal', dueDate: isDay(t.dueDate) ? t.dueDate : null, priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal', ...(t.groupId !== undefined ? { groupId: t.groupId } : {}), ...(t.groupTitle !== undefined ? { groupTitle: t.groupTitle } : {}), ...(t.doneAt !== undefined ? { doneAt: t.doneAt } : {}), createdAt: t.createdAt || Date.now(), ...(REPEATS[t.repeat] && t.repeat !== 'none' ? { repeat: t.repeat } : {}), ...(isTime(t.time) ? { time: t.time } : {}), ...(Number.isFinite(Number(t.remind)) && t.remind !== null && isTime(t.time) ? { remind: Number(t.remind) } : {}), ...(Number.isSafeInteger(t.focusSeconds) && t.focusSeconds >= 0 ? { focusSeconds: t.focusSeconds } : {}), ...(Array.isArray(t.tags) && t.tags.length ? { tags: t.tags.slice(0, 12).map((g) => g.slice(0, 24)) } : {}), ...(typeof t.notes === 'string' && t.notes ? { notes: t.notes.slice(0, 2000) } : {}), ...(Number.isFinite(t.order) ? { order: t.order } : {}), ...(Array.isArray(t.subtasks) && t.subtasks.length ? { subtasks: t.subtasks.slice(0, 40).map((x) => ({ id: x.id || newId(), title: x.title.slice(0, 100), done: !!x.done })) } : {}) }));
+  const tasks = sourceTasks.map((t) => uniq({ id: t.id, title: t.title.slice(0, 120), done: !!t.done, tag: typeof t.tag === 'string' ? t.tag : 'Pessoal', dueDate: isDay(t.dueDate) ? t.dueDate : null, priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal', ...(taskIconKey(t.icon) ? { icon: taskIconKey(t.icon) } : {}), ...(t.groupId !== undefined ? { groupId: t.groupId } : {}), ...(t.groupTitle !== undefined ? { groupTitle: t.groupTitle } : {}), ...(t.doneAt !== undefined ? { doneAt: t.doneAt } : {}), createdAt: t.createdAt || Date.now(), ...(REPEATS[t.repeat] && t.repeat !== 'none' ? { repeat: t.repeat } : {}), ...(isTime(t.time) ? { time: t.time } : {}), ...(Number.isFinite(Number(t.remind)) && t.remind !== null && isTime(t.time) ? { remind: Number(t.remind) } : {}), ...(Number.isSafeInteger(t.focusSeconds) && t.focusSeconds >= 0 ? { focusSeconds: t.focusSeconds } : {}), ...(Array.isArray(t.tags) && t.tags.length ? { tags: t.tags.slice(0, 12).map((g) => g.slice(0, 24)) } : {}), ...(typeof t.notes === 'string' && t.notes ? { notes: t.notes.slice(0, 2000) } : {}), ...(Number.isFinite(t.order) ? { order: t.order } : {}), ...(Array.isArray(t.subtasks) && t.subtasks.length ? { subtasks: t.subtasks.slice(0, 40).map((x) => ({ id: x.id || newId(), title: x.title.slice(0, 100), done: !!x.done })) } : {}) }));
   const onboardingComplete = typeof d.onboardingComplete === 'boolean' ? d.onboardingComplete : true;
   const settingsResult = normalizeSlice('settings', {
     profile: {
@@ -5123,7 +5138,7 @@ const ACTIONS = {
     ], ['tasks'], () => { S.tasks.splice(i, 1); });
     if (entry) toast('Tarefa movida para a lixeira.', () => restoreTrashEntry(entry.id));
   },
-  'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority }); },
+  'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
   'del-plan': (el) => {
     const planTasks = S.tasks.filter((task) => task.groupId === el.dataset.id);
     if (!planTasks.length) return;
@@ -5453,7 +5468,7 @@ const ACTIONS = {
   'legacy-import-clear': () => clearLegacyBrowserData(),
   'copy-export': async () => {
     if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.');
-    if (!await confirmInDialog('O backup copiado é JSON em texto puro e pode conter dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
+    if (!await confirmInDialog('O backup copiado não tem proteção própria por senha e pode incluir dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
     const ta = $('#exp');
     try {
       await navigator.clipboard.writeText(ta.value);
@@ -5461,7 +5476,7 @@ const ACTIONS = {
     } catch (error) {
       ta.focus();
       ta.select();
-      toast('O backup foi selecionado em texto puro. Copie manualmente e guarde-o em um local privado.');
+      toast('O backup foi selecionado. Copie manualmente e guarde-o em um local privado.');
     }
     S.settings.prefs.lastBackup = new Date().toISOString();
     saveSlices('settings');
@@ -5823,6 +5838,7 @@ const FORMS = {
         ...(time ? { time } : {}),
         ...(remind == null ? {} : { remind }),
         ...(tags.length ? { tags } : {}),
+        ...(taskIconKey(d.icon) ? { icon: taskIconKey(d.icon) } : {}),
         ...(Array.isArray(d.subs) && d.subs.length ? { subtasks: d.subs.map((item) => ({ ...item })) } : {}),
         ...(String(d.notes || '').trim() ? { notes: String(d.notes).trim().slice(0, 2000) } : {}),
       }));
@@ -5835,6 +5851,8 @@ const FORMS = {
     const t = findTask(d.id);
     if (!t) return dlgClose();
     Object.assign(t, { title, dueDate, priority, repeat: repeat || undefined, time: time || undefined, remind: remind == null ? undefined : remind, subtasks: (d.subs || []).length ? d.subs : undefined, tags: (d.tags || []).length ? d.tags : undefined, notes: (d.notes || '').trim().slice(0, 2000) || undefined });
+    if (taskIconKey(d.icon)) t.icon = taskIconKey(d.icon);
+    else delete t.icon;
     ui.dlg = null;
     commit('tasks');
   },
@@ -6898,7 +6916,7 @@ function dlgAccountDelete() {
 function dlgPermanentlyDeleteAccount() {
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir conta e dados permanentemente?</h2>${closeBtn}</div>
     <p class="small">Esta ação apagará sua conta e os dados associados. Não será possível recuperá-los. Um novo cadastro com este e-mail só poderá ser feito depois que a exclusão for confirmada.</p>
-    <p class="notice warn" role="alert">Backups JSON baixados no seu dispositivo não serão removidos automaticamente.</p>
+    <p class="notice warn" role="alert">Os arquivos de backup que você baixou não serão removidos automaticamente.</p>
     <form id="dlgform" class="form" data-form="account-delete">
       ${dlgField('Digite EXCLUIR para confirmar', h`<input id="f0" type="text" name="deleteConfirmation" data-dlg="deleteConfirmation" maxlength="7" pattern="EXCLUIR" autocomplete="off" required>`, 'full')}
       <p class="notice warn full" data-account-delete-message role="alert" hidden></p>

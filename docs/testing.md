@@ -101,6 +101,12 @@ No shell autenticado, entre 900 e 1199 px o menu Mais abre em um painel sem
 alterar a altura do cabeçalho; a partir de 1200 px as áreas aparecem na barra
 lateral.
 
+Em Planejar, Hábitos, Ciclo, Finanças e Ajustes, confira que o cabeçalho de
+página mantém a mesma hierarquia, superfície, recuo e comportamento em 320 px,
+700 px e desktop, preservando a cor de cada área e a ação de Finanças. Repita
+em tema claro e escuro e confirme que títulos longos não se sobrepõem ao
+elemento decorativo nem aos controles.
+
 Com uma sessão válida salva, abra a rota raiz e confirme que a área autenticada
 é carregada sem precisar tocar em “Entrar”; depois encerre a sessão e confirme
 que a landing pública volta a aparecer. Com uma sessão só de navegador, confirme
@@ -149,7 +155,7 @@ Com uma conta fictícia autenticada, confirme que o shell informa “Salvando…
 
 `node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o encaixe do tempo dentro do mostrador entre 320 e 1366 px, o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
 
-Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos; enquanto houver alterações pendentes, confira que os botões de salvar e descartar permanecem no fluxo da página e não cobrem os controles durante a rolagem. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Verifique também a importação/exportação de backup anterior, que deve continuar compatível e usar os padrões para os campos novos ausentes.
+Em Ajustes → Seu perfil, experimente os símbolos, cores e três formas de saudação; a prévia deve acompanhar as escolhas e o nome preferido, e as mudanças só devem ser persistidas ao salvar. Recarregue e confira a preferência, depois restaure o perfil padrão e salve. Em Personalização, teste os presets Calmo, Clássico e Vibrante, ajuste os controles individuais após um preset, descarte alterações e confirme que modo do tema e opções de acessibilidade não são sobrescritos; enquanto houver alterações pendentes, confira que os botões de salvar e descartar permanecem no fluxo da página e não cobrem os controles durante a rolagem. Selecione cores por área e confira títulos, ícones e indicadores em tema claro, escuro e automático, inclusive com contraste alto. Use os links de Rotina para acessar os ajustes existentes de Pomodoro e lembretes sem duplicar preferências. Em Áreas e navegação, alterne entre Visão geral, Foco e Rotina, altere layouts e favoritos em cada um, troque de modo e confirme que as escolhas ficam isoladas; escreva/limpe a mensagem pessoal, restaure o modo atual e salve. Confira os atalhos favoritos com as áreas habilitadas e desabilitadas, inclusive Finanças sem conta cadastrada, e valide o limite de 120 caracteres. Teste em 320 px e desktop, com teclado e tema escuro. Recarregue e confirme a persistência. Em Dados e backup, confirme que exportar/restaurar continua visível e que a importação de dados de versões anteriores começa recolhida, abre/fecha pelo teclado e permanece aberta durante suas etapas; verifique também a compatibilidade dos backups antigos e os padrões para campos novos ausentes.
 
 Em Hábitos, abra “Revisar cada hábito” e confira o resumo até a data atual,
 excluindo dias pulados e sem contar dias futuros. “Ajustar” deve abrir o editor
@@ -306,7 +312,7 @@ que avisos do sistema não são alterados.
 - `node tests/relational-store-check.mjs` também verifica o round-trip relacional dos campos opcionais `interestCents` e `anticipatedDate`, a compatibilidade com lançamentos antigos e a migration aditiva correspondente.
 - `node tests/e2e/app-shell-quick-actions.cjs` verifica acionador/fechamento da busca global, conclusão e desfazer de uma tarefa, além das ações rápidas e navegação responsiva.
 - `node tests/e2e/habits-app-experience.cjs` também verifica desfazer uma marcação de hábito em dados isolados da prévia.
-- `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
+- `node tests/e2e/planning-task-form.cjs` verifica o formulário completo, a seleção e exibição do ícone da tarefa, ausência de criação rápida e do fluxo por etapas, abertura sem foco automático e campo de horário em 390 px.
 - `node tests/e2e/public-demo-interactions.cjs` verifica hábito/tarefa/timer por teclado, zero requisições e zero gravações no navegador, em 390 px e desktop.
 - **Aprovado (2026-10-30):** `node tests/e2e/email-domain-suggestions.cjs http://127.0.0.1:5190` — lista compacta, filtragem, seleção por teclado/clique e validação após sair do campo, em 320 px e desktop.
 - **Aprovado (2026-10-30):** `npm test` — 82/82 testes base, além das verificações de conta, exclusão, sugestões, cofre, persistência relacional e importação; a persistência cobre no-op, delta de linhas, conflito por versão e substituição explícita.

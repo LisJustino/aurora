@@ -34,8 +34,9 @@ function escapeDemoText(value) {
 }
 
 function renderTaskRows(tasks) {
+  const nextTaskId = tasks.find((task) => !task.done)?.id;
   return `<ul class="list demo-task-list">${tasks.map((task) => `
-    <li class="task ${task.done ? 'done' : ''}">
+    <li class="task ${task.done ? 'done' : task.id === nextTaskId ? 'is-next' : ''}">
       <button type="button" class="chk" role="checkbox" aria-checked="${String(task.done)}" aria-label="${task.done ? 'Reabrir' : 'Concluir'}: ${escapeDemoText(task.title)}" data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
       <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta">${task.done ? 'Concluída' : 'Seu próximo passo'} · exemplo</span></div>
     </li>`).join('')}</ul>`;
@@ -75,17 +76,19 @@ function renderToday(state) {
   const total = state.tasks.length;
   return `
     <header class="demo-home-heading">
-      <div><p class="date">${timeBasedGreeting()}, pessoa.</p><h1 tabindex="-1">Um dia no seu ritmo</h1></div>
-      <button type="button" class="btn" data-demo-view="tasks">${demoIcon('calendarCheck', 17)}Planejar o dia</button>
+      <div class="demo-home-copy">
+        <p class="date">${timeBasedGreeting()}, pessoa.</p><h1 tabindex="-1">Um dia no seu ritmo</h1>
+        <button type="button" class="btn" data-demo-view="tasks">${demoIcon('calendarCheck', 17)}Planejar o dia</button>
+      </div>
+      <section class="demo-summary-card" aria-label="Progresso de hoje">
+        <div class="demo-progress-ring" role="img" aria-label="${completed} de ${total} passos feitos"><span>${completed}/${total}</span></div>
+        <div><h2>Pequenos passos contam</h2><p aria-live="polite">${completed} de ${total} passos feitos</p></div>
+      </section>
     </header>
     <div class="demo-dashboard-grid">
       <div class="demo-dashboard-column">
-        <section class="card demo-summary-card" aria-label="Progresso de hoje">
-          <div class="demo-progress-ring" role="img" aria-label="${completed} de ${total} passos feitos"><span>${completed}/${total}</span></div>
-          <div><h2>Pequenos passos contam</h2><p aria-live="polite">${completed} de ${total} passos feitos</p></div>
-        </section>
         <section class="card demo-today-tasks" aria-labelledby="demo-today-tasks-title">
-          <div class="head"><div><p class="section-kicker">Seu próximo passo</p><h2 id="demo-today-tasks-title">Para hoje</h2></div><span class="pill">${total}</span></div>
+          <div class="head"><div><p class="section-kicker">Seu próximo passo</p><h2 id="demo-today-tasks-title">Para hoje</h2><span class="pill" aria-label="${total} tarefas">${total}</span></div></div>
           ${renderTaskRows(state.tasks)}
         </section>
         <section class="demo-day-note"><p class="section-kicker">Um fechamento possível</p><h2>Hoje, você esteve aqui.</h2><p>O restante pode esperar até amanhã.</p></section>

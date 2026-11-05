@@ -32,9 +32,13 @@ export function renderLanding(root) {
             </div>
           </div>
           <figure class="product-preview">
-            <picture class="preview-picture">
-              <source media="(max-width: 700px)" srcset="./src/assets/landing-mobile.png" width="390" height="844">
-              <img class="preview-capture" src="./src/assets/landing-desktop.png" alt="Prévia ilustrativa da tela inicial do Aurora com tarefas, hábitos e foco." width="1440" height="900" decoding="async" fetchpriority="high">
+            <picture class="preview-picture preview-picture-light">
+              <source media="(max-width: 700px)" srcset="./src/assets/landing-mobile.png" width="716" height="716">
+              <img class="preview-capture" src="./src/assets/landing-desktop.png" alt="Prévia ilustrativa do card Para hoje, com três tarefas de exemplo." width="1274" height="716" decoding="async" fetchpriority="high">
+            </picture>
+            <picture class="preview-picture preview-picture-dark" aria-hidden="true">
+              <source media="(max-width: 700px)" srcset="./src/assets/landing-mobile-dark.png" width="716" height="716">
+              <img class="preview-capture" src="./src/assets/landing-desktop-dark.png" alt="" width="1274" height="716" decoding="async">
             </picture>
           </figure>
           <div class="public-hero-support">
@@ -132,31 +136,36 @@ export function renderLanding(root) {
               <summary>A demonstração usa meus dados?${demoIcon('chevDown', 16)}</summary>
               <p>Não. Ela usa apenas informações fictícias, não acessa sua conta e não salva alterações.</p>
             </details>
-            <details class="card public-faq-item">
-              <summary>Preciso de uma conta?${demoIcon('chevDown', 16)}</summary>
-              <p>Você pode explorar a demonstração sem cadastro. Para guardar seus próprios registros, crie uma conta.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>O que acontece sem conexão?${demoIcon('chevDown', 16)}</summary>
-              <p>O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>Como envio uma sugestão?${demoIcon('chevDown', 16)}</summary>
-              <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas nem informações pessoais sensíveis.</p>
-              <form class="footer-suggestion-form" data-footer-suggestion>
-                <label for="footer-suggestion-name">Seu nome (opcional)</label>
-                <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
-                <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
-                <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
-                <label for="footer-suggestion-message">Sua sugestão</label>
-                <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
-                <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
-                <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
-              </form>
-            </details>
-            <details class="card public-faq-item">
-              <summary>Como entro em contato com quem criou o Aurora?${demoIcon('chevDown', 16)}</summary>
-              <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
+            <details class="public-faq-more">
+              <summary>Ver todas as perguntas${demoIcon('chevDown', 16)}</summary>
+              <div class="public-faq-extra">
+                <details class="card public-faq-item">
+                  <summary>Preciso de uma conta?${demoIcon('chevDown', 16)}</summary>
+                  <p>Você pode explorar a demonstração sem cadastro. Para guardar seus próprios registros, crie uma conta.</p>
+                </details>
+                <details class="card public-faq-item">
+                  <summary>O que acontece sem conexão?${demoIcon('chevDown', 16)}</summary>
+                  <p>O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente.</p>
+                </details>
+                <details class="card public-faq-item">
+                  <summary>Como envio uma sugestão?${demoIcon('chevDown', 16)}</summary>
+                  <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas nem informações pessoais sensíveis.</p>
+                  <form class="footer-suggestion-form" data-footer-suggestion>
+                    <label for="footer-suggestion-name">Seu nome (opcional)</label>
+                    <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
+                    <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
+                    <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
+                    <label for="footer-suggestion-message">Sua sugestão</label>
+                    <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
+                    <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
+                    <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
+                  </form>
+                </details>
+                <details class="card public-faq-item">
+                  <summary>Como entro em contato com quem criou o Aurora?${demoIcon('chevDown', 16)}</summary>
+                  <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
+                </details>
+              </div>
             </details>
           </div>
         </section>

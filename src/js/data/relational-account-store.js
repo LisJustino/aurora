@@ -1,4 +1,5 @@
 import { normalizeAccountType } from '../features/finance/accounts.js';
+import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
@@ -290,6 +291,9 @@ function buildRows(userId, state, idMap) {
     }));
   }
   for (const task of tasks) {
+    if (task.icon != null && !isTaskIconKey(task.icon)) {
+      throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+    }
     const removedAt = deletedAtFor(settings, 'tasks', task.id);
     const taskId = idFor(idMap, 'tasks', task.id);
     pushRow(rows, 'tasks', rowId(idMap, 'tasks', userId, task.id, {
@@ -309,6 +313,7 @@ function buildRows(userId, state, idMap) {
       notes: task.notes || null,
       sort_order: Number.isFinite(task.order) ? task.order : 0,
       focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
+      icon_key: taskIconKey(task.icon) || null,
       is_test_data: task.sample === true,
       deleted_at: removedAt,
     }));
@@ -600,6 +605,10 @@ function buildRows(userId, state, idMap) {
 
 function taskFromRow(row, tables, idMap, includeDeleted = false) {
   const taskId = sourceId(idMap, 'tasks', row.id);
+  const taskIcon = taskIconKey(row.icon_key);
+  if (row.icon_key != null && !taskIcon) {
+    throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+  }
   const list = tables.task_lists.find((item) => item.id === row.list_id)?.name;
   const createdAt = fromIso(row.task_created_at);
   const plannedTime = timeOnly(row.planned_time);
@@ -633,6 +642,7 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
+    ...(taskIcon ? { icon: taskIcon } : {}),
     ...(tags.length ? { tags } : {}),
     ...(subtasks.length ? { subtasks } : {}),
     ...(row.is_test_data ? { sample: true } : {}),

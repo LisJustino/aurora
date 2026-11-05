@@ -12,7 +12,7 @@ A tipografia usa DM Sans variável, auto-hospedada sob a SIL Open Font License, 
 
 ## Tokens
 
-Os valores-base estão em `src/css/design-system/tokens.css`. O tema claro é padrão; a pessoa pode escolher Claro, Escuro ou Automático. Em Automático, o Aurora acompanha a preferência de tema do sistema. O tema escuro redefine superfícies, texto, bordas e cores semânticas. `--p` e `--pd` são atualizados pelo seletor de paleta existente, portanto componentes devem usar `--accent`, `--btn` e `--soft*` em vez de fixar tons de marca.
+Os valores-base estão em `src/css/design-system/tokens.css`. O tema claro é padrão; a pessoa pode escolher Claro, Escuro ou Automático. Em Automático, o Aurora acompanha a preferência de tema do sistema; páginas sem inicialização de tema também usam os tokens escuros sob `prefers-color-scheme: dark`. O tema escuro redefine superfícies, texto, bordas e cores semânticas. `--p` e `--pd` são atualizados pelo seletor de paleta existente, portanto componentes devem usar `--accent`, `--btn` e `--soft*` em vez de fixar tons de marca.
 
 | Grupo | Tokens e regra |
 | --- | --- |
@@ -40,6 +40,7 @@ Prefira classes e tokens para layout estático; mantenha estilos inline apenas q
 | Arquivo (`src/css/design-system/`) | Conteúdo |
 | --- | --- |
 | `tokens.css` | Fonte única de todos os tokens e dos temas claro, escuro e de contraste. |
+| `page-titles.css` | Cabeçalhos de página compartilhados; as rotas mantêm apenas o tom de identidade e ações específicas. |
 | `buttons.css` (fechar) | Todo "X" de diálogo ou painel é `ibtn dlg-close` (40×40, raio `--r-sm`, canto superior direito do cabeçalho). Botões de texto que fecham são `btn back`: "Cancelar" em formulários e "Fechar" em diálogos só de leitura. |
 | `touch.css` | Camada compartilhada próxima ao fim: destaques de rota com a superfície `--hero`, áreas de toque ampliadas, hierarquia do Início, pulo ao concluir, calendário anual, erro junto ao campo (`.field-err`), indicador do item ativo na barra e separação dos cartões no tema escuro. Vem depois das folhas de área; rotas isoladas podem ter ajustes próprios depois dela. |
 | `cards.css` | `.card` para conteúdo agrupado; `.compact-card-grid` para opções compactas com limite de largura; `.shortcut-grid` e `.shortcut-card` para links de navegação compactos. |

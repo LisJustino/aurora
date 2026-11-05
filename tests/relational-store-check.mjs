@@ -40,6 +40,12 @@ assert.match(installmentFinanceMigration, /add column if not exists anticipated_
 assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
 assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
 assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
+const taskIconsMigration = await readFile(
+  new URL('../supabase/migrations/20261104210000_task_icons.sql', import.meta.url),
+  'utf8',
+);
+assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
+assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
 const financeAccountMigration = await readFile(
   new URL('../supabase/migrations/20261030110000_finance_account_types_and_card_link.sql', import.meta.url),
   'utf8',
@@ -168,7 +174,7 @@ const state = {
     onboardingComplete: true,
     introSeen: true,
   },
-  tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', subtasks: [], tags: [] }],
+  tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
   habits: [{
     id: 'water-habit',
@@ -228,6 +234,7 @@ const changeByTable = new Map(writes[0].args.p_changes.map((change) => [change.t
 const orderedTables = writes[0].args.p_changes.map((change) => change.table);
 const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
+assert.equal(changeByTable.get('tasks')[0].icon_key, 'book');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
@@ -475,6 +482,29 @@ const accountRows = {
     notes: null,
     sort_order: 0,
     focus_seconds: 0,
+    icon_key: 'book',
+    is_test_data: false,
+    deleted_at: null,
+    updated_at: versionStamp,
+  }, {
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d6',
+    title: 'Tarefa antiga',
+    is_completed: false,
+    tag: null,
+    list_id: null,
+    group_key: null,
+    group_title: null,
+    due_date: null,
+    priority: 'normal',
+    task_created_at: '2026-10-30T12:00:00.000Z',
+    completed_at: null,
+    planned_time: null,
+    repeat_rule: 'none',
+    remind_minutes: null,
+    notes: null,
+    sort_order: 0,
+    focus_seconds: 0,
+    icon_key: null,
     is_test_data: false,
     deleted_at: null,
     updated_at: versionStamp,
@@ -490,12 +520,14 @@ const loadingClient = {
 };
 const loaded = await new RelationalAccountStore(loadingClient, userId).load();
 assert.ok(Array.isArray(loaded.tasks));
-assert.equal(loaded.tasks.length, 1);
+assert.equal(loaded.tasks.length, 2);
 assert.equal(loaded.tasks[0].title, 'Tarefa válida');
 assert.equal(loaded.tasks[0].dueDate, null);
 assert.equal(loaded.tasks[0].priority, 'normal');
 assert.equal(loaded.tasks[0].focusSeconds, 0);
+assert.equal(loaded.tasks[0].icon, 'book');
 assert.equal(Object.values(loaded.tasks[0]).includes(undefined), false);
+assert.equal(loaded.tasks[1].icon, undefined, 'tarefas antigas sem ícone continuam sem o campo');
 for (const field of ['tag', 'list', 'groupId', 'groupTitle', 'doneAt', 'time', 'repeat', 'remind', 'notes', 'tags', 'subtasks', 'sample']) {
   assert.equal(Object.hasOwn(loaded.tasks[0], field), false, `${field} should be omitted when empty`);
 }

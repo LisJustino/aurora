@@ -25,15 +25,15 @@ Para permitir acesso imediato após o cadastro, em cada projeto abra **Authentic
 
 O botão social disponível no Aurora usa Google OAuth pelo Supabase. Configure-o separadamente em cada projeto Supabase de desenvolvimento e produção; as credenciais do provedor ficam somente no Dashboard do Supabase, nunca no `.env`, no frontend ou no repositório. Apple/iCloud está temporariamente desativado na interface; contas Apple existentes continuam reconhecidas.
 
-1. Em **Authentication → URL Configuration**, defina o **Site URL** do projeto de desenvolvimento como `http://127.0.0.1:5173/` e, em produção, como `https://aurora-9ze.pages.dev/`. Permita estes **Redirect URLs** no projeto de desenvolvimento:
+1. Em **Authentication → URL Configuration**, defina o **Site URL** do projeto de desenvolvimento como `http://127.0.0.1:5173/` e, em produção, como `https://aurora-rotinas.com.br/`. Permita estes **Redirect URLs** no projeto de desenvolvimento:
    - `http://localhost:5173/`
    - `http://127.0.0.1:5173/`
    - `http://localhost:5173/**`
    - `http://127.0.0.1:5173/**`
-   Em produção, permita somente os redirects exatos `https://aurora-9ze.pages.dev/` e `https://aurora-9ze.pages.dev/#inicio`. O app retorna a `/#inicio` após o OAuth para abrir a área autenticada, em vez da landing pública. Não cadastre endereços de produção no projeto de desenvolvimento nem vice-versa.
-2. Para **Google (Gmail)**, crie um cliente OAuth do tipo **Web application** no Google Cloud Console. Em **Authorized JavaScript origins**, adicione `http://localhost:5173`, `http://127.0.0.1:5173` e `https://aurora-9ze.pages.dev`. Em **Authorized redirect URIs**, adicione o callback de cada projeto Supabase: desenvolvimento `https://cltymialatksylhzsitz.supabase.co/auth/v1/callback` e produção `https://xeneztudcqdumfhwotry.supabase.co/auth/v1/callback`. Ative o provedor em **Authentication → Sign In / Providers → Google** em cada projeto Supabase e informe o Client ID e o Client Secret do Google.
+   Em produção, permita os redirects exatos `https://aurora-rotinas.com.br/` e `https://aurora-rotinas.com.br/#inicio`. Durante a transição, mantenha também `https://aurora-9ze.pages.dev/` e `https://aurora-9ze.pages.dev/#inicio` se o endereço antigo ainda for usado. O app retorna a `/#inicio` após o OAuth para abrir a área autenticada, em vez da landing pública. Não cadastre endereços de produção no projeto de desenvolvimento nem vice-versa.
+2. Para **Google (Gmail)**, crie um cliente OAuth do tipo **Web application** no Google Cloud Console. Em **Authorized JavaScript origins**, adicione `http://localhost:5173`, `http://127.0.0.1:5173`, `https://aurora-rotinas.com.br` e, enquanto necessário, `https://aurora-9ze.pages.dev`. Em **Authorized redirect URIs**, adicione o callback de cada projeto Supabase: desenvolvimento `https://cltymialatksylhzsitz.supabase.co/auth/v1/callback` e produção `https://xeneztudcqdumfhwotry.supabase.co/auth/v1/callback`. Ative o provedor em **Authentication → Sign In / Providers → Google** em cada projeto Supabase e informe o Client ID e o Client Secret do Google.
 3. Em **Authentication → Sign In / Providers → Google**, habilite Google nos projetos em que será usado e salve as credenciais. No primeiro acesso social, o fluxo exige nome, nome de preferência, data de nascimento válida (idade mínima de 16 anos) e aceite dos documentos; o Aurora não abre os dados da conta antes disso.
-4. Teste o fluxo local com o projeto de desenvolvimento e a URL `http://127.0.0.1:5173/#inicio`; depois teste produção em `https://aurora-9ze.pages.dev/#inicio`. Na primeira autenticação Google, o provedor cria uma conta Supabase quando ainda não existe uma identidade correspondente; o Aurora então exige nome, nome de preferência, data de nascimento válida com pelo menos 16 anos e aceite dos documentos antes de carregar os dados. Segredos OAuth devem ser inseridos somente no Dashboard Supabase. As variáveis `VITE_SUPABASE_*` continuam sendo apenas a URL do projeto e sua chave publicável.
+4. Teste o fluxo local com o projeto de desenvolvimento e a URL `http://127.0.0.1:5173/#inicio`; depois teste produção em `https://aurora-rotinas.com.br/#inicio`. Na primeira autenticação Google, o provedor cria uma conta Supabase quando ainda não existe uma identidade correspondente; o Aurora então exige nome, nome de preferência, data de nascimento válida com pelo menos 16 anos e aceite dos documentos antes de carregar os dados. Segredos OAuth devem ser inseridos somente no Dashboard Supabase. As variáveis `VITE_SUPABASE_*` continuam sendo apenas a URL do projeto e sua chave publicável.
 
 Apple/iCloud está pausado e não precisa ser configurado para novos logins. A configuração existente no Supabase, se houver, pode permanecer; o Aurora não inicia autenticação Apple até o recurso ser reativado.
 
@@ -49,12 +49,15 @@ Ative a Google Calendar API e inclua o escopo
 Esse escopo é somente de leitura e pode exigir verificação do app pelo Google
 antes de liberá-lo para usuários fora da lista de teste.
 
-Configure o Client ID público na variável de build `VITE_GOOGLE_CALENDAR_CLIENT_ID`
-no `.env.local` de desenvolvimento e nos ambientes Preview/Production do
-Cloudflare. Não configure nem publique Client Secret no frontend. Essa
-integração não usa credenciais Supabase, não altera os escopos do login Google
-e não grava eventos ou tokens no Supabase; o navegador consulta o Google
-diretamente.
+Configure como **Authorized JavaScript origins** `http://localhost:5173`,
+`http://127.0.0.1:5173` e `https://aurora-rotinas.com.br`; mantenha também
+`https://aurora-9ze.pages.dev` enquanto o endereço legado ainda for usado.
+Configure o Client ID público na variável de build
+`VITE_GOOGLE_CALENDAR_CLIENT_ID` no `.env.local` de desenvolvimento e nos
+ambientes Preview/Production do Cloudflare. Não configure nem publique Client
+Secret no frontend. Essa integração não usa credenciais Supabase, não altera
+os escopos do login Google e não grava eventos ou tokens no Supabase; o
+navegador consulta o Google diretamente.
 
 Antes de aplicar em produção:
 
