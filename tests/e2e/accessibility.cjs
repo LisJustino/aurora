@@ -110,43 +110,8 @@ async function checkContrast(page) {
     assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
     await publicPage.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
-    await publicPage.getByRole('button', { name: 'Tarefas', exact: true }).waitFor();
-    assert.equal(await trigger.count(), 1, 'acessibilidade continua disponível na demonstração');
-    assert.equal(await trigger.getAttribute('aria-haspopup'), null, 'o disclosure não deve ser anunciado como menu');
-    await trigger.click();
-    const panel = publicPage.locator('#public-accessibility-panel');
-    await panel.waitFor({ state: 'visible' });
-    assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
-    assert.equal(await panel.locator('[data-public-control="mode"]').count(), 0, 'o tema fica no atalho próprio do cabeçalho');
-    await panel.locator('[data-public-control="font"][data-step="1"]').click();
-    assert.equal(await publicPage.locator('html').getAttribute('data-fs'), 'l');
-    const advanced = panel.locator('.accessibility-advanced');
-    assert.equal(await advanced.locator('[data-public-control="readable"]').isVisible(), false, 'as opções secundárias começam recolhidas');
-    await advanced.locator('summary').click();
-    assert.equal(await advanced.locator('[data-public-control="readable"]').isVisible(), true);
-    await publicPage.keyboard.press('Escape');
-    await panel.waitFor({ state: 'hidden' });
-    assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
-    assert.equal(await publicPage.evaluate(() => document.activeElement.id), 'public-accessibility-trigger');
-
-    await trigger.click();
-    const motionToggle = panel.locator('[data-public-control="motion"]');
-    await motionToggle.click();
-    assert.equal(await motionToggle.getAttribute('aria-pressed'), 'true');
-    assert.equal(await publicPage.locator('html').getAttribute('data-motion'), 'reduce');
-    await publicPage.keyboard.press('Escape');
-
-    await publicPage.evaluate(() => {
-      window.__scrollCalls = [];
-      const original = Element.prototype.scrollIntoView;
-      Element.prototype.scrollIntoView = function (options) {
-        window.__scrollCalls.push(options);
-        return original.call(this, options);
-      };
-    });
-    await publicPage.getByRole('button', { name: 'Tarefas', exact: true }).click();
-    const demoScroll = await publicPage.evaluate(() => window.__scrollCalls.at(-1));
-    assert.equal(demoScroll.behavior, 'auto', 'a demonstração deve evitar rolagem animada com a opção ativa');
+    await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
+    assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
@@ -160,7 +125,7 @@ async function checkContrast(page) {
         return original.call(this, options);
       };
     });
-    await systemPage.getByRole('button', { name: 'Tarefas', exact: true }).click();
+    await systemPage.getByRole('link', { name: 'Tarefas', exact: true }).click();
     const systemScroll = await systemPage.evaluate(() => window.__scrollCalls.at(-1));
     assert.equal(systemScroll.behavior, 'auto', 'a demonstração deve respeitar a preferência de movimento do sistema');
     await systemPage.close();

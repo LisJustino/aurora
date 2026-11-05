@@ -156,7 +156,7 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await page.setViewportSize(devices[profile.name].viewport);
 
       await page.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
-      await page.getByRole('heading', { name: 'Um dia no seu ritmo' }).waitFor();
+      await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
       check(await page.locator('.demo-nav-link').count() === 6,
         profile.name, 'demonstração expõe navegação das seis áreas');
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -170,21 +170,20 @@ async function checkAccountScreen(page, profile, viewportLabel) {
           return label && label.scrollWidth <= label.clientWidth;
         })),
       profile.name, 'rótulos da navegação da demonstração não são cortados');
-      check(await page.locator('.demo-app .brand .wordmark').evaluateAll((wordmarks) =>
-        wordmarks.every((wordmark) => getComputedStyle(wordmark).display === 'none')),
-      profile.name, 'demonstração mostra apenas o ícone da marca');
+      check(await page.locator('.demo-app .brand .wordmark').count() === 1,
+        profile.name, 'demonstração usa a marca do cabeçalho do app');
       if (devices[profile.name].viewport.width <= 700) {
         check(await page.locator('.demo-nav').evaluate((nav) =>
           getComputedStyle(nav).position === 'fixed' && nav.getBoundingClientRect().bottom === innerHeight),
         profile.name, 'dock móvel fixo respeita a borda inferior da tela');
-        check(await page.locator('.demo-workspace > .public-topbar [data-public-action="signup"]').evaluate((button) =>
+        check(await page.locator('.demo-app > .topbar [data-public-action="signup"]').evaluate((button) =>
           button.classList.contains('primary'))
-          && !(await page.locator('.demo-workspace > .public-topbar [data-public-action="login"]').evaluate((button) =>
+          && !(await page.locator('.demo-app > .topbar [data-public-action="login"]').evaluate((button) =>
             button.classList.contains('primary'))),
         profile.name, 'cadastro é primário e entrar permanece secundário no cabeçalho');
       }
-      await page.getByRole('button', { name: 'Tarefas', exact: true }).click();
-      check(await page.getByRole('button', { name: 'Tarefas', exact: true }).evaluate((button) =>
+      await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
+      check(await page.getByRole('link', { name: 'Tarefas', exact: true }).evaluate((button) =>
         button.classList.contains('is-current')),
       profile.name, 'navegação da demonstração responde ao toque');
       check(mainModuleRequests.length === 0,
