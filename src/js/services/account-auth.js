@@ -70,7 +70,7 @@ export function hasSocialIdentity(user) {
 }
 
 export function getOAuthRedirectUrl(origin) {
-  return new URL('/inicio', origin).href;
+  return new URL('/', origin).href;
 }
 
 const SLICES = new Set([
