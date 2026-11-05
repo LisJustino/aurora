@@ -488,10 +488,18 @@ function settingsDraftDirty() {
 async function saveSettingsDraft() {
   if (!settingsDraftDirty()) return;
   const previousSettings = S.settings;
-  S.settings = normalizeSettings(settingsView());
-  if (!saveSlices('settings')) {
+  try {
+    S.settings = normalizeSettings(settingsView());
+    if (!saveSlices('settings')) {
+      S.settings = previousSettings;
+      render();
+      return;
+    }
+  } catch (error) {
+    console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
     S.settings = previousSettings;
     render();
+    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.');
     return;
   }
   ui.settingsDraft = null;
@@ -1025,7 +1033,15 @@ const Persist = {
         const snapshot = this.pendingSnapshot;
         this.pendingSnapshot = null;
         try {
-          await this.store.save(snapshot, this.confirmedState);
+          let saveTimer = 0;
+          const saveTimeout = new Promise((_, reject) => {
+            saveTimer = setTimeout(() => reject(new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.')), 30000);
+          });
+          try {
+            await Promise.race([this.store.save(snapshot, this.confirmedState), saveTimeout]);
+          } finally {
+            clearTimeout(saveTimer);
+          }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
           syncState.pending.clear();
           syncState.failed.clear();
@@ -4724,14 +4740,9 @@ const ACTIONS = {
     render();
     toast('Alterações descartadas.');
   },
-  'profile-save': () => {
-    if (ui.profileDraft) {
-      void ACTIONS['settings-profile']();
-      return;
-    }
-    if (settingsDraftDirty()) {
-      void saveSettingsDraft();
-    }
+  'profile-save': async () => {
+    if (ui.profileDraft) await ACTIONS['settings-profile']();
+    if (!ui.profileDraft && settingsDraftDirty()) await saveSettingsDraft();
   },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
