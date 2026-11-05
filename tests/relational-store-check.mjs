@@ -31,6 +31,21 @@ const settledDateMigration = await readFile(
 );
 assert.match(settledDateMigration, /add column if not exists settled_date date/i);
 assert.doesNotMatch(settledDateMigration, /update\s+public\.finance_transactions/i);
+const installmentFinanceMigration = await readFile(
+  new URL('../supabase/migrations/20261104000000_finance_installment_interest_and_anticipation.sql', import.meta.url),
+  'utf8',
+);
+assert.match(installmentFinanceMigration, /add column if not exists interest_cents bigint/i);
+assert.match(installmentFinanceMigration, /add column if not exists anticipated_date date/i);
+assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
+assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
+assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
+const taskIconsMigration = await readFile(
+  new URL('../supabase/migrations/20261104210000_task_icons.sql', import.meta.url),
+  'utf8',
+);
+assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
+assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
 const financeAccountMigration = await readFile(
   new URL('../supabase/migrations/20261030110000_finance_account_types_and_card_link.sql', import.meta.url),
   'utf8',
@@ -159,7 +174,7 @@ const state = {
     onboardingComplete: true,
     introSeen: true,
   },
-  tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', subtasks: [], tags: [] }],
+  tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
   habits: [{
     id: 'water-habit',
@@ -181,7 +196,7 @@ const state = {
       { id: 'cash-legacy', name: 'Carteira antiga', type: 'cash', initialCents: 500 },
     ],
     tx: [
-      { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', desc: 'Teste' },
+      { id: 'tx-1', type: 'out', accountId: 'account-1', cents: 1234, date: '2026-10-28', settledDate: '2026-10-29', interestCents: 34, anticipatedDate: '2026-10-30', invoiceInstallment: true, desc: 'Teste' },
       { id: 'tx-legacy', type: 'in', accountId: 'account-1', cents: 2500, date: '2026-10-27', desc: 'Antigo' },
       { id: 'tx-cash', type: 'in', accountId: 'cash-legacy', cents: 500, date: '2026-10-26', desc: 'Saldo preservado' },
       { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
@@ -219,6 +234,7 @@ const changeByTable = new Map(writes[0].args.p_changes.map((change) => [change.t
 const orderedTables = writes[0].args.p_changes.map((change) => change.table);
 const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
+assert.equal(changeByTable.get('tasks')[0].icon_key, 'book');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
@@ -342,7 +358,13 @@ assert.deepEqual(loadedState.settings.prefs.homeModes.focus, {
   shortcuts: ['task', 'pomodoro'],
 });
 assert.equal(loadedState.finance.tx[0].settledDate, '2026-10-29');
+assert.equal(loadedState.finance.tx[0].interestCents, 34);
+assert.equal(loadedState.finance.tx[0].anticipatedDate, '2026-10-30');
+assert.equal(loadedState.finance.tx[0].invoiceInstallment, true);
 assert.equal(loadedState.finance.tx[1].settledDate, undefined);
+assert.equal(loadedState.finance.tx[1].interestCents, undefined);
+assert.equal(loadedState.finance.tx[1].anticipatedDate, undefined);
+assert.equal(loadedState.finance.tx[1].invoiceInstallment, undefined);
 assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
   sexualActivity: true,
   contraceptionMethods: ['condom'],
@@ -460,6 +482,29 @@ const accountRows = {
     notes: null,
     sort_order: 0,
     focus_seconds: 0,
+    icon_key: 'book',
+    is_test_data: false,
+    deleted_at: null,
+    updated_at: versionStamp,
+  }, {
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d6',
+    title: 'Tarefa antiga',
+    is_completed: false,
+    tag: null,
+    list_id: null,
+    group_key: null,
+    group_title: null,
+    due_date: null,
+    priority: 'normal',
+    task_created_at: '2026-10-30T12:00:00.000Z',
+    completed_at: null,
+    planned_time: null,
+    repeat_rule: 'none',
+    remind_minutes: null,
+    notes: null,
+    sort_order: 0,
+    focus_seconds: 0,
+    icon_key: null,
     is_test_data: false,
     deleted_at: null,
     updated_at: versionStamp,
@@ -475,12 +520,14 @@ const loadingClient = {
 };
 const loaded = await new RelationalAccountStore(loadingClient, userId).load();
 assert.ok(Array.isArray(loaded.tasks));
-assert.equal(loaded.tasks.length, 1);
+assert.equal(loaded.tasks.length, 2);
 assert.equal(loaded.tasks[0].title, 'Tarefa válida');
 assert.equal(loaded.tasks[0].dueDate, null);
 assert.equal(loaded.tasks[0].priority, 'normal');
 assert.equal(loaded.tasks[0].focusSeconds, 0);
+assert.equal(loaded.tasks[0].icon, 'book');
 assert.equal(Object.values(loaded.tasks[0]).includes(undefined), false);
+assert.equal(loaded.tasks[1].icon, undefined, 'tarefas antigas sem ícone continuam sem o campo');
 for (const field of ['tag', 'list', 'groupId', 'groupTitle', 'doneAt', 'time', 'repeat', 'remind', 'notes', 'tags', 'subtasks', 'sample']) {
   assert.equal(Object.hasOwn(loaded.tasks[0], field), false, `${field} should be omitted when empty`);
 }

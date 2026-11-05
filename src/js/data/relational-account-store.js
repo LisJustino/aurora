@@ -1,4 +1,5 @@
 import { normalizeAccountType } from '../features/finance/accounts.js';
+import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
@@ -290,6 +291,9 @@ function buildRows(userId, state, idMap) {
     }));
   }
   for (const task of tasks) {
+    if (task.icon != null && !isTaskIconKey(task.icon)) {
+      throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+    }
     const removedAt = deletedAtFor(settings, 'tasks', task.id);
     const taskId = idFor(idMap, 'tasks', task.id);
     pushRow(rows, 'tasks', rowId(idMap, 'tasks', userId, task.id, {
@@ -309,6 +313,7 @@ function buildRows(userId, state, idMap) {
       notes: task.notes || null,
       sort_order: Number.isFinite(task.order) ? task.order : 0,
       focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
+      icon_key: taskIconKey(task.icon) || null,
       is_test_data: task.sample === true,
       deleted_at: removedAt,
     }));
@@ -498,6 +503,9 @@ function buildRows(userId, state, idMap) {
       amount_cents: transaction.cents,
       transaction_date: transaction.date,
       settled_date: transaction.settledDate || null,
+      interest_cents: transaction.interestCents ?? null,
+      anticipated_date: transaction.anticipatedDate || null,
+      invoice_installment: transaction.invoiceInstallment === true,
       entered_at: Number.isFinite(transaction.createdAt) ? toIso(transaction.createdAt) : null,
       category: transaction.category || null,
       description: transaction.desc || null,
@@ -597,6 +605,10 @@ function buildRows(userId, state, idMap) {
 
 function taskFromRow(row, tables, idMap, includeDeleted = false) {
   const taskId = sourceId(idMap, 'tasks', row.id);
+  const taskIcon = taskIconKey(row.icon_key);
+  if (row.icon_key != null && !taskIcon) {
+    throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+  }
   const list = tables.task_lists.find((item) => item.id === row.list_id)?.name;
   const createdAt = fromIso(row.task_created_at);
   const plannedTime = timeOnly(row.planned_time);
@@ -630,6 +642,7 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
+    ...(taskIcon ? { icon: taskIcon } : {}),
     ...(tags.length ? { tags } : {}),
     ...(subtasks.length ? { subtasks } : {}),
     ...(row.is_test_data ? { sample: true } : {}),
@@ -652,6 +665,9 @@ function financeRecordFromRow(row, table, idMap) {
     ...(row.to_account_id ? { toAccountId: sourceId(idMap, 'finance_accounts', row.to_account_id) } : {}),
     cents: numeric(row.amount_cents), date: row.transaction_date,
     ...(row.settled_date ? { settledDate: row.settled_date } : {}),
+    ...(row.interest_cents != null ? { interestCents: numeric(row.interest_cents) } : {}),
+    ...(row.anticipated_date ? { anticipatedDate: row.anticipated_date } : {}),
+    ...(row.invoice_installment ? { invoiceInstallment: true } : {}),
     ...(row.category ? { category: row.category } : {}),
     ...(row.description ? { desc: row.description } : {}),
     paid: row.is_paid,

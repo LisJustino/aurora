@@ -239,7 +239,7 @@ assert.throws(
   () => scanLegacyBrowserStorage(new MemoryStorage({
     'aurora.app.tasks': '{invalid',
   }), userId),
-  /não é um JSON válido/,
+  /formato inválido/,
 );
 
 const defaults = {

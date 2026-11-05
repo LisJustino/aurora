@@ -40,6 +40,16 @@ export const PROFILE_APPEARANCE_DEFAULT = Object.freeze({
   greeting: 'dynamic',
 });
 
+export function timeBasedGreeting(date = new Date()) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new TypeError('A hora local para a saudação é inválida.');
+  }
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
 export function normalizeProfileAppearance(value) {
   const appearance = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const avatars = new Set(PROFILE_AVATARS.map(([id]) => id));

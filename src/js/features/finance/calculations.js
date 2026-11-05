@@ -110,6 +110,27 @@ export function byCategory(transactions, kind) {
   return [...totals.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+export function monthlyCloseSummary(transactions, month, accountForId) {
+  const summary = monthStats(transactions, month, accountForId);
+  const pending = summary.tx.filter((transaction) => !isPaid(transaction)
+    && !isCreditAccount(accountForId(transaction.accountId)));
+  const recurring = summary.tx.filter((transaction) => transaction.recId);
+  const topExpense = byCategory(summary.tx, 'out')[0] || null;
+  return {
+    ...summary,
+    resultCents: summary.inAll - summary.outAll,
+    pendingInCents: pending
+      .filter((transaction) => transaction.type === 'in')
+      .reduce((total, transaction) => total + transaction.cents, 0),
+    pendingOutCents: pending
+      .filter((transaction) => transaction.type === 'out')
+      .reduce((total, transaction) => total + transaction.cents, 0),
+    recurringCents: recurring.reduce((total, transaction) => total + transaction.cents, 0),
+    recurringCount: recurring.length,
+    topExpense,
+  };
+}
+
 export function invoiceMonth(card, date, shiftMonth, parseDate) {
   const parsed = parseDate(date);
   let month = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
