@@ -18,7 +18,13 @@ import {
   requestAccountDeletion,
   signupErrorMessage,
 } from '../src/js/services/account-auth.js';
-import { accountHashForMode, accountModeFromHash, isPublicLandingHash } from '../src/js/core/router.js';
+import {
+  accountHashForMode,
+  accountModeFromHash,
+  accountModeFromLocation,
+  accountPathForMode,
+  isPublicLandingHash,
+} from '../src/js/core/router.js';
 import { timeBasedGreeting } from '../src/js/features/profile/model.js';
 import {
   createAuthSessionStorage,
@@ -242,8 +248,8 @@ assert.equal(hasCurrentLegalConsent({
 }), false);
 assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
-assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/#inicio');
-assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/#inicio');
+assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/inicio');
+assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/inicio');
 assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',
@@ -329,5 +335,9 @@ assert.equal(accountModeFromHash('#esqueci-senha'), 'recovery');
 assert.equal(accountModeFromHash('#nova-senha'), 'update-password');
 assert.equal(accountHashForMode('login'), '#entrar');
 assert.equal(accountHashForMode('signup-access'), '#criar-conta?etapa=acesso');
+assert.equal(accountPathForMode('login'), '/entrar');
+assert.equal(accountPathForMode('signup-access'), '/criar-conta?etapa=acesso');
+assert.equal(accountModeFromLocation(new URL('https://aurora.example/entrar')), 'login');
+assert.equal(accountModeFromLocation(new URL('https://aurora.example/criar-conta?etapa=acesso')), 'signup-access');
 
 console.log('account-auth-check: all checks passed');

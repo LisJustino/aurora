@@ -112,9 +112,9 @@ function renderToday(state) {
           </div>
         </section>
         <section class="strip" aria-label="Resumo do dia">
-          <a href="#demonstracao" data-demo-view="tasks"><b>${total}</b><span>Tarefas hoje</span></a>
-          <a href="#demonstracao" data-demo-view="tasks"><b>0</b><span>Atrasadas</span></a>
-          <a href="#demonstracao" data-demo-view="tasks"><b>${open.length}</b><span>Pendentes</span></a>
+          <a href="/demonstracao" data-demo-view="tasks"><b>${total}</b><span>Tarefas hoje</span></a>
+          <a href="/demonstracao" data-demo-view="tasks"><b>0</b><span>Atrasadas</span></a>
+          <a href="/demonstracao" data-demo-view="tasks"><b>${open.length}</b><span>Pendentes</span></a>
         </section>
         <section class="card home-quick-card" aria-labelledby="demo-quick-title">
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
@@ -186,7 +186,7 @@ function renderDemoArea(state) {
 }
 
 function renderNavigation(state) {
-  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-primary demo-nav-link ${state.view === id ? 'is-current' : ''}" href="#demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
+  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-primary demo-nav-link ${state.view === id ? 'is-current' : ''}" href="/demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
 }
 
 function updateTimer(root, state) {

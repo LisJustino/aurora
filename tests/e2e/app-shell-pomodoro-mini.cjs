@@ -32,7 +32,7 @@ const check = (passed, name, detail = '') => {
   check(dialFit.every(({ timerFits }) => timerFits), 'tempo do Pomodoro cabe dentro do mostrador sem cortar as bordas', JSON.stringify(dialFit));
   await page.setViewportSize({ width: 1280, height: 900 });
   await timerToggle.click();
-  await page.locator('.topbar .nav a[href="#planejar"]').first().click();
+  await page.locator('.topbar .nav a[href="/planejar"]').first().click();
 
   const mini = page.locator('#pomodoro-mini');
   const miniToggle = page.getByRole('button', { name: 'Pausar Pomodoro' });
@@ -75,7 +75,7 @@ const check = (passed, name, detail = '') => {
   await mini.locator('#pomodoro-mini-open').focus();
   await page.keyboard.press('Enter');
   await page.locator('.free-pomodoro').waitFor();
-  check(new URL(page.url()).hash === '#pomodoro', 'atalho por teclado retorna à tela completa do Pomodoro');
+  check(new URL(page.url()).pathname === '/pomodoro', 'atalho por teclado retorna à tela completa do Pomodoro');
   check(await mini.isHidden(), 'mini controle não duplica a tela completa');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 

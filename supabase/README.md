@@ -25,6 +25,25 @@ Para permitir acesso imediato após o cadastro, em cada projeto abra **Authentic
 
 O botão social disponível no Aurora usa Google OAuth pelo Supabase. Configure-o separadamente em cada projeto Supabase de desenvolvimento e produção; as credenciais do provedor ficam somente no Dashboard do Supabase, nunca no `.env`, no frontend ou no repositório. Apple/iCloud está temporariamente desativado na interface; contas Apple existentes continuam reconhecidas.
 
+### Identidade e domínio exibidos pelo Google
+
+No Google Cloud Console, abra **Google Auth Platform → Branding** (antes
+**OAuth consent screen**) no projeto que possui o Client ID usado pelo fluxo.
+O projeto **Aurora Login** contém os clientes OAuth do login; o nome do app
+deve ser **Aurora**, com e-mail de suporte, página inicial, política de
+privacidade e termos do Aurora. Adicione e verifique
+`aurora-rotinas.com.br` como domínio autorizado, se solicitado.
+
+No login social Supabase, o callback Google
+`https://<projeto>.supabase.co/auth/v1/callback` é esperado. O nome de
+branding não altera o domínio desse callback, então a tela de conta ainda pode
+identificar o domínio Supabase como destino. Não troque o callback pelo
+endereço do Aurora: isso interromperia o login. Para usar um domínio próprio
+nesse destino, é necessário configurar um domínio personalizado de autenticação
+no Supabase e atualizar o callback no Google Cloud. O Supabase oferece esse
+recurso como adicional pago para projetos em plano pago; a configuração exige
+um subdomínio próprio e alterações de DNS.
+
 1. Em **Authentication → URL Configuration**, defina o **Site URL** do projeto de desenvolvimento como `http://127.0.0.1:5173/` e, em produção, como `https://aurora-rotinas.com.br/`. Permita estes **Redirect URLs** no projeto de desenvolvimento:
    - `http://localhost:5173/`
    - `http://127.0.0.1:5173/`
@@ -43,7 +62,11 @@ O Google Calendar usa uma autorização separada do login Supabase. Crie no
 Google Cloud um Client ID OAuth **Web application** dedicado à leitura de
 calendários; configure como **Authorized JavaScript origins** as origens já
 usadas pelo app (`http://localhost:5173`, `http://127.0.0.1:5173` e a origem
-de produção). O fluxo GIS usa janela de autorização e não exige redirect URI.
+de produção). Configure o branding **Aurora** no projeto Google Cloud que
+possui esse Client ID; esse fluxo não usa callback Supabase. Se a autorização
+de uma agenda apresentar um domínio Supabase, confirme que a ação iniciada é
+Adicionar conta em Ajustes → Agendas, não o login social. O fluxo GIS usa
+janela de autorização e não exige redirect URI.
 Ative a Google Calendar API e inclua o escopo
 `https://www.googleapis.com/auth/calendar.readonly` na tela de consentimento.
 Esse escopo é somente de leitura e pode exigir verificação do app pelo Google

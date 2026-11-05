@@ -77,7 +77,7 @@ O serviço Cloudflare em `worker/` é implantação independente e não é neces
 1. Confirme se é uma página independente ou um modo de uma área já existente. Não crie uma segunda navegação para uma função existente.
 2. Para uma rota real, adicione a renderização à tabela `ROUTES` e seus links a todos os pontos de navegação relevantes em `main.js`.
 3. Crie uma entrada em `pages/` com `lang="pt-BR"`, viewport, título, descrição, `meta[name="aurora-route"]`, `../src/css/main.css`, `#app` e `../src/js/main.js`.
-4. Atualize README/docs e teste entrada direta, hashes, menus móvel/desktop e estado persistido.
+4. Atualize README/docs e teste URLs de caminho diretas, hashes legados, menus móvel/desktop e estado persistido.
 5. Até que os templates sejam extraídos, não coloque uma segunda cópia de shell ou lógica de negócio no documento de página.
 
 ## Adicionar uma feature

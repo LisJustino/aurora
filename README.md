@@ -48,7 +48,7 @@ Os dados da conta são carregados e gravados no Supabase; fora da sessão gerenc
 
 - `index.html` é a entrada canônica.
 - `pages/` contém entradas HTML leves com metadados específicos para abrir cada rota da SPA, sem cópias da navegação ou da lógica.
-- As páginas compartilham o mesmo aplicativo e a mesma conta online. A navegação interna continua usando hashes (`#planejar`, `#financas` etc.).
+- As páginas compartilham o mesmo aplicativo e a mesma conta online. As rotas usam caminhos legíveis (`/planejar`, `/financas` etc.); hashes antigos continuam redirecionando para os caminhos canônicos.
 - Pomodoro é a única ferramenta de foco e pode ser usada para qualquer atividade. Não há área de Estudos, cadastro de matérias ou registro de sessões. Backups que contenham os dados removidos não são aceitos; as exclusões locais e do Supabase são efetivadas, respectivamente, ao entrar na aplicação e ao aplicar a migration `20261029050000_remove_studies.sql`.
 - O conteúdo interativo das telas é composto em `src/js/main.js`. As entradas em `pages/` não são páginas HTML estáticas independentes.
 

@@ -171,17 +171,17 @@ apagada como parte da limpeza legada. Migrations históricas permanecem no
 repositório como registro do schema anterior; elas não representam o schema
 ativo após a migration de remoção.
 
-## Google Calendar no Planejar
+## Contas Google Calendar em Ajustes
 
 A integração é opcional e somente de leitura. Google Identity Services solicita
-uma autorização separada, iniciada em Planejar, com o escopo
+uma autorização separada, iniciada em Ajustes → Agendas, com o escopo
 `calendar.readonly`; o login Google do Supabase continua sem esse escopo e não
-é alterado. O navegador consulta diretamente calendários e eventos do mês
-visível. Tokens, nomes e eventos permanecem apenas na memória da aba: não são
-persistidos no navegador ou no backend, incluídos em backups ou enviados ao
-Worker. A permissão externa pode ser removida nas configurações da Conta
-Google. A Política de Privacidade e o aceite legal passam para 1.6 antes de
-habilitar essa leitura.
+é alterado. Podem ser autorizadas várias contas por aba; o navegador consulta
+diretamente os calendários selecionados e os eventos do mês visível. Tokens,
+identificações de contas, nomes e eventos permanecem apenas na memória da aba:
+não são persistidos no navegador ou no backend, incluídos em backups ou
+enviados ao Worker. A permissão externa pode ser removida nas configurações da
+Conta Google. Não há conexão direta com calendários locais ou Apple/iCloud.
 
 ## Regressão automatizada e extrações de `main.js`
 
@@ -245,3 +245,13 @@ A inscrição Push é compartilhada entre Hábitos e Pomodoro por dispositivo.
 Qualquer botão de ativação/desativação controla ambos; a interface informa essa
 consequência junto ao controle, sem sugerir preferências independentes que não
 existem.
+
+## URLs de navegação
+
+Rotas da aplicação usam caminhos legíveis, como `/inicio`, `/financas` e
+`/config?section=data`, em vez de hashes. A SPA atualiza a URL e o histórico sem
+recarregar o shell; os fragmentos continuam reservados para âncoras de página.
+Hashes de rota publicados anteriormente continuam aceitos e são normalizados
+para os caminhos canônicos, preservando compatibilidade com favoritos e links
+antigos. O fallback do Cloudflare Pages continua servindo a entrada da SPA para
+os caminhos diretos.

@@ -48,9 +48,10 @@ O objeto de cada feature e os campos opcionais são definidos pelos produtores e
 
 ### Leitura opcional do Google Calendar
 
-Planejar pode ler calendários e eventos selecionados após autorização explícita
-do Google, usando escopo somente de leitura. O token de curta duração, os nomes
-dos calendários e os eventos carregados existem somente em memória na aba atual;
+Em Ajustes → Agendas, a pessoa pode autorizar várias contas Google com escopo
+somente de leitura; Planejar mostra os eventos dos calendários selecionados. O
+token de curta duração, as identificações das contas, os nomes dos calendários e
+os eventos carregados existem somente em memória na aba atual;
 não há chave, tabela, migration, registro no Supabase, item de backup ou
 sincronização. Recarregar/fechar a aba descarta esses dados. Parar de exibir os
 eventos também limpa o token mantido pelo Aurora; a permissão concedida ao

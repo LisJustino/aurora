@@ -5,10 +5,17 @@ import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
 import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
+  accountModeFromLocation,
+  accountPathForMode,
+  canonicalPublicPath,
+  isDemoLocation,
   isPublicLandingHash,
+  isPublicLandingLocation,
   postSignOutPath,
   redirectToPublicLanding,
   resolveRoute,
+  routeFromLocation,
+  routePathFor,
   settingsRootPath,
 } from '../src/js/core/router.js';
 import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
@@ -699,7 +706,7 @@ test('normaliza datas legadas sem aceitar dias inexistentes', () => {
 });
 
 test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {
-  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'habitos', 'config']);
+  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
 
   truthy(MENU_ITEMS.some((item) => item.id === 'pomodoro'));
   equal(resolveRoute('estudos', routes).route, 'inicio');
@@ -714,6 +721,32 @@ test('mantém aliases legados, redireciona Água para Hábitos e limita rotas de
   equal(resolveRoute('agua', routes).route, 'habitos');
   equal(resolveRoute('agua', routes).replaceHash, 'habitos');
   equal(resolveRoute('invalida', routes).route, 'inicio');
+});
+
+test('usa caminhos legíveis e converte hashes antigos sem perder query ou âncoras', () => {
+  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
+  equal(routePathFor('financas'), '/financas');
+  equal(routePathFor('perfil'), '/config');
+  equal(routePathFor('config?section=calendars'), '/config?section=calendars');
+  equal(routeFromLocation(new URL('https://aurora.local/financas'), routes).route, 'financas');
+  equal(routeFromLocation(new URL('https://aurora.local/pages/inicio.html#main'), routes).replacePath, '/inicio#main');
+  equal(routeFromLocation(new URL('https://aurora.local/#agua'), routes).replacePath, '/habitos');
+  equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/config?section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/?source=pwa#config?section=data'), routes).replacePath, '/config?source=pwa&section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/agua'), routes).route, 'habitos');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#inicio')), '/inicio');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#criar-conta?etapa=acesso')), '/criar-conta?etapa=acesso');
+});
+
+test('resolve rotas públicas por caminho e preserva as âncoras da landing', () => {
+  equal(accountPathForMode('login'), '/entrar');
+  equal(accountPathForMode('signup-access'), '/criar-conta?etapa=acesso');
+  equal(accountModeFromLocation(new URL('https://aurora.local/criar-conta?etapa=acesso')), 'signup-access');
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/')));
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/#landing-main')));
+  truthy(isDemoLocation(new URL('https://aurora.local/demonstracao')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/inicio')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/#financas')));
 });
 
 test('descarta opções de menu desconhecidas ao normalizar preferências', () => {
@@ -765,11 +798,11 @@ test('ao excluir a conta, navega para a landing pública', () => {
 
 test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
   equal(
-    settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config?section=data' }),
-    '/pages/ajustes.html?source=pwa#config',
+    settingsRootPath({ href: 'https://aurora.local/config?source=pwa&section=data' }),
+    '/config?source=pwa',
   );
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/inicio.html#inicio' }), null);
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html#config' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/inicio' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/config' }), null);
 });
 
 test('normaliza contas Dinheiro antigas para corrente e reconhece investimentos', () => {
