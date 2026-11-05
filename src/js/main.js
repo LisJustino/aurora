@@ -3562,14 +3562,17 @@ const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'pers
 const settingsTabId = (id) => LEGACY_SETTINGS_TABS[id] || id;
 const SETTINGS_SECTIONS = [
   ['profile', 'Seu perfil', 'user', 'Nome, saudação e idade'],
-  ['personalization', 'Personalização', 'sun', 'Tema, cores e leitura'],
-  ['areas-navigation', 'Áreas e navegação', 'grid', 'Ativar áreas e ordenar menu'],
+  ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
+  ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
+  ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
-  { label: 'Preferências', items: ['profile', 'personalization', 'areas-navigation', 'data'] },
+  { label: 'Perfil', items: ['profile'] },
+  { label: 'Aplicativo', items: ['personalization', 'home', 'areas-navigation'] },
+  { label: 'Dados', items: ['data'] },
   { label: 'Conexões', items: ['calendars'] },
   { label: 'Conta', items: ['account'] },
 ];
@@ -3600,7 +3603,7 @@ function areasNavigationSettings(s) {
   const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
-    <div class="head areas-navigation-head"><h2>Áreas e navegação<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
+    <div class="head areas-navigation-head"><h2>Áreas e menu<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
     <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
     <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
     <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
@@ -3626,6 +3629,12 @@ function areasNavigationSettings(s) {
         </span>
       </li>`;
     })}</ol>
+    ${settingsSaveButton()}
+  </form>`;
+}
+function homeSettings(s) {
+  s = settingsView();
+  return h`<form class="card home-settings" data-form="settings-save">
     ${homeLayoutSettings(s)}
     ${settingsSaveButton()}
   </form>`;
@@ -4037,6 +4046,7 @@ function settingsStorageNotice(selectedTab) {
 function settingsSectionContent(s, p, selectedTab) {
   switch (selectedTab) {
     case 'personalization': return aparencia(s);
+    case 'home': return homeSettings(s);
     case 'areas-navigation': return areasNavigationSettings(s);
     case 'data': return dataSettings(p);
     case 'calendars': return googleCalendarSettingsPanel();
