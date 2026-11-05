@@ -33,9 +33,12 @@
   <link rel="stylesheet" href="./src/css/main.css">
 </head>
 <body>
-  <div id="app"><main class="account-loading" role="status" aria-busy="true"   aria-label="Carregando aurora.">
-    <span class="account-loading-brand" aria-hidden="true"></span>
-    <section class="account-loading-card" aria-hidden="true"><span class="account-loading-line is-title"></span><span class="account-loading-line"></span><span class="account-loading-line is-field"></span><span class="account-loading-line is-field"></span><span class="account-loading-line is-button"></span></section>
+  <div id="app"><main class="account-loading" role="status" aria-busy="true">
+    <div class="account-loading-content">
+      <span class="account-loading-brand-text" aria-hidden="true">aurora<span class="account-loading-brand-dot">.</span></span>
+      <span class="account-loading-indicator" aria-hidden="true"></span>
+      <p class="account-loading-message">Preparando seu espaço…</p>
+    </div>
   </main></div>
   <noscript>Para autenticar sua conta e salvar seus dados com segurança, é necessário ativar o JavaScript.</noscript>
   <script type="module" src="./src/js/public-entry.js"></script>

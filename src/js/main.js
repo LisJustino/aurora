@@ -7863,55 +7863,31 @@ function renderAccountLoading(root) {
   page.className = 'account-loading';
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
-  page.setAttribute('aria-label', 'carregando o Aurora');
 
-  const shell = document.createElement('div');
-  shell.className = 'account-loading-shell';
-
-  const brandRow = document.createElement('div');
-  brandRow.className = 'account-loading-brand-row';
+  const content = document.createElement('div');
+  content.className = 'account-loading-content';
 
   const brand = document.createElement('span');
-  brand.className = 'account-loading-brand';
+  brand.className = 'account-loading-brand-text';
   brand.setAttribute('aria-hidden', 'true');
+  brand.textContent = 'aurora';
 
-  const mark = document.createElement('span');
-  mark.className = 'account-loading-brand-mark';
-  mark.setAttribute('aria-hidden', 'true');
+  const brandDot = document.createElement('span');
+  brandDot.className = 'account-loading-brand-dot';
+  brandDot.setAttribute('aria-hidden', 'true');
+  brandDot.textContent = '.';
+  brand.append(brandDot);
 
-  const brandText = document.createElement('span');
-  brandText.className = 'account-loading-brand-text';
-  brandText.textContent = 'Aurora';
+  const indicator = document.createElement('span');
+  indicator.className = 'account-loading-indicator';
+  indicator.setAttribute('aria-hidden', 'true');
 
-  brand.append(mark, brandText);
+  const message = document.createElement('p');
+  message.className = 'account-loading-message';
+  message.textContent = 'Preparando seu espaço…';
 
-  const status = document.createElement('span');
-  status.className = 'account-loading-status';
-  status.setAttribute('aria-hidden', 'true');
-
-  const statusDot = document.createElement('span');
-  statusDot.className = 'account-loading-status-dot';
-  statusDot.setAttribute('aria-hidden', 'true');
-
-  const statusText = document.createElement('span');
-  statusText.className = 'account-loading-status-text';
-  statusText.textContent = 'Carregando';
-
-  status.append(statusDot, statusText);
-  brandRow.append(brand, status);
-
-  const card = document.createElement('section');
-  card.className = 'account-loading-card';
-  card.setAttribute('aria-hidden', 'true');
-  for (const className of ['is-title', '', 'is-field', '', 'is-field', 'is-button', 'is-short']) {
-    const line = document.createElement('span');
-    line.className = `account-loading-line ${className}`.trim();
-    line.setAttribute('aria-hidden', 'true');
-    card.append(line);
-  }
-
-  shell.append(brandRow, card);
-  page.append(shell);
+  content.append(brand, indicator, message);
+  page.append(content);
   root.replaceChildren(page);
 }
 
