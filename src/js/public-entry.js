@@ -1,7 +1,9 @@
 import {
-  accountHashForMode,
-  isPublicAccountHash,
-  isPublicLandingHash,
+  accountPathForMode,
+  canonicalPublicPath,
+  isDemoLocation,
+  isPublicAccountLocation,
+  isPublicLandingLocation,
 } from './core/router.js';
 import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } from './features/appearance/public-controls.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
@@ -94,10 +96,14 @@ async function loadApplication(mode = 'login') {
   stopLandingDemo(root);
   const url = new URL(location.href);
   url.searchParams.delete('aurora-account-mode');
-  const hash = accountHashForMode(mode === 'signup' ? 'signup-profile' : mode);
-  if (!hash) throw new Error('A rota pública da conta é inválida.');
-  url.hash = hash;
-  history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  const path = accountPathForMode(mode === 'signup' ? 'signup-profile' : mode);
+  if (!path) throw new Error('A rota pública da conta é inválida.');
+  const target = new URL(path, url.origin);
+  url.pathname = target.pathname;
+  url.hash = '';
+  url.searchParams.delete('etapa');
+  target.searchParams.forEach((value, key) => url.searchParams.set(key, value));
+  history.pushState(null, '', `${url.pathname}${url.search}`);
   await import('./main.js');
 }
 
@@ -196,17 +202,24 @@ if (!(root instanceof HTMLElement)) {
   throw new Error('O elemento principal do Aurora não está disponível.');
 }
 
+function normalizeLegacyRoute() {
+  const path = canonicalPublicPath(location);
+  if (path) history.replaceState(null, '', path);
+}
+
+normalizeLegacyRoute();
+
 const installedLanding = routeMeta
-  && location.hash !== '#demonstracao'
+  && !isDemoLocation(location)
   && isAppInstalled()
-  && isPublicLandingHash(location.hash);
+  && isPublicLandingLocation(location);
 if (installedLanding) {
-  history.replaceState(null, '', `${location.pathname}${location.search}#inicio`);
+  history.replaceState(null, '', `/inicio${location.search}`);
 }
 
 const publicEntryRoute = routeMeta && (
-  isPublicLandingHash(location.hash)
-  || isPublicAccountHash(location.hash)
+  isPublicLandingLocation(location)
+  || isPublicAccountLocation(location)
 );
 
 if (localPreview || !publicEntryRoute || installedLanding) {
@@ -215,15 +228,12 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     showEntryError(root);
   });
 } else {
-  if (location.hash === '#landing') {
-    history.replaceState(null, '', `${location.pathname}${location.search}`);
-  }
   initializePublicAppearance();
   initializeLegalDialogEvents();
-  let renderedPublicHash = null;
+  let renderedPublicPath = null;
   const renderPublicRoute = () => {
-    renderedPublicHash = location.hash;
-    if (location.hash === '#demonstracao') {
+    renderedPublicPath = `${location.pathname}${location.search}`;
+    if (isDemoLocation(location)) {
       renderLandingDemo(root);
       document.title = 'Demonstração | aurora.';
     } else {
@@ -232,7 +242,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     }
     updatePublicConnectionNotice();
   };
-  if (isPublicLandingHash(location.hash)) renderPublicRoute();
+  if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
     import('./main.js').catch((error) => {
       console.error('Aurora: não foi possível carregar a tela da conta.', error);
@@ -240,7 +250,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     });
   }
 
-  if (isPublicLandingHash(location.hash)) {
+  if (isPublicLandingLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
     window.addEventListener('online', updatePublicConnectionNotice);
@@ -253,7 +263,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     updatePublicConnectionNotice();
   }
 
-  const sessionRestore = isPublicLandingHash(location.hash) ? (async () => {
+  const sessionRestore = isPublicLandingLocation(location) ? (async () => {
     try {
       const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
         import('./services/account-auth.js'),
@@ -278,10 +288,11 @@ if (localPreview || !publicEntryRoute || installedLanding) {
   })() : Promise.resolve(false);
 
   const onPublicNavigation = () => {
-    if (isPublicLandingHash(location.hash)) {
-      if (renderedPublicHash === location.hash) return;
+    normalizeLegacyRoute();
+    if (isPublicLandingLocation(location)) {
+      if (renderedPublicPath === `${location.pathname}${location.search}`) return;
       renderPublicRoute();
-    } else if (isPublicAccountHash(location.hash) && !root.querySelector('form[data-account-mode]')) {
+    } else if (isPublicAccountLocation(location) && !root.querySelector('form[data-account-mode]')) {
       window.location.reload();
     }
   };
@@ -296,6 +307,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     if (action === 'landing') {
       event.preventDefault();
       const url = new URL(location.href);
+      url.pathname = '/';
       url.hash = '';
       history.pushState(null, '', `${url.pathname}${url.search}`);
       renderPublicRoute();
@@ -310,10 +322,11 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     }
     if (action === 'demo') {
       const url = new URL(location.href);
-      url.hash = 'demonstracao';
-      history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      url.pathname = '/demonstracao';
+      url.hash = '';
+      history.pushState(null, '', `${url.pathname}${url.search}`);
       renderLandingDemo(root);
-      renderedPublicHash = location.hash;
+      renderedPublicPath = `${location.pathname}${location.search}`;
       document.title = 'Demonstração | aurora.';
       window.scrollTo(0, 0);
       updatePublicConnectionNotice();

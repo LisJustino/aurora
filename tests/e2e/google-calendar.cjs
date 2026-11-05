@@ -18,47 +18,69 @@ const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).
     identityScriptLoads += 1;
     return route.fulfill({
       contentType: 'application/javascript',
-      body: `window.google={accounts:{oauth2:{initTokenClient:({callback})=>({requestAccessToken:()=>callback({access_token:"test-token",expires_in:3600,scope:"${SCOPE}"})})}}};`,
+      body: `let tokenNumber=0;window.googleInitPrompts=[];window.google={accounts:{oauth2:{initTokenClient:({callback,prompt})=>{window.googleInitPrompts.push(prompt);return {requestAccessToken:()=>callback({access_token:"test-token-"+ ++tokenNumber,expires_in:3600,scope:"${SCOPE}"})}}}}};`,
     });
   });
   await page.route('https://www.googleapis.com/calendar/v3/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const accountNumber = request.headers().authorization?.endsWith('-2') ? 2 : 1;
     apiRequests.push({ method: request.method(), url });
     if (url.pathname.endsWith('/calendarList')) {
       return route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ items: [{ id: 'primary', summary: 'Pessoal', primary: true, selected: true, accessRole: 'owner' }] }),
+        body: JSON.stringify({
+          items: [
+            { id: `primary-${accountNumber}@example.test`, summary: `Pessoal ${accountNumber}`, primary: true, selected: true, accessRole: 'owner' },
+            { id: `shared-${accountNumber}`, summary: `Compartilhado ${accountNumber}`, selected: false, accessRole: 'reader' },
+          ],
+        }),
       });
     }
     if (url.pathname.endsWith('/events')) {
+      const eventTitle = url.pathname.includes(`shared-${accountNumber}`)
+        ? `Evento compartilhado da conta ${accountNumber}`
+        : `Evento da conta ${accountNumber}`;
       return route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ items: [{ summary: 'Evento de teste', start: { date: localDay(new Date()) } }] }),
+        body: JSON.stringify({ items: [{ summary: eventTitle, start: { date: localDay(new Date()) } }] }),
       });
     }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
 
   try {
-    await page.goto(`${BASE}/?preview#planejar`);
+    await page.goto(`${BASE}/?preview#config?section=calendars`);
     if (identityScriptLoads) throw new Error('O Google Identity Services foi carregado antes de uma ação explícita.');
+    await page.getByRole('button', { name: 'Adicionar conta Google' }).click();
+    await page.getByRole('button', { name: 'Autorizar acesso do Google Calendar' }).waitFor();
+    if (identityScriptLoads !== 1) throw new Error('O Google Identity Services não foi carregado após uma ação explícita.');
+    await page.getByRole('button', { name: 'Autorizar acesso do Google Calendar' }).click();
+    await page.getByText('primary-1@example.test').waitFor();
+
+    await page.getByRole('button', { name: 'Adicionar conta Google' }).click();
+    await page.getByRole('button', { name: 'Autorizar acesso do Google Calendar' }).waitFor();
+    await page.getByRole('button', { name: 'Autorizar acesso do Google Calendar' }).click();
+    await page.getByText('primary-2@example.test').waitFor();
+    if (await page.evaluate(() => window.googleInitPrompts.some((prompt) => prompt !== 'select_account'))) {
+      throw new Error('A autorização não ofereceu a escolha explícita da conta Google.');
+    }
+
+    await page.evaluate(() => { location.hash = 'planejar'; });
     await page.locator('[data-action="plan-view"][data-v="calendario"]').click();
-    await page.getByRole('button', { name: 'Conectar Google Calendar' }).click();
-    await page.getByRole('button', { name: 'Autorizar leitura do Google Calendar' }).waitFor();
-    if (identityScriptLoads !== 1) throw new Error('O Google Identity Services não foi carregado após a ação de conexão.');
-    await page.getByRole('button', { name: 'Autorizar leitura do Google Calendar' }).click();
-    await page.getByText('Evento de teste').waitFor();
-    if (!await page.locator('.google-event-dot').count()) throw new Error('O evento não marcou o dia correto.');
+    await page.getByText('Evento da conta 1').waitFor();
+    await page.getByText('Evento da conta 2').waitFor();
+    if (!await page.locator('.google-event-dot').count()) throw new Error('Os eventos não marcaram o dia correto.');
     if (await page.locator('.google-calendar-panel').textContent().then((text) => !text.includes('Somente leitura'))) {
       throw new Error('A integração não informa que é somente de leitura.');
     }
+
+    await page.getByRole('link', { name: 'Gerenciar agendas' }).click();
+    await page.getByRole('button', { name: 'Compartilhado 2' }).click();
+    await page.getByRole('link', { name: 'Planejar' }).click();
+    await page.getByText('Evento compartilhado da conta 2').waitFor();
     if (apiRequests.some((request) => request.method !== 'GET')) throw new Error('A integração enviou uma solicitação que não é somente de leitura.');
 
-    await page.getByRole('button', { name: 'Pessoal · principal' }).click();
-    await page.getByText('Nenhum evento do Google Calendar neste dia.').waitFor();
-    await page.getByRole('button', { name: 'Pessoal · principal' }).click();
-    await page.getByText('Evento de teste').waitFor();
     await page.setViewportSize({ width: 320, height: 720 });
     if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
       throw new Error('Planejar tem overflow horizontal em 320 px.');
@@ -68,8 +90,24 @@ const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).
       throw new Error('Planejar tem overflow horizontal em desktop.');
     }
 
-    await page.getByRole('button', { name: 'Parar de mostrar eventos' }).click();
-    if (await page.getByText('Evento de teste').count()) throw new Error('Os eventos continuaram visíveis após desconectar.');
+    await page.goto(`${BASE}/?preview#config?section=calendars`);
+    await page.setViewportSize({ width: 320, height: 720 });
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
+      throw new Error('Ajustes → Agendas tem overflow horizontal em 320 px.');
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
+      throw new Error('Ajustes → Agendas tem overflow horizontal em desktop.');
+    }
+    await page.locator('.google-calendar-account').filter({ hasText: 'primary-1@example.test' })
+      .getByRole('button', { name: 'Desconectar' }).click();
+    await page.getByText('primary-1@example.test').waitFor({ state: 'detached' });
+    await page.getByText('primary-2@example.test').waitFor();
+    await page.reload();
+    await page.getByRole('button', { name: 'Adicionar conta Google' }).waitFor();
+    if (await page.locator('.google-calendar-account').count()) {
+      throw new Error('As contas ou autorizações persistiram após recarregar a página.');
+    }
     if (errors.length) throw new Error(`Erros no navegador: ${errors.join('; ')}`);
     console.log('google-calendar-e2e: all checks passed');
   } finally {

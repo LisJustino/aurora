@@ -49,7 +49,8 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('link', { name: 'Personalizar início' }).click();
   await page.locator('.home-layout-settings').waitFor({ state: 'visible' });
   check(await page.locator('.areas-navigation-settings').count() === 1, 'atalho abre as opções de personalização da Home');
-  await page.locator('.nav a[href="#inicio"]').click();
+  check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo ao navegar para Ajustes');
+  await page.locator('.nav a[href="/inicio"]').click();
   await card.waitFor({ state: 'visible' });
 
   await page.getByRole('link', { name: 'Personalizar início' }).click();
@@ -58,11 +59,12 @@ const check = (passed, name, detail = '') => {
     await page.locator(`.areas-navigation-toggle input[data-area="${area}"]`).uncheck();
   }
   await page.locator('.areas-navigation-settings [data-settings-save-button]').click();
-  await page.locator('.nav a[href="#inicio"]').click();
+  await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'primeiros passos oculta ações de áreas desativadas e some quando a tarefa restante já está concluída');
 
   await page.reload();
   await card.waitFor({ state: 'visible' });
+  check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo após recarregar');
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Dispensar' }).click();
   check(await card.count() === 0, 'cartão pode ser dispensado');
@@ -78,6 +80,7 @@ const check = (passed, name, detail = '') => {
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
   await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="account"]').click();
   await page.locator('.account-resources-card').waitFor({ state: 'visible' });
   await page.locator('.account-resources-card [data-legal-document="terms"]').click();
   await page.locator('dialog[data-legal-modal][open] .legal-document').waitFor({ state: 'visible' });

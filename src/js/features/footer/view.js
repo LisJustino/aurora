@@ -18,9 +18,9 @@ export function renderFooterContent({
       && window.matchMedia('(display-mode: standalone)').matches)
   );
   const accountLinks = preview
-    ? '<a class="footer-link" href="#config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
+    ? '<a class="footer-link" href="/config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
     : authenticated
-    ? `<a class="footer-link" href="#config">Perfil e ajustes</a><button class="footer-link" type="button" data-account-signout>Sair da conta</button>`
+    ? `<a class="footer-link" href="/config">Perfil e ajustes</a><button class="footer-link" type="button" data-account-signout>Sair da conta</button>`
     : accountError
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<button class="footer-link" type="button" data-public-action="login">Entrar</button><button class="footer-link" type="button" data-public-action="signup">Criar conta</button>`;

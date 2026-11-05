@@ -145,8 +145,12 @@ async function checkContrast(page) {
     await appPage.goto(previewUrl.toString());
     await completeProfile(appPage);
     assert.equal(await appPage.locator('#accessibility-trigger').count(), 0, 'acessibilidade não fica no cabeçalho autenticado');
+    assert.notEqual(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra a marca completa no desktop');
+    await appPage.setViewportSize({ width: 390, height: 844 });
     assert.equal(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
-      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra apenas o ícone da marca');
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra apenas o ícone da marca no celular');
+    await appPage.setViewportSize({ width: 1280, height: 900 });
     assert.equal(await appPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho');
     await appPage.evaluate(() => { location.hash = 'config?section=personalization'; });
     await appPage.locator('#settings-accessibility-readable').waitFor();
