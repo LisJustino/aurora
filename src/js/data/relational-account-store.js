@@ -3,7 +3,7 @@ import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'timer_state',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
   'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
   'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
@@ -268,6 +268,17 @@ function buildRows(userId, state, idMap) {
       week_of: reflection.weekOf,
       reflection: reflection.text || '',
       is_test_data: false,
+      deleted_at: null,
+    }));
+  }
+  for (const checkin of state.checkins || []) {
+    pushRow(rows, 'daily_checkins', rowId(idMap, 'daily_checkins', userId, checkin.date, {
+      checkin_date: checkin.date,
+      energy: checkin.energy || null,
+      available_time: checkin.time || null,
+      dismissed: checkin.dismissed === true,
+      deferred_task_ids: Array.isArray(checkin.deferred) ? checkin.deferred : [],
+      is_test_data: checkin.sample === true,
       deleted_at: null,
     }));
   }
@@ -873,6 +884,16 @@ function buildState(tables, idMap) {
     settings,
     tasks: taskRows.map((row) => taskFromRow(row, tables, idMap)),
     pomodoro: mapPomodoroTimer(),
+    checkins: active('daily_checkins')
+      .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
+      .map((row) => ({
+        date: String(row.checkin_date).slice(0, 10),
+        energy: row.energy || null,
+        time: row.available_time || null,
+        dismissed: row.dismissed === true,
+        deferred: Array.isArray(row.deferred_task_ids) ? row.deferred_task_ids : [],
+        ...(row.is_test_data ? { sample: true } : {}),
+      })),
     habits: active('habits').map((row) => habitFromRow(row, tables, idMap)),
     water: active('water_logs').map((row) => ({
       id: sourceId(idMap, 'water_logs', row.id),
