@@ -26,7 +26,7 @@ const check = (passed, name, detail = '') => {
     return route.abort();
   });
 
-  const developmentUrl = new URL('/?preview=1#inicio', DEV_BASE);
+  const developmentUrl = new URL('/inicio?preview=1', DEV_BASE);
   await page.goto(developmentUrl.toString());
   await page.getByText('Você está vendo dados de exemplo.', { exact: false }).waitFor({ state: 'visible' });
   check(await page.locator('.preview-shell').count() === 1, 'prévia local abre a área de demonstração');
@@ -34,15 +34,15 @@ const check = (passed, name, detail = '') => {
   const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'ciclo', 'habitos', 'config'];
   for (const route of routes) {
     const link = route === 'config'
-      ? page.locator('.profile-link[href="#config"]')
-      : page.locator(`.nav a[href="#${route}"]`).first();
+      ? page.locator('.profile-link[href="/config"]')
+      : page.locator(`.nav a[href="/${route}"]`).first();
     if (await link.isVisible()) {
       await link.click();
     } else {
       await page.getByRole('button', { name: 'Mais' }).click();
-      await page.locator(`#nav-more-menu a[href="#${route}"]`).click();
+      await page.locator(`#nav-more-menu a[href="/${route}"]`).click();
     }
-    await page.waitForFunction((expected) => location.hash === `#${expected}`, route);
+    await page.waitForFunction((expected) => location.pathname === `/${expected}`, route);
     check(await page.locator('main h1, main h2').count() > 0, `rota ${route} renderiza conteúdo`);
   }
   check(

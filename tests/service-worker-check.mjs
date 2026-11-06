@@ -38,11 +38,12 @@ runInNewContext(source, {
   caches: { keys: async () => [], open: async () => cache, match: cache.match },
   fetch: async (request, options) => {
     fetchCalls.push({ request, options });
-    if (new URL(typeof request === 'string' ? request : request.url).pathname === '/pages/inicio.html') {
+    const pathname = new URL(typeof request === 'string' ? request : request.url).pathname;
+    if (pathname === '/pages/inicio.html' || pathname === '/config') {
       throw new Error('offline');
     }
-    return new URL(typeof request === 'string' ? request : request.url).pathname.endsWith('.html')
-      || new URL(typeof request === 'string' ? request : request.url).pathname === '/'
+    return pathname.endsWith('.html')
+      || pathname === '/'
       ? htmlResponse
       : assetResponse;
   },
@@ -95,9 +96,12 @@ assert.equal(fetchCalls.at(-1).options.cache, 'no-cache', 'HTML navigations must
 const indexFallback = stored.get('https://aurora.test/index.html');
 assert.equal(indexFallback, htmlResponse, 'the HTML shell should be available as an offline fallback');
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), htmlResponse, 'offline routes should fall back to the HTML shell');
+assert.equal(await dispatchFetch(request('/config?section=data', 'navigate')), htmlResponse, 'offline path routes with query state should fall back to the HTML shell');
+assert.equal(stored.has('https://aurora.test/config?section=data'), false, 'query-specific route state must not be cached');
 
-assert.match(source, /aurora-static-v10/);
+assert.match(source, /aurora-static-v11/);
 assert.match(source, /APP_SHELL_ASSET/);
+assert.match(source, /APP_ROUTE/);
 assert.match(source, /APP_DOCUMENT/);
 
 console.log('Service worker: shell restrito, cache-first de assets, HTML network-first e atualização sob demanda verificados.');

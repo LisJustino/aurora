@@ -10,6 +10,7 @@ const check = (passed, name, detail = '') => {
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 320, height: 700 } });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -160,7 +161,7 @@ const check = (passed, name, detail = '') => {
   await taskDialog.locator('[data-dlg="title"]').fill('Tarefa para desfazer');
   await taskDialog.locator('button[type="submit"][form="dlgform"]').click();
   await taskDialog.waitFor({ state: 'detached' });
-  await page.locator('.nav a[href="#planejar"]').click();
+  await page.locator('.nav a[href="/planejar"]').click();
   const taskCheck = page.getByRole('checkbox', { name: 'Concluir: Tarefa para desfazer' });
   await taskCheck.click();
   check(await page.getByRole('status').filter({ hasText: 'Tarefa concluída.' }).count() === 1, 'conclusão de tarefa oferece desfazer');
@@ -254,7 +255,7 @@ const check = (passed, name, detail = '') => {
   await cycleMenuToggle.check();
   if (!cycleWasEnabled || !cycleWasVisible) await page.locator('[data-settings-save-button]').click();
   await page.setViewportSize({ width: 1440, height: 900 });
-  const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="#ciclo"]');
+  const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="/ciclo"]');
   await cycleSidebarLink.waitFor({ state: 'visible' });
   check(await cycleSidebarLink.isVisible(), 'Ciclo ativo aparece como link direto na barra lateral desktop');
   const sidebarHeaderActions = await page.locator('.app > .topbar .header-actions').evaluate((actions) => ({
@@ -271,8 +272,8 @@ const check = (passed, name, detail = '') => {
         ? 'criar'
         : item.getAttribute('href'))
   ));
-  check(sidebarItemOrder[0] === '#inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
-  const sidebarHabitsIndex = sidebarItemOrder.indexOf('#habitos');
+  check(sidebarItemOrder[0] === '/inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
+  const sidebarHabitsIndex = sidebarItemOrder.indexOf('/habitos');
   const sidebarCreateIndex = sidebarItemOrder.indexOf('criar');
   check(sidebarHabitsIndex < 0 || sidebarCreateIndex > sidebarHabitsIndex,
     'Criar aparece depois de Hábitos na barra lateral', sidebarItemOrder.join(', '));
@@ -290,14 +291,14 @@ const check = (passed, name, detail = '') => {
     window.__appRootObserver.observe(document.querySelector('#app'), { childList: true });
   });
   const rendersBeforeRouteChange = await page.evaluate(() => window.__appRootMutations);
-  await page.locator('.app > .topbar .nav a[href="#inicio"]').click();
+  await page.locator('.app > .topbar .nav a[href="/inicio"]').click();
   await page.locator('.main[data-route="inicio"]').waitFor();
   await page.waitForTimeout(100);
   const routeRenderCount = await page.evaluate((before) => window.__appRootMutations - before, rendersBeforeRouteChange);
   check(routeRenderCount === 1, 'trocar de tela renderiza o shell uma única vez', String(routeRenderCount));
   await page.evaluate(() => window.__appRootObserver.disconnect());
-  for (const [hash, route] of [['#inicio', 'inicio'], ['#planejar', 'planejar']]) {
-    await page.locator(`.topbar .nav a[href="${hash}"]`).click();
+  for (const [path, route] of [['/inicio', 'inicio'], ['/planejar', 'planejar']]) {
+    await page.locator(`.topbar .nav a[href="${path}"]`).click();
     await page.locator(`.main[data-route="${route}"]`).waitFor();
     sidebarAfterRouteChanges.push(await page.locator('.app > .topbar').evaluate((sidebar) => {
       const bounds = sidebar.getBoundingClientRect();

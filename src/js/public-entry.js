@@ -1,16 +1,26 @@
 import {
-  accountHashForMode,
-  isPublicAccountHash,
-  isPublicLandingHash,
+  accountPathForMode,
+  canonicalPublicPath,
+  isDemoLocation,
+  isPublicAccountLocation,
+  isPublicLandingLocation,
 } from './core/router.js';
 import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } from './features/appearance/public-controls.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
-import { isAppInstalled, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
+if (isNativeApp()) {
+  void import('./services/native-auth.js')
+    .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
+    .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
+  void import('./services/pomodoro-push.js')
+    .catch((error) => console.error('O Aurora não conseguiu preparar as notificações nativas.', error));
+}
 const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
 const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));
 let publicPwaCleanup = () => {};
@@ -94,16 +104,21 @@ async function loadApplication(mode = 'login') {
   stopLandingDemo(root);
   const url = new URL(location.href);
   url.searchParams.delete('aurora-account-mode');
-  const hash = accountHashForMode(mode === 'signup' ? 'signup-profile' : mode);
-  if (!hash) throw new Error('A rota pública da conta é inválida.');
-  url.hash = hash;
-  history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  const path = accountPathForMode(mode === 'signup' ? 'signup-profile' : mode);
+  if (!path) throw new Error('A rota pública da conta é inválida.');
+  const target = new URL(path, url.origin);
+  url.pathname = target.pathname;
+  url.hash = '';
+  url.searchParams.delete('etapa');
+  target.searchParams.forEach((value, key) => url.searchParams.set(key, value));
+  history.pushState(null, '', `${url.pathname}${url.search}`);
   await import('./main.js');
 }
 
 function startPublicPwaSupport() {
   if (!import.meta.env.PROD
     || import.meta.env.VITE_PWA_ENABLED === 'false'
+    || isNativeApp()
     || !('serviceWorker' in navigator)) return;
   let active = true;
   let cleanupRegistration = () => {};
@@ -196,17 +211,24 @@ if (!(root instanceof HTMLElement)) {
   throw new Error('O elemento principal do Aurora não está disponível.');
 }
 
+function normalizeLegacyRoute() {
+  const path = canonicalPublicPath(location);
+  if (path) history.replaceState(null, '', path);
+}
+
+normalizeLegacyRoute();
+
 const installedLanding = routeMeta
-  && location.hash !== '#demonstracao'
+  && !isDemoLocation(location)
   && isAppInstalled()
-  && isPublicLandingHash(location.hash);
+  && isPublicLandingLocation(location);
 if (installedLanding) {
-  history.replaceState(null, '', `${location.pathname}${location.search}#inicio`);
+  history.replaceState(null, '', `/inicio${location.search}`);
 }
 
 const publicEntryRoute = routeMeta && (
-  isPublicLandingHash(location.hash)
-  || isPublicAccountHash(location.hash)
+  isPublicLandingLocation(location)
+  || isPublicAccountLocation(location)
 );
 
 if (localPreview || !publicEntryRoute || installedLanding) {
@@ -215,24 +237,21 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     showEntryError(root);
   });
 } else {
-  if (location.hash === '#landing') {
-    history.replaceState(null, '', `${location.pathname}${location.search}`);
-  }
   initializePublicAppearance();
   initializeLegalDialogEvents();
-  let renderedPublicHash = null;
+  let renderedPublicPath = null;
   const renderPublicRoute = () => {
-    renderedPublicHash = location.hash;
-    if (location.hash === '#demonstracao') {
+    renderedPublicPath = `${location.pathname}${location.search}`;
+    if (isDemoLocation(location)) {
       renderLandingDemo(root);
       document.title = 'Demonstração | aurora.';
     } else {
       renderLanding(root);
-      document.title = 'aurora. — mais clareza para a sua rotina';
+      document.title = 'aurora. — planner semanal, hábitos e finanças em um só lugar';
     }
     updatePublicConnectionNotice();
   };
-  if (isPublicLandingHash(location.hash)) renderPublicRoute();
+  if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
     import('./main.js').catch((error) => {
       console.error('Aurora: não foi possível carregar a tela da conta.', error);
@@ -240,7 +259,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     });
   }
 
-  if (isPublicLandingHash(location.hash)) {
+  if (isPublicLandingLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
     window.addEventListener('online', updatePublicConnectionNotice);
@@ -253,7 +272,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     updatePublicConnectionNotice();
   }
 
-  const sessionRestore = isPublicLandingHash(location.hash) ? (async () => {
+  const sessionRestore = isPublicLandingLocation(location) ? (async () => {
     try {
       const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
         import('./services/account-auth.js'),
@@ -278,10 +297,11 @@ if (localPreview || !publicEntryRoute || installedLanding) {
   })() : Promise.resolve(false);
 
   const onPublicNavigation = () => {
-    if (isPublicLandingHash(location.hash)) {
-      if (renderedPublicHash === location.hash) return;
+    normalizeLegacyRoute();
+    if (isPublicLandingLocation(location)) {
+      if (renderedPublicPath === `${location.pathname}${location.search}`) return;
       renderPublicRoute();
-    } else if (isPublicAccountHash(location.hash) && !root.querySelector('form[data-account-mode]')) {
+    } else if (isPublicAccountLocation(location) && !root.querySelector('form[data-account-mode]')) {
       window.location.reload();
     }
   };
@@ -290,12 +310,24 @@ if (localPreview || !publicEntryRoute || installedLanding) {
 
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const action = event.target instanceof Element
-      ? event.target.closest('[data-public-action]')?.dataset.publicAction
+    const installAction = event.target instanceof Element
+      ? event.target.closest('[data-action="pwa-install"]')
       : null;
-    if (action === 'landing') {
+    if (installAction) {
+      showPwaInstallPrompt();
+      return;
+    }
+    const trigger = event.target instanceof Element ? event.target.closest('[data-public-action]') : null;
+    const action = trigger?.dataset.publicAction;
+    if (trigger instanceof HTMLAnchorElement) {
+      // Cliques com modificador seguem a navegação nativa (nova aba, nova janela).
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
+      if (trigger.getAttribute('aria-disabled') === 'true') return;
+    }
+    if (action === 'landing') {
       const url = new URL(location.href);
+      url.pathname = '/';
       url.hash = '';
       history.pushState(null, '', `${url.pathname}${url.search}`);
       renderPublicRoute();
@@ -310,10 +342,11 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     }
     if (action === 'demo') {
       const url = new URL(location.href);
-      url.hash = 'demonstracao';
-      history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      url.pathname = '/demonstracao';
+      url.hash = '';
+      history.pushState(null, '', `${url.pathname}${url.search}`);
       renderLandingDemo(root);
-      renderedPublicHash = location.hash;
+      renderedPublicPath = `${location.pathname}${location.search}`;
       document.title = 'Demonstração | aurora.';
       window.scrollTo(0, 0);
       updatePublicConnectionNotice();
@@ -321,10 +354,16 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     }
     if (action !== 'login' && action !== 'signup') return;
 
-    const buttons = [...root.querySelectorAll('[data-public-action]')].filter((button) => button instanceof HTMLButtonElement);
+    const buttons = [...root.querySelectorAll('[data-public-action="login"], [data-public-action="signup"], [data-public-action="demo"]')];
+    const setBusy = (control, busy) => {
+      if (control instanceof HTMLButtonElement) control.disabled = busy;
+      else if (busy) control.setAttribute('aria-disabled', 'true');
+      else control.removeAttribute('aria-disabled');
+    };
     buttons.forEach((button) => {
-      button.disabled = true;
+      setBusy(button, true);
       button.setAttribute('aria-busy', 'true');
+      if (button.dataset.publicAction === 'demo') return;
       const label = button.textContent?.trim();
       if (label && !button.dataset.defaultLabel) button.dataset.defaultLabel = label;
       if (button.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
@@ -339,7 +378,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       showEntryError(root);
     } finally {
       buttons.forEach((button) => {
-        button.disabled = false;
+        setBusy(button, false);
         button.removeAttribute('aria-busy');
         const defaultLabel = button.dataset.defaultLabel;
         if (defaultLabel) button.textContent = defaultLabel;

@@ -9,11 +9,14 @@ import { newId } from './utils/ids.js';
 import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
-  accountModeFromHash,
-  isPublicLandingHash,
+  accountModeFromLocation,
+  accountPathForMode,
+  isDemoLocation,
+  isPublicLandingLocation,
   postSignOutPath,
   redirectToPublicLanding,
-  resolveRoute,
+  routeFromLocation,
+  routePathFor,
   settingsRootPath,
 } from './core/router.js';
 import {
@@ -87,34 +90,48 @@ import {
   renderLegalDialog,
 } from './features/footer/view.js';
 
-let googleCalendarService = null;
+let googleCalendarServiceFactory = null;
 let googleCalendarServicePromise = null;
-function loadGoogleCalendarService() {
+function loadGoogleCalendarServiceFactory() {
   if (!googleCalendarServicePromise) {
     googleCalendarServicePromise = import('./services/google-calendar.js')
       .then(({ createGoogleCalendarService }) => {
-        googleCalendarService = createGoogleCalendarService();
-        return googleCalendarService;
+        googleCalendarServiceFactory = createGoogleCalendarService;
+        return googleCalendarServiceFactory;
       })
       .catch((error) => {
         googleCalendarServicePromise = null;
         throw error;
       });
+      window.addEventListener('aurora:push-notification', (event) => {
+        const kind = event.detail?.kind;
+        if (kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
+        else if (kind === 'pomodoro') toast('Uma nova fase do Pomodoro começou.');
+      });
   }
   return googleCalendarServicePromise;
 }
+let googleCalendarPendingService = null;
+let googleCalendarConnectionSequence = 0;
 const googleCalendar = {
   isConfigured: () => Boolean(import.meta.env?.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim()),
-  isConnected: () => googleCalendarService?.isConnected() || false,
-  isPrepared: () => googleCalendarService?.isPrepared() || false,
-  clear: () => googleCalendarService?.clear(),
-  prepare: async () => (await loadGoogleCalendarService()).prepare(),
-  authorize: () => {
-    if (!googleCalendarService) throw new Error('Prepare a conexão com o Google antes de autorizar.');
-    return googleCalendarService.authorize();
+  isConnected: () => ui.googleCalendar.accounts.some((account) => account.service.isConnected()),
+  isPrepared: () => googleCalendarPendingService?.isPrepared() || false,
+  clear: () => {
+    googleCalendarPendingService?.clear();
+    googleCalendarPendingService = null;
+    ui.googleCalendar.accounts.forEach((account) => account.service.clear());
   },
-  getCalendars: async () => (await loadGoogleCalendarService()).getCalendars(),
-  getEvents: async (...args) => (await loadGoogleCalendarService()).getEvents(...args),
+  prepare: async () => {
+    const createService = await loadGoogleCalendarServiceFactory();
+    googleCalendarPendingService = createService();
+    await googleCalendarPendingService.prepare();
+  },
+  authorize: () => {
+    if (!googleCalendarPendingService) throw new Error('Prepare a conexão com o Google antes de autorizar.');
+    return googleCalendarPendingService.authorize({ prompt: 'select_account' });
+  },
+  getEvents: async (account, ...args) => account.service.getEvents(...args),
 };
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
@@ -162,7 +179,8 @@ import {
   homeAreaColorValue,
 } from './features/home/personalization.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
-import { startPwaInstallPrompt } from './services/pwa-install.js';
+import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { isNativeApp } from './utils/platform.js';
 import {
   habitWeeklyTarget,
   habitWeekReview,
@@ -366,6 +384,17 @@ const BANKS = {
   sicredi: { name: 'Sicredi', logo: new URL('../assets/bank-logos/01181521.svg', import.meta.url).href },
   sicoob: { name: 'Sicoob', logo: new URL('../assets/bank-logos/02038232.svg', import.meta.url).href },
 };
+const findBankByName = (value, allowPrefix = false) => {
+  const query = norm(String(value || '').trim());
+  if (!query) return null;
+  const entries = Object.entries(BANKS);
+  return entries.find(([key, bank]) => norm(key) === query || norm(bank.name) === query)
+    || (allowPrefix ? entries.find(([, bank]) => norm(bank.name).startsWith(query)) : null)
+    || null;
+};
+const bankFieldValue = (value) => value === OTHER_BANK
+  ? 'Outro / não listado'
+  : Object.hasOwn(BANKS, value) ? BANKS[value].name : value || '';
 const AREAS = { pomodoro: ['Pomodoro', 'Timer para alternar blocos de foco e pausa'], finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
 const SEX = PROFILE_SEX;
 const hasRequiredProfile = (profile) => typeof profile?.name === 'string'
@@ -403,7 +432,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
   const announcer = document.createElement('div');
   announcer.id = 'notification-announcer';
@@ -456,11 +485,32 @@ function withoutRemovedStudyTrash(entries) {
 }
 function refreshSettingsSaveControls() {
   const dirty = settingsDraftDirty();
-  document.querySelectorAll('[data-settings-save-button]').forEach((button) => { button.disabled = !dirty; });
+  const saving = ui.settingsSaving || ui.profileSaving;
+  document.querySelectorAll('[data-settings-save-button]').forEach((button) => {
+    button.disabled = !dirty || saving;
+    button.textContent = saving ? 'Salvando...' : button.dataset.settingsSaveLabel || 'Salvar alterações';
+    button.setAttribute('aria-busy', String(saving));
+  });
   document.querySelectorAll('[data-settings-discard-button]').forEach((button) => {
-    button.disabled = !dirty;
+    button.disabled = !dirty || saving;
     button.hidden = !dirty;
   });
+  refreshUnsavedSettingsBanner();
+}
+function refreshUnsavedSettingsBanner() {
+  const banner = document.querySelector('.settings-unsaved-bar');
+  if (!banner) return;
+  const dirty = Boolean(ui.profileDraft || settingsDraftDirty());
+  const saving = ui.profileSaving || ui.settingsSaving;
+  banner.hidden = !dirty;
+  const discardButton = banner.querySelector('[data-action="profile-discard"]');
+  if (discardButton) discardButton.disabled = !dirty || saving;
+  const saveButton = banner.querySelector('[data-action="profile-save"]');
+  if (saveButton) {
+    saveButton.disabled = !dirty || saving;
+    saveButton.textContent = saving ? 'Salvando...' : 'Salvar alterações';
+    saveButton.setAttribute('aria-busy', String(saving));
+  }
 }
 function updateSettingsDraft(update, shouldRender = true) {
   if (!ui.settingsDraft) {
@@ -475,22 +525,84 @@ function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
 async function saveSettingsDraft() {
-  if (!settingsDraftDirty()) return;
-  const previousSettings = S.settings;
-  S.settings = normalizeSettings(settingsView());
-  if (!saveSlices('settings')) {
+  if (!settingsDraftDirty() || ui.settingsSaving || ui.profileSaving) return;
+  const previousSettings = cloneSettings(S.settings);
+  const draft = settingsView();
+  ui.settingsSaving = true;
+  render();
+  try {
+    S.settings = normalizeSettings(draft);
+    if (!saveSlices('settings')) {
+      S.settings = previousSettings;
+      return;
+    }
+    if (!ui.preview && !(await Persist.flush())) {
+      S.settings = previousSettings;
+      return;
+    }
+    ui.settingsDraft = null;
+    ui.settingsDraftBase = null;
+    toast(ui.preview
+      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
+      : 'Configurações salvas.');
+  } catch (error) {
+    console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
     S.settings = previousSettings;
+    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.');
+  } finally {
+    ui.settingsSaving = false;
     render();
+  }
+}
+async function saveProfileDraft() {
+  if (ui.profileSaving || ui.settingsSaving) return;
+  const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+  const ageInput = String(draft.age ?? '').trim();
+  const age = ageInput ? Number(ageInput) : null;
+  if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
+  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
+  if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
+    toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
+    $('#page')?.focus();
     return;
   }
-  ui.settingsDraft = null;
-  ui.settingsDraftBase = null;
+  const previousSettings = cloneSettings(S.settings);
+  ui.profileSaving = true;
   render();
-  if (await Persist.flush()) toast('Configurações salvas.');
+  try {
+    Object.assign(S.settings.profile, {
+      name: draft.name.trim().slice(0, 50),
+      preferredName: draft.preferredName.trim().slice(0, 50),
+      sex: draft.sex,
+      age,
+    });
+    S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
+    if (!saveSlices('settings')) {
+      S.settings = previousSettings;
+      toast('Não foi possível salvar as alterações. Tente novamente.');
+      return;
+    }
+    if (!ui.preview && !(await Persist.flush())) {
+      S.settings = previousSettings;
+      return;
+    }
+    ui.profileDraft = null;
+    toast(ui.preview
+      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
+      : 'Perfil salvo.');
+  } catch (error) {
+    S.settings = previousSettings;
+    console.error('Aurora: não foi possível salvar o perfil.', error);
+    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.');
+  } finally {
+    ui.profileSaving = false;
+    render();
+  }
 }
-function settingsSaveButton(label = 'Salvar') {
+function settingsSaveButton(label = 'Salvar alterações') {
   const dirty = settingsDraftDirty();
-  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button ${dirty ? '' : raw('disabled')}>${label}</button></div>`;
+  const saving = ui.settingsSaving || ui.profileSaving;
+  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty && !saving ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button data-settings-save-label="${label}" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : label}</button></div>`;
 }
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
@@ -1014,7 +1126,15 @@ const Persist = {
         const snapshot = this.pendingSnapshot;
         this.pendingSnapshot = null;
         try {
-          await this.store.save(snapshot, this.confirmedState);
+          let saveTimer = 0;
+          const saveTimeout = new Promise((_, reject) => {
+            saveTimer = setTimeout(() => reject(new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.')), 30000);
+          });
+          try {
+            await Promise.race([this.store.save(snapshot, this.confirmedState), saveTimeout]);
+          } finally {
+            clearTimeout(saveTimer);
+          }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
           syncState.pending.clear();
           syncState.failed.clear();
@@ -1303,7 +1423,7 @@ function purgeExpiredTrash() {
 /* Ícones: src/js/utils/icons.js */
 const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
-const configLink = () => h`<a class="inline-link" href="#config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
+const configLink = () => h`<a class="inline-link" href="/config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', pomodoro: 'Pomodoro', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
@@ -1311,7 +1431,7 @@ const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
-const brandLink = h`<a class="brand" href="#inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
+const brandLink = h`<a class="brand" href="/inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
 
 const notificationCount = () => Object.keys(ui.alerts).length;
 function updateDocumentTitle() {
@@ -1376,7 +1496,7 @@ function notificationsHtml() {
           : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
     </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos e avisos do Pomodoro aparecem aqui.</span></div>`}
     ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
-    ${canPauseReminders && (areaOn('habits') || areaOn('pomodoro')) ? h`<a class="notification-settings-link" href="${areaOn('habits') ? '#habitos' : '#pomodoro'}">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
+    ${canPauseReminders && (areaOn('habits') || areaOn('pomodoro')) ? h`<a class="notification-settings-link" href="${areaOn('habits') ? '/habitos' : '/pomodoro'}">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
   </section>`;
 }
 function closeNotifications(restoreFocus = true) {
@@ -1456,7 +1576,7 @@ function shell(body) {
   const secondaryItems = menuItems.slice(4);
   const hasActiveArea = Object.values(S.settings.areas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="#${id}" title="${label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
+  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" title="${label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
   const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
@@ -1477,13 +1597,13 @@ function shell(body) {
     <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="#config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="#config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
-        <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="#pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
+        <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="/pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
           <span class="pomodoro-mini-indicator" aria-hidden="true"></span>
           <span class="pomodoro-mini-copy"><b id="pomodoro-mini-phase">${standalonePomodoroPhaseName(timer.phase)} · ${timerRunning ? 'em andamento' : 'pausado'}</b><small id="pomodoro-mini-focus">${miniFocusLabel}</small></span>
           <span class="pomodoro-mini-clock" id="pomodoro-mini-clock" role="timer" aria-live="off">${clock(Math.max(0, timerDuration - timerElapsed))}</span>
@@ -1506,7 +1626,7 @@ function persistenceNotice() {
   let action;
   if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
     message = 'Alguns dados precisam de revisão; alterações estão bloqueadas para evitar perda.';
-    action = h`<a class="btn sm" href="#config?section=data">Revisar dados</a>`;
+    action = h`<a class="btn sm" href="/config?section=data">Revisar dados</a>`;
   } else if (syncState.conflicts.size) {
     message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
     action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar app</button>`;
@@ -1515,7 +1635,7 @@ function persistenceNotice() {
     action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
   } else {
     message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e backup.';
-    action = h`<a class="btn sm" href="#config?section=data">Ver dados e backup</a>`;
+    action = h`<a class="btn sm" href="/config?section=data">Ver dados e backup</a>`;
   }
   return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
@@ -1566,7 +1686,7 @@ function weeklyReviewView() {
         ? h`<p class="small muted weekly-plan-guidance">Para cada tarefa, mantenha a data, ajuste os detalhes ou adie por uma semana. O adiamento pode ser desfeito.</p><ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
         : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
     </section></div>
-    <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="#pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
+    <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="/pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
 }
 
@@ -1616,7 +1736,7 @@ function gate(area, name) {
 function areaNav(cur) {
   const items = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
   if (items.length < 2) return '';
-  return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="#${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
+  return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="/${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
 }
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
@@ -1845,6 +1965,7 @@ function watchPwaRegistration(registration) {
 function registerPwaSupport() {
   if (!import.meta.env.PROD
     || import.meta.env.VITE_PWA_ENABLED === 'false'
+    || isNativeApp()
     || !('serviceWorker' in navigator)) return Promise.resolve(null);
   if (!pwaSupportPromise) {
     pwaSupportPromise = (async () => {
@@ -1924,20 +2045,24 @@ function renderToast() {
 }
 function resetSettingsTabBeforeLeaving() {
   const path = settingsRootPath(location);
-  if (path) history.replaceState(null, '', path);
+  if (!path) return;
+  history.replaceState(null, '', path);
+  const url = new URL(path, location.href);
+  activeRouteLocationKey = `config?${url.search.slice(1)}`;
 }
 document.addEventListener('click', (event) => {
   if (ui.route !== 'config' || event.defaultPrevented || event.button !== 0
     || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
     || !(event.target instanceof Element)) return;
-  const link = event.target.closest('a[href^="#"]');
+  const link = event.target.closest('a[href^="/"]');
   if (!link || (link.target && link.target !== '_self')) return;
-  const targetRoute = link.hash.slice(1).split('?')[0];
-  if (Object.hasOwn(ROUTES, targetRoute) && targetRoute !== 'config') {
+  const targetRoute = routeFromLocation(new URL(link.href), new Set(Object.keys(ROUTES))).route;
+  if (targetRoute !== 'config') {
     resetSettingsTabBeforeLeaving();
   }
 }, true);
 let routeRenderFrame = null;
+let activeRouteLocationKey = null;
 function scheduleRouteRender() {
   if (routeRenderFrame !== null) return;
   routeRenderFrame = requestAnimationFrame(() => {
@@ -1950,13 +2075,24 @@ function hasUnsavedSettingsChanges() {
 }
 async function confirmLeavingSettingsRoute(route) {
   if (!hasUnsavedSettingsChanges()) return true;
-  const next = route.split('?')[0];
+  const next = routeFromLocation(new URL(route.startsWith('/') ? route : routePathFor(route), location.href), new Set(Object.keys(ROUTES))).route;
   if (ui.route === 'config' && next === 'config') return true;
   return await confirmInDialog('Sair sem salvar?');
 }
 function nav(route) {
-  if (ui.route === 'config' && route.split('?')[0] !== 'config') resetSettingsTabBeforeLeaving();
-  if (hasUnsavedSettingsChanges() && route.split('?')[0] !== ui.route) {
+  const requestedPath = route.startsWith('/') ? route : routePathFor(route);
+  const requestedUrl = new URL(requestedPath, location.href);
+  const nextRoute = routeFromLocation(requestedUrl, new Set(Object.keys(ROUTES))).route;
+  if (ui.route === 'config' && nextRoute !== 'config') resetSettingsTabBeforeLeaving();
+  const destinationUrl = new URL(requestedPath, location.href);
+  const preservedParams = new URLSearchParams(location.search);
+  ['section', 'weight', 'etapa'].forEach((key) => preservedParams.delete(key));
+  new URLSearchParams(destinationUrl.search).forEach((value, key) => preservedParams.set(key, value));
+  destinationUrl.search = preservedParams.toString();
+  const destination = `${destinationUrl.pathname}${destinationUrl.search}${destinationUrl.hash}`;
+  const currentPath = `${location.pathname}${location.search}`;
+  const nextPath = `${destinationUrl.pathname}${destinationUrl.search}`;
+  if (hasUnsavedSettingsChanges() && nextRoute !== ui.route) {
     void confirmLeavingSettingsRoute(route).then((confirmed) => {
       if (!confirmed) return;
       if (ui.profileDraft) ui.profileDraft = null;
@@ -1964,20 +2100,29 @@ function nav(route) {
         ui.settingsDraft = null;
         ui.settingsDraftBase = null;
       }
-      if (location.hash.slice(1) !== route) {
-        location.hash = route;
-      } else {
-        scheduleRouteRender();
-      }
+      history.pushState(null, '', destination);
+      onRoute();
     });
     return;
   }
-  if (location.hash.slice(1) !== route) {
-    location.hash = route;
+  if (currentPath !== nextPath) {
+    history.pushState(null, '', destination);
+    onRoute();
     return;
   }
   scheduleRouteRender();
 }
+document.addEventListener('click', (event) => {
+  if (event.defaultPrevented || event.button !== 0
+    || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey
+    || !(event.target instanceof Element)) return;
+  const link = event.target.closest('a[href^="/"]');
+  if (!link || link.dataset.action || link.download || (link.target && link.target !== '_self')) return;
+  const destinationUrl = new URL(link.href);
+  if (destinationUrl.origin !== location.origin) return;
+  event.preventDefault();
+  nav(`${destinationUrl.pathname}${destinationUrl.search}${destinationUrl.hash}`);
+}, true);
 function focusRouteTarget(id) {
   const target = document.getElementById(id);
   if (!target) return;
@@ -1990,16 +2135,14 @@ function onRoute() {
   const previousScroll = window.scrollY;
   ui.navigationOpen = false;
   ui.quickActionsOpen = false;
-  let r = location.hash.slice(1);
-  const queryIndex = r.indexOf('?');
-  const query = queryIndex >= 0 ? r.slice(queryIndex + 1) : '';
-  if (queryIndex >= 0) r = r.slice(0, queryIndex);
-  if (!r && !ui.booted) {
-    r = document.querySelector('meta[name="aurora-route"]')?.content || 'inicio';
-    if (r !== 'inicio') history.replaceState(null, '', '#' + r);
-  }
+  const fallbackRoute = document.querySelector('meta[name="aurora-route"]')?.content || 'inicio';
+  const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
+  if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
+  const routeLocationKey = `${resolved.route}?${resolved.query}`;
+  if (wasBooted && routeLocationKey === activeRouteLocationKey) return;
+  activeRouteLocationKey = routeLocationKey;
   ui.booted = true;
-  const resolved = resolveRoute(r, new Set(Object.keys(ROUTES)));
+  const { query } = resolved;
   ui.route = resolved.route;
   const routeChanged = wasBooted && previousRoute !== ui.route;
   if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
@@ -2010,7 +2153,6 @@ function onRoute() {
       ? requestedSettingsTab
       : 'profile';
   }
-  if (resolved.replaceHash) history.replaceState(null, '', '#' + resolved.replaceHash);
   render();
   if (resolved.scrollTarget) requestAnimationFrame(() => focusRouteTarget(resolved.scrollTarget));
   if (targetFocus) {
@@ -2184,7 +2326,7 @@ async function syncHabitReminderSchedule() {
     if (reminders.length) await scheduleHabitPushReminders(reminders);
     else await cancelHabitPushReminders();
     ui.habitPushNotice = reminders.length
-      ? 'Lembretes atualizados. A entrega depende da rede, do serviço e das permissões do navegador.'
+      ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPomodoroPushStatus().native ? 'do dispositivo' : 'do navegador'}.`
       : 'Não há horários de lembrete ativos para enviar ao serviço.';
     return true;
   } catch (error) {
@@ -2354,7 +2496,7 @@ const backupReminder = () => {
     : S.settings.prefs.lastBackup
       ? `Seu último backup foi há ${status.days} dias.`
       : `Você usa o Aurora há ${status.days} dias e ainda não exportou um backup.`;
-  return h`<div class="notice backup-reminder" role="note">${icon('archive', 18)}<div class="grow"><b>Hora de guardar uma cópia</b><br><span class="small">${text} Os dados são sincronizados com sua conta; o backup é uma cópia independente.</span></div><a class="btn sm primary" href="#config?section=data">Fazer backup</a><button type="button" class="btn sm ghost" data-action="backup-reminder-dismiss">Agora não</button></div>`;
+  return h`<div class="notice backup-reminder" role="note">${icon('archive', 18)}<div class="grow"><b>Hora de guardar uma cópia</b><br><span class="small">${text} Os dados são sincronizados com sua conta; o backup é uma cópia independente.</span></div><a class="btn sm primary" href="/config?section=data">Fazer backup</a><button type="button" class="btn sm ghost" data-action="backup-reminder-dismiss">Agora não</button></div>`;
 };
 
 function homeNextAction() {
@@ -2405,7 +2547,7 @@ function homeNextAction() {
   const days = dayDiff(next.due, todayKey);
   const dueLabel = days < 0 ? `Vencida há ${Math.abs(days)} ${plural(Math.abs(days), 'dia', 'dias')}`
     : days === 0 ? 'Vence hoje' : `Vence em ${days} ${plural(days, 'dia', 'dias')}`;
-  return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('card', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">Fatura de ${accountDisplayName(next.account)}</h2><p>${dueLabel} · ${shortDate(next.due)}</p></div><a class="btn primary" href="#financas">Ver Finanças</a></section>`;
+  return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('card', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">Fatura de ${accountDisplayName(next.account)}</h2><p>${dueLabel} · ${shortDate(next.due)}</p></div><a class="btn primary" href="/financas">Ver Finanças</a></section>`;
 }
 
 function homeHabitCheckins() {
@@ -2416,7 +2558,7 @@ function homeHabitCheckins() {
   ));
   if (!scheduled.length) return '';
   return h`<section class="card home-habit-checkins" aria-labelledby="home-habits-title">
-    <div class="head"><h2 id="home-habits-title">Hábitos de hoje<i>.</i></h2><a class="btn ghost sm" href="#habitos">Ver hábitos</a></div>
+    <div class="head"><h2 id="home-habits-title">Hábitos de hoje<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
     <ul class="list">${scheduled.map((habit) => {
       const completed = habitCompletedFor(habit, today());
       const skipped = habitIsSkipped(habit, today(), today());
@@ -2483,27 +2625,27 @@ function viewInicio() {
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="#config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="/config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${sampleBanner()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
     <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
       <div class="home-primary">
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
-          <a href="#planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
-          <a href="#planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
-          <a href="#planejar" data-action="filter-inbox"><b>${inbox.length}</b><span>Tarefas sem data</span></a>
+          <a href="/planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
+          <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
+          <a href="/planejar" data-action="filter-inbox"><b>${inbox.length}</b><span>Tarefas sem data</span></a>
         </section>` : ''}
         ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title" ${raw(homeBlockStyle('quick'))}>
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
           <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
         </section>` : ''}
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins()}</div>` : ''}
-        ${showHomeBlock('today') ? h`<section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="#planejar">Ver planejamento</a></div></div>
+        ${showHomeBlock('today') ? h`        <section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map(taskRow)}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map(taskRow)}</ul></section>` : ''}
             ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="#planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
+          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="/planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
         ${homeNextAction()}
       </div>
@@ -2571,11 +2713,11 @@ function plansHtml() {
 function taskCalendar() {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
   const eventsByDay = new Map();
-  (googleCalendar.isConnected() ? ui.googleCalendar.events : []).forEach((event) => {
+  connectedGoogleCalendarAccounts().forEach((account) => account.events.forEach((event) => {
     const dayEvents = eventsByDay.get(event.day) || [];
     dayEvents.push(event);
     eventsByDay.set(event.day, dayEvents);
-  });
+  }));
   const wd = Array.from({ length: 7 }, (_, i) => DIAS[(ws + i) % 7]);
   const by = {}; S.tasks.forEach((t) => { if (t.dueDate && t.dueDate.startsWith(ym) && !(t.done && ui.filters.f === 'pendentes')) (by[t.dueDate] = by[t.dueDate] || []).push(t); });
   const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
@@ -2583,7 +2725,7 @@ function taskCalendar() {
     const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done), dayEvents = eventsByDay.get(k) || [];
     const labels = [
       `${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
-      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} do Google Calendar`] : []),
+      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} das agendas conectadas`] : []),
     ];
     const markers = [
       pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : '',
@@ -2594,13 +2736,13 @@ function taskCalendar() {
   const day = S.tasks.filter((t) => t.dueDate === ui.taskDay).sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
   const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    ${googleCalendarPanel()}
-    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos do Google">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
-    ${googleCalendar.isConnected() ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
+    ${googleCalendarPlanPanel()}
+    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
+    ${connectedGoogleCalendarAccounts().length ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
       <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
       ${selectedEvents.length
-        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName}</small></span></li>`)}</ul>`
-        : h`<p class="small muted">Nenhum evento do Google Calendar neste dia.</p>`}
+        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`
+        : h`<p class="small muted">Nenhum evento das agendas conectadas neste dia.</p>`}
     </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
       ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul>` : h`<p class="small muted">Nada marcado para este dia.</p>`}
@@ -2622,38 +2764,51 @@ function taskWeek() {
     </section>`)}</div>
   </div>`;
 }
-function googleCalendarPanel() {
+function googleCalendarPlanPanel() {
+  const accounts = connectedGoogleCalendarAccounts();
+  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
+    <div class="head"><div><h3 id="google-calendar-title">Agendas conectadas</h3><span class="badge">Somente leitura</span></div><a class="btn sm" href="/config?section=calendars">Gerenciar agendas</a></div>
+    <p class="small muted">${accounts.length
+      ? `${accounts.length} ${accounts.length === 1 ? 'conta Google conectada' : 'contas Google conectadas'}. Os eventos ficam disponíveis junto às tarefas enquanto esta aba estiver aberta.`
+      : 'Conecte uma ou mais contas Google em Ajustes para ver os eventos junto às suas tarefas.'}</p>
+  </section>`;
+}
+function googleCalendarSettingsPanel() {
   const state = ui.googleCalendar;
   const configured = googleCalendar.isConfigured();
-  const connected = googleCalendar.isConnected();
   const prepared = googleCalendar.isPrepared();
-  const busy = ['loading-sdk', 'authorizing', 'loading-calendars', 'loading-events'].includes(state.status);
-  const expired = ['connected', 'error', 'loading-events'].includes(state.status) && !connected;
-  const selected = new Set(state.selectedIds);
+  const busy = ['loading-sdk', 'authorizing', 'loading-calendars'].includes(state.status);
   const statusText = {
     'loading-sdk': 'Preparando a autorização segura do Google…',
     authorizing: 'Aguardando sua autorização do Google…',
     'loading-calendars': 'Carregando seus calendários…',
-    'loading-events': 'Buscando eventos deste mês…',
   }[state.status];
-  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
+  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-settings-title">
     <div class="head">
-      <div><h3 id="google-calendar-title">Google Calendar</h3><span class="badge">Somente leitura</span></div>
-      ${connected ? h`<div class="row"><button type="button" class="btn sm" data-action="google-calendar-refresh" ${busy ? raw('disabled') : ''}>Atualizar</button><button type="button" class="btn sm ghost" data-action="google-calendar-disconnect">Parar de mostrar eventos</button></div>` : ''}
+      <div><h2 id="google-calendar-settings-title">Google Calendar<i>.</i></h2><span class="badge">Somente leitura</span></div>
     </div>
-    <p class="small muted">Mostra eventos no calendário do Planejar. O Aurora não cria, altera nem salva eventos; a autorização e os eventos ficam somente nesta aba.</p>
+    <p class="small muted">Conecte várias contas Google e escolha quais calendários aparecem em Planejar. O Aurora não cria nem altera eventos. Autorizações e eventos ficam somente nesta aba e precisam ser conectados novamente depois de recarregar ou fechar a página.</p>
     ${!configured ? h`<p class="small" role="alert">Integração indisponível: configure <code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code> neste ambiente.</p>` : ''}
-    ${configured && !connected && !prepared && !busy ? h`<button type="button" class="btn" data-action="google-calendar-prepare">${state.status === 'error' ? 'Tentar novamente' : 'Conectar Google Calendar'}</button>` : ''}
-    ${configured && prepared && !connected && !busy ? h`<button type="button" class="btn primary" data-action="google-calendar-authorize">Autorizar leitura do Google Calendar</button>` : ''}
-    ${expired ? h`<p class="small muted" role="status">A autorização expirou ou foi revogada. Autorize novamente para voltar a exibir os eventos.</p>` : ''}
+    ${configured && !prepared && !busy ? h`<button type="button" class="btn" data-action="google-calendar-prepare">${state.status === 'error' ? 'Tentar novamente' : 'Adicionar conta Google'}</button>` : ''}
+    ${configured && prepared && !busy ? h`<button type="button" class="btn primary" data-action="google-calendar-authorize">Autorizar acesso do Google Calendar</button>` : ''}
     ${statusText ? h`<p class="small muted" role="status" aria-live="polite">${statusText}</p>` : ''}
     ${state.error ? h`<p class="small google-calendar-error" role="alert">${state.error}</p>` : ''}
-    ${connected && state.calendars.length ? h`<div class="google-calendar-sources" aria-label="Calendários incluídos">
-      <span class="small muted">Calendários exibidos</span>
-      ${state.calendars.map((calendar) => h`<button type="button" class="google-calendar-source" data-action="google-calendar-toggle" data-calendar-id="${calendar.id}" aria-pressed="${selected.has(calendar.id)}" ${busy ? raw('disabled') : ''}>${selected.has(calendar.id) ? icon('check', 15) : icon('plus', 15)}<span>${calendar.name}${calendar.primary ? ' · principal' : ''}</span></button>`)}
-    </div>` : ''}
-    ${connected && !state.calendars.length && !busy ? h`<p class="small muted">Nenhum calendário com eventos disponíveis foi encontrado.</p>` : ''}
-    ${connected ? h`<p class="fine">O acesso expira ao fechar a aba ou quando o Google o revoga. Para remover a permissão concedida, gerencie o Aurora nas <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">permissões da sua Conta Google</a>.</p>` : ''}
+    ${state.accounts.length ? h`<div class="google-calendar-accounts" aria-label="Contas Google conectadas">${state.accounts.map((account) => {
+      const selected = new Set(account.selectedIds);
+      const connected = account.service.isConnected();
+      return h`<section class="google-calendar-account" aria-labelledby="google-calendar-account-${account.id}">
+        <div class="head"><div><h3 id="google-calendar-account-${account.id}">${account.label}</h3><span class="badge">${connected ? 'Conectada' : 'Acesso expirado · remova e adicione novamente'}</span></div>
+          <div class="row"><button type="button" class="btn sm" data-action="google-calendar-refresh" data-account-id="${account.id}" ${!connected || account.status === 'loading-events' ? raw('disabled') : ''}>Atualizar</button><button type="button" class="btn sm ghost" data-action="google-calendar-disconnect" data-account-id="${account.id}">Desconectar</button></div>
+        </div>
+        ${account.error ? h`<p class="small google-calendar-error" role="alert">${account.error}</p>` : ''}
+        ${account.status === 'loading-events' ? h`<p class="small muted" role="status">Buscando eventos deste mês…</p>` : ''}
+        ${account.calendars.length ? h`<div class="google-calendar-sources" aria-label="Calendários de ${account.label}">
+          <span class="small muted">Calendários exibidos</span>
+          ${account.calendars.map((calendar) => h`<button type="button" class="google-calendar-source" data-action="google-calendar-toggle" data-account-id="${account.id}" data-calendar-id="${calendar.id}" aria-pressed="${selected.has(calendar.id)}" ${!connected || busy || account.status === 'loading-events' ? raw('disabled') : ''}>${selected.has(calendar.id) ? icon('check', 15) : icon('plus', 15)}<span>${calendar.name}${calendar.primary ? ' · principal' : ''}</span></button>`)}
+        </div>` : ''}
+      </section>`;
+    })}</div>` : ''}
+    <p class="fine">Para remover uma permissão concedida ao Aurora, gerencie o acesso nas <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">permissões da sua Conta Google</a>.</p>
   </section>`;
 }
 function googleCalendarRange(month) {
@@ -2666,71 +2821,110 @@ function googleCalendarRange(month) {
 function resetGoogleCalendarState() {
   googleCalendar.clear();
   ui.googleCalendar.requestId += 1;
-  ui.googleCalendar = { status: 'disconnected', calendars: [], selectedIds: [], events: [], error: '', loadedMonth: '', requestId: ui.googleCalendar.requestId };
+  ui.googleCalendar = { status: 'disconnected', accounts: [], error: '', requestId: ui.googleCalendar.requestId };
 }
-async function loadGoogleCalendarEvents() {
+function connectedGoogleCalendarAccounts() {
+  const accounts = [];
+  ui.googleCalendar.accounts.forEach((account) => {
+    if (account.service.isConnected()) accounts.push(account);
+    else if (account.events.length) {
+      account.events = [];
+      account.loadedMonth = '';
+      account.status = 'disconnected';
+    }
+  });
+  return accounts;
+}
+async function loadGoogleCalendarEvents(accountIds = connectedGoogleCalendarAccounts().map((account) => account.id)) {
   const state = ui.googleCalendar;
   const month = ui.taskCal;
   const requestId = ++state.requestId;
-  if (!googleCalendar.isConnected()) {
-    state.status = 'disconnected';
-    state.events = [];
-    state.error = 'A autorização expirou ou foi revogada. Conecte novamente para continuar.';
-    state.loadedMonth = '';
-    render();
-    return;
-  }
-  const selectedIds = state.selectedIds.filter((id) => state.calendars.some((calendar) => calendar.id === id));
-  state.error = '';
-  state.events = [];
-  state.loadedMonth = '';
-  state.status = 'loading-events';
+  const accounts = connectedGoogleCalendarAccounts().filter((account) => accountIds.includes(account.id));
+  accounts.forEach((account) => {
+    account.events = [];
+    account.loadedMonth = '';
+    account.error = '';
+    account.status = 'loading-events';
+  });
   render();
-  if (!selectedIds.length) {
-    state.status = 'connected';
-    state.loadedMonth = month;
-    render();
-    return;
-  }
-
-  try {
-    const events = await googleCalendar.getEvents(selectedIds, googleCalendarRange(month));
-    if (ui.googleCalendar.requestId !== requestId || ui.taskCal !== month) return;
-    const names = new Map(state.calendars.map((calendar) => [calendar.id, calendar.name]));
-    state.events = events.map((event) => ({ ...event, calendarName: names.get(event.calendarId) || 'Google Calendar' }));
-    state.loadedMonth = month;
-    state.status = 'connected';
-    render();
-  } catch (error) {
-    if (ui.googleCalendar.requestId !== requestId) return;
-    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
-    state.error = error instanceof Error ? error.message : 'Não foi possível carregar os eventos do Google Calendar.';
-    render();
-  }
+  const range = googleCalendarRange(month);
+  const results = await Promise.all(accounts.map(async (account) => {
+    if (!account.selectedIds.length) return { account, events: [] };
+    try {
+      const events = await googleCalendar.getEvents(account, account.selectedIds, range);
+      return { account, events };
+    } catch (error) {
+      return {
+        account,
+        error: error instanceof Error ? error.message : 'Não foi possível carregar os eventos deste calendário.',
+      };
+    }
+  }));
+  if (state !== ui.googleCalendar || state.requestId !== requestId || ui.taskCal !== month) return;
+  results.forEach(({ account, events, error }) => {
+    if (error) {
+      account.status = account.service.isConnected() ? 'error' : 'disconnected';
+      account.error = error;
+      account.events = [];
+      return;
+    }
+    const names = new Map(account.calendars.map((calendar) => [calendar.id, calendar.name]));
+    account.events = events.map((event) => ({
+      ...event,
+      accountLabel: account.label,
+      calendarName: names.get(event.calendarId) || 'Google Calendar',
+    }));
+    account.loadedMonth = month;
+    account.status = 'connected';
+  });
+  render();
 }
 async function loadGoogleCalendarList() {
   const state = ui.googleCalendar;
+  const service = googleCalendarPendingService;
+  if (!service) throw new Error('A autorização do Google foi perdida. Inicie a conexão novamente.');
   const requestId = ++state.requestId;
   state.status = 'loading-calendars';
   state.error = '';
   render();
   try {
-    const calendars = await googleCalendar.getCalendars();
-    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    const calendars = await service.getCalendars();
+    if (ui.googleCalendar !== state || state.requestId !== requestId || googleCalendarPendingService !== service) return;
     if (!calendars.length) throw new Error('Nenhum calendário com permissão de leitura foi encontrado.');
-    state.calendars = calendars;
-    const primary = calendars.filter((calendar) => calendar.primary).map((calendar) => calendar.id);
-    state.selectedIds = primary.length
-      ? primary
+    const primary = calendars.find((calendar) => calendar.primary);
+    const accountIdentity = primary?.id || '';
+    if (accountIdentity && state.accounts.some((account) => account.identity === accountIdentity)) {
+      throw new Error('Esta conta Google já está conectada nesta aba.');
+    }
+    const primaryIds = calendars.filter((calendar) => calendar.primary).map((calendar) => calendar.id);
+    const selectedIds = primaryIds.length
+      ? primaryIds
       : calendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
-    if (!state.selectedIds.length) state.selectedIds = [calendars[0].id];
+    if (!selectedIds.length) selectedIds.push(calendars[0].id);
+    const account = {
+      id: String(++googleCalendarConnectionSequence),
+      identity: accountIdentity,
+      label: accountIdentity.includes('@') ? accountIdentity : `Conta Google ${state.accounts.length + 1}`,
+      service,
+      calendars,
+      selectedIds,
+      events: [],
+      error: '',
+      status: 'connected',
+      loadedMonth: '',
+    };
+    state.accounts.push(account);
+    googleCalendarPendingService = null;
     state.status = 'connected';
+    state.error = '';
     render();
-    await loadGoogleCalendarEvents();
+    await loadGoogleCalendarEvents([account.id]);
   } catch (error) {
     if (ui.googleCalendar !== state || state.requestId !== requestId) return;
-    state.status = googleCalendar.isConnected() ? 'error' : 'disconnected';
+    state.status = 'error';
     state.error = error instanceof Error ? error.message : 'Não foi possível carregar seus calendários do Google.';
+    service.clear();
+    if (googleCalendarPendingService === service) googleCalendarPendingService = null;
     render();
   }
 }
@@ -2776,13 +2970,23 @@ function authorizeGoogleCalendar() {
     render();
   });
 }
-function toggleGoogleCalendar(id) {
-  const state = ui.googleCalendar;
-  if (!googleCalendar.isConnected() || !state.calendars.some((calendar) => calendar.id === id)) return;
-  state.selectedIds = state.selectedIds.includes(id)
-    ? state.selectedIds.filter((selectedId) => selectedId !== id)
-    : [...state.selectedIds, id];
+function toggleGoogleCalendar(accountId, calendarId) {
+  const account = ui.googleCalendar.accounts.find((item) => item.id === accountId);
+  if (!account?.service.isConnected() || !account.calendars.some((calendar) => calendar.id === calendarId)) return;
+  account.selectedIds = account.selectedIds.includes(calendarId)
+    ? account.selectedIds.filter((id) => id !== calendarId)
+    : [...account.selectedIds, calendarId];
+  void loadGoogleCalendarEvents([account.id]);
+}
+function disconnectGoogleCalendar(accountId) {
+  const index = ui.googleCalendar.accounts.findIndex((account) => account.id === accountId);
+  if (index < 0) return;
+  const [account] = ui.googleCalendar.accounts.splice(index, 1);
+  account.service.clear();
+  ui.googleCalendar.requestId += 1;
+  render();
   void loadGoogleCalendarEvents();
+  toast('A conta foi desconectada desta aba.');
 }
 function viewPlanejar() {
   const f = ui.filters;
@@ -2812,7 +3016,7 @@ function viewPlanejar() {
         <div><dt>Próximos 7 dias</dt><dd>${upcomingCount}</dd></div>
       </dl>
     </section>
-    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button><a href="#pomodoro">${icon('clock', 16)}Usar Pomodoro</a></section>
+    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button><a href="/pomodoro">${icon('clock', 16)}Usar Pomodoro</a></section>
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
       <div class="seg" role="group" aria-label="Modo de visualização"><button type="button" aria-pressed="${ui.planView === 'lista'}" data-action="plan-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.planView === 'calendario'}" data-action="plan-view" data-v="calendario">${icon('calendar', 16)}Calendário</button><button type="button" aria-pressed="${ui.planView === 'semana'}" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Semana</button><button type="button" aria-pressed="${ui.planView === 'revisao'}" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Revisão</button></div>
       ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
@@ -3064,7 +3268,7 @@ function viewPomodoro() {
           <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p><p class="small muted">A inscrição é compartilhada com Hábitos: este controle ativa ou desativa os avisos de ambos neste dispositivo.</p></div>
           <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
           <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe a inscrição <span class="case-preserve">Push</span> e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o navegador pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
+          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe o token de notificação e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o sistema pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
         </div>
     </details>
     ${pomodoroHistoryCard(timer)}`;
@@ -3084,7 +3288,7 @@ function areaTiles() {
   const defs = [['pomodoro', 'clock'], ['finances', 'wallet'], ['cycle', 'heart']]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
-  return h`<div class="head"><h2 id="ar">Áreas opcionais<i>.</i></h2><a class="btn ghost sm" href="#config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
+  return h`<div class="head"><h2 id="ar">Áreas opcionais<i>.</i></h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
 }
 
 /* ---------- Ciclo ---------- */
@@ -3286,8 +3490,8 @@ function aparencia(s) {
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
     ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
     ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('pomodoro') ? '#pomodoro' : '#config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
-      <a class="btn" href="${areaOn('habits') ? '#habitos' : '#config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+      <a class="btn" href="${areaOn('pomodoro') ? '/pomodoro' : '/config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
+      <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
     </div>`) }
     ${settingsSaveButton()}
   </form>`;
@@ -3366,13 +3570,18 @@ const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'pers
 const settingsTabId = (id) => LEGACY_SETTINGS_TABS[id] || id;
 const SETTINGS_SECTIONS = [
   ['profile', 'Seu perfil', 'user', 'Nome, saudação e idade'],
-  ['personalization', 'Personalização', 'sun', 'Tema, cores e leitura'],
-  ['areas-navigation', 'Áreas e navegação', 'grid', 'Ativar áreas e ordenar menu'],
+  ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
+  ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
+  ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
+  ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
-  { label: 'Preferências', items: ['profile', 'personalization', 'areas-navigation', 'data'] },
+  { label: 'Perfil', items: ['profile'] },
+  { label: 'Aplicativo', items: ['personalization', 'home', 'areas-navigation'] },
+  { label: 'Dados', items: ['data'] },
+  { label: 'Conexões', items: ['calendars'] },
   { label: 'Conta', items: ['account'] },
 ];
 function homeLayoutSettings(s) {
@@ -3402,7 +3611,7 @@ function areasNavigationSettings(s) {
   const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
-    <div class="head areas-navigation-head"><h2>Áreas e navegação<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
+    <div class="head areas-navigation-head"><h2>Áreas e menu<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
     <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
     <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
     <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
@@ -3428,6 +3637,12 @@ function areasNavigationSettings(s) {
         </span>
       </li>`;
     })}</ol>
+    ${settingsSaveButton()}
+  </form>`;
+}
+function homeSettings(s) {
+  s = settingsView();
+  return h`<form class="card home-settings" data-form="settings-save">
     ${homeLayoutSettings(s)}
     ${settingsSaveButton()}
   </form>`;
@@ -3839,8 +4054,10 @@ function settingsStorageNotice(selectedTab) {
 function settingsSectionContent(s, p, selectedTab) {
   switch (selectedTab) {
     case 'personalization': return aparencia(s);
+    case 'home': return homeSettings(s);
     case 'areas-navigation': return areasNavigationSettings(s);
     case 'data': return dataSettings(p);
+    case 'calendars': return googleCalendarSettingsPanel();
     case 'account': return accountSettings(s);
     default: return profileSettings(s);
   }
@@ -3848,13 +4065,13 @@ function settingsSectionContent(s, p, selectedTab) {
 function unsavedSettingsBanner() {
   const hasProfile = Boolean(ui.profileDraft);
   const hasOtherChanges = settingsDraftDirty();
-  if (!hasProfile && !hasOtherChanges) return '';
-  const mobile = window.matchMedia('(max-width: 760px)').matches;
-  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas">
-    <span>${mobile ? 'Alterações não salvas' : 'Você tem alterações não salvas'}</span>
+  const dirty = hasProfile || hasOtherChanges;
+  const saving = ui.profileSaving || ui.settingsSaving;
+  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas" ${dirty ? '' : raw('hidden')}>
+    <span>Alterações não salvas</span>
     <div class="settings-unsaved-actions">
-      <button type="button" class="btn sm back" data-action="profile-discard">Descartar</button>
-      <button type="button" class="btn sm primary" data-action="profile-save" ${ui.profileSaving ? raw('disabled') : ''}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+      <button type="button" class="btn back" data-action="profile-discard" ${dirty && !saving ? '' : raw('disabled')}>Descartar alterações</button>
+      <button type="button" class="btn primary" data-action="profile-save" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : 'Salvar alterações'}</button>
     </div>
   </div>`;
 }
@@ -3867,7 +4084,7 @@ function viewConfig() {
     const section = SETTINGS_SECTIONS.find(([item]) => item === id);
     if (!section) return '';
     const [key, label, ic, description] = section;
-    return h`<a class="settings-link" href="#config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
+    return h`<a class="settings-link" href="/config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
   })}</div>`);
   return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}${unsavedSettingsBanner()}
     <div class="settings-layout">
@@ -4644,7 +4861,7 @@ const ACTIONS = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
   'pwa-install': () => {
-    startPwaInstallPrompt();
+    showPwaInstallPrompt();
   },
   'pwa-update-dismiss': () => {
     ui.pwaUpdateDismissed = true;
@@ -4688,7 +4905,10 @@ const ACTIONS = {
   },
   'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
   'quick-action-pomodoro': () => { ui.quickActionsOpen = false; nav('pomodoro'); },
-  'areas-nav-open': () => nav('config?section=areas-navigation'),
+  'areas-nav-open': (_, event) => {
+    event.preventDefault();
+    nav('config?section=areas-navigation');
+  },
   'area-guide-open': (el) => {
     const route = el.dataset.areaGuide;
     if (!AREA_GUIDES[route]) {
@@ -4713,14 +4933,9 @@ const ACTIONS = {
     render();
     toast('Alterações descartadas.');
   },
-  'profile-save': () => {
-    if (ui.profileDraft) {
-      void ACTIONS['settings-profile']();
-      return;
-    }
-    if (settingsDraftDirty()) {
-      void saveSettingsDraft();
-    }
+  'profile-save': async () => {
+    if (ui.profileDraft) await saveProfileDraft();
+    if (!ui.profileDraft && settingsDraftDirty()) await saveSettingsDraft();
   },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
@@ -4881,21 +5096,20 @@ const ACTIONS = {
     if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
     ui.planView = el.dataset.v;
     render();
-    if (ui.planView === 'calendario' && googleCalendar.isConnected()
-      && ui.googleCalendar.loadedMonth !== ui.taskCal) void loadGoogleCalendarEvents();
+    if (ui.planView === 'calendario') {
+      const staleAccounts = connectedGoogleCalendarAccounts()
+        .filter((account) => account.loadedMonth !== ui.taskCal)
+        .map((account) => account.id);
+      if (staleAccounts.length) void loadGoogleCalendarEvents(staleAccounts);
+    }
   },
   'google-calendar-prepare': () => prepareGoogleCalendar(),
   'google-calendar-authorize': () => authorizeGoogleCalendar(),
-  'google-calendar-refresh': () => {
-    if (ui.googleCalendar.calendars.length) void loadGoogleCalendarEvents();
-    else void loadGoogleCalendarList();
+  'google-calendar-refresh': (el) => {
+    if (el.dataset.accountId) void loadGoogleCalendarEvents([el.dataset.accountId]);
   },
-  'google-calendar-toggle': (el) => toggleGoogleCalendar(el.dataset.calendarId),
-  'google-calendar-disconnect': () => {
-    resetGoogleCalendarState();
-    render();
-    toast('Os eventos deixaram de aparecer nesta aba. Se quiser revogar a permissão, use as configurações da Conta Google.');
-  },
+  'google-calendar-toggle': (el) => toggleGoogleCalendar(el.dataset.accountId, el.dataset.calendarId),
+  'google-calendar-disconnect': (el) => disconnectGoogleCalendar(el.dataset.accountId),
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
   'weekly-keep-task': (el) => {
@@ -4961,8 +5175,10 @@ const ACTIONS = {
   },
   'tcal-month': (el) => {
     ui.taskCal = shiftMonth(ui.taskCal, Number(el.dataset.n));
-    ui.googleCalendar.events = [];
-    ui.googleCalendar.loadedMonth = '';
+    ui.googleCalendar.accounts.forEach((account) => {
+      account.events = [];
+      account.loadedMonth = '';
+    });
     ui.googleCalendar.requestId += 1;
     render();
     if (googleCalendar.isConnected()) void loadGoogleCalendarEvents();
@@ -5170,7 +5386,12 @@ const ACTIONS = {
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
     event.preventDefault();
     ui.settingsTab = tab;
-    history.replaceState(null, '', `${location.pathname}${location.search}#config?section=${encodeURIComponent(tab)}`);
+    const url = new URL(location.href);
+    url.pathname = '/config';
+    url.hash = '';
+    url.searchParams.set('section', tab);
+    history.replaceState(null, '', `${url.pathname}${url.search}`);
+    activeRouteLocationKey = `config?${url.search.slice(1)}`;
     render();
     const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
     selectedTab?.focus({ preventScroll: true });
@@ -5263,8 +5484,16 @@ const ACTIONS = {
     activatePomodoroAudio();
     playPomodoroSound(settingsView().prefs.pomodoro);
   },
-  'filter-inbox': () => { ui.filters.f = 'caixa'; },
-  'filter-overdue': () => { ui.filters.f = 'atrasadas'; },
+  'filter-inbox': (_, event) => {
+    event.preventDefault();
+    ui.filters.f = 'caixa';
+    nav('planejar');
+  },
+  'filter-overdue': (_, event) => {
+    event.preventDefault();
+    ui.filters.f = 'atrasadas';
+    nav('planejar');
+  },
   'enable-area': (el) => { if (setAreaEnabled(S.settings, el.dataset.area, true)) commit('settings'); },
   'clear-sample': () => {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
@@ -5583,8 +5812,7 @@ const ACTIONS = {
     ui.dlg = createDialog('wipe-complete', {});
     ui.dlgPending = null;
     resetSettingsTabBeforeLeaving();
-    location.hash = 'inicio';
-    render();
+    nav('inicio');
   },
   'wipe-home': () => { ui.dlg = null; render(); },
   'ob-theme': (el) => { ui.dlg.d.theme = el.dataset.v; render(); },
@@ -5676,6 +5904,7 @@ async function deleteAccountFromSettings(form) {
     } catch (error) {
       console.error('Aurora: a conta foi excluída, mas a inscrição Push local não foi removida.', error);
     }
+    intentionalSignOut = true;
     try {
       const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (error) console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', error);
@@ -5721,43 +5950,7 @@ const FORMS = {
     if (saved) toast('Tarefa adicionada para hoje.');
   },
   'settings-save': saveSettingsDraft,
-  'settings-profile': async () => {
-    if (ui.profileSaving) return;
-    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
-    const ageInput = String(draft.age ?? '').trim();
-    const age = ageInput ? Number(ageInput) : null;
-    if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
-    if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-    if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
-      toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
-      $('#page')?.focus();
-      return;
-    }
-    const previousSettings = cloneSettings(S.settings);
-    ui.profileSaving = true;
-    render();
-    try {
-      Object.assign(S.settings.profile, {
-        name: draft.name.trim().slice(0, 50),
-        preferredName: draft.preferredName.trim().slice(0, 50),
-        sex: draft.sex,
-        age,
-      });
-      S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
-      if (!saveSlices('settings')) {
-        S.settings = previousSettings;
-        render();
-        toast('Não foi possível salvar as alterações. Tente novamente.');
-        return;
-      }
-      ui.profileDraft = null;
-      render();
-      toast('Perfil salvo.');
-    } finally {
-      ui.profileSaving = false;
-      render();
-    }
-  },
+  'settings-profile': saveProfileDraft,
   'habit': (f, d) => {
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
@@ -6302,8 +6495,7 @@ document.addEventListener('input', (e) => {
       appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
     };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
-    const saveButton = $('#profile-settings-form [type="submit"]');
-    if (saveButton) saveButton.disabled = !ui.profileDraft;
+    refreshUnsavedSettingsBanner();
     const previewName = $('#profile-preview-name');
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
     const previewGreeting = $('#profile-preview-greeting');
@@ -6314,6 +6506,16 @@ document.addEventListener('input', (e) => {
       ui.dlg.d.waterGoalEdited = true;
     }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
+    if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
+      const bank = findBankByName(el.value, true);
+      const logo = $('#dlg [data-bank-preview-logo]');
+      const fallback = $('#dlg [data-bank-preview-fallback]');
+      if (logo && fallback) {
+        if (bank) logo.querySelector('img').src = bank[1].logo;
+        logo.hidden = !bank;
+        fallback.hidden = Boolean(bank);
+      }
+    }
     if (ui.dlg.type === 'payinv' && ['amount', 'times', 'interest'].includes(el.dataset.dlg)) {
       const preview = $('#dlg [data-pay-invoice-preview]');
       if (preview) preview.textContent = invoicePlanPreviewText(ui.dlg.d);
@@ -6652,7 +6854,19 @@ function filteredTx() {
     if (f === 'pendentes' ? isPaid(t) : (f !== 'todos' && t.type !== f)) return false;
     if (ui.finCat && t.category !== ui.finCat) return false;
     if (ui.finAcc && t.accountId !== ui.finAcc && t.toAccountId !== ui.finAcc) return false;
-    return !q || norm(t.desc || '').includes(q) || norm(t.category || '').includes(q);
+    if (!q) return true;
+    const accounts = [accById(t.accountId), accById(t.toAccountId)].filter(Boolean);
+    const searchTerms = [
+      t.desc,
+      t.category,
+      t.type === 'in' ? 'receita' : t.type === 'out' ? 'despesa' : 'transferência',
+      ...accounts.flatMap((account) => [
+        accountDisplayName(account),
+        accountTypeLabel(account),
+        bankFieldValue(account.bank),
+      ]),
+    ];
+    return searchTerms.some((term) => norm(term || '').includes(q));
   }).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
 }
 function txListHtml() {
@@ -6676,7 +6890,7 @@ function finLancList() {
   const st = monthStats(ui.finMonth);
   return h`${monthNav()}${finTools()}
     <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
-      <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Buscar" data-input="fin-search"></label>
+      <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
       <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
@@ -6879,24 +7093,14 @@ function dlgAccount() {
     savings: 'Dinheiro guardado e separado.',
     investment: 'Investimentos acompanhados junto ao saldo total.',
   };
-  const bankOption = (key, name) => {
-    const logo = key && Object.hasOwn(BANKS, key)
-      ? accountChip({ bank: key, type: 'checking' })
-      : catChip({ c: '#5fa68a', i: 'bank' });
-    return h`<label class="bank-choice"><input type="radio" name="account-bank" data-dlg="bank" value="${key}" ${d.bank === key ? raw('checked') : ''}><span class="bank-choice-icon">${logo}</span><span class="bank-choice-name">${name}</span></label>`;
-  };
-  const bankOptions = [
-    ...Object.entries(BANKS).map(([key, bank]) => [key, bank.name]),
-    ['', 'Não informar'],
-    [OTHER_BANK, 'Outro / não listado'],
-    ...(d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) ? [[d.bank, d.bank]] : []),
-  ];
+  const bankValue = bankFieldValue(d.bank);
+  const initialBank = findBankByName(bankValue, true);
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
       ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
-      <fieldset class="f full bank-field"><legend class="f-label">Banco ou instituição</legend><div class="bank-picker" role="radiogroup" aria-label="Banco ou instituição">${bankOptions.map(([key, name]) => bankOption(key, name))}</div></fieldset>
-      <p class="small muted full">O nome da conta pode ser personalizado. Os logotipos identificam as instituições; o Aurora não se conecta a bancos.</p>
+      ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field')}
+      <p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>
       ${card ? h`${dlgField('Conta para pagar a fatura (opcional)', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select>`, 'full')}<p class="small muted full">Essa conta será pré-selecionada no pagamento. Você ainda poderá escolher outra antes de confirmar.</p>` : ''}
       ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
       ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
@@ -7334,12 +7538,14 @@ Object.assign(FORMS, {
     if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.');
     const linkedAccount = d.type === 'credit' && d.linkedAccountId ? accById(d.linkedAccountId) : null;
     if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.');
-    if (d.bank && d.bank !== OTHER_BANK && !Object.hasOwn(BANKS, d.bank) && (!current || current.bank !== d.bank)) return toast('Escolha um banco ou instituição válido.');
+    const bankName = String(d.bank || '').trim().slice(0, 40);
+    const knownBank = findBankByName(bankName);
+    const bank = norm(bankName) === norm('Outro / não listado') ? OTHER_BANK : knownBank ? knownBank[0] : bankName;
     const bal = d.balance.trim() ? parseMoney(d.balance) : 0, lim = d.limit && d.limit.trim() ? parseMoney(d.limit) : 0;
     if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.');
     const cl = d.closing.trim() ? Number(d.closing) : 0, du = d.due.trim() ? Number(d.due) : 0;
     if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.');
-    const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank: d.bank || '' }), type: d.type, bank: d.bank || '', initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
+    const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank }), type: d.type, bank, initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
     if (linkedAccount) patch.linkedAccountId = linkedAccount.id;
     if (d.id) {
       Object.assign(current, patch);
@@ -7666,55 +7872,31 @@ function renderAccountLoading(root) {
   page.className = 'account-loading';
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
-  page.setAttribute('aria-label', 'carregando o Aurora');
 
-  const shell = document.createElement('div');
-  shell.className = 'account-loading-shell';
-
-  const brandRow = document.createElement('div');
-  brandRow.className = 'account-loading-brand-row';
+  const content = document.createElement('div');
+  content.className = 'account-loading-content';
 
   const brand = document.createElement('span');
-  brand.className = 'account-loading-brand';
+  brand.className = 'account-loading-brand-text';
   brand.setAttribute('aria-hidden', 'true');
+  brand.textContent = 'aurora';
 
-  const mark = document.createElement('span');
-  mark.className = 'account-loading-brand-mark';
-  mark.setAttribute('aria-hidden', 'true');
+  const brandDot = document.createElement('span');
+  brandDot.className = 'account-loading-brand-dot';
+  brandDot.setAttribute('aria-hidden', 'true');
+  brandDot.textContent = '.';
+  brand.append(brandDot);
 
-  const brandText = document.createElement('span');
-  brandText.className = 'account-loading-brand-text';
-  brandText.textContent = 'Aurora';
+  const indicator = document.createElement('span');
+  indicator.className = 'account-loading-indicator';
+  indicator.setAttribute('aria-hidden', 'true');
 
-  brand.append(mark, brandText);
+  const message = document.createElement('p');
+  message.className = 'account-loading-message';
+  message.textContent = 'Preparando seu espaço…';
 
-  const status = document.createElement('span');
-  status.className = 'account-loading-status';
-  status.setAttribute('aria-hidden', 'true');
-
-  const statusDot = document.createElement('span');
-  statusDot.className = 'account-loading-status-dot';
-  statusDot.setAttribute('aria-hidden', 'true');
-
-  const statusText = document.createElement('span');
-  statusText.className = 'account-loading-status-text';
-  statusText.textContent = 'Carregando';
-
-  status.append(statusDot, statusText);
-  brandRow.append(brand, status);
-
-  const card = document.createElement('section');
-  card.className = 'account-loading-card';
-  card.setAttribute('aria-hidden', 'true');
-  for (const className of ['is-title', '', 'is-field', '', 'is-field', 'is-button', 'is-short']) {
-    const line = document.createElement('span');
-    line.className = `account-loading-line ${className}`.trim();
-    line.setAttribute('aria-hidden', 'true');
-    card.append(line);
-  }
-
-  shell.append(brandRow, card);
-  page.append(shell);
+  content.append(brand, indicator, message);
+  page.append(content);
   root.replaceChildren(page);
 }
 
@@ -7751,6 +7933,7 @@ function showAccountDataLoadError(root, error, user) {
   exit.textContent = 'Sair';
   exit.addEventListener('click', async () => {
     exit.disabled = true;
+    intentionalSignOut = true;
     try {
       const { error: signOutError } = await accountSession.client.auth.signOut({ scope: 'local' });
       if (signOutError) throw signOutError;
@@ -7790,13 +7973,17 @@ async function continueAuthenticatedAurora(root, user) {
   const recurringReconciled = reconcileRecurringTransactions();
   const recurringGenerated = genRecurring();
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
-  window.addEventListener('hashchange', onRoute);
+  window.addEventListener('popstate', onRoute);
+  window.addEventListener('hashchange', () => {
+    const route = routeFromLocation(location, new Set(Object.keys(ROUTES)));
+    if (location.hash && route.replacePath) onRoute();
+  });
   onRoute();
   void syncPomodoroWakeLock();
   if (!profileSetupComplete()) openProfileSetup();
   setInterval(tick, 1000);
   const registration = await registerPwaSupport();
-  if (registration) {
+  if (registration || isNativeApp()) {
     try {
       await initializePomodoroPush();
       await syncHabitReminderSchedule();
@@ -7810,12 +7997,51 @@ async function continueAuthenticatedAurora(root, user) {
   Persist.retryPending();
 }
 
+const RETURN_TO_KEY = 'aurora:return-to';
+const SESSION_EXPIRED_KEY = 'aurora:session-expired';
+const RETURN_TO_PATTERN = /^\/(?:inicio|planejar|pomodoro|financas|habitos|ciclo|config)(?:\?[\w=&%.-]*)?$/;
+let intentionalSignOut = false;
+
+function readStorage(key) {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function writeStorage(key, value) {
+  try {
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch { /* storage indisponível */ }
+}
+
+function rememberRequestedRoute() {
+  if (accountModeFromLocation(location) || isPublicLandingLocation(location)) return;
+  const path = routePathFor(`${routeFromLocation(location, new Set(Object.keys(ROUTES))).route}${location.search}`);
+  if (RETURN_TO_PATTERN.test(path)) writeStorage(RETURN_TO_KEY, path);
+}
+
+function watchSessionExpiry(client) {
+  client.auth.onAuthStateChange((event) => {
+    if (event !== 'SIGNED_OUT' || intentionalSignOut || !accountSession) return;
+    const returnTo = `${location.pathname}${location.search}`;
+    accountSession = null;
+    if (RETURN_TO_PATTERN.test(returnTo)) writeStorage(RETURN_TO_KEY, returnTo);
+    writeStorage(SESSION_EXPIRED_KEY, '1');
+    Persist.wipe();
+    resetGoogleCalendarState();
+    history.replaceState(null, '', accountPathForMode('login'));
+    location.reload();
+  });
+}
+
 async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
   const { requireAccount } = await import('./services/account-auth.js');
   renderAccountLoading(root);
   let returnedToPublic = false;
+  rememberRequestedRoute();
+  const sessionExpired = readStorage(SESSION_EXPIRED_KEY) === '1';
+  writeStorage(SESSION_EXPIRED_KEY, null);
   accountSession = await requireAccount(root, initialMode, {
     allowPublicReturn,
+    initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
     onPublicReturn: () => { returnedToPublic = true; },
     onAccountDeleted: () => {
       redirectToPublicLanding(location);
@@ -7824,17 +8050,26 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
   if (!accountSession) {
     if (returnedToPublic) {
       initializePublicAppearance();
-      if (location.hash === '#demonstracao') renderLandingDemo(root);
+      if (isDemoLocation(location)) renderLandingDemo(root);
       else renderLanding(root);
     }
     return;
   }
-  if (accountModeFromHash(location.hash)) {
+  const returnTo = readStorage(RETURN_TO_KEY);
+  writeStorage(RETURN_TO_KEY, null);
+  if (accountModeFromLocation(location)) {
     const url = new URL(location.href);
-    url.hash = 'inicio';
-    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    if (returnTo && RETURN_TO_PATTERN.test(returnTo)) {
+      history.replaceState(null, '', returnTo);
+    } else {
+      url.pathname = '/inicio';
+      url.searchParams.delete('etapa');
+      url.hash = '';
+      history.replaceState(null, '', `${url.pathname}${url.search}`);
+    }
   }
   await Persist.attach(accountSession);
+  watchSessionExpiry(accountSession.client);
   await continueAuthenticatedAurora(root, accountSession.user);
 }
 
@@ -7869,7 +8104,7 @@ async function startAurora() {
   const root = document.getElementById('app');
   startPwaInstallPrompt();
   const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
-  const isPublicLanding = routeMeta && isPublicLandingHash(location.hash);
+  const isPublicLanding = routeMeta && isPublicLandingLocation(location);
   const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));
   if (localPreview) {
     ui.preview = true;
@@ -7878,8 +8113,10 @@ async function startAurora() {
     S.settings.onboardingComplete = true;
     S.settings.introSeen = true;
     loadSample();
-    if (!location.hash || location.hash === '#landing') history.replaceState(null, '', `${location.pathname}${location.search}#inicio`);
-    window.addEventListener('hashchange', onRoute);
+    if (location.pathname === '/' && (!location.hash || location.hash === '#landing')) {
+      history.replaceState(null, '', `/inicio${location.search}`);
+    }
+    window.addEventListener('popstate', onRoute);
     onRoute();
     setInterval(tick, 1000);
     return;
@@ -7895,7 +8132,7 @@ async function startAurora() {
       url.searchParams.delete('aurora-account-mode');
       history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
     }
-    const routeMode = accountModeFromHash(location.hash);
+    const routeMode = accountModeFromLocation(location);
     await startAuthenticatedAurora(
       root,
       routeMode || (requestedMode === 'signup' ? 'signup' : 'login'),
@@ -7904,7 +8141,7 @@ async function startAurora() {
     return;
   }
   initializePublicAppearance();
-  if (location.hash === '#demonstracao') renderLandingDemo(root);
+  if (isDemoLocation(location)) renderLandingDemo(root);
   else renderLanding(root);
   const sessionRestore = (async () => {
     try {
@@ -7932,9 +8169,14 @@ async function startAurora() {
   })();
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const action = event.target instanceof Element ? event.target.closest('[data-public-action]')?.dataset.publicAction : null;
-    if (action === 'landing') {
+    const trigger = event.target instanceof Element ? event.target.closest('[data-public-action]') : null;
+    const action = trigger?.dataset.publicAction;
+    if (trigger instanceof HTMLAnchorElement) {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
+      if (trigger.getAttribute('aria-disabled') === 'true') return;
+    }
+    if (action === 'landing') {
       renderLanding(root);
       return;
     }
@@ -7954,6 +8196,7 @@ async function startAurora() {
     stopLandingDemo(root);
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
+      else if (button.dataset.publicAction !== 'skip' && button.dataset.publicAction !== 'landing') button.setAttribute('aria-disabled', 'true');
     });
     if (await sessionRestore) return;
     startAuthenticatedAurora(root, action, true).catch((error) => {
@@ -7989,9 +8232,10 @@ document.addEventListener('click', async (event) => {
       return;
     }
   }
+  intentionalSignOut = true;
   const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
   if (error) {
-    button.disabled = false;
+    intentionalSignOut = false;
     toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
     return;
   }
@@ -8019,6 +8263,11 @@ document.addEventListener('submit', (event) => {
 
 initializeCustomSelects(document);
 initializeLegalDialogEvents();
+if (isNativeApp()) {
+  void import('./services/native-auth.js')
+    .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
+    .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
+}
 
 startAurora().catch((error) => {
   console.error('Aurora: a inicialização segura falhou.', error);

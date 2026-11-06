@@ -37,6 +37,8 @@ jobs:
         run: npm run test:supabase:concurrency
       - name: Build Cloudflare Pages assets
         run: npm run build
+      - name: Check SEO metadata and public assets
+        run: npm run test:seo
       - name: Install browsers for regression matrix
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Run browser smoke tests

@@ -3,7 +3,7 @@ import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'timer_state',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
   'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
   'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
@@ -268,6 +268,17 @@ function buildRows(userId, state, idMap) {
       week_of: reflection.weekOf,
       reflection: reflection.text || '',
       is_test_data: false,
+      deleted_at: null,
+    }));
+  }
+  for (const checkin of state.checkins || []) {
+    pushRow(rows, 'daily_checkins', rowId(idMap, 'daily_checkins', userId, checkin.date, {
+      checkin_date: checkin.date,
+      energy: checkin.energy || null,
+      available_time: checkin.time || null,
+      dismissed: checkin.dismissed === true,
+      deferred_task_ids: Array.isArray(checkin.deferred) ? checkin.deferred : [],
+      is_test_data: checkin.sample === true,
       deleted_at: null,
     }));
   }
@@ -873,6 +884,16 @@ function buildState(tables, idMap) {
     settings,
     tasks: taskRows.map((row) => taskFromRow(row, tables, idMap)),
     pomodoro: mapPomodoroTimer(),
+    checkins: active('daily_checkins')
+      .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
+      .map((row) => ({
+        date: String(row.checkin_date).slice(0, 10),
+        energy: row.energy || null,
+        time: row.available_time || null,
+        dismissed: row.dismissed === true,
+        deferred: Array.isArray(row.deferred_task_ids) ? row.deferred_task_ids : [],
+        ...(row.is_test_data ? { sample: true } : {}),
+      })),
     habits: active('habits').map((row) => habitFromRow(row, tables, idMap)),
     water: active('water_logs').map((row) => ({
       id: sourceId(idMap, 'water_logs', row.id),
@@ -1028,7 +1049,8 @@ export class RelationalAccountStore {
       console.error('Aurora: não foi possível ler a inscrição Push da conta.', error);
       throw new Error('Não foi possível verificar os avisos Push da conta.');
     }
-    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint);
+    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint
+      || (item.subscription?.provider === 'fcm' && item.subscription?.token === endpoint));
     return row ? {
       id: row.id,
       clientId: row.worker_client_id,
@@ -1036,6 +1058,18 @@ export class RelationalAccountStore {
       subscription: row.subscription,
       enabled: row.is_enabled,
     } : null;
+  }
+
+  async hasPushSubscriptionProvider(provider) {
+    const { data, error } = await this.client
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', this.userId);
+    if (error) {
+      console.error('Aurora: não foi possível verificar as inscrições Push da conta.', error);
+      throw new Error('Não foi possível verificar os avisos Push da conta.');
+    }
+    return (data || []).some((item) => item.subscription?.provider === provider);
   }
 
   async savePushSubscription(credentials, subscription) {
