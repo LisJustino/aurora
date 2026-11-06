@@ -95,7 +95,12 @@ async function main() {
   let signupRequests = 0;
   const loginPasswords = [];
   let delayNextLogin = false;
+  let failNextUserLookup = false;
+  let rejectNextUserLookup = false;
+  let logoutRequests = 0;
   let expectedAuthErrorResponses = 0;
+  let expectedAuthUnauthorizedResponses = 0;
+  let expectedAuthServerErrors = 0;
   const assertAccountCardDoesNotScrollInternally = async (label) => {
     const dimensions = await page.locator('.account-card').evaluate((card) => ({
       overflowY: getComputedStyle(card).overflowY,
@@ -117,7 +122,11 @@ async function main() {
         minHeight: getComputedStyle(gate).minHeight,
         introDisplay: getComputedStyle(intro).display,
         introTop: intro.getBoundingClientRect().top,
+        introRight: intro.getBoundingClientRect().right,
+        introWidth: intro.getBoundingClientRect().width,
         cardTop: card.getBoundingClientRect().top,
+        cardLeft: card.getBoundingClientRect().left,
+        cardWidth: card.getBoundingClientRect().width,
       };
     });
     assert.equal(layout.minHeight, '0px', `${label}: a tela não deve reservar um viewport vazio`);
@@ -125,6 +134,8 @@ async function main() {
       assert.equal(layout.introDisplay, 'none', `${label}: a introdução não deve empurrar o formulário no celular`);
     } else {
       assert.ok(layout.introTop <= layout.cardTop + 1, `${label}: a introdução deve começar junto ao formulário`);
+      assert.ok(layout.introRight <= layout.cardLeft + 1, `${label}: o formulário deve ficar ao lado do painel de boas-vindas`);
+      assert.ok(layout.cardWidth >= layout.introWidth * 0.9, `${label}: o formulário deve ter espaço proporcional ao painel`);
     }
   };
   const assertNoHorizontalOverflow = async (label) => {
@@ -153,6 +164,14 @@ async function main() {
     if (/status of 429 \(Too Many Requests\)/i.test(message.text())) return;
     if (/status of 400 \(Bad Request\)/i.test(message.text()) && expectedAuthErrorResponses > 0) {
       expectedAuthErrorResponses -= 1;
+      return;
+    }
+    if (/status of 401 \(Unauthorized\)/i.test(message.text()) && expectedAuthUnauthorizedResponses > 0) {
+      expectedAuthUnauthorizedResponses -= 1;
+      return;
+    }
+    if (/status of 503 \(Service Unavailable\)/i.test(message.text()) && expectedAuthServerErrors > 0) {
+      expectedAuthServerErrors -= 1;
       return;
     }
     errors.push(message.text());
@@ -242,6 +261,16 @@ async function main() {
       return jsonResponse(route, 200, session, corsOrigin);
     }
     if (endpoint === 'GET /auth/v1/user') {
+      if (failNextUserLookup) {
+        failNextUserLookup = false;
+        expectedAuthServerErrors += 1;
+        return jsonResponse(route, 503, { code: 'service_unavailable', msg: 'Temporarily unavailable' }, corsOrigin);
+      }
+      if (rejectNextUserLookup) {
+        rejectNextUserLookup = false;
+        expectedAuthUnauthorizedResponses += 1;
+        return jsonResponse(route, 401, { code: 'session_not_found', msg: 'Session is no longer valid' }, corsOrigin);
+      }
       return jsonResponse(route, 200, user || {}, corsOrigin);
     }
     if (endpoint === 'PUT /auth/v1/user') {
@@ -259,7 +288,10 @@ async function main() {
         msg: 'Email rate limit exceeded',
       }, corsOrigin);
     }
-    if (endpoint === 'POST /auth/v1/logout') return jsonResponse(route, 204, {}, corsOrigin);
+    if (endpoint === 'POST /auth/v1/logout') {
+      logoutRequests += 1;
+      return jsonResponse(route, 204, {}, corsOrigin);
+    }
 
     unexpectedAuthRequests.push(endpoint);
     return jsonResponse(route, 404, { code: 'not_found', msg: 'Unexpected test request' }, corsOrigin);
@@ -274,13 +306,15 @@ async function main() {
     assert.match(await page.title(), /Entrar na sua conta \| aurora\./);
     assert.equal(await page.locator('.account-form input[name="email"]').getAttribute('autocomplete'), 'email');
     assert.equal(await page.locator('.account-form input[name="password"]').getAttribute('autocomplete'), 'current-password');
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'login iniciado pela landing deve manter o header público');
+    assert.equal(await page.locator('.account-site-header .public-brand-link').count(), 1, 'login iniciado pela landing deve manter a marca no header');
+    assert.equal(await page.locator('.account-site-header .account-home-link').count(), 1, 'login deve oferecer botão de retorno ao início');
+    assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'login deve manter os controles de autenticação e aparência');
     await assertAccountCardDoesNotScrollInternally('login em desktop');
     await assertAuthLayout('login em desktop');
     await page.setViewportSize({ width: 390, height: 844 });
     await assertAuthLayout('login no celular');
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.locator('.account-public-header [data-account-mode="signup"]').click();
+    await page.locator('.account-auth-header-actions [data-account-mode="signup"]').click();
     await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/criar-conta', 'cadastro deve abrir sua rota própria');
     await page.goBack();
@@ -314,6 +348,7 @@ async function main() {
       window.startAuthFlow = (mode) => {
         window.authFlowDone = false;
         window.authFlowError = '';
+        window.authFlowResult = null;
         window.authFlowPromise = requireAccount(document.querySelector('#app'), mode, {
           allowPublicReturn: true,
         }).then((result) => {
@@ -331,7 +366,7 @@ async function main() {
     });
 
     await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'cadastro deve manter o header público');
+    assert.equal(await page.locator('.account-site-header .public-brand-link').count(), 1, 'cadastro deve manter a marca no header');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('perfil do cadastro em desktop');
     await assertAuthLayout('perfil do cadastro em desktop');
@@ -342,7 +377,7 @@ async function main() {
     await page.getByLabel('Data de nascimento').fill('1990-01-01');
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'etapa de acesso do cadastro deve manter o header público');
+    assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'etapa de acesso deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('cadastro em desktop');
     await assertAuthLayout('cadastro em desktop');
@@ -390,7 +425,7 @@ async function main() {
     assert.equal(signupRequests, 2, 'o segundo cadastro deve consultar o servidor e ser recusado');
     await page.locator('.account-link-switch[data-account-mode="login"]').click();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'login deve manter o header público');
+    assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'login deve manter os controles de aparência');
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
     const loginPassword = page.getByLabel('Senha', { exact: true });
     await loginPassword.fill('SenhaErrada123!');
@@ -408,6 +443,27 @@ async function main() {
     assert.equal(await page.evaluate(() => window.authFlowError), '');
     assert.equal(await page.evaluate(() => window.authFlowResult?.user.email), 'pessoa@example.com');
 
+    const savedAuthKeyCount = await page.evaluate(
+      () => Object.keys(localStorage).filter((key) => key.endsWith('-auth-token')).length,
+    );
+    assert.equal(savedAuthKeyCount, 1, 'a sessão de login marcada para persistir deve ficar no armazenamento local');
+    const logoutRequestsBeforeRestoreFailure = logoutRequests;
+    failNextUserLookup = true;
+    await page.evaluate(() => window.startAuthFlow('login'));
+    await page.waitForFunction(() => window.authFlowDone);
+    assert.equal(await page.evaluate(() => window.authFlowResult), null);
+    await page.getByText(/a sessão salva foi mantida/i).waitFor();
+    assert.equal(logoutRequests, logoutRequestsBeforeRestoreFailure, 'uma falha temporária ao validar a sessão não deve encerrar o login');
+    assert.equal(
+      await page.evaluate(() => Object.keys(localStorage).filter((key) => key.endsWith('-auth-token')).length),
+      1,
+      'a sessão persistente deve continuar salva após uma falha temporária',
+    );
+    await page.evaluate(() => window.startAuthFlow('login'));
+    await page.waitForFunction(() => window.authFlowDone);
+    assert.equal(await page.evaluate(() => window.authFlowError), '');
+    assert.equal(await page.evaluate(() => window.authFlowResult?.user.email), 'pessoa@example.com');
+
     await page.evaluate(async () => {
       await window.authFlowResult.client.auth.signOut({ scope: 'local' });
       window.startAuthFlow('login');
@@ -415,7 +471,7 @@ async function main() {
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
     await page.getByRole('button', { name: 'Esqueci minha senha' }).click();
     await page.getByRole('heading', { name: 'Recuperar acesso' }).waitFor();
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'recuperação deve manter o header público');
+    assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'recuperação deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('recuperação em desktop');
     await assertAuthLayout('recuperação em desktop');
@@ -424,6 +480,7 @@ async function main() {
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
     await page.getByRole('button', { name: 'Enviar instruções' }).click();
     await page.getByText('Se houver uma conta vinculada a esse e-mail, você receberá instruções para redefinir a senha. Confira também o spam e aguarde alguns minutos.').waitFor();
+    await page.locator('.account-success-hero', { hasText: 'Link enviado' }).waitFor();
     await page.getByRole('button', { name: 'Enviar instruções' }).click();
     await page.getByText(/aguarde alguns minutos/i).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Enviar instruções' }).isEnabled(), true, 'a pessoa pode tentar novamente após o limite');
@@ -444,7 +501,7 @@ async function main() {
       window.startAuthFlow('login');
     });
     await page.getByRole('heading', { name: 'Atualizar senha' }).waitFor();
-    assert.equal(await page.locator('.account-public-header').count(), 1, 'atualização da senha deve manter o header público');
+    assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'atualização da senha deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('atualização de senha em desktop');
     await assertAuthLayout('atualização de senha em desktop');
@@ -461,6 +518,7 @@ async function main() {
     await updatePasswordButton.click();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
     await page.getByText('Senha atualizada. Entre usando sua nova senha.').waitFor();
+    await page.locator('.account-success-hero', { hasText: 'Senha atualizada' }).waitFor();
     assert.equal(await page.evaluate(() => location.search), '', 'callback de redefinição é removido da URL');
     assert.equal(await page.locator('.account-message[data-tone="success"]').count(), 1);
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
@@ -469,6 +527,15 @@ async function main() {
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
     assert.equal(await page.evaluate(() => window.authFlowResult?.user.email), 'pessoa@example.com');
+    rejectNextUserLookup = true;
+    await page.evaluate(() => window.startAuthFlow('login'));
+    await page.waitForFunction(() => window.authFlowDone);
+    await page.getByText('Sua sessão expirou. Entre novamente para continuar.').waitFor();
+    assert.equal(
+      await page.evaluate(() => Object.keys(localStorage).filter((key) => key.endsWith('-auth-token')).length),
+      0,
+      'uma sessão recusada pelo serviço deve ser removida',
+    );
     assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'NovaSenha456!']);
     assert.deepEqual(externalRequests, [], 'nenhuma requisição real fora do servidor local e do mock deve ocorrer');
     assert.deepEqual(unexpectedAuthRequests, [], 'somente endpoints de autenticação esperados devem ser chamados');

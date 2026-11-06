@@ -58,7 +58,7 @@ export function normalizeHomeLayout(value) {
   const order = Array.isArray(layout.order) ? layout.order.filter((id) => HOME_BLOCK_IDS.includes(id)) : [];
   const visible = Array.isArray(layout.visible) ? layout.visible.filter((id) => HOME_BLOCK_IDS.includes(id)) : HOME_BLOCK_IDS;
   return {
-    order: [...new Set(order), ...HOME_BLOCK_IDS.filter((id) => !order.includes(id))],
+    order: ['today', ...new Set(order.filter((id) => id !== 'today')), ...HOME_BLOCK_IDS.filter((id) => !order.includes(id) && id !== 'today')],
     visible: [...new Set(visible)],
   };
 }

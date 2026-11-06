@@ -32,28 +32,51 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 1366, height: 768 });
   const desktopLayout = await page.evaluate(() => {
     const hero = document.querySelector('.home-head').getBoundingClientRect();
-    const guide = document.querySelector('.area-guide-control');
+    const guide = document.querySelector('.home-head-actions .area-guide-button');
     const steps = document.querySelector('.home-first-steps');
+    const colorProbe = document.createElement('span');
+    colorProbe.style.color = 'var(--btn)';
+    document.body.append(colorProbe);
+    const guideUsesContrastToken = getComputedStyle(guide).color === getComputedStyle(colorProbe).color;
+    colorProbe.remove();
     return {
       heroWidth: hero.width,
-      guideColumn: getComputedStyle(guide).gridColumn,
+      guideInHeader: Boolean(guide),
+      guideUsesContrastToken,
       stepsColumn: getComputedStyle(steps).gridColumn,
       stepsWidth: steps.getBoundingClientRect().width,
       actionColumns: getComputedStyle(steps.querySelector('.home-first-steps-list')).gridTemplateColumns.split(' ').length,
     };
   });
-  check(desktopLayout.guideColumn === '1 / -1' && desktopLayout.stepsColumn === '1 / -1', 'tutorial e primeiros passos ocupam a largura total no desktop');
+  check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1', 'atalho do tutorial fica no cabeçalho e primeiros passos ocupam a largura total no desktop');
+  check(desktopLayout.guideUsesContrastToken, 'atalho do tutorial usa o token de contraste dos botões');
   check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 4, 'ações iniciais ficam em quatro colunas no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
 
-  await page.getByRole('link', { name: 'Personalizar início' }).click();
+  for (const route of ['planejar', 'pomodoro', 'financas', 'habitos', 'ciclo']) {
+    await page.goto(`${BASE}/?preview#${route}`);
+    const guide = page.locator('.page-title .area-page-actions .area-guide-button');
+    await guide.waitFor({ state: 'visible' });
+    check(await guide.count() === 1, `atalho “Como usar?” fica junto ao título em ${route}`);
+    check(await guide.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth;
+    }), `atalho de ${route} cabe na largura móvel`);
+  }
+  await page.goto(`${BASE}/?preview#inicio`);
+  await card.waitFor({ state: 'visible' });
+
+  check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
+  await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
-  check(await page.locator('.areas-navigation-settings').count() === 1, 'atalho abre as opções de áreas e menu');
+  check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
   check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo ao navegar para Ajustes');
   await page.locator('.nav a[href="/inicio"]').click();
   await card.waitFor({ state: 'visible' });
 
-  await page.getByRole('link', { name: 'Personalizar início' }).click();
+  await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
   for (const area of activeAreas) {
     await page.locator(`.areas-navigation-toggle input[data-area="${area}"]`).uncheck();

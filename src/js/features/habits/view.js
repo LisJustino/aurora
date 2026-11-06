@@ -9,18 +9,18 @@ import {
 
 export function renderHabitsView(dependencies) {
   const {
-    S, ui, areaOn, pageTitle, areaGuideButton, gate, habitsTemplate,
+    S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
     weekStartDay, habitCompletedFor, getPomodoroPushStatus, plural, habitRow,
     preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
   } = dependencies;
 
-  if (!areaOn('habits')) return h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}${gate('habits', 'Hábitos')}`;
+  if (!areaOn('habits')) return h`${areaPageTitle('habitos', 'Hábitos')}${gate('habits', 'Hábitos')}`;
   if (!habitsTemplate) {
     if (!habitsTemplatePromise && !habitsTemplateError) requestHabitsTemplate();
     return habitsTemplateError
-      ? h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="alert"><p>Não foi possível carregar a área de Hábitos.</p><button class="btn" data-action="retry-habits-template">Tentar novamente</button></section>`
-      : h`${pageTitle('Hábitos')}${areaGuideButton('habitos')}<section class="card" role="status">Carregando Hábitos…</section>`;
+      ? h`${areaPageTitle('habitos', 'Hábitos')}<section class="card" role="alert"><p>Não foi possível carregar a área de Hábitos.</p><button class="btn" data-action="retry-habits-template">Tentar novamente</button></section>`
+      : h`${areaPageTitle('habitos', 'Hábitos')}<section class="card" role="status">Carregando Hábitos…</section>`;
   }
   const suggestions = remainingHabitSuggestions(S.habits);
   const previewIdeas = new Set(featuredHabitSuggestions(suggestions).map(({ id }) => id));
@@ -76,8 +76,7 @@ export function renderHabitsView(dependencies) {
     ui.habitIdeaQuery,
   ).map((suggestion) => suggestion.id));
   const slots = {
-    'page-title': h`${pageTitle('Hábitos')}`.s,
-    'area-guide-button': areaGuideButton('habitos').s,
+    'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
     'today-summary': h`${todaySummary}`.s,
     'add-icon': icon('plus', 16).s,
     'today-progress': eligibleToday

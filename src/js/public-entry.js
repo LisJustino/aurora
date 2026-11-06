@@ -98,6 +98,20 @@ function showEntryError(rootElement) {
   rootElement.append(page);
 }
 
+let appWarmed = false;
+function warmApplication() {
+  if (appWarmed) return;
+  const href = import.meta.env.DEV
+    ? '/src/js/main.js'
+    : document.querySelector('meta[name="aurora-app-chunk"]')?.content;
+  if (!href) return;
+  appWarmed = true;
+  const link = document.createElement('link');
+  link.rel = 'modulepreload';
+  link.href = href;
+  document.head.append(link);
+}
+
 async function loadApplication(mode = 'login') {
   publicPwaCleanup();
   publicConnectionCleanup();
@@ -262,6 +276,13 @@ if (localPreview || !publicEntryRoute || installedLanding) {
   if (isPublicLandingLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
+    const scheduleWarm = window.requestIdleCallback || ((callback) => setTimeout(callback, 1200));
+    scheduleWarm(warmApplication);
+    ['pointerover', 'focusin', 'touchstart'].forEach((type) => {
+      root.addEventListener(type, (event) => {
+        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmApplication();
+      }, { passive: true });
+    });
     window.addEventListener('online', updatePublicConnectionNotice);
     window.addEventListener('offline', updatePublicConnectionNotice);
     publicConnectionCleanup = () => {
@@ -363,7 +384,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     buttons.forEach((button) => {
       setBusy(button, true);
       button.setAttribute('aria-busy', 'true');
-      if (button.dataset.publicAction === 'demo') return;
+      if (button !== trigger) return;
       const label = button.textContent?.trim();
       if (label && !button.dataset.defaultLabel) button.dataset.defaultLabel = label;
       if (button.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
