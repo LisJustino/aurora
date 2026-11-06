@@ -119,6 +119,14 @@ import {
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
+  buildDayPlan,
+  checkinFor,
+  isValidCheckin,
+  reduceDay,
+  upsertCheckin,
+} from '../src/js/features/home/day-plan.js';
+import { homeBills } from '../src/js/features/home/bills.js';
+import {
   isTrashExpired,
   isValidTrashEntry,
   normalizeTrash,
@@ -1672,6 +1680,111 @@ test('cores escolhidas para áreas mantêm contraste nos temas claro e escuro', 
 });
 
 const failures = results.filter((result) => !result.passed);
+const eq = (actual, expected) => {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`Esperado ${JSON.stringify(expected)}, recebido ${JSON.stringify(actual)}.`);
+  }
+};
+const planTask = (id, extra = {}) => ({ id, title: id, done: false, dueDate: null, priority: 'normal', ...extra });
+const planIds = (tasks) => tasks.map((task) => task.id);
+
+test('Dia possível sem tarefas devolve listas vazias e limite da energia', () => {
+  const plan = buildDayPlan([], { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), []);
+  eq(planIds(plan.adiadas), []);
+  eq(plan.limit, 3);
+});
+
+test('Dia possível com só tarefas anteriores as trata como sugeridas, recentes primeiro', () => {
+  const tasks = [
+    planTask('a', { dueDate: '2026-11-01' }),
+    planTask('b', { dueDate: '2026-11-04' }),
+    planTask('c', { dueDate: '2026-11-03', done: true }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['b', 'a']);
+  eq(planIds(plan.adiadas), []);
+});
+
+test('Dia possível com energia baixa sugere no máximo 3 e ordena hoje > anteriores > sem data', () => {
+  const tasks = [
+    planTask('sem-data'),
+    planTask('antiga', { dueDate: '2026-11-02' }),
+    planTask('hoje-tarde', { dueDate: '2026-11-05', time: '18:00' }),
+    planTask('hoje-cedo', { dueDate: '2026-11-05', time: '08:00' }),
+    planTask('futura', { dueDate: '2026-11-09' }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['hoje-cedo', 'hoje-tarde', 'antiga']);
+  eq(planIds(plan.adiadas), ['sem-data']);
+});
+
+test('Dia possível limita 5 na energia média e 7 na alta com muitas tarefas, de forma determinística', () => {
+  const tasks = Array.from({ length: 12 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  const medium = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  const high = buildDayPlan(tasks, { energy: 'high' }, '2026-11-05');
+  eq(medium.sugeridas.length, 5);
+  eq(medium.adiadas.length, 7);
+  eq(high.sugeridas.length, 7);
+  eq(planIds(high.sugeridas), ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
+  eq(planIds(buildDayPlan([...tasks].reverse(), { energy: 'high' }, '2026-11-05').sugeridas).length, 7);
+  eq(JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')), JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')));
+});
+
+test('Reduzir o dia guarda o excedente e é idempotente; desfazer devolve o plano original', () => {
+  const tasks = Array.from({ length: 6 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  let checkins = upsertCheckin([], '2026-11-05', { energy: 'low' });
+  const before = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: reduceDay(checkinFor(checkins, '2026-11-05'), before) });
+  const reduced = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  eq(planIds(reduced.sugeridas), planIds(before.sugeridas));
+  eq(planIds(reduced.adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, ['t3', 't4', 't5']);
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: [] });
+  eq(planIds(buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05').adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, []);
+});
+
+test('check-in valida energia, tempo e data, e mantém uma entrada por dia', () => {
+  ok(isValidCheckin({ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: [] }));
+  ok(isValidCheckin({ date: '2026-11-05', energy: null, time: null, dismissed: true, deferred: [] }));
+  falsy(isValidCheckin({ date: '2026-13-45', energy: 'low' }));
+  falsy(isValidCheckin({ date: '2026-11-05', energy: 'extrema' }));
+  falsy(isValidCheckin(null));
+  const list = upsertCheckin(upsertCheckin([], '2026-11-05', { energy: 'high' }), '2026-11-05', { time: '2h' });
+  eq(list.length, 1);
+  eq(list[0].energy, 'high');
+  eq(list[0].time, '2h');
+});
+
+test('contas do Hoje listam hoje e os próximos 3 dias e calculam o livre até o fim do mês', () => {
+  const finance = {
+    accounts: [
+      { id: 'cc', type: 'checking', initialCents: 100000 },
+      { id: 'cartao', type: 'credit', initialCents: 0, closingDay: 5, dueDay: 8, limitCents: 500000 },
+    ],
+    tx: [
+      { id: 'x1', recId: 'r1', type: 'out', date: '2026-11-05', cents: 10000, paid: false, accountId: 'cc', desc: 'Aluguel', createdAt: 1 },
+      { id: 'x2', recId: 'r2', type: 'out', date: '2026-11-08', cents: 5000, paid: false, accountId: 'cc', desc: 'Internet', createdAt: 2 },
+      { id: 'x3', recId: 'r3', type: 'out', date: '2026-11-09', cents: 7000, paid: false, accountId: 'cc', desc: 'Academia', createdAt: 3 },
+      { id: 'x4', recId: 'r4', type: 'out', date: '2026-11-06', cents: 9000, paid: true, accountId: 'cc', desc: 'Paga', createdAt: 4 },
+      { id: 'x5', type: 'out', date: '2026-11-20', cents: 4000, paid: true, accountId: 'cartao', createdAt: 5 },
+    ],
+  };
+  const helpers = {
+    shiftMonth: (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; },
+    parseDate: (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); },
+    accountBalance: (account) => account.initialCents,
+  };
+  const summary = homeBills(finance, '2026-11-05', helpers);
+  eq(summary.upcoming.map((item) => item.id), ['bill:x1', 'bill:x2']);
+  eq(summary.dueCents, 22000);
+  eq(summary.freeCents, 91000 - 22000);
+  eq(summary.daysLeft, 26);
+  eq(summary.perDayCents, Math.floor(69000 / 26));
+  eq(homeBills({ accounts: [], tx: [] }, '2026-11-05', helpers).upcoming, []);
+});
+
 if (typeof document !== 'undefined') {
   const summary = document.querySelector('#summary');
   const list = document.querySelector('#results');
