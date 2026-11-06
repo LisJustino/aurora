@@ -5,10 +5,17 @@ import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
 import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
+  accountModeFromLocation,
+  accountPathForMode,
+  canonicalPublicPath,
+  isDemoLocation,
   isPublicLandingHash,
+  isPublicLandingLocation,
   postSignOutPath,
   redirectToPublicLanding,
   resolveRoute,
+  routeFromLocation,
+  routePathFor,
   settingsRootPath,
 } from '../src/js/core/router.js';
 import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
@@ -112,6 +119,14 @@ import {
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
+  buildDayPlan,
+  checkinFor,
+  isValidCheckin,
+  reduceDay,
+  upsertCheckin,
+} from '../src/js/features/home/day-plan.js';
+import { homeBills } from '../src/js/features/home/bills.js';
+import {
   isTrashExpired,
   isValidTrashEntry,
   normalizeTrash,
@@ -212,7 +227,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
-  if (documentStub.title !== 'aurora. — mais clareza para a sua rotina') {
+  if (documentStub.title !== 'aurora. — planner semanal, hábitos e finanças em um só lugar') {
     throw new Error('A landing deve atualizar o título da aba.');
   }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -222,6 +237,14 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Registre receitas, despesas e cartões manualmente',
     'Criar conta',
     'Explorar demonstração',
+    'Começar grátis',
+    'Ver demo em 1 minuto',
+    'Planner de tarefas, hábitos, foco e finanças em um só lugar.',
+    'Totalmente grátis',
+    'Feito por uma pessoa só, com cuidado',
+    'data-landing-video="ciclo"',
+    'Posso exportar meus dados?',
+    'data-footer-suggestion',
     'Escolha como quer começar',
     'sem cadastro e sem salvar alterações',
     'não são salvas nem sincronizadas',
@@ -250,12 +273,21 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
   }
-  if (!entryHtml.includes('<title>aurora. — mais clareza para a sua rotina</title>')
-    || !entryHtml.includes('property="og:title" content="aurora. — mais clareza para a sua rotina"')
-    || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
+  const landingTitle = 'aurora. — planner de tarefas, hábitos, foco e finanças';
+  if (!entryHtml.includes(`<title>${landingTitle}</title>`)
+    || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
+    || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
-  const demoView = readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
+  if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
+    || !entryHtml.includes('/landing-guard.js') || entryHtml.includes('Preparando seu espaço')) {
+    throw new Error('A entrada precisa exibir o esqueleto da landing e carregar o guard externo.');
+  }
+  const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
+  if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
+    throw new Error('O build precisa pré-renderizar a landing sem URLs file://.');
+  }
+  const demoView =  readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
   if (!demoView.includes("['today', 'Hoje', 'home']")
     || !demoView.includes("['finance', 'Finanças', 'wallet']")
     || !demoView.includes('nada é salvo')
@@ -699,7 +731,7 @@ test('normaliza datas legadas sem aceitar dias inexistentes', () => {
 });
 
 test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {
-  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'habitos', 'config']);
+  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
 
   truthy(MENU_ITEMS.some((item) => item.id === 'pomodoro'));
   equal(resolveRoute('estudos', routes).route, 'inicio');
@@ -714,6 +746,32 @@ test('mantém aliases legados, redireciona Água para Hábitos e limita rotas de
   equal(resolveRoute('agua', routes).route, 'habitos');
   equal(resolveRoute('agua', routes).replaceHash, 'habitos');
   equal(resolveRoute('invalida', routes).route, 'inicio');
+});
+
+test('usa caminhos legíveis e converte hashes antigos sem perder query ou âncoras', () => {
+  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
+  equal(routePathFor('financas'), '/financas');
+  equal(routePathFor('perfil'), '/config');
+  equal(routePathFor('config?section=calendars'), '/config?section=calendars');
+  equal(routeFromLocation(new URL('https://aurora.local/financas'), routes).route, 'financas');
+  equal(routeFromLocation(new URL('https://aurora.local/pages/inicio.html#main'), routes).replacePath, '/inicio#main');
+  equal(routeFromLocation(new URL('https://aurora.local/#agua'), routes).replacePath, '/habitos');
+  equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/config?section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/?source=pwa#config?section=data'), routes).replacePath, '/config?source=pwa&section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/agua'), routes).route, 'habitos');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#inicio')), '/inicio');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#criar-conta?etapa=acesso')), '/criar-conta?etapa=acesso');
+});
+
+test('resolve rotas públicas por caminho e preserva as âncoras da landing', () => {
+  equal(accountPathForMode('login'), '/entrar');
+  equal(accountPathForMode('signup-access'), '/criar-conta?etapa=acesso');
+  equal(accountModeFromLocation(new URL('https://aurora.local/criar-conta?etapa=acesso')), 'signup-access');
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/')));
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/#landing-main')));
+  truthy(isDemoLocation(new URL('https://aurora.local/demonstracao')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/inicio')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/#financas')));
 });
 
 test('descarta opções de menu desconhecidas ao normalizar preferências', () => {
@@ -765,11 +823,11 @@ test('ao excluir a conta, navega para a landing pública', () => {
 
 test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
   equal(
-    settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config?section=data' }),
-    '/pages/ajustes.html?source=pwa#config',
+    settingsRootPath({ href: 'https://aurora.local/config?source=pwa&section=data' }),
+    '/config?source=pwa',
   );
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/inicio.html#inicio' }), null);
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html#config' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/inicio' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/config' }), null);
 });
 
 test('normaliza contas Dinheiro antigas para corrente e reconhece investimentos', () => {
@@ -1622,6 +1680,111 @@ test('cores escolhidas para áreas mantêm contraste nos temas claro e escuro', 
 });
 
 const failures = results.filter((result) => !result.passed);
+const eq = (actual, expected) => {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`Esperado ${JSON.stringify(expected)}, recebido ${JSON.stringify(actual)}.`);
+  }
+};
+const planTask = (id, extra = {}) => ({ id, title: id, done: false, dueDate: null, priority: 'normal', ...extra });
+const planIds = (tasks) => tasks.map((task) => task.id);
+
+test('Dia possível sem tarefas devolve listas vazias e limite da energia', () => {
+  const plan = buildDayPlan([], { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), []);
+  eq(planIds(plan.adiadas), []);
+  eq(plan.limit, 3);
+});
+
+test('Dia possível com só tarefas anteriores as trata como sugeridas, recentes primeiro', () => {
+  const tasks = [
+    planTask('a', { dueDate: '2026-11-01' }),
+    planTask('b', { dueDate: '2026-11-04' }),
+    planTask('c', { dueDate: '2026-11-03', done: true }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['b', 'a']);
+  eq(planIds(plan.adiadas), []);
+});
+
+test('Dia possível com energia baixa sugere no máximo 3 e ordena hoje > anteriores > sem data', () => {
+  const tasks = [
+    planTask('sem-data'),
+    planTask('antiga', { dueDate: '2026-11-02' }),
+    planTask('hoje-tarde', { dueDate: '2026-11-05', time: '18:00' }),
+    planTask('hoje-cedo', { dueDate: '2026-11-05', time: '08:00' }),
+    planTask('futura', { dueDate: '2026-11-09' }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['hoje-cedo', 'hoje-tarde', 'antiga']);
+  eq(planIds(plan.adiadas), ['sem-data']);
+});
+
+test('Dia possível limita 5 na energia média e 7 na alta com muitas tarefas, de forma determinística', () => {
+  const tasks = Array.from({ length: 12 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  const medium = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  const high = buildDayPlan(tasks, { energy: 'high' }, '2026-11-05');
+  eq(medium.sugeridas.length, 5);
+  eq(medium.adiadas.length, 7);
+  eq(high.sugeridas.length, 7);
+  eq(planIds(high.sugeridas), ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
+  eq(planIds(buildDayPlan([...tasks].reverse(), { energy: 'high' }, '2026-11-05').sugeridas).length, 7);
+  eq(JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')), JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')));
+});
+
+test('Reduzir o dia guarda o excedente e é idempotente; desfazer devolve o plano original', () => {
+  const tasks = Array.from({ length: 6 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  let checkins = upsertCheckin([], '2026-11-05', { energy: 'low' });
+  const before = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: reduceDay(checkinFor(checkins, '2026-11-05'), before) });
+  const reduced = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  eq(planIds(reduced.sugeridas), planIds(before.sugeridas));
+  eq(planIds(reduced.adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, ['t3', 't4', 't5']);
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: [] });
+  eq(planIds(buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05').adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, []);
+});
+
+test('check-in valida energia, tempo e data, e mantém uma entrada por dia', () => {
+  ok(isValidCheckin({ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: [] }));
+  ok(isValidCheckin({ date: '2026-11-05', energy: null, time: null, dismissed: true, deferred: [] }));
+  falsy(isValidCheckin({ date: '2026-13-45', energy: 'low' }));
+  falsy(isValidCheckin({ date: '2026-11-05', energy: 'extrema' }));
+  falsy(isValidCheckin(null));
+  const list = upsertCheckin(upsertCheckin([], '2026-11-05', { energy: 'high' }), '2026-11-05', { time: '2h' });
+  eq(list.length, 1);
+  eq(list[0].energy, 'high');
+  eq(list[0].time, '2h');
+});
+
+test('contas do Hoje listam hoje e os próximos 3 dias e calculam o livre até o fim do mês', () => {
+  const finance = {
+    accounts: [
+      { id: 'cc', type: 'checking', initialCents: 100000 },
+      { id: 'cartao', type: 'credit', initialCents: 0, closingDay: 5, dueDay: 8, limitCents: 500000 },
+    ],
+    tx: [
+      { id: 'x1', recId: 'r1', type: 'out', date: '2026-11-05', cents: 10000, paid: false, accountId: 'cc', desc: 'Aluguel', createdAt: 1 },
+      { id: 'x2', recId: 'r2', type: 'out', date: '2026-11-08', cents: 5000, paid: false, accountId: 'cc', desc: 'Internet', createdAt: 2 },
+      { id: 'x3', recId: 'r3', type: 'out', date: '2026-11-09', cents: 7000, paid: false, accountId: 'cc', desc: 'Academia', createdAt: 3 },
+      { id: 'x4', recId: 'r4', type: 'out', date: '2026-11-06', cents: 9000, paid: true, accountId: 'cc', desc: 'Paga', createdAt: 4 },
+      { id: 'x5', type: 'out', date: '2026-11-20', cents: 4000, paid: true, accountId: 'cartao', createdAt: 5 },
+    ],
+  };
+  const helpers = {
+    shiftMonth: (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; },
+    parseDate: (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); },
+    accountBalance: (account) => account.initialCents,
+  };
+  const summary = homeBills(finance, '2026-11-05', helpers);
+  eq(summary.upcoming.map((item) => item.id), ['bill:x1', 'bill:x2']);
+  eq(summary.dueCents, 22000);
+  eq(summary.freeCents, 91000 - 22000);
+  eq(summary.daysLeft, 26);
+  eq(summary.perDayCents, Math.floor(69000 / 26));
+  eq(homeBills({ accounts: [], tx: [] }, '2026-11-05', helpers).upcoming, []);
+});
+
 if (typeof document !== 'undefined') {
   const summary = document.querySelector('#summary');
   const list = document.querySelector('#results');

@@ -14,15 +14,17 @@ import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, createBirthdayReference, isValidBirthdayReference } from '../features/profile/birthday.js';
 import {
-  accountHashForMode,
-  accountModeFromHash,
-  isPublicLandingHash,
+  accountModeFromLocation,
+  accountPathForMode,
+  isPublicLandingLocation,
 } from '../core/router.js';
 import { iconSvg } from '../utils/icons.js';
+import { isNativeApp } from '../utils/platform.js';
+import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.7';
+export const LEGAL_DOCUMENT_VERSION = '1.8';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -70,7 +72,7 @@ export function hasSocialIdentity(user) {
 }
 
 export function getOAuthRedirectUrl(origin) {
-  return new URL('/#inicio', origin).href;
+  return new URL('/', origin).href;
 }
 
 const SLICES = new Set([
@@ -135,11 +137,17 @@ function localDateValue(date) {
 }
 
 function navigateToAccountMode(mode, { replace = false } = {}) {
-  const hash = accountHashForMode(mode);
-  if (!hash || location.hash === hash) return;
+  const path = accountPathForMode(mode);
+  if (!path) return;
   const url = new URL(location.href);
-  url.hash = hash;
-  history[replace ? 'replaceState' : 'pushState'](null, '', `${url.pathname}${url.search}${url.hash}`);
+  const target = new URL(path, url.origin);
+  url.pathname = target.pathname;
+  url.searchParams.delete('etapa');
+  target.searchParams.forEach((value, key) => url.searchParams.set(key, value));
+  url.hash = '';
+  const destination = `${url.pathname}${url.search}`;
+  if (`${location.pathname}${location.search}` === destination) return;
+  history[replace ? 'replaceState' : 'pushState'](null, '', destination);
 }
 
 function loginErrorMessage(error) {
@@ -1260,7 +1268,7 @@ export async function requireAccount(root, initialMode = 'login', {
       'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos documentos. Se preferir recusar, você poderá revisar as etapas para confirmar a exclusão permanente da conta.', []],
       'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; essa ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
     }[mode];
-    if (accountHashForMode(mode)) {
+    if (accountPathForMode(mode)) {
       navigateToAccountMode(mode, {
         replace: mode === 'update-password' && isPasswordRecoveryCallback(location),
       });
@@ -1299,14 +1307,14 @@ export async function requireAccount(root, initialMode = 'login', {
         resolve(value);
       };
       const onPopState = () => {
-        const nextMode = accountModeFromHash(location.hash);
+        const nextMode = accountModeFromLocation(location);
         if (nextMode) {
           finish({
             nextMode,
             email: form.elements.email?.value.trim() || email,
             signupProfile: readSignupProfile(),
           });
-        } else if (allowPublicReturn && isPublicLandingHash(location.hash)) {
+        } else if (allowPublicReturn && isPublicLandingLocation(location)) {
           finish({ nextMode: 'landing' });
         }
       };
@@ -1335,7 +1343,7 @@ export async function requireAccount(root, initialMode = 'login', {
       root.querySelectorAll('button[data-account-mode], a[data-account-mode]').forEach((control) => {
         control.addEventListener('click', () => {
           const nextMode = control.dataset.accountMode;
-          if (accountHashForMode(nextMode)) navigateToAccountMode(nextMode);
+          if (accountPathForMode(nextMode)) navigateToAccountMode(nextMode);
           finish({
             nextMode,
             email: form.elements.email?.value.trim() || email,
@@ -1556,12 +1564,21 @@ export async function requireAccount(root, initialMode = 'login', {
         setRememberSession(result.rememberSession);
         setSubmitPending(result.submit, true);
         result.providerButtons.forEach((button) => { button.disabled = true; });
-        const { error: oauthError } = await client.auth.signInWithOAuth({
-          provider: result.oauthProvider,
-          options: {
-            redirectTo: getOAuthRedirectUrl(location.origin),
-          },
-        });
+        let oauthError;
+        try {
+          if (isNativeApp()) {
+            const { startNativeOAuth } = await import('./native-auth.js');
+            await startNativeOAuth(client, result.oauthProvider);
+          } else {
+            const oauthResult = await client.auth.signInWithOAuth({
+              provider: result.oauthProvider,
+              options: { redirectTo: getOAuthRedirectUrl(location.origin) },
+            });
+            oauthError = oauthResult.error;
+          }
+        } catch (error) {
+          oauthError = error;
+        }
         if (oauthError) {
           console.error(`Aurora: não foi possível iniciar o acesso por ${result.oauthProvider}.`, oauthError);
           setSubmitPending(result.submit, false);
@@ -1574,7 +1591,9 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'recovery') {
         setSubmitPending(result.submit, true);
         const { error: recoveryError } = await client.auth.resetPasswordForEmail(email, {
-          redirectTo: `${location.origin}${location.pathname}`,
+          redirectTo: isNativeApp()
+            ? NATIVE_AUTH_REDIRECT_URL
+            : `${location.origin}${location.pathname}`,
         });
         message = recoveryError
           ? passwordRecoveryErrorMessage(recoveryError)

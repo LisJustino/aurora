@@ -134,6 +134,8 @@
 }
 .settings-section-card { gap: var(--space-4); }
 .settings-section-card .trash-list > li { padding-inline: var(--space-3); }
+.settings-backup-card [data-action="export"],
+.settings-backup-card .backup-file-label { scroll-margin-top: calc(var(--topbar-height) + var(--space-4)); }
 .settings-data-safety { align-items: flex-start; }
 .settings-data-safety > .ic { flex: none; margin-top: 2px; }
 .settings-data-actions {

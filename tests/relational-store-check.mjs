@@ -46,6 +46,19 @@ const taskIconsMigration = await readFile(
 );
 assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
 assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
+const checkinsMigration = await readFile(
+  new URL('../supabase/migrations/20261105100000_daily_checkins.sql', import.meta.url),
+  'utf8',
+);
+assert.match(checkinsMigration, /create table public\.daily_checkins/i);
+assert.match(checkinsMigration, /unique \(user_id, checkin_date\)/i);
+assert.match(checkinsMigration, /enable row level security/i);
+assert.match(checkinsMigration, /'task_tag_assignments', 'weekly_reflections', 'daily_checkins'/i);
+assert.match(checkinsMigration, /version_conflict:/i);
+assert.match(checkinsMigration, /for update/i);
+assert.match(checkinsMigration, /returns jsonb/i);
+assert.match(checkinsMigration, /'daily_checkins', 'weekly_reflections', 'task_tag_assignments'/i);
+assert.doesNotMatch(checkinsMigration, /study_subjects|study_sessions/i);
 const financeAccountMigration = await readFile(
   new URL('../supabase/migrations/20261030110000_finance_account_types_and_card_link.sql', import.meta.url),
   'utf8',
@@ -186,6 +199,7 @@ const state = {
     waterGoalMl: 2750,
   }],
   water: [{ id: 'water-log-1', ml: 250, at: '2026-10-29T12:00:00.000Z' }],
+  checkins: [{ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'] }],
   gym: { templates: [], logs: [] },
   finance: {
     accounts: [
@@ -261,6 +275,13 @@ assert.equal(cycleDayRow.masturbation_activity, true);
 assert.equal(cycleDayRow.orgasm_count, 2);
 assert.equal(changeByTable.get('water_logs')[0].amount_ml, 250);
 assert.equal(changeByTable.get('water_logs')[0].recorded_at, '2026-10-29T12:00:00.000Z');
+const checkinRow = changeByTable.get('daily_checkins')[0];
+assert.equal(checkinRow.checkin_date, '2026-11-05');
+assert.equal(checkinRow.legacy_id, '2026-11-05');
+assert.equal(checkinRow.energy, 'low');
+assert.equal(checkinRow.available_time, '30m');
+assert.deepEqual(checkinRow.deferred_task_ids, ['legacy-task-id']);
+assert.equal(checkinRow.expected_updated_at, null);
 const trashedPeriod = changeByTable.get('cycle_periods').find((row) => row.start_date === '2026-10-10');
 assert.ok(trashedPeriod?.deleted_at);
 assert.equal(changeByTable.get('trash_records')[0].entity_table, 'cycle_periods');
@@ -342,6 +363,9 @@ assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.deepEqual(loadedState.checkins, [{
+  date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],
+}]);
 assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
 });

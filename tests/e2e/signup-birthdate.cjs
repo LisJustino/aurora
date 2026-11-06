@@ -83,11 +83,13 @@ function localDateValue(date) {
     await heroSignup.count() === 1 && await heroSignup.evaluate((button) => button.classList.contains('primary')),
     'CTA principal de cadastro permanece disponível no hero',
   );
-  await page.locator('.public-faq-item').nth(1).locator('summary').click();
-  const emailFaq = await page.locator('.public-faq-item').nth(1).textContent();
+  await page.locator('.public-faq-more > summary').click();
+  const emailFaqItem = page.locator('.public-faq-item', { hasText: 'Preciso confirmar meu e-mail?' });
+  await emailFaqItem.locator('summary').click();
+  const emailFaq = await emailFaqItem.textContent();
   check(/acesso é liberado assim que a conta é criada/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
   check(/erro de digitação pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
-  await page.getByRole('button', { name: /criar conta/i }).first().click();
+  await page.getByRole('link', { name: /criar conta/i }).first().click();
   await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
   check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');
   check(await page.locator('.account-google-icon').count() === 1, 'opção de cadastro inclui o ícone do Google');

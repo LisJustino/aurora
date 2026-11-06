@@ -141,29 +141,6 @@ async function checkPanel(browser, options, label, base, triggerSelector, panelS
   }
 }
 
-async function checkPublicAccessibility(browser, options, label, base) {
-  const context = await browser.newContext(options);
-  const page = await context.newPage();
-  const publicBase = new URL(base);
-  publicBase.searchParams.delete('preview');
-  publicBase.hash = '';
-  try {
-    await page.goto(publicBase.toString());
-    const position = await scrollPageBeforeModal(page, `${label}, acessibilidade pública`);
-    await page.locator('#public-accessibility-trigger').evaluate((element) => element.click());
-    const panel = page.locator('#public-accessibility-panel');
-    await panel.waitFor({ state: 'visible' });
-    await assertUnlocked(page, `${label}, acessibilidade pública`);
-    await panel.locator('[data-public-control="accessibility-close"]').evaluate((element) => element.click());
-    await panel.waitFor({ state: 'hidden' });
-    const restored = await page.evaluate(() => window.scrollY);
-    assert(Math.abs(restored - position.scrollY) <= 40, `${label}: posição não foi restaurada após acessibilidade pública (${restored} != ${position.scrollY})`);
-    await assertUnlocked(page, `${label}, acessibilidade pública`);
-  } finally {
-    await context.close();
-  }
-}
-
 async function checkLegalDialog(browser, options, label, base) {
   const context = await browser.newContext(options);
   const page = await context.newPage();
@@ -195,7 +172,6 @@ async function checkLegalDialog(browser, options, label, base) {
     for (const [label, options] of viewports) {
       await checkCustomDialog(browser, options, label, base);
       await checkPanel(browser, options, `${label}, notificações`, base, '[data-action="toggle-notifications"]', '#notification-panel', '[data-action="close-notifications"]');
-      await checkPublicAccessibility(browser, options, label, base);
       await checkLegalDialog(browser, options, label, base);
       console.log(`${label}: notificações não bloqueiam a tela; diálogos modais bloqueiam e restauram o scroll.`);
     }

@@ -26,8 +26,11 @@ const check = (passed, name, detail = '') => {
   await context.setOffline(false);
   await page.waitForFunction(() => !document.querySelector('.offline-banner'));
 
-  await page.evaluate(() => { location.hash = 'config?section=appearance'; });
-  await page.waitForFunction(() => location.hash === '#config?section=appearance');
+  await page.evaluate(() => {
+    history.pushState(null, '', '/config?section=appearance');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await page.waitForFunction(() => location.pathname === '/config' && location.search === '?section=appearance');
   await page.setViewportSize({ width: 1024, height: 844 });
   check(
     await page.locator('.appearance-settings .settings-save-actions').evaluate((element) => getComputedStyle(element).position !== 'sticky'),
@@ -48,7 +51,10 @@ const check = (passed, name, detail = '') => {
   check(await saveSettings.isEnabled(), 'cancelar recarga preserva o rascunho de ajustes');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(() => { location.hash = 'config?section=data'; });
+  await page.evaluate(() => {
+    history.pushState(null, '', '/config?section=data');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
   await page.getByRole('button', { name: 'Exportar backup' }).click();
   const backupConfirmation = page.locator('#dlg');
   await backupConfirmation.getByText('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
@@ -59,19 +65,37 @@ const check = (passed, name, detail = '') => {
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 844 });
     for (const section of ['profile', 'personalization', 'areas-navigation', 'data', 'account']) {
-      await page.evaluate((id) => { location.hash = `config?section=${id}`; }, section);
+      await page.evaluate((id) => {
+        history.pushState(null, '', `/config?section=${id}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, section);
       await page.locator(`.settings-link[data-settings-tab="${section}"][aria-current="page"]`).waitFor();
-      if (width === 390 && section === 'profile') {
-        check(
-          (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil.',
-          'título do perfil sem pontuação duplicada',
-        );
-        const menuCueVisible = await page.evaluate(() => {
+      if (width <= 760 && section === 'profile') {
+        if (width === 390) {
+          check(
+            (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil.',
+            'título do perfil sem pontuação duplicada',
+          );
+        }
+        const menuLayout = await page.evaluate(() => {
           const menu = document.querySelector('.settings-menu');
-          return menu.scrollWidth > menu.clientWidth
-            && getComputedStyle(menu, '::after').display !== 'none';
+          const menuRect = menu.getBoundingClientRect();
+          const links = [...menu.querySelectorAll('.settings-link')];
+          return {
+            columns: getComputedStyle(menu).gridTemplateColumns.split(' ').length,
+            expectedColumns: innerWidth <= 380 ? 2 : 3,
+            fits: menu.scrollWidth === menu.clientWidth
+              && links.length === 6
+              && links.every((link) => {
+                const rect = link.getBoundingClientRect();
+                return rect.width > 0 && rect.left >= menuRect.left && rect.right <= menuRect.right;
+              }),
+          };
         });
-        check(menuCueVisible, 'menu móvel indica que há mais abas para rolar');
+        check(
+          menuLayout.fits && menuLayout.columns === menuLayout.expectedColumns,
+          'menu móvel exibe todas as abas em grade responsiva',
+        );
       }
       const cardSpacing = await page.locator(
         '.settings-content > .card, .settings-content > .profile-settings-container > .card, .settings-content > .settings-account-list > .card',

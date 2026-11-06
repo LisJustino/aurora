@@ -15,6 +15,13 @@ function check(passed, profile, name, detail = '') {
 }
 
 async function checkLanding(page, profile, viewportLabel) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
+  if (await page.evaluate(() => innerWidth <= 700)) {
+    await page.locator('.public-hero .preview-picture-light .preview-capture').evaluate((image) => image.decode());
+  }
   const metrics = await page.evaluate(() => {
     const rect = (selector) => {
       const element = document.querySelector(selector);
@@ -144,6 +151,19 @@ async function checkAccountScreen(page, profile, viewportLabel) {
 
       await page.goto(BASE);
       await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).waitFor();
+      if (profile.browser === webkit) {
+        const installNotice = page.locator('#pwa-install-notice');
+        check(await installNotice.count() === 0,
+          profile.name, 'instruções de instalação não cobrem a landing automaticamente');
+        const installLink = page.getByRole('button', { name: 'Baixar o app' });
+        await installLink.scrollIntoViewIfNeeded();
+        await installLink.click();
+        check(await installNotice.isVisible()
+          && await installNotice.getByText(/No Safari, toque em Compartilhar/).isVisible(),
+        profile.name, 'instruções de instalação aparecem após solicitação explícita');
+        await installNotice.getByRole('button', { name: 'Agora não' }).click();
+        await page.evaluate(() => window.scrollTo(0, 0));
+      }
       await page.setViewportSize({ width: 1280, height: 900 });
       await checkLanding(page, profile.name, 'desktop');
       await page.setViewportSize(devices[profile.name].viewport);
@@ -155,8 +175,8 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await checkLanding(page, profile.name, '520px');
       await page.setViewportSize(devices[profile.name].viewport);
 
-      await page.locator('.public-hero').getByRole('button', { name: 'Explorar demonstração' }).click();
-      await page.getByRole('heading', { name: 'Um dia no seu ritmo' }).waitFor();
+      await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+      await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
       check(await page.locator('.demo-nav-link').count() === 6,
         profile.name, 'demonstração expõe navegação das seis áreas');
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -170,21 +190,20 @@ async function checkAccountScreen(page, profile, viewportLabel) {
           return label && label.scrollWidth <= label.clientWidth;
         })),
       profile.name, 'rótulos da navegação da demonstração não são cortados');
-      check(await page.locator('.demo-app .brand .wordmark').evaluateAll((wordmarks) =>
-        wordmarks.every((wordmark) => getComputedStyle(wordmark).display === 'none')),
-      profile.name, 'demonstração mostra apenas o ícone da marca');
+      check(await page.locator('.demo-app .brand .wordmark').count() === 1,
+        profile.name, 'demonstração usa a marca do cabeçalho do app');
       if (devices[profile.name].viewport.width <= 700) {
         check(await page.locator('.demo-nav').evaluate((nav) =>
           getComputedStyle(nav).position === 'fixed' && nav.getBoundingClientRect().bottom === innerHeight),
         profile.name, 'dock móvel fixo respeita a borda inferior da tela');
-        check(await page.locator('.demo-workspace > .public-topbar [data-public-action="signup"]').evaluate((button) =>
+        check(await page.locator('.demo-app > .topbar [data-public-action="signup"]').evaluate((button) =>
           button.classList.contains('primary'))
-          && !(await page.locator('.demo-workspace > .public-topbar [data-public-action="login"]').evaluate((button) =>
+          && !(await page.locator('.demo-app > .topbar [data-public-action="login"]').evaluate((button) =>
             button.classList.contains('primary'))),
         profile.name, 'cadastro é primário e entrar permanece secundário no cabeçalho');
       }
-      await page.getByRole('button', { name: 'Tarefas', exact: true }).click();
-      check(await page.getByRole('button', { name: 'Tarefas', exact: true }).evaluate((button) =>
+      await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
+      check(await page.getByRole('link', { name: 'Tarefas', exact: true }).evaluate((button) =>
         button.classList.contains('is-current')),
       profile.name, 'navegação da demonstração responde ao toque');
       check(mainModuleRequests.length === 0,
@@ -194,7 +213,7 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       if (await installNotice.count()) {
         await installNotice.getByRole('button', { name: 'Agora não' }).click();
       }
-      await page.getByRole('button', { name: 'Voltar à página inicial' }).click();
+      await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
       await page.locator('.public-site > .public-topbar [data-public-action="login"]').click();
       await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
       await checkAccountScreen(page, profile.name, 'login');

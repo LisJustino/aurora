@@ -31,19 +31,19 @@
     {
       "name": "Hoje",
       "short_name": "Hoje",
-      "url": "./#inicio",
+      "url": "./inicio",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tarefas",
       "short_name": "Tarefas",
-      "url": "./#planejar",
+      "url": "./planejar",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Foco",
       "short_name": "Foco",
-      "url": "./#pomodoro",
+      "url": "./pomodoro",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     }
   ]
