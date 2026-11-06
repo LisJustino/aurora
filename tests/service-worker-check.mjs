@@ -6,6 +6,7 @@ const source = await readFile(new URL('../service-worker.js', import.meta.url), 
 const handlers = new Map();
 const stored = new Map();
 let skipWaitingCalls = 0;
+let appearanceOffline = false;
 const cache = {
   match: async (request) => stored.get(typeof request === 'string' ? request : request.url),
   put: async (request, response) => stored.set(typeof request === 'string' ? request : request.url, response),
@@ -39,6 +40,7 @@ runInNewContext(source, {
   fetch: async (request, options) => {
     fetchCalls.push({ request, options });
     const pathname = new URL(typeof request === 'string' ? request : request.url).pathname;
+    if (pathname === '/loading-appearance.js' && appearanceOffline) throw new Error('offline');
     if (pathname === '/pages/inicio.html' || pathname === '/config') {
       throw new Error('offline');
     }
@@ -89,6 +91,13 @@ assert.equal(await dispatchFetch(assetRequest), assetResponse);
 const fetchCountAfterAssetMiss = fetchCalls.length;
 assert.equal(await dispatchFetch(assetRequest), assetResponse, 'app assets should be cache-first');
 assert.equal(fetchCalls.length, fetchCountAfterAssetMiss, 'cached app assets should not be fetched again');
+
+const appearanceRequest = request('/loading-appearance.js');
+assert.equal(await dispatchFetch(appearanceRequest), assetResponse);
+assert.equal(fetchCalls.at(-1).options.cache, 'no-cache', 'loading appearance bootstrap must revalidate');
+assert.equal(stored.get(appearanceRequest.url), assetResponse, 'loading appearance bootstrap should be available offline');
+appearanceOffline = true;
+assert.equal(await dispatchFetch(appearanceRequest), assetResponse, 'loading appearance bootstrap should fall back to its cached copy');
 
 const rootRequest = request('/', 'navigate');
 assert.equal(await dispatchFetch(rootRequest), htmlResponse);

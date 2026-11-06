@@ -242,12 +242,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Planner de tarefas, hábitos, foco e finanças em um só lugar.',
     'Totalmente grátis',
     'Feito por uma pessoa só, com cuidado',
-    'data-landing-video="ciclo"',
+    'preview-area-cycle',
+    'Cinco áreas, no seu ritmo',
     'Posso exportar meus dados?',
     'data-footer-suggestion',
     'Escolha como quer começar',
     'sem cadastro e sem salvar alterações',
-    'não são salvas nem sincronizadas',
     'Finanças manuais',
     'O Aurora não se conecta a bancos',
     'associados à sua conta',
@@ -258,6 +258,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
+  if (root.innerHTML.includes('É o dado mais sensível do app')) {
+    throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
+  }
+  if (root.innerHTML.includes('Na demonstração, tarefas, hábitos e Pomodoro')) {
+    throw new Error('O aviso sobre dados fictícios da demonstração não deve aparecer no hero da landing.');
+  }
   if (root.innerHTML.includes('public-testimonial')
     || root.innerHTML.includes('profissional e mãe')
     || root.innerHTML.includes('estudante e freelancer')
@@ -267,8 +273,8 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
     throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
   }
-  if (root.innerHTML.indexOf('data-public-action="signup"') > root.innerHTML.indexOf('data-public-action="demo"')) {
-    throw new Error('O cadastro deve aparecer antes da demonstração como ação principal.');
+  if (root.innerHTML.indexOf('data-public-action="signup"') > root.innerHTML.indexOf('href="#public-features"')) {
+    throw new Error('O cadastro deve aparecer antes do link interno para a demonstração.');
   }
   if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
@@ -280,8 +286,9 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
   if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
-    || !entryHtml.includes('/landing-guard.js') || entryHtml.includes('Preparando seu espaço')) {
-    throw new Error('A entrada precisa exibir o esqueleto da landing e carregar o guard externo.');
+    || !entryHtml.includes('account-loading-indicator')
+    || !entryHtml.includes('/landing-guard.js')) {
+    throw new Error('A entrada precisa exibir o carregamento animado e carregar o guard externo.');
   }
   const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
   if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
@@ -781,7 +788,7 @@ test('descarta opções de menu desconhecidas ao normalizar preferências', () =
   truthy(isValidMenuOrder(oldOrder));
   truthy(isValidVisibleMenuItems(oldVisibleItems));
   equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,habitos,financas,ciclo,agua');
+  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,financas,ciclo,habitos,agua');
   falsy(isValidMenuOrder([...oldOrder, 'retired']));
   falsy(isValidVisibleMenuItems([...oldVisibleItems, 'retired']));
 });
@@ -1643,7 +1650,7 @@ test('aparência de perfil valida opções sem descartar preferências futuras',
 
 test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {
   equal(JSON.stringify(normalizeHomeLayout({ order: ['quick', 'invalid'], visible: ['today', 'today', 'invalid'] })), JSON.stringify({
-    order: ['quick', 'today', 'habits', 'summary'],
+    order: ['today', 'quick', 'habits', 'summary'],
     visible: ['today'],
   }));
   equal(JSON.stringify(normalizeHomeLayout(null)), JSON.stringify(defaultHomeLayout()));
@@ -1658,7 +1665,7 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
       shortcuts: ['habit', 'invalid', 'habit'],
     },
   }).focus), JSON.stringify({
-    layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick'] },
+    layout: { order: ['today', 'quick', 'habits', 'summary'], visible: ['quick'] },
     shortcuts: ['habit'],
   }));
   equal(normalizeHomeMessage(`  mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH)}  `), `mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH - 9)}`);

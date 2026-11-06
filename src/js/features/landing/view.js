@@ -2,7 +2,6 @@ import { iconSvg as demoIcon } from '../../utils/icons.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
 import { initializeFaqDisclosure, renderFooterContent } from '../footer/view.js';
 import { renderLandingDemo, stopLandingDemo } from './demo.js';
-import { initializeFeatureVideos } from './media.js';
 
 export { renderLandingDemo };
 
@@ -24,7 +23,6 @@ export function renderLanding(root) {
     root.querySelector('.public-main')?.classList.add('is-hydrated');
   }
   initializeFaqDisclosure(root);
-  initializeFeatureVideos(root);
 }
 
 export function landingMarkup() {
@@ -41,19 +39,34 @@ export function landingMarkup() {
             <p class="public-lead">Abra uma tela, veja o que importa hoje e dê o próximo passo em segundos — sem lista infinita e sem culpa.</p>
             <div class="public-actions">
               <a class="btn primary large" href="/criar-conta" data-public-action="signup">Começar grátis</a>
-              <a class="btn large" href="/demonstracao" data-public-action="demo">Ver demo em 1 minuto</a>
+              <a class="btn large" href="#public-features">Ver demo em 1 minuto</a>
             </div>
             <p class="public-price-note"><strong>Totalmente grátis.</strong> Sem cartão de crédito.</p>
           </div>
-          <figure class="product-preview">
-            <picture class="preview-picture preview-picture-light">
-              <source media="(max-width: 700px)" srcset="./src/assets/landing-mobile.webp" width="716" height="716">
-              <img class="preview-capture" src="./src/assets/landing-desktop.webp" alt="Prévia ilustrativa do card Para hoje, com três tarefas de exemplo." width="1274" height="716" decoding="async" fetchpriority="high">
-            </picture>
-            <picture class="preview-picture preview-picture-dark" aria-hidden="true">
-              <source media="(max-width: 700px)" srcset="./src/assets/landing-mobile-dark.webp" width="716" height="716">
-              <img class="preview-capture" src="./src/assets/landing-desktop-dark.webp" alt="" width="1274" height="716" decoding="async" loading="lazy">
-            </picture>
+          <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
+            <div class="preview-float preview-tasks" aria-hidden="true">
+              <span class="preview-task-heading">Para hoje <b>3</b><small>2 de 3 feitas</small></span>
+              <span class="preview-task-progress"><i></i></span>
+              <span class="preview-task-row is-done"><i>✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></span>
+              <span class="preview-task-row is-done"><i>✓</i><span><b>Responder uma mensagem</b><small>Concluída</small></span></span>
+              <span class="preview-task-row is-current"><i></i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></span>
+            </div>
+            <div class="preview-float preview-focus" aria-hidden="true">
+              <span class="preview-float-label">${demoIcon('clock', 15)} Foco</span>
+              <strong>25:00</strong>
+              <span class="preview-float-note">Pomodoro</span>
+            </div>
+            <div class="preview-float preview-habits" aria-hidden="true">
+              <span class="preview-float-label">${demoIcon('leaf', 15)} Hábitos <b>5/7</b></span>
+              <span class="preview-habit-caption">Beber água</span>
+              <span class="preview-habit-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <div class="preview-float preview-finance" aria-hidden="true">
+              <span class="preview-float-label">${demoIcon('wallet', 15)} Finanças</span>
+              <span class="preview-float-note">Saldo do mês</span>
+              <strong>R$ 1.240</strong>
+              <span class="preview-finance-bars"><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
           </figure>
           <div class="public-hero-support">
             <ul class="public-proof" aria-label="Informações práticas sobre o Aurora">
@@ -61,7 +74,6 @@ export function landingMarkup() {
                             <li><strong>Tudo em um app só</strong><span>tarefas, hábitos, foco, finanças e ciclo</span></li>
                             <li><strong>Finanças manuais</strong><span>sem conexão bancária, você registra o que quiser</span></li>
             </ul>
-            <p class="public-reassurance">${demoIcon('lock', 17)}<span>Na demonstração, tarefas, hábitos e Pomodoro usam exemplos fictícios; suas alterações não são salvas nem sincronizadas.</span></p>
           </div>
         </section>
         <section class="public-maker" aria-labelledby="public-maker-title">
@@ -71,39 +83,61 @@ export function landingMarkup() {
             <p>O Aurora é criado e mantido por Elisa da Silva Justino. É grátis, está em evolução e as sugestões chegam direto a ela — use o formulário no rodapé.</p>
           </div>
         </section>
-        <section class="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Da cabeça cheia a um próximo passo possível</p><h2 id="public-features-title">Sua rotina, em um só lugar</h2><p class="public-section-lead">Você não precisa organizar a vida inteira de uma vez. Comece por uma área e acrescente outras quando precisar.</p></div>
+        <section class="public-features" id="public-features" aria-labelledby="public-features-title">
+          <div class="public-section-heading"><p class="public-eyebrow">Da cabeça cheia a um próximo passo possível</p><h2 id="public-features-title">Cinco áreas, no seu ritmo</h2><p class="public-section-lead">Veja como Planejar, Foco, Hábitos, Finanças e Ciclo se encaixam na sua rotina. Comece por uma área e explore as outras quando quiser.</p></div>
           <ol class="public-journey-grid" aria-label="Como o Aurora ajuda no dia a dia">
             <li class="public-journey-step"><span class="public-journey-number" aria-hidden="true">01</span><div><h3>Despeje tudo</h3><p>Anote como vier; o que não tem data fica guardado.</p></div></li>
             <li class="public-journey-step"><span class="public-journey-number" aria-hidden="true">02</span><div><h3>Veja só o que cabe hoje</h3><p>Dia puxado? Reduza o plano em vez de abandonar tudo.</p></div></li>
             <li class="public-journey-step"><span class="public-journey-number" aria-hidden="true">03</span><div><h3>Perceba o que avançou</h3><p>Veja conclusões, hábitos e para onde foi o dinheiro.</p></div></li>
           </ol>
-          <div class="public-values">
+          <div class="public-values" aria-label="Demonstração visual das cinco áreas">
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
             <div><h3>Planejar</h3><p>Organize tarefas por dia, defina prazos e acompanhe o que já foi concluído.</p></div>
-            <div class="public-value-media" data-landing-video="planejar" aria-hidden="true"></div>
+            <div class="public-value-preview preview-area-planner" aria-hidden="true">
+              <span class="preview-mini-heading">HOJE <b>3</b><small>2 de 3 feitas</small></span>
+              <span class="preview-mini-progress"><i></i></span>
+              <span class="preview-mini-task is-done"><i>✓</i>Organizar a semana</span>
+              <span class="preview-mini-task is-done"><i>✓</i>Responder uma mensagem</span>
+              <span class="preview-mini-task"><i></i>Ler por alguns minutos</span>
+            </div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('clock', 22)}</span>
             <div><h3>Foco</h3><p>Personalize os períodos de foco e pausa; use o Pomodoro com ou sem uma tarefa.</p></div>
-            <div class="public-value-media" data-landing-video="pomodoro" aria-hidden="true"></div>
+            <div class="public-value-preview preview-area-focus" aria-hidden="true">
+              <div class="preview-focus-dial"><strong>25:00</strong></div>
+              <span class="preview-focus-caption">Foco · 25 min</span>
+              <span class="preview-focus-caption is-muted">Pausa · 5 min</span>
+            </div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
             <div><h3>Hábitos</h3><p>Registre check-ins e metas semanais com espaço para ajustar o plano à sua rotina.</p></div>
-            <div class="public-value-media" data-landing-video="habitos" aria-hidden="true"></div>
+            <div class="public-value-preview preview-area-habits" aria-hidden="true">
+              <span class="preview-mini-heading">Beber água <small>5/7</small></span>
+              <span class="preview-habit-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <span class="preview-mini-heading">Ler 10 minutos <small>3/5</small></span>
+              <span class="preview-habit-dots is-short"><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
             <div><h3>Finanças</h3><p>Registre receitas, despesas e cartões manualmente. O Aurora não se conecta a bancos.</p></div>
-            <div class="public-value-media" data-landing-video="financas" aria-hidden="true"></div>
+            <div class="public-value-preview preview-area-finance" aria-hidden="true">
+              <div><small>Receitas</small><strong>R$ 3.200</strong></div>
+              <div><small>Despesas</small><strong>R$ 1.960</strong></div>
+              <span class="preview-finance-bars"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
           </article>
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
             <div><h3>Ciclo</h3><p>Acompanhe períodos e sintomas. As informações são gerais e não substituem orientação profissional.</p></div>
-            <p class="public-value-privacy">${demoIcon('lock', 16)}<span>É o dado mais sensível do app: fica somente na sua conta, com acesso restrito a você, mas sem criptografia de ponta a ponta. Veja a <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.</span></p>
-            <div class="public-value-media" data-landing-video="ciclo" aria-hidden="true"></div>
+            <div class="public-value-preview preview-area-cycle" aria-hidden="true">
+              <span class="preview-cycle-week"><i>S</i><i>T</i><i>Q</i><i>Q</i><i>S</i><i>S</i><i>D</i></span>
+              <span class="preview-cycle-days"><i>2</i><i class="is-period">3</i><i class="is-period">4</i><i class="is-period">5</i><i>6</i><i>7</i><i>8</i></span>
+              <span class="preview-cycle-note">${demoIcon('lock', 13)} Dados privados da sua conta</span>
+            </div>
           </article>
           </div>
         </section>
@@ -116,7 +150,7 @@ export function landingMarkup() {
           </div>
           <div class="public-actions">
             <a class="btn primary large" href="/criar-conta" data-public-action="signup">Criar minha conta grátis</a>
-            <a class="btn large" href="/demonstracao" data-public-action="demo">Ver a demonstração</a>
+            <a class="btn large" href="#public-features">Ver a demonstração</a>
           </div>
         </section>
         <section class="public-faq" aria-labelledby="public-faq-title">

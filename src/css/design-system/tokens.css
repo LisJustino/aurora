@@ -88,7 +88,7 @@
   --button-padding-inline: var(--space-4);
   --button-padding-inline-sm: var(--space-3);
   --button-padding-inline-lg: var(--space-5);
-  --button-radius: var(--r-control);
+  --button-radius: var(--r-group);
   --preview-caption-clearance: 120px;
   --list-row-border: var(--line);
   --list-row-radius: var(--r-group);

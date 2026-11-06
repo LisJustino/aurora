@@ -432,7 +432,17 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const SIDEBAR_COLLAPSED_KEY = 'aurora.ui.sidebar-collapsed';
+const readSidebarCollapsed = () => {
+  try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch { return false; }
+};
+const writeSidebarCollapsed = (collapsed) => {
+  try {
+    if (collapsed) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, '1');
+    else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
+  } catch { /* storage indisponível */ }
+};
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
   const announcer = document.createElement('div');
   announcer.id = 'notification-announcer';
@@ -1059,6 +1069,16 @@ function normalizeSlice(k, v) {
 
 /* ---------- Persistência local ---------- */
 /* ---------- Persistencia relacional ---------- */
+function cacheLoadingAppearance(settings) {
+  const [primary, accent] = paletteColors(settings.theme, settings.look);
+  window.auroraLoadingAppearance?.save({
+    palette: settings.theme === 'rose' ? 'rose' : 'customized',
+    mode: settings.look.mode,
+    reduceMotion: settings.look.reduceMotion,
+    primary,
+    accent,
+  });
+}
 const Persist = {
   userId: '',
   store: null,
@@ -1136,6 +1156,7 @@ const Persist = {
             clearTimeout(saveTimer);
           }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
+          cacheLoadingAppearance(snapshot.settings);
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
@@ -1197,6 +1218,7 @@ const Persist = {
     if (this.inFlight) await this.inFlight;
     await this.store.save(JSON.parse(JSON.stringify(S)));
     this.confirmedState = JSON.parse(JSON.stringify(S));
+    cacheLoadingAppearance(S.settings);
     this.pendingSnapshot = null;
     syncState.pending.clear();
     syncState.failed.clear();
@@ -1211,11 +1233,13 @@ const Persist = {
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.confirmedState = JSON.parse(JSON.stringify(defaults()));
+    cacheLoadingAppearance(this.confirmedState.settings);
     syncState.pending.clear();
     syncState.failed.clear();
     syncState.conflicts.clear();
   },
   wipe() {
+    window.auroraLoadingAppearance?.clear();
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.store = null;
@@ -1248,6 +1272,7 @@ async function loadAccountData() {
   syncState.failed.clear();
   persistFailed.forEach((slice) => syncState.failed.add(slice));
   Persist.confirmedState = JSON.parse(JSON.stringify(S));
+  if (!persistBlocked.has('settings')) cacheLoadingAppearance(S.settings);
 }
 function initializeBirthdayFromMetadata(user) {
   const prefs = S.settings.prefs;
@@ -1576,7 +1601,7 @@ function shell(body) {
   const secondaryItems = menuItems.slice(4);
   const hasActiveArea = Object.values(S.settings.areas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" title="${label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
+  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" data-tip="${label}" title="${ui.sidebarCollapsed ? '' : label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
   const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
@@ -1594,13 +1619,13 @@ function shell(body) {
     ${financeQuickActions}
     ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
   const quickActions = h`<div class="nav-quick-control">
-    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
+    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
   </div>`;
   const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
-  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
+  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar">${brandLink}<nav class="nav" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar"><div class="sidebar-brand-row">${brandLink}<button type="button" class="sidebar-toggle" data-action="sidebar-toggle" aria-label="${ui.sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}" aria-expanded="${String(!ui.sidebarCollapsed)}" aria-controls="primary-navigation" title="${ui.sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}">${icon(ui.sidebarCollapsed ? 'chevRight' : 'chevLeft', 18)}</button></div><nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
         <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="/pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
@@ -1740,7 +1765,10 @@ function areaNav(cur) {
 }
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
-  return h`<div class="area-guide-control"><button type="button" class="btn ghost" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}Como usar?</button></div>`;
+  return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}Como usar?</button>`;
+}
+function areaPageTitle(route, title, action = '') {
+  return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
 }
 function financePrivacyNotice() {
   return h`<aside class="notice finance-privacy-note" role="note"><span><strong>Sem conexão bancária</strong><span>${FINANCE_PRIVACY_NOTICE}</span></span></aside>`;
@@ -1756,19 +1784,21 @@ function dueBadge(t) {
   if (d === 1) return h`<span class="badge">Amanhã</span>`;
   return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
 }
-function taskRow(t, reviewNextWeek = false) {
+function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
+  const isReviewNextWeek = reviewNextWeek === true;
+  const isHomeNextStep = homeNextStep === true;
   const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
   const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
   const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
   const taskIcon = taskIconKey(t.icon);
-  return h`<li class="task ${t.done ? 'done' : ''}${reviewNextWeek ? ' weekly-plan-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
+  return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
     <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
-    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span></span>
+    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
       <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
     <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
-    ${reviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
+    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
   </li>`;
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
@@ -2499,72 +2529,66 @@ const backupReminder = () => {
   return h`<div class="notice backup-reminder" role="note">${icon('archive', 18)}<div class="grow"><b>Hora de guardar uma cópia</b><br><span class="small">${text} Os dados são sincronizados com sua conta; o backup é uma cópia independente.</span></div><a class="btn sm primary" href="/config?section=data">Fazer backup</a><button type="button" class="btn sm ghost" data-action="backup-reminder-dismiss">Agora não</button></div>`;
 };
 
-function homeNextAction() {
-  const now = Date.now(), todayKey = today(), candidates = [];
-  S.tasks.filter((task) => !task.done && (task.dueDate || task.time)
-    && (!task.dueDate || task.dueDate > todayKey)).forEach((task) => {
-    const day = task.dueDate || todayKey;
-    const time = isTime(task.time) ? task.time : '12:00';
-    const dueAt = new Date(`${day}T${time}:00`).getTime();
-    if (Number.isFinite(dueAt)) candidates.push({ type: 'task', task, at: dueAt, rank: 0 });
-  });
-  if (areaOn('habits')) {
-    S.habits.filter((habit) => (
-      (habit.status || 'active') === 'active'
-      && habit.days.includes(pk(todayKey).getDay())
-      && !habitCompletedFor(habit, todayKey)
-      && !habitIsSkipped(habit, todayKey, todayKey)
-    )).forEach((habit) => {
-      const reminderAt = isTime(habit.remind) ? new Date(`${todayKey}T${habit.remind}:00`).getTime() : now;
-      candidates.push({ type: 'habit', habit, at: Number.isFinite(reminderAt) ? reminderAt : now, rank: 1 });
-    });
-  }
-  if (areaOn('finances')) {
-    S.finance.accounts.filter((account) => account.type === 'credit').forEach((account) => {
-      const info = cardInfo(account);
-      if (!info.due || info.total <= 0 || info.used <= 0 || info.due > addDays(todayKey, 7)) return;
-      const dueAt = new Date(`${info.due}T12:00:00`).getTime();
-      candidates.push({ type: 'account', account, due: info.due, at: dueAt, rank: 2 });
-    });
-  }
-  candidates.sort((a, b) => {
-    const aOverdue = a.at < now, bOverdue = b.at < now;
-    if (aOverdue && bOverdue) return b.at - a.at || a.rank - b.rank;
-    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
-    return a.at - b.at || a.rank - b.rank;
-  });
-  const next = candidates[0];
+function homeUpcomingBill() {
+  if (!areaOn('finances')) return '';
+  const todayKey = today();
+  const next = S.finance.accounts
+    .filter((account) => account.type === 'credit')
+    .map((account) => ({ account, info: cardInfo(account) }))
+    .filter(({ info }) => info.due && info.total > 0 && info.used > 0 && info.due <= addDays(todayKey, 7))
+    .sort((left, right) => left.info.due.localeCompare(right.info.due))[0];
   if (!next) return '';
-  if (next.type === 'task') {
-    const task = next.task;
-    const label = task.dueDate ? `${shortDate(task.dueDate)}${task.time ? ` às ${task.time}` : ''}` : `Hoje às ${task.time}`;
-    return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon(taskIconKey(task.icon) || 'calendarCheck', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${task.title}</h2><p>${label}${task.priority === 'high' ? ' · prioridade alta' : ''}</p></div>${areaOn('pomodoro') ? h`<button type="button" class="btn primary" data-action="task-focus" data-id="${task.id}">${icon('play', 16)}Começar foco</button>` : h`<button type="button" class="btn primary" data-action="edit-task" data-id="${task.id}">Abrir tarefa</button>`}</section>`;
-  }
-  if (next.type === 'habit') {
-    const habit = next.habit;
-    return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">${habit.name}</h2><p>Este hábito ainda falta hoje.</p></div><button type="button" class="btn primary" data-action="habit-check" data-id="${habit.id}">Marcar como feito</button></section>`;
-  }
-  const days = dayDiff(next.due, todayKey);
+  const { account } = next;
+  const due = next.info.due;
+  const days = dayDiff(due, todayKey);
   const dueLabel = days < 0 ? `Vencida há ${Math.abs(days)} ${plural(Math.abs(days), 'dia', 'dias')}`
     : days === 0 ? 'Vence hoje' : `Vence em ${days} ${plural(days, 'dia', 'dias')}`;
-  return h`<section class="card home-next-action" aria-labelledby="home-next-title"><div class="home-next-mark">${icon('card', 19)}</div><div class="grow"><span class="section-kicker">Próxima ação</span><h2 id="home-next-title">Fatura de ${accountDisplayName(next.account)}</h2><p>${dueLabel} · ${shortDate(next.due)}</p></div><a class="btn primary" href="/financas">Ver Finanças</a></section>`;
+  return h`<section class="card home-next-action home-bill-reminder" aria-labelledby="home-bill-title"><div class="home-next-mark">${icon('card', 19)}</div><div class="grow"><span class="section-kicker">Lembrete financeiro</span><h2 id="home-bill-title">Fatura de ${accountDisplayName(account)}</h2><p>${dueLabel} · ${shortDate(due)}</p></div><a class="btn ghost sm" href="/financas">Ver Finanças</a></section>`;
 }
 
-function homeHabitCheckins() {
+function homeInboxReminder(tasks) {
+  if (!tasks.length) return '';
+  return h`<section class="notice home-inbox-reminder" aria-labelledby="home-inbox-title">
+    ${icon('inbox', 18)}
+    <div class="grow"><b id="home-inbox-title">${tasks.length} ${plural(tasks.length, 'tarefa sem data', 'tarefas sem data')}</b><span>Escolha o que você quer planejar agora; o restante pode esperar.</span></div>
+    <a class="btn ghost sm" href="/planejar" data-action="filter-inbox">Organizar tarefas</a>
+  </section>`;
+}
+
+function homeUpcomingTasks() {
+  const endDate = addDays(today(), 7);
+  const upcoming = S.tasks
+    .filter((task) => !task.done && task.dueDate > today() && task.dueDate <= endDate)
+    .sort((left, right) => left.dueDate.localeCompare(right.dueDate)
+      || (left.time || '99:99').localeCompare(right.time || '99:99'));
+  if (!upcoming.length) return '';
+  const preview = upcoming.slice(0, 3);
+  const remaining = upcoming.length - preview.length;
+  return h`<section class="card home-upcoming-card" aria-labelledby="home-upcoming-title">
+    <div class="head"><div><p class="section-kicker">Depois de hoje</p><h2 id="home-upcoming-title">Próximos 7 dias<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
+    <ul class="list">${preview.map((task) => taskRow(task))}</ul>
+    ${remaining ? h`<p class="home-upcoming-more">+ ${remaining} ${plural(remaining, 'tarefa', 'tarefas')} na lista completa.</p>` : ''}
+  </section>`;
+}
+
+function homeHabitCheckins(highlightNext = false) {
   if (!areaOn('habits')) return '';
   const scheduled = S.habits.filter((habit) => (
     (habit.status || 'active') === 'active'
     && habit.days.includes(pk(today()).getDay())
   ));
   if (!scheduled.length) return '';
+  const nextHabit = highlightNext ? scheduled.find((habit) => (
+    !habitCompletedFor(habit, today()) && !habitIsSkipped(habit, today(), today())
+  )) : null;
   return h`<section class="card home-habit-checkins" aria-labelledby="home-habits-title">
     <div class="head"><h2 id="home-habits-title">Hábitos de hoje<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
     <ul class="list">${scheduled.map((habit) => {
       const completed = habitCompletedFor(habit, today());
       const skipped = habitIsSkipped(habit, today(), today());
-      return h`<li class="home-habit-row">
+      return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
-        <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span></span>
+        <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span>${habit.id === nextHabit?.id ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
         <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}" data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}" aria-pressed="${String(completed || skipped)}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
       </li>`;
     })}</ul>
@@ -2614,18 +2638,24 @@ function viewInicio() {
   const optionalAreas = areaTiles();
   const homePrefs = settingsView().prefs;
   const homeLayout = homePrefs.homeLayout;
-  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => homePrefs.homeShortcuts.includes(id) && (!area || areaOn(area)));
   const homeMessage = homePrefs.homeMessage;
   const sundayReview = pk(today()).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
+  const taskShortcutVisible = homePrefs.homeShortcuts.includes('task');
+  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => (
+    homePrefs.homeShortcuts.includes(id)
+    && (!area || areaOn(area))
+    && !(id === 'task' && showHomeBlock('quick'))
+  ));
+  const nextTask = showHomeBlock('today') ? overdue[0] || dueToday[0] : null;
   const habitsToday = areaOn('habits') ? S.habits.filter((hb) => (hb.status || 'active') === 'active' && hb.days.includes(pk(today()).getDay())) : [];
   const habitsLeft = habitsToday.filter((hb) => !habitCompletedFor(hb, today())
     && !habitIsSkipped(hb, today(), today())).length;
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Adicionar tarefa para hoje${icon('chevRight', 16)}</button><a class="home-customize" href="/config?section=areas-navigation">${icon('sliders', 17)}Personalizar início</a></div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions">${!showHomeBlock('quick') && !taskShortcutVisible ? h`<button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Nova tarefa${icon('chevRight', 16)}</button>` : ''}${areaGuideButton('inicio')}</div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
     ${sampleBanner()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
     <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
@@ -2633,25 +2663,25 @@ function viewInicio() {
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
           <a href="/planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
           <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
-          <a href="/planejar" data-action="filter-inbox"><b>${inbox.length}</b><span>Tarefas sem data</span></a>
         </section>` : ''}
         ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title" ${raw(homeBlockStyle('quick'))}>
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
           <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
         </section>` : ''}
-        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins()}</div>` : ''}
+        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(!nextTask)}</div>` : ''}
         ${showHomeBlock('today') ? h`        <section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
           ${tt.length ? h`<div class="home-task-groups">
-            ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map(taskRow)}</ul></section>` : ''}
-            ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map(taskRow)}</ul></section>` : ''}
+            ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
+            ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
             ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
           </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="/planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
-        ${homeNextAction()}
+        ${homeUpcomingTasks()}
+        ${homeInboxReminder(inbox)}
+        ${homeUpcomingBill()}
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
-    ${areaGuideButton('inicio')}
     ${homeFirstSteps()}
     ${backupReminder()}
     ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
@@ -2668,13 +2698,15 @@ function viewInicio() {
     </section>` : ''}`;
 }
 
-const FILTERS = [['todas', 'Todas'], ['pendentes', 'Pendentes'], ['atrasadas', 'Atrasadas'], ['caixa', 'Sem data'], ['concluidas', 'Concluídas']];
+const FILTERS = [['todas', 'Todas'], ['pendentes', 'Pendentes'], ['atrasadas', 'Atrasadas'], ['proximas', 'Próximos 7 dias'], ['caixa', 'Sem data'], ['concluidas', 'Concluídas']];
 function filteredTasks() {
   const { f, q, sort } = ui.filters, tdy = today(), nq = norm(q.trim());
+  const nextWeek = addDays(tdy, 7);
   let r = S.tasks.filter((t) => {
     if (f === 'pendentes' && t.done) return false;
     if (f === 'concluidas' && !t.done) return false;
     if (f === 'atrasadas' && (t.done || !t.dueDate || t.dueDate >= tdy)) return false;
+    if (f === 'proximas' && (t.done || !t.dueDate || t.dueDate <= tdy || t.dueDate > nextWeek)) return false;
     if (f === 'caixa' && (t.done || t.dueDate)) return false;
     if (f.startsWith('etq:') && !(t.tags || []).includes(f.slice(4))) return false;
     return !nq || norm(t.title).includes(nq) || (t.tags || []).some((g) => norm(g).includes(nq)) || norm(t.notes || '').includes(nq) || norm(t.groupTitle || '').includes(nq);
@@ -2687,7 +2719,7 @@ function taskListHtml() {
   const r = filteredTasks(), { f, sort } = ui.filters, tdy = today();
   if (!r.length) {
     const hasTasks = S.tasks.length > 0;
-    const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
+      const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
     const actions = hasTasks
       ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
       : hasFilters
@@ -2996,25 +3028,34 @@ function viewPlanejar() {
   const todayPending = pendingTasks.filter((task) => task.dueDate === todayKey).length;
   const overdueCount = pendingTasks.filter((task) => task.dueDate && task.dueDate < todayKey).length;
   const upcomingCount = pendingTasks.filter((task) => task.dueDate > todayKey && task.dueDate <= nextWeek).length;
+  const inboxCount = pendingTasks.filter((task) => !task.dueDate).length;
   const todaySummary = todayPending
     ? `${todayPending} ${plural(todayPending, 'tarefa marcada', 'tarefas marcadas')} para hoje`
     : 'Nenhuma tarefa com prazo para hoje';
   const overdueSummary = overdueCount
     ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
     : 'Nenhuma tarefa atrasada';
-  return h`${pageTitle('Planejar')}${areaGuideButton('planejar')}
+  const planningSummary = overdueCount
+    ? `${overdueSummary}. Comece pelo que já passou do prazo.`
+    : todayPending
+      ? `${todaySummary}. Veja o que vem depois e ajuste sua semana.`
+      : upcomingCount
+        ? `${upcomingCount} ${plural(upcomingCount, 'tarefa nos próximos dias', 'tarefas nos próximos dias')}. Seu dia está livre para organizar.`
+        : 'Seu plano está em dia. Adicione uma tarefa ou organize os próximos dias.';
+  return h`${areaPageTitle('planejar', 'Planejar')}
     <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
       <div class="planning-overview-copy">
-        <span class="section-kicker">Resumo de tarefas</span>
-        <h2 id="planning-overview-title">Tarefas por prazo<i>.</i></h2>
-        <p>${todaySummary}. ${overdueSummary}.</p>
+        <span class="section-kicker">Seu próximo passo</span>
+        <h2 id="planning-overview-title">${overdueCount ? 'Vamos reorganizar o que passou.' : 'Seu plano, com clareza.'}<i>.</i></h2>
+        <p>${planningSummary}</p>
         <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
       </div>
-      <dl class="planning-overview-stats" aria-label="Resumo das tarefas pendentes">
-        <div><dt>Para hoje</dt><dd>${todayPending}</dd></div>
-        <div><dt>Atrasadas</dt><dd>${overdueCount}</dd></div>
-        <div><dt>Próximos 7 dias</dt><dd>${upcomingCount}</dd></div>
-      </dl>
+      <div class="planning-overview-stats" role="group" aria-label="Filtrar tarefas por prazo">
+        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="pendentes" aria-pressed="${ui.planView === 'lista' && f.f === 'pendentes' && !f.q}"><span>Pendentes</span><b>${pendingTasks.length}</b></button>
+        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="atrasadas" aria-pressed="${ui.planView === 'lista' && f.f === 'atrasadas' && !f.q}"><span>Atrasadas</span><b>${overdueCount}</b></button>
+        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="proximas" aria-pressed="${ui.planView === 'lista' && f.f === 'proximas' && !f.q}"><span>Próximos 7 dias</span><b>${upcomingCount}</b></button>
+        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="caixa" aria-pressed="${ui.planView === 'lista' && f.f === 'caixa' && !f.q}"><span>Sem data</span><b>${inboxCount}</b></button>
+      </div>
     </section>
     <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button><a href="/pomodoro">${icon('clock', 16)}Usar Pomodoro</a></section>
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
@@ -3173,7 +3214,7 @@ function habitRow(habit) {
 }
 function viewHabits() {
   return renderHabitsView({
-    S, ui, areaOn, pageTitle, areaGuideButton, gate, habitsTemplate,
+    S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
     weekStartDay, habitCompletedFor, getPomodoroPushStatus, plural, habitRow,
     preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
@@ -3199,7 +3240,7 @@ function requestHabitsTemplate() {
 }
 function viewPomodoro() {
   const g = gate('pomodoro', 'Pomodoro');
-  if (g) return h`${areaNav('pomodoro')}${pageTitle('Pomodoro')}${areaGuideButton('pomodoro')}${g}`;
+  if (g) return h`${areaNav('pomodoro')}${areaPageTitle('pomodoro', 'Pomodoro')}${g}`;
   const timer = S.pomodoro, preferences = settingsView().prefs.pomodoro;
   const pom = effectivePomodoroSettings(preferences);
   const presetLabels = { short: 'Rápido', classic: 'Clássico', extended: 'Estendido', deep: 'Foco profundo' };
@@ -3210,11 +3251,12 @@ function viewPomodoro() {
   const duration = phaseDurationSeconds(pom, timer.phase);
   const remaining = Math.max(0, duration - elapsed);
   const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
+  const completedToday = timer.dailyCompletedOn === today() ? timer.dailyCompletedPomodoros : 0;
   const circumference = 2 * Math.PI * 50;
   const presetDisabled = running || hasProgress;
   const pushStatus = getPomodoroPushStatus();
   const pushButtonDisabled = ui.pushBusy || (!pushStatus.enabled && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
-  return h`${areaNav('pomodoro')}${pageTitle('Pomodoro')}${areaGuideButton('pomodoro')}
+  return h`${areaNav('pomodoro')}${areaPageTitle('pomodoro', 'Pomodoro')}
     <section class="card focus-timer free-pomodoro" data-phase="${timer.phase}" aria-labelledby="standalone-pomodoro-title">
       <header class="focus-timer-head"><div><span class="focus-eyebrow">${standalonePomodoroPhaseName(timer.phase)}</span><h2 id="standalone-pomodoro-title">Foque em uma coisa por vez<i>.</i></h2><p class="free-pomodoro-subtitle">${focusTask ? h`Tarefa vinculada: <b class="user-value">${focusTask.title}</b> · ${dur(focusedSeconds)} focados` : timer.focusLabel ? h`Foco em: <b class="user-value">${timer.focusLabel}</b>` : 'Defina um foco opcional e comece seu primeiro bloco.'}</p></div></header>
       <div class="focus-timer-body">
@@ -3232,6 +3274,11 @@ function viewPomodoro() {
         </div>
       </div>
       <p class="err" id="standalone-pomo-error" role="alert"></p>
+    </section>
+    <section class="card pomodoro-session-summary" aria-label="Resumo do seu foco">
+      <div class="pomodoro-session-stat"><span>Hoje</span><strong>${completedToday}</strong><small>${plural(completedToday, 'bloco concluído', 'blocos concluídos')}</small></div>
+      <div class="pomodoro-session-stat"><span>Nesta sessão</span><strong>${timer.completedPomodoros}</strong><small>${plural(timer.completedPomodoros, 'bloco concluído', 'blocos concluídos')}</small></div>
+      <div class="pomodoro-session-stat"><span>Tempo em foco</span><strong>${dur(focusedSeconds)}</strong><small>nesta sessão</small></div>
     </section>
     <details class="card free-pomodoro-settings" id="d-pomodoro-options" ${ui.openDetails['pomodoro-options'] ? raw('open') : ''}>
             <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
@@ -3373,7 +3420,7 @@ function topSymptoms() {
   });
 }
 function viewCiclo() {
-  const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${pageTitle('Ciclo')}${areaGuideButton('ciclo')}${g}`;
+  const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}${g}`;
   const st = cycleStats(), tdy = today(), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
   const ym = ui.calMonth, [y, m] = ym.split('-').map(Number), first = new Date(y, m - 1, 1), nDays = new Date(y, m, 0).getDate();
   const strip = Array.from({ length: 14 }, (_, i) => addDays(tdy, i - 13));
@@ -3402,7 +3449,7 @@ function viewCiclo() {
   }
   const top = topSymptoms();
   const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
-  return h`${areaNav('ciclo')}${pageTitle('Ciclo')}${areaGuideButton('ciclo')}
+  return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}
     ${!hasCycleHistory && !hasCycleRecords
       ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
@@ -3592,13 +3639,13 @@ function homeLayoutSettings(s) {
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início. O plano de hoje fica fixo no topo.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
-    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. Áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
+    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(([id, label, description], index) => h`<li class="home-layout-item">
       <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}" aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
-      <span class="home-layout-controls"><span>${index + 1}º</span><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="-1" aria-label="Mover ${label} para cima" ${index === 0 ? raw('disabled') : ''}>${icon('arrowUp', 16)}</button><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="1" aria-label="Mover ${label} para baixo" ${index === ordered.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 16)}</button></span>
+      <span class="home-layout-controls"><span>${id === 'today' ? '1º · fixo' : `${index + 1}º`}</span>${id === 'today' ? '' : h`<button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="-1" aria-label="Mover ${label} para cima" ${index === 1 ? raw('disabled') : ''}>${icon('arrowUp', 16)}</button><button type="button" class="ibtn" data-action="home-block-move" data-home-block="${id}" data-direction="1" aria-label="Mover ${label} para baixo" ${index === ordered.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 16)}</button>`}</span>
     </li>`)}</ol>
   </section>`;
 }
@@ -4878,6 +4925,12 @@ const ACTIONS = {
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
+  'sidebar-toggle': () => {
+    ui.sidebarCollapsed = !ui.sidebarCollapsed;
+    writeSidebarCollapsed(ui.sidebarCollapsed);
+    render();
+    requestAnimationFrame(() => document.querySelector('.sidebar-toggle')?.focus());
+  },
   'quick-actions-toggle': (el) => {
     const opening = !ui.quickActionsOpen;
     const returnTarget = el.matches('.finance-fab')
@@ -5374,6 +5427,12 @@ const ACTIONS = {
     requestActionConfirmation('del-task', { id }, 'Excluir tarefa?', `A tarefa "${task.title}" irá para a lixeira por 30 dias.`, 'Excluir tarefa');
   },
   'set-filter': (el) => { ui.filters.f = el.dataset.f; render(); },
+  'planning-filter': (el) => {
+    ui.planView = 'lista';
+    ui.filters.f = el.dataset.f;
+    ui.filters.q = '';
+    render();
+  },
   'task-filters-clear': () => {
     ui.filters.f = 'todas';
     ui.filters.q = '';
@@ -5432,10 +5491,10 @@ const ACTIONS = {
   },
   'home-block-move': (el) => {
     const id = el.dataset.homeBlock, direction = Number(el.dataset.direction);
-    if (!HOME_BLOCK_IDS.includes(id) || ![-1, 1].includes(direction)) return;
+    if (!HOME_BLOCK_IDS.includes(id) || id === 'today' || ![-1, 1].includes(direction)) return;
     const current = settingsView().prefs.homeLayout.order;
     const index = current.indexOf(id), target = index + direction;
-    if (index < 0 || target < 0 || target >= current.length) return;
+    if (index < 1 || target < 1 || target >= current.length) return;
     const order = [...current]; [order[index], order[target]] = [order[target], order[index]];
     updateSettingsDraft((settings) => {
       settings.prefs.homeLayout.order = order;
@@ -6965,12 +7024,12 @@ function finRel() {
 }
 
 function viewFinancas() {
-  const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${pageTitle('Finanças')}${financePrivacyNotice()}${areaGuideButton('financas')}${g}`;
+  const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
   const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
   const noAcc = !S.finance.accounts.length;
   const createAction = noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`;
   const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
-  return h`${areaNav('financas')}${pageTitle('Finanças', createAction)}${financePrivacyNotice()}${areaGuideButton('financas')}
+  return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
     <div class="fin-section-content">${noAcc ? h`${finSectionPicker()}${ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts}` : h`${finSectionPicker()}${panel()}`}</div>${noAcc ? '' : h`${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
 }
 
@@ -8044,6 +8103,7 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
     initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
     onPublicReturn: () => { returnedToPublic = true; },
     onAccountDeleted: () => {
+      window.auroraLoadingAppearance?.clear();
       redirectToPublicLanding(location);
     },
   });

@@ -32,6 +32,7 @@
   <link rel="manifest" href="%BASE_URL%manifest.webmanifest">
   <title>aurora. — planner de tarefas, hábitos, foco e finanças</title>
   <meta name="aurora-route" content="landing">
+  <script src="%BASE_URL%loading-appearance.js"></script>
   <link rel="preload" href="./src/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./src/css/main.css">
   <script type="application/ld+json">
@@ -68,17 +69,11 @@
 </head>
 <body>
   <div id="app"><main class="app-skeleton" role="status" aria-busy="true" aria-label="Carregando aurora">
-    <div class="app-skeleton-header" aria-hidden="true">
-      <span class="account-loading-brand-text">aurora<span class="account-loading-brand-dot">.</span></span>
-      <span class="app-skeleton-pill"></span>
+    <div class="account-loading-content">
+      <span class="account-loading-brand-text" aria-hidden="true">aurora<span class="account-loading-brand-dot">.</span></span>
+      <span class="account-loading-indicator" aria-hidden="true"></span>
+      <p class="account-loading-message">Preparando seu espaço…</p>
     </div>
-    <div class="app-skeleton-hero" aria-hidden="true">
-      <span class="app-skeleton-line is-title"></span>
-      <span class="app-skeleton-line is-short"></span>
-      <span class="app-skeleton-line"></span>
-      <span class="app-skeleton-pill"></span>
-    </div>
-    <span class="app-skeleton-card" aria-hidden="true"></span>
   </main></div>
   <script src="/landing-guard.js"></script>
   <noscript>Para autenticar sua conta e salvar seus dados com segurança, é necessário ativar o JavaScript.</noscript>
