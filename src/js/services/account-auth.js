@@ -441,20 +441,122 @@ function setSubmitPending(button, pending) {
   button.disabled = false;
 }
 
-function createAccountIntro() {
+const SPARKLE_PATH = 'M12 1.5c.7 5.6 3.4 8.3 9 9-5.6.7-8.3 3.4-9 9-.7-5.6-3.4-8.3-9-9 5.6-.7 8.3-3.4 9-9z';
+
+const SUCCESS_ART = `<svg class="account-success-svg" viewBox="0 0 120 96" role="presentation" focusable="false">
+    <circle class="ok-halo" cx="60" cy="50" r="38"/>
+    <circle class="ok-disc" cx="60" cy="50" r="28"/>
+    <path class="ok-check" d="M46 51l10 10 19-21"/>
+    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(94 8) scale(.9)"/>
+    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(10 22) scale(.6)"/>
+    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(98 62) scale(.5)"/>
+  </svg>`;
+
+const ACCOUNT_ART = {
+  envelope: `<svg class="account-art-svg" viewBox="0 0 260 200" role="presentation" focusable="false">
+    <ellipse class="art-shadow" cx="130" cy="180" rx="84" ry="10"/>
+    <g class="art-float">
+      <path class="art-env-back" d="M36 78 130 18l94 60v84a12 12 0 0 1-12 12H48a12 12 0 0 1-12-12z"/>
+      <rect class="art-paper" x="62" y="48" width="136" height="92" rx="10"/>
+      <path class="art-paper-line" d="M82 74h96M82 92h70M82 110h84"/>
+      <path class="art-env-front" d="M36 84 130 148l94-64v78a12 12 0 0 1-12 12H48a12 12 0 0 1-12-12z"/>
+      <path class="art-env-fold" d="M36 162l76-56M224 162l-76-56" />
+      <path class="art-heart" d="M130 158c-12-9-18-15-18-22a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 7-6 13-18 22z"/>
+    </g>
+    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(206 20) scale(1.1)"/>
+    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(24 40) scale(.8)"/>
+    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(228 112) scale(.6)"/>
+  </svg>`,
+  lock: `<svg class="account-art-svg" viewBox="0 0 260 200" role="presentation" focusable="false">
+    <ellipse class="art-shadow" cx="130" cy="182" rx="76" ry="10"/>
+    <g class="art-float">
+      <path class="art-shackle" d="M92 86V68a38 38 0 0 1 76 0v18"/>
+      <rect class="art-lock-body" x="64" y="84" width="132" height="92" rx="22"/>
+      <rect class="art-lock-shine" x="76" y="94" width="108" height="22" rx="11"/>
+      <circle class="art-keyhole" cx="130" cy="126" r="11"/>
+      <path class="art-keyhole" d="M125 130h10l3 24h-16z"/>
+    </g>
+    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(200 24) scale(1.1)"/>
+    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(30 70) scale(.8)"/>
+    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(214 120) scale(.6)"/>
+  </svg>`,
+  preview: `<div class="account-preview">
+    <div class="account-preview-card is-tasks">
+      <p class="account-preview-title">Hoje</p>
+      <ul>
+        <li class="is-done"><span></span>Revisar a semana</li>
+        <li class="is-done"><span></span>Caminhada de 20 min</li>
+        <li><span></span>Planejar o mês</li>
+      </ul>
+    </div>
+    <div class="account-preview-card is-habits">
+      <svg viewBox="0 0 44 44" role="presentation" focusable="false"><circle class="ring-bg" cx="22" cy="22" r="17"/><circle class="ring-fg" cx="22" cy="22" r="17"/></svg>
+      <p><b>5 de 7</b>hábitos na semana</p>
+    </div>
+    <div class="account-preview-card is-money">
+      <p class="account-preview-title">Saldo do mês</p>
+      <p class="account-preview-value">R$ 1.240,00</p>
+      <div class="account-preview-bars"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <svg class="account-preview-sparkle s1" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
+    <svg class="account-preview-sparkle s2" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
+  </div>`,
+};
+
+function createAccountArt(mode) {
+  const kind = mode === 'recovery' ? 'envelope' : mode === 'update-password' ? 'lock' : 'preview';
+  const art = create('div', `account-intro-art is-${kind}`);
+  art.setAttribute('aria-hidden', 'true');
+  art.innerHTML = ACCOUNT_ART[kind];
+  return art;
+}
+
+function createAccountIntro(mode = '', brandLink = null) {
   const intro = create('aside', 'account-intro');
   const eyebrow = create('p', 'account-intro-eyebrow', 'SUA ROTINA, NO SEU RITMO');
-  const heading = create('h2', '', 'Mais clareza para o que importa.');
+  const introCopies = {
+    login: {
+      heading: 'Bem-vinda de volta!',
+      description: 'Que bom ter você por aqui. Acesse sua conta e continue cuidando do que importa.',
+    },
+    'signup-profile': {
+      heading: 'Vamos começar?',
+      description: 'Crie sua conta no Aurora e tenha uma vida mais organizada, leve e consciente.',
+    },
+    'signup-access': {
+      heading: 'Vamos começar?',
+      description: 'Defina seu e-mail e senha para acessar o Aurora.',
+    },
+    recovery: {
+      heading: 'Esqueceu sua senha?',
+      description: 'Sem problemas! Informe seu e-mail e enviaremos um link para redefinir sua senha.',
+    },
+    'update-password': {
+      heading: 'Tudo certo!',
+      description: 'Agora é só criar uma nova senha para acessar sua conta.',
+    },
+  };
+  const introCopy = introCopies[mode];
+  const copy = introCopy || {
+    heading: 'Mais clareza para o que importa.',
+    description: 'Planeje seus dias, acompanhe hábitos e cuide das suas finanças em um só lugar.',
+  };
+  const heading = create('h2', '', copy.heading);
   const description = create(
     'p',
     'account-intro-description',
-    'Planeje seus dias, acompanhe hábitos e cuide das suas finanças em um só lugar.',
+    copy.description,
   );
-  const topics = create('ul', 'account-intro-topics');
-  ['Tarefas', 'Hábitos', 'Foco', 'Finanças'].forEach((label) => {
-    topics.append(create('li', '', label));
-  });
-  intro.append(eyebrow, heading, description, topics);
+  if (brandLink) intro.append(brandLink);
+  if (!introCopy) {
+    const topics = create('ul', 'account-intro-topics');
+    ['Tarefas', 'Hábitos', 'Foco', 'Finanças'].forEach((label) => {
+      topics.append(create('li', '', label));
+    });
+    intro.append(eyebrow, heading, description, topics);
+  } else {
+    intro.append(heading, description, createAccountArt(mode));
+  }
   return intro;
 }
 
@@ -548,14 +650,29 @@ export function createAccountForm(root, {
   const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
   const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
+  let publicBrand = null;
+  let publicActions = null;
   if (includePublicHeader) {
     const header = document.createElement('template');
     header.innerHTML = renderPublicHeader({ authMode: mode.startsWith('signup-') ? 'signup' : mode });
-    page.append(header.content.firstElementChild);
+    const publicHeader = header.content.firstElementChild;
+    publicBrand = publicHeader.querySelector('.public-brand-link');
+    publicActions = publicHeader.querySelector('.public-header-actions');
+    page.classList.add('is-public-account');
   }
-  page.append(createAccountIntro());
+  page.append(createAccountIntro(mode, null));
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
+  if (publicBrand && publicActions) {
+    publicActions.classList.add('account-auth-header-actions');
+    const home = create('a', 'btn account-home-link');
+    home.href = '/';
+    home.dataset.publicAction = 'landing';
+    home.innerHTML = '<span aria-hidden="true">←</span> Voltar ao início';
+    const siteHeader = create('header', 'account-site-header');
+    siteHeader.append(publicBrand, home, publicActions);
+    layout.insertBefore(siteHeader, page);
+  }
   const brand = create('p', 'account-brand', 'aurora');
   const heading = create('h1', '', title);
   heading.id = 'account-title';
@@ -759,6 +876,20 @@ export function createAccountForm(root, {
     actions.append(refuse);
   }
   form.append(message, actions);
+  if (includePublicHeader && (mode === 'recovery' || mode === 'login')) {
+    const hero = create('div', 'account-success-hero');
+    hero.hidden = true;
+    hero.setAttribute('aria-hidden', 'true');
+    const syncHero = () => {
+      const isSuccess = message.dataset.tone === 'success' && message.textContent.trim() !== '';
+      hero.hidden = !isSuccess;
+      if (!isSuccess) return;
+      hero.innerHTML = `${SUCCESS_ART}<strong>${mode === 'recovery' ? 'Link enviado' : 'Senha atualizada'}</strong>`;
+    };
+    new MutationObserver(syncHero).observe(message, { attributes: true, attributeFilter: ['data-tone'], childList: true, characterData: true, subtree: true });
+    form.prepend(hero);
+    syncHero();
+  }
   if (mode === 'login' || mode === 'signup-profile') {
     const providers = create('fieldset', 'account-oauth');
     providers.append(create('legend', '', mode === 'login' ? 'Ou entre com' : 'Ou crie sua conta com'));
@@ -971,6 +1102,14 @@ export function createAccountForm(root, {
       }
     });
     card.append(accountLinks);
+    const forgot = accountLinks.querySelector('[data-account-mode="recovery"]');
+    const remember = form.querySelector('.account-remember-session');
+    if (mode === 'login' && includePublicHeader && forgot && remember) {
+      const row = create('div', 'account-login-row');
+      forgot.classList.add('account-forgot-link');
+      remember.before(row);
+      row.append(remember, forgot);
+    }
   }
   page.append(card);
   root.append(layout);
@@ -1034,6 +1173,12 @@ export function showAccountError(root, message, includePublicHeader = false) {
 
 function genericAuthError() {
   return 'Não foi possível concluir a solicitação. Confira os dados e tente novamente.';
+}
+
+function isRejectedAccountSession(error) {
+  const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
+  return error?.status === 401
+    || ['session_not_found', 'refresh_token_not_found', 'user_not_found'].includes(code);
 }
 
 export function isExistingAccountSignup(error, data = {}) {
@@ -1481,10 +1626,11 @@ export async function requireAccount(root, initialMode = 'login', {
 
   try {
     const { data: { session }, error } = await client.auth.getSession();
-    if (error) throw new Error(genericAuthError());
+    if (error) throw error;
     if (session?.user) {
       const { data: { user }, error: userError } = await client.auth.getUser();
-      if (userError || !user) throw new Error(genericAuthError());
+      if (userError) throw userError;
+      if (!user) throw new Error(genericAuthError());
       if (passwordRecoveryRequested) {
         for (;;) {
           const result = await authPage('update-password');
@@ -1543,6 +1689,7 @@ export async function requireAccount(root, initialMode = 'login', {
     let messageTone = callbackErrorMessage ? '' : initialNoticeTone;
     let profileDraft = null;
     for (;;) {
+      let authenticatedUser = null;
       const result = await authPage(mode, email, message, profileDraft, messageTone);
       if (result.nextMode) {
         if (result.nextMode === 'landing' && allowPublicReturn) {
@@ -1679,6 +1826,7 @@ export async function requireAccount(root, initialMode = 'login', {
           message = 'Este projeto Supabase está exigindo confirmação de e-mail. No projeto de desenvolvimento, desative Authentication → Providers → Email → Confirm email e tente novamente. Esta tentativa pode ter criado uma conta pendente; confira-a no painel antes de repetir o cadastro.';
           continue;
         }
+        authenticatedUser = data.user;
       } else {
         setSubmitPending(result.submit, true);
         if (mode === 'login') setRememberSession(result.rememberSession);
@@ -1697,9 +1845,12 @@ export async function requireAccount(root, initialMode = 'login', {
           messageTone = '';
           continue;
         }
+        authenticatedUser = data.user;
       }
 
-      const { data: { user }, error: userError } = await client.auth.getUser();
+      const { data: { user }, error: userError } = authenticatedUser
+        ? { data: { user: authenticatedUser }, error: null }
+        : await client.auth.getUser();
       if (userError || !user) {
         message = genericAuthError();
         continue;
@@ -1712,12 +1863,22 @@ export async function requireAccount(root, initialMode = 'login', {
       };
     }
   } catch (error) {
-    try {
-      await client.auth.signOut({ scope: 'local' });
-    } catch (signOutError) {
-      console.error('Aurora: não foi possível limpar a sessão local após falha de autenticação.', signOutError);
+    let sessionCleared = false;
+    if (isRejectedAccountSession(error)) {
+      try {
+        const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
+        if (signOutError) throw signOutError;
+        sessionCleared = true;
+      } catch (signOutError) {
+        console.error('Aurora: não foi possível limpar uma sessão recusada pelo serviço de contas.', signOutError);
+      }
     }
-    showConfigurationError(root, error instanceof Error ? error.message : genericAuthError());
+    const message = isRejectedAccountSession(error)
+      ? sessionCleared
+        ? 'Sua sessão expirou. Entre novamente para continuar.'
+        : 'Não foi possível validar ou encerrar sua sessão. Confira a conexão e tente novamente; a sessão salva foi mantida.'
+      : 'Não foi possível verificar sua sessão. Confira a conexão e tente novamente; a sessão salva foi mantida.';
+    showConfigurationError(root, message, 'Não foi possível acessar a conta');
     return null;
   }
 }

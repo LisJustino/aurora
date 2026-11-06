@@ -39,12 +39,19 @@ const check = (passed, name, detail = '') => {
     && await page.locator('.public-faq form[data-footer-suggestion]').count() === 0
     && await page.locator('.public-footer form[data-footer-suggestion]').count() === 1,
   'FAQ começa por preço e o formulário de sugestão fica no rodapé');
-  check(await page.locator('.public-value-media').count() === 5, 'cada área tem um espaço para vídeo mudo');
+  check(await page.locator('.public-value-preview').count() === 5
+    && await page.locator('.public-value-preview video').count() === 0
+    && await page.locator('.public-value-preview').evaluateAll((previews) => previews.every((preview) => {
+      const box = preview.getBoundingClientRect();
+      return box.width > 100 && preview.scrollWidth <= box.width + 2;
+    })),
+  'cada área tem uma prévia estática feita em HTML e CSS');
   check(await page.getByText('profissional e mãe').count() === 0
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
   check(await page.locator('.public-hero [data-public-action="signup"]').evaluate((button) => button.classList.contains('primary'))
-    && !await page.locator('.public-hero [data-public-action="demo"]').evaluate((button) => button.classList.contains('primary')), 'cadastro é o CTA principal e demonstração é alternativa');
+    && await page.locator('.public-hero a[href="#public-features"]').count() === 1,
+  'cadastro é o CTA principal e a demonstração é uma âncora interna');
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
   check(
@@ -104,7 +111,11 @@ const check = (passed, name, detail = '') => {
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
   await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
-  check(mainModuleRequests.length === 0, 'demonstração pública não baixa o módulo completo');
+  check(new URL(page.url()).pathname === '/' && new URL(page.url()).hash === '#public-features'
+    && await page.getByRole('heading', { name: 'Cinco áreas, no seu ritmo' }).isVisible(),
+  'o link de demonstração mantém a pessoa na landing e leva à seção das áreas');
+  check(mainModuleRequests.length === 0, 'a demonstração visual não baixa o módulo completo');
+  await page.goto(`${BASE}/demonstracao`);
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(await page.locator('.demo-nav-link').count() === 6, 'demonstração oferece navegação pelas áreas do app');
   check(await page.getByText('dados de exemplo', { exact: false }).count() === 1, 'a demonstração deixa claro que os dados são fictícios e temporários');

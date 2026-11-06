@@ -18,6 +18,25 @@ const check = (passed, name, detail = '') => {
   });
   await page.goto(`${BASE}/?preview#planejar`);
 
+  await page.locator('.planning-overview').waitFor({ state: 'visible' });
+  const upcomingFilter = page.locator('.planning-overview-stat[data-f="proximas"]');
+  const planningStatCount = await page.locator('.planning-overview-stat').count();
+  check(planningStatCount === 4,
+    'resumo do Planejar oferece atalhos para pendentes, atrasadas, próximas e sem data', String(planningStatCount));
+  await upcomingFilter.click();
+  const upcomingChip = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
+  check(await upcomingChip.getAttribute('aria-pressed') === 'true',
+    'atalho dos próximos sete dias ativa o filtro correspondente na lista');
+  const upcomingResults = await page.locator('#task-results .task').allInnerTexts();
+  check(upcomingResults.some((text) => text.includes('Organizar documentos'))
+    && upcomingResults.every((text) => !text.includes('Marcar consulta de rotina')),
+  'filtro de próximos dias mantém tarefas futuras e exclui as atrasadas');
+  await page.locator('.planning-overview-stat[data-f="caixa"]').click();
+  check(await page.locator('[aria-label="Filtrar tarefas"] [data-f="caixa"]').getAttribute('aria-pressed') === 'true',
+    'atalho de tarefas sem data troca o filtro sem preservar uma busca antiga');
+  await page.locator('.planning-overview-stat[data-f="pendentes"]').click();
+  check(await page.locator('[aria-label="Filtrar tarefas"] [data-f="pendentes"]').getAttribute('aria-pressed') === 'true',
+    'atalho de pendentes retorna à lista de tarefas abertas');
   check(await page.locator('.planning-quick-entry').count() === 0, 'Planejar não oferece tarefa rápida');
   check(await page.getByText('Plano por etapas', { exact: true }).count() === 0, 'Planejar não oferece o fluxo por etapas');
   await page.getByRole('button', { name: 'Nova tarefa' }).first().click();

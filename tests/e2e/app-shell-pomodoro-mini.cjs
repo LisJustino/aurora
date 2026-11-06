@@ -77,6 +77,13 @@ const check = (passed, name, detail = '') => {
   await page.locator('.free-pomodoro').waitFor();
   check(new URL(page.url()).pathname === '/pomodoro', 'atalho por teclado retorna à tela completa do Pomodoro');
   check(await mini.isHidden(), 'mini controle não duplica a tela completa');
+  const sessionSummary = page.locator('.pomodoro-session-summary');
+  check(await sessionSummary.isVisible(), 'resumo do foco aparece na tela completa');
+  check(await sessionSummary.locator('.pomodoro-session-stat').count() === 3, 'resumo mostra hoje, sessão e tempo focado');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `tela completa do Pomodoro não causa overflow em ${width} px`);
+  }
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

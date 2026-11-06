@@ -161,18 +161,11 @@ async function checkContrast(page) {
     await appPage.locator('[data-settings-save-button]').click();
     await appPage.waitForFunction(() => document.documentElement.dataset.motion === 'reduce');
     await appPage.evaluate(() => { location.hash = 'inicio'; });
-    await appPage.locator('[data-action="home-quick-focus"]').waitFor();
-    await appPage.evaluate(() => {
-      window.__scrollCalls = [];
-      const original = Element.prototype.scrollIntoView;
-      Element.prototype.scrollIntoView = function (options) {
-        window.__scrollCalls.push(options);
-        return original.call(this, options);
-      };
-    });
-    await appPage.locator('[data-action="home-quick-focus"]').click();
-    const homeScroll = await appPage.evaluate(() => window.__scrollCalls.at(-1));
-    assert.equal(homeScroll.behavior, 'auto', 'a preferência salva deve desativar rolagem animada');
+    const homeTaskInput = appPage.locator('.home-quick-form input[name="title"]');
+    await homeTaskInput.waitFor();
+    await homeTaskInput.focus();
+    assert.equal(await homeTaskInput.evaluate((input) => input === document.activeElement), true, 'o formulário rápido da Home permanece acessível por foco');
+    assert.equal(await appPage.getByRole('button', { name: 'Como usar?' }).count(), 1, 'Como usar? mantém o rótulo visível como nome acessível');
     assert.deepEqual(errors, [], errors.join('\n'));
 
     await checkContrast(publicPage);
