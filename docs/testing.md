@@ -32,6 +32,8 @@ Os cenários também verificam acessibilidade e contraste, sincronização dos
 selects customizados com os controles nativos, regressões de Finanças,
 bloqueio/restauração do scroll em diálogos e comportamento não modal dos
 painéis móveis e desktop.
+A tela de carregamento é verificada nas entradas pública e de área, em desktop
+e celular, incluindo animação, movimento reduzido e ausência de rolagem.
 A matriz móvel adicional cobre iPhone 13 Mini e iPhone 16 em WebKit, Galaxy
 S24 e Pixel 7 em Chromium, incluindo 320 px, alvos de toque, demonstração e
 console. Esses perfis emulados não substituem Safari/Chrome nativos nem testes
@@ -116,6 +118,10 @@ Com uma sessão válida salva, abra a rota raiz e confirme que a área autentica
 é carregada sem precisar tocar em “Entrar”; depois encerre a sessão e confirme
 que a landing pública volta a aparecer. Com uma sessão só de navegador, confirme
 que a restauração funciona na aba atual, mas não persiste em outro navegador.
+Se a validação da sessão falhar temporariamente por indisponibilidade do
+serviço, confirme que o app oferece uma tentativa recuperável sem apagar a
+sessão salva; depois de restabelecer a conexão, a conta deve voltar a abrir
+sem novo login. Uma resposta que recuse a sessão deve encerrá-la e pedir login.
 
 Em Finanças, no resumo, confirme que “Últimos lançamentos” inclui somente o mês
 selecionado e, no mês atual, não lista datas futuras nem lançamentos de meses
@@ -152,11 +158,13 @@ a gravação relacional dos campos novos.
 
 Na navegação, confira os atalhos das áreas sem overflow entre 768 e 1199 px, o nome da rota ativa visível no tablet, os nomes das áreas e de “Criar” visíveis entre 1100 e 1199 px e a barra lateral a partir de 1200 px; os demais atalhos devem continuar identificáveis pelo nome ao passar o mouse ou receber foco. A busca global não deve aparecer como botão no cabeçalho; Ctrl+K continua abrindo a busca. Entre 320 e 430 px, os nomes no dock e no menu “Mais” devem permanecer inteiros. No móvel, o dock mantém quatro atalhos de área e “Mais” abre as opções restantes e o botão “Criar”, que abre as ações rápidas sem ocupar uma coluna própria. Até 420 px, o dock fica como painel arredondado com margens laterais e largura de colunas proporcional aos rótulos. Os painéis “Mais” e “Criar” devem alinhar com as bordas do dock aberto; toque fora e Esc fecham os painéis, e Esc devolve o foco ao acionador correspondente. A criação rápida deve reutilizar os formulários existentes e listar hábitos/finanças somente quando essas áreas estiverem ativadas.
 
-No Início, em 320 px, 390 px e desktop, confirme que o destaque inicial é compacto, que o plano de hoje vem antes dos resumos nos padrões novos e que uma tarefa exibida no plano não é repetida como “Próxima ação”. Preferências de ordem existentes devem continuar preservadas. Em “Primeiros passos”, confira o progresso, a sugestão única, o texto de hábitos quando ainda não existe hábito ativo, as áreas ativadas, o recolhimento e a opção de dispensar. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
+No Início, em 320 px, 390 px e desktop, confirme que o plano de hoje fica em primeiro lugar mesmo com outra ordem salva, que resumos e atalhos de áreas aparecem abaixo do plano e que no máximo uma tarefa ou hábito recebe o rótulo “Próximo passo” na própria lista. O formulário rápido não deve se repetir no cabeçalho ou entre ações favoritas. Tarefas sem data devem oferecer acesso à lista filtrada no Planejar. Quando houver tarefas pendentes nos próximos sete dias, a prévia deve mostrar as três primeiras em ordem cronológica, indicar itens adicionais e excluir tarefas fora do período. Lembretes de fatura permanecem secundários e “Como usar?” deve ter contraste de pelo menos 4,5:1 no destaque. Em “Primeiros passos”, confira o progresso, a sugestão única, o texto de hábitos quando ainda não existe hábito ativo, as áreas ativadas, o recolhimento e a opção de dispensar. Confira o estado vazio do plano, a lista de concluídas recolhida/expandida, o skeleton de carregamento e confirmações de sucesso/alerta/erro em tema claro, escuro e com movimento reduzido.
 
 Com uma conta fictícia autenticada, confirme que o shell informa “Salvando…” durante a gravação, remove o indicador depois da confirmação e mostra um aviso recuperável quando a gravação falha ou não há conexão. A prévia local não deve afirmar que os dados foram sincronizados.
 
 `node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` valida as ações rápidas, o foco por teclado, os rótulos da navegação em tablet, a área ativa e a transição do dock para a barra lateral entre 320 e 1440 px.
+
+Em Planejar, confirme que os cartões de resumo abrem a lista no filtro correspondente, removem a busca anterior e mostram tarefas dos próximos sete dias sem atrasadas, concluídas ou sem prazo.
 
 `node tests/e2e/app-shell-pomodoro-mini.cjs http://127.0.0.1:5173` valida o encaixe do tempo dentro do mostrador entre 320 e 1366 px, o mini Pomodoro durante a navegação entre áreas, os controles por teclado e a ausência de overflow em telas móveis e desktop.
 
@@ -312,7 +320,8 @@ que avisos do sistema não são alterados.
 - **Aprovado:** `node tests/e2e/close-buttons.cjs http://127.0.0.1:5173` — os controles medem 40×40 px e mantêm raio consistente em celular e desktop.
 - O mesmo roteiro confere título acessível nos diálogos amostrados e o cabeçalho de “Apagar dados relacionais”; o onboarding em tela cheia e o leitor legal nativo são exceções intencionais ao modal comum.
 - O antigo `tests/e2e/flows.cjs` foi removido: dependia de persistência legada no navegador e não representava os contratos atuais de conta e dados relacionais.
-- `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, atalho de personalização, layout móvel/desktop, botão “Como usar?” e os dois formatos locais de vídeo.
+- `node tests/e2e/home-first-steps.cjs` verifica ações iniciais conforme as áreas ativas, ocultação após conclusão, ausência do atalho de personalização na home e acesso às opções por Perfil e Ajustes, layout móvel/desktop, posição consistente do botão “Como usar?” nas seis áreas e os dois formatos locais de vídeo.
+- `node tests/e2e/app-shell-quick-actions.cjs http://127.0.0.1:5173` também verifica a prévia de três tarefas dos próximos sete dias, a ordem cronológica e o limite do período.
 - `node tests/e2e/empty-filter-recovery.cjs` verifica recuperação de resultados vazios por busca em Planejar e Finanças, anúncio educado dos estados vazios, largura móvel/desktop e console; no onboarding real, confira a escolha de áreas e a indicação de onde alterá-las depois.
 - `node tests/e2e/cycle-intimacy.cjs` verifica os registros separados de atividade sexual, masturbação e orgasmos, a relação dos métodos contraceptivos e a preservação independente dos dados.
 - `node tests/e2e/finance-improvements.cjs` verifica categorias e subcategorias personalizadas, reutilização da conta/categoria mais recente, status de pagamento conforme a data, foco da seção, posição dos tipos de lançamento, recorte mensal do resumo, juros individuais, antecipação de compras e parcelamento futuro de faturas em perfil de demonstração.
@@ -370,7 +379,7 @@ npm --prefix worker test
 - Em Finanças, confira o aviso permanente de ausência de conexão bancária e que os registros adicionados ficam associados à conta Aurora.
 - Teste controles de vídeo, roteiro textual, teclado, tema claro/escuro e larguras móvel e desktop; não deve haver overflow horizontal.
 - Os vídeos são arquivos locais WebM com fallback MP4 e não carregam um player ou serviço de terceiros.
-- Os tutoriais são gravados em 24 fps, 1280 × 720 e 2,4 Mbps para manter legibilidade em tela cheia sem sobrecarregar a decodificação móvel; depois de qualquer regeneração, valide reprodução contínua e seek no Chromium.
+- `npm run tutorials:generate` captura as telas reais da prévia em 1280 × 720 e grava cada tutorial em WebM e MP4, com destaques sobre os controles explicados. Depois de qualquer regeneração, valide reprodução contínua e seek nos dois formatos no Chromium.
 - Em Planejar, valide “hoje”, “amanhã” e “sexta 18h”: confira a prévia antes de confirmar, cancele sem criar e use Enter para confirmar a tarefa.
 - Em rede indisponível, confirme que o aviso permanece visível e que o salvamento é bloqueado; não exiba horário de salvamento no cabeçalho. Confirme também cancelar e aceitar nos diálogos de backup, importação, recarga e saída.
 - Simule falha de `load()` do store autenticado: a tela deve oferecer “Tentar novamente” e “Sair”, sem exibir estado vazio como se os dados tivessem sido carregados.

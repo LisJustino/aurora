@@ -79,6 +79,14 @@
     <button class="btn primary block">Largura total (.block)</button>
   </section>
 
+  <section class="card" aria-labelledby="ds-states"><h2 id="ds-states">Estados de interação</h2>
+    <p class="ds-note">Passe o ponteiro para conferir <code>:hover</code>; pressione Tab para conferir o foco visível e use um toque/clique pressionado para perceber <code>:active</code>. Estados devem continuar identificáveis sem depender apenas de cor.</p>
+    <div class="ds-row"><button type="button" class="btn primary">Ação com foco de teclado</button><button type="button" class="btn">Ação disponível</button><button type="button" class="btn" disabled>Indisponível</button></div>
+    <div class="ds-row"><button type="button" class="btn primary" aria-busy="true" disabled>Salvando…</button><span class="ds-note" role="status" aria-live="polite">Salvando alterações.</span></div>
+    <p class="err field-err" role="alert">Não foi possível salvar. Confira sua conexão e tente novamente.</p>
+    <p class="ds-note">Ao carregar, mantenha o rótulo da ação compreensível e anuncie o progresso com <code>aria-busy</code> e uma mensagem de status. Desabilite a ação enquanto uma repetição puder causar efeito duplicado; em links, não use <code>disabled</code> — torne a indisponibilidade explícita e impeça a navegação.</p>
+  </section>
+
   <section class="card" aria-labelledby="ds-icons"><h2 id="ds-icons">Ícones</h2>
     <p class="ds-note">Catálogo compartilhado em <code>src/js/utils/icons.js</code>: SVGs em grade 24×24, traço de 1,9, pontas e junções arredondadas. O traço herda <code>currentColor</code>; use a cor do texto ou o token semântico do contexto, sem colorir ícones isoladamente. Tamanhos de referência: compacto 12, inline 16, padrão 18, navegação 20 e destaque 24 px.</p>
     <div class="ds-icon-sizes" data-icon-sizes aria-label="Escala de tamanhos de ícone"></div>
@@ -181,6 +189,21 @@
     <div class="chips"><button class="chip" aria-pressed="true">Todas</button><button class="chip" aria-pressed="false">Pendentes</button><button class="chip" aria-pressed="false">Atrasadas</button></div>
     <div class="seg" role="group" aria-label="Exemplo"><button aria-pressed="true">Lista</button><button aria-pressed="false">Calendário</button><button aria-pressed="false">Semana</button></div>
     <div class="ds-row"><span class="badge">Padrão</span><span class="badge ok">Concluído</span><span class="badge warn">Atenção</span><span class="badge bad">Atrasado</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="ds-dialog"><h2 id="ds-dialog">Diálogo e menu de escolha</h2>
+    <p class="ds-note">Prévia visual da estrutura compartilhada; os controles abaixo não abrem um diálogo. Em produção, use o fluxo de diálogo da aplicação, com nome acessível, foco gerenciado, fundo inerte e retorno do foco ao controle de origem.</p>
+    <div class="dlg" role="group" aria-labelledby="ds-dialog-title">
+      <div class="head"><h3 id="ds-dialog-title">Revisar a semana</h3><button type="button" class="ibtn dlg-close" aria-label="Fechar prévia do diálogo" data-icon-name="close" data-icon-size="20"></button></div>
+      <div class="dlg-body"><p>Confira os próximos passos antes de salvar suas alterações.</p><label class="f">Frequência
+        <select>
+          <option value="weekly" selected>Uma vez por semana</option>
+          <option value="daily">Todos os dias</option>
+        </select>
+      </label></div>
+      <div class="dlg-foot"><button type="button" class="btn back">Cancelar</button><button type="button" class="btn primary">Salvar alterações</button></div>
+    </div>
+    <p class="ds-note">Abra a frequência para testar o menu customizado com ponteiro e teclado (setas, Home/End, Enter, Espaço, Escape e busca por digitação). Menus devem permanecer dentro da viewport e não ser recortados por um diálogo.</p>
   </section>
 
   <section class="card" aria-labelledby="ds-public"><h2 id="ds-public">Landing pública</h2>

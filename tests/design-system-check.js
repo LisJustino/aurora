@@ -49,6 +49,20 @@ check(files.some((item) => item.file === 'design-system/cards.css' && item.text.
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
+const buttonStyles = files.find((item) => item.file === 'design-system/buttons.css');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('.btn:hover')
+  && buttonStyles.text.includes('.btn:active')
+  && buttonStyles.text.includes('.btn:disabled')
+  && buttonStyles.text.includes('.btn[aria-disabled="true"]'), 'Botões cobrem hover, active e indisponibilidade');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('.btn[aria-busy="true"]:not(.is-loading)::before')
+  && buttonStyles.text.includes('@keyframes button-spin'), 'Botões ocupados exibem progresso sem spinner duplicado');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('max-width: 100%')
+  && buttonStyles.text.includes('overflow-wrap: anywhere'), 'Rótulos de botões podem quebrar em telas estreitas');
+check(allText.includes(':focus-visible'), 'O foco de teclado tem estilo visível');
+check(allText.includes('prefers-reduced-motion: reduce'), 'Movimento reduzido tem suporte');
 
 // base.css fixa 16 px no elemento raiz: é a base de todos os rem, por isso é a única exceção.
 const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|vw|vh)\b[^;{}]*[;}]/g)
@@ -85,6 +99,8 @@ for (const name of [
 ]) {
   check(defined.has(name), `Token ${name} definido`);
 }
+const buttonRadius = allText.match(/--button-radius\s*:\s*var\((--[\w-]+)\)/);
+check(buttonRadius?.[1] === '--r-group', 'Botões usam o raio arredondado --r-group');
 
 const failed = results.filter((item) => !item.passed).length;
 document.querySelector('#status').textContent = failed

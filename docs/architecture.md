@@ -10,7 +10,7 @@ Capacitor empacota o build Vite para Android e iOS, sem substituir o deploy web.
 
 Em Ajustes, a aba ativa fica na query da URL (por exemplo, `/config?section=data`) e é restaurada ao recarregar a página. Ao sair da área, a query de seção é removida da entrada de histórico, então retornar à área abre “Seu perfil”.
 
-O shell, os menus e os modais são compartilhados e renderizados no elemento `#app`. Em telas largas, a navegação usa uma barra lateral com ações rápidas; em telas médias, mantém os atalhos em uma barra superior e identifica visualmente a rota ativa; em telas menores, mantém o dock inferior com acesso às mesmas ações. Criar tarefa, hábito, conta ou lançamento reaproveita os formulários existentes e respeita as áreas ativadas. O shell autenticado não exibe rodapé institucional; status de gravação fica junto ao conteúdo e os documentos legais e o contato ficam em Ajustes. Telas públicas e o modo de prévia mantêm o rodapé compartilhado. Não há cabeçalho, navegação ou estado duplicado por página. As entradas HTML definem idioma, título, descrição, CSS e módulo de inicialização. O conteúdo dinâmico das telas permanece em `main.js`; as entradas não são templates HTML independentes.
+O shell, os menus e os modais são compartilhados e renderizados no elemento `#app`. Em telas largas, a navegação usa uma barra lateral recolhível com ações rápidas; o estado recolhido permanece enquanto a aplicação está aberta e não altera as preferências salvas da conta. Em telas médias, mantém os atalhos em uma barra superior e identifica visualmente a rota ativa; em telas menores, mantém o dock inferior com acesso às mesmas ações. Criar tarefa, hábito, conta ou lançamento reaproveita os formulários existentes e respeita as áreas ativadas. O shell autenticado não exibe rodapé institucional; status de gravação fica junto ao conteúdo e os documentos legais e o contato ficam em Ajustes. Telas públicas e o modo de prévia mantêm o rodapé compartilhado. Não há cabeçalho, navegação ou estado duplicado por página. As entradas HTML definem idioma, título, descrição, CSS e módulo de inicialização. O conteúdo dinâmico das telas permanece em `main.js`; as entradas não são templates HTML independentes.
 
 ## Responsabilidades existentes
 
@@ -71,11 +71,11 @@ permanecem em módulos próprios.
 Os roteiros e vídeos locais das orientações contextuais ficam em
 `src/js/features/area-guides.js` e `src/assets/tutorials/`. O vídeo abre no
 primeiro acesso às áreas de Início, Planejar, Pomodoro, Finanças, Hábitos e
-Ciclo; a ação “Como usar?” permite revê-lo. Ajustes não oferece tutorial. As
-áreas já apresentadas ficam registradas em `user_settings.preferences`, sem
-criar uma tabela ou serviço. Finanças também exibe um aviso de que não há
-conexão bancária e de que os registros adicionados ficam associados à conta
-Aurora.
+Ciclo; a ação “Como usar?” fica no cabeçalho da área para permitir revê-lo.
+Ajustes não oferece tutorial. As áreas já apresentadas ficam registradas em
+`user_settings.preferences`, sem criar uma tabela ou serviço. Finanças também
+exibe um aviso de que não há conexão bancária e de que os registros adicionados
+ficam associados à conta Aurora.
 
 A revisão semanal de Hábitos é calculada a partir dos dias programados,
 check-ins e pulos já existentes; o botão “Ajustar” abre o editor atual do

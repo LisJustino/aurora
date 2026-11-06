@@ -16,7 +16,8 @@ aurora/
 ├── icons/                      # Ícones usados pelas entradas e pelo manifest
 ├── pages/                      # Entradas de rota da SPA, sem duplicar shell
 ├── src/
-│   ├── assets/                 # Capturas da landing e logos de bancos
+│   ├── assets/                 # Landing, logos de bancos e tutoriais locais
+│   │   └── tutorials/          # Vídeos capturados da interface real por área
 │   ├── css/
 │   │   ├── design-system/     # Tokens, botões, campos, seletores e feedback
 │   │   ├── base.css

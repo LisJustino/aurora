@@ -5,10 +5,12 @@
  * Tamanhos:   .sm (40 px) · padrão (44 px) · .large (52 px) · .block (largura total)
  * Só ícone:   .ibtn (44 px) · .iconbtn (44 px, redondo e com fundo)
  * Hierarquia: primária para avançar, padrão para alternativas, ghost para navegação
- * e perigo para remoções. Use sempre os tokens --control-*, --r-control e --text-*.
+ * e perigo para remoções. Use sempre os tokens --control-*, --button-radius e --text-*.
  */
 .btn {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   min-height: var(--control-md);
   align-items: center;
   justify-content: center;
@@ -19,6 +21,8 @@
   background: var(--surface);
   color: var(--ink);
   font-weight: var(--weight-bold);
+  text-align: center;
+  overflow-wrap: anywhere;
   text-decoration: none;
   cursor: pointer;
   box-shadow: none;
@@ -92,6 +96,22 @@
 /* Desabilitado */
 .btn:disabled,
 .btn[aria-disabled="true"] { opacity: .58; cursor: not-allowed; box-shadow: none; transform: none !important; }
+
+/* Estados ocupados preservam o feedback de progresso sem repetir o spinner da conta. */
+.btn[aria-busy="true"] { cursor: progress; }
+.btn[aria-busy="true"]:is(:hover, :active) { transform: none; }
+.btn.primary[aria-busy="true"]:hover { filter: none; }
+.btn[aria-busy="true"]:not(.is-loading)::before {
+  width: var(--space-3);
+  height: var(--space-3);
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--r-pill);
+  animation: button-spin 800ms linear infinite;
+  content: "";
+}
+@keyframes button-spin { to { transform: rotate(1turn); } }
 
 /* Botão só de ícone */
 .ibtn, .iconbtn {

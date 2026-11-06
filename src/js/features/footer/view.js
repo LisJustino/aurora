@@ -26,7 +26,7 @@ export function renderFooterContent({
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
   const demoLink = demoAvailable
-    ? '<a class="footer-link" href="/demonstracao" data-public-action="demo">Explorar demonstração</a>'
+    ? '<a class="footer-link" href="#public-features">Explorar demonstração</a>'
     : '';
   const installLink = pwaInstall && !isStandalone && typeof window !== 'undefined'
     ? '<button class="footer-link" type="button" data-action="pwa-install">Baixar o app</button>'

@@ -28,6 +28,22 @@ self.addEventListener('fetch', (event) => {
   );
   if (url.search && !isAppNavigation) return;
 
+  if (url.pathname === '/loading-appearance.js') {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      try {
+        const response = await fetch(request, { cache: 'no-cache' });
+        if (response.ok && response.type === 'basic') await cache.put(request, response.clone());
+        return response;
+      } catch (error) {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        throw error;
+      }
+    })());
+    return;
+  }
+
   if (APP_SHELL_ASSET.test(url.pathname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);

@@ -207,11 +207,24 @@ concluída.
 
 ## Hierarquia e retorno da área logada
 
-O Início mantém o plano de hoje antes dos resumos nos layouts padrão; ordens já
-personalizadas não são substituídas. “Primeiros passos” usa as áreas ativadas,
-mostra o progresso e destaca uma única sugestão sem abrir fluxos
-automaticamente. Em tablets largos, os rótulos das áreas e de criação ficam
-visíveis; atalhos compactos continuam identificáveis pelo nome.
+O plano de hoje fica fixo no topo do Início; a ordem personalizada dos demais
+blocos continua preservada. Tarefas sem data têm uma ação explícita para abrir
+a lista filtrada no Planejar. O formulário rápido é a única ação de criação de
+tarefa mostrada quando está visível; o atalho favorito só aparece se o
+formulário estiver oculto. “Primeiros passos” usa as áreas ativadas, mostra o
+progresso e destaca uma única sugestão sem abrir fluxos automaticamente. Em
+tablets largos, os rótulos das áreas e de criação ficam visíveis; atalhos
+compactos continuam identificáveis pelo nome.
+
+O Início prioriza tarefas e hábitos do dia. Um único próximo passo é marcado
+dentro da lista correspondente, sem repetir a tarefa em um cartão separado;
+lembretes de fatura continuam disponíveis, mas com hierarquia visual secundária.
+O atalho “Como usar?” no destaque mantém contraste suficiente com a cor de fundo.
+Quando existirem tarefas pendentes nos próximos sete dias, o Início mostra até
+três em uma prévia cronológica e informa quantas ficaram na lista completa.
+Em Planejar, o resumo apresenta filtros acionáveis para tarefas pendentes,
+atrasadas, dos próximos sete dias e sem data. Esses atalhos abrem a lista,
+limpam a busca anterior e mantêm os filtros equivalentes disponíveis na lista.
 
 O shell autenticado informa quando a conta foi sincronizada, está salvando ou
 precisa de atenção por falha/conexão. A demonstração local não exibe uma
