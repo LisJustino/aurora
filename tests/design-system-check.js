@@ -5,18 +5,18 @@ const check = (passed, name, detail = '') => results.push({ passed: Boolean(pass
 
 const loadCss = async (url, seen = new Set()) => {
   const source = new URL(url, location.href);
-  source.searchParams.set('raw', '');
+  source.search += `${source.search ? '&' : '?'}raw`;
   if (seen.has(source.href)) return [];
   seen.add(source.href);
   const response = await fetch(source.href, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Não foi possível carregar ${source.pathname}: HTTP ${response.status}.`);
   const moduleText = await response.text();
-  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?$/);
+  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?/);
   const text = rawExport ? JSON.parse(rawExport[1]) : moduleText;
   const out = [{ file: source.pathname.replace(/^.*\/src\/css\//, ''), text }];
   for (const [, rel] of text.matchAll(/@import\s+url\(["']?([^"')]+)["']?\)/g)) {
     const dependency = new URL(rel, source);
-    dependency.searchParams.set('raw', '');
+    dependency.search += `${dependency.search ? '&' : '?'}raw`;
     out.push(...await loadCss(dependency.href, seen));
   }
   return out;
@@ -42,15 +42,37 @@ const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((
 check(files.length > 20, 'main.css importa as folhas esperadas', `${files.length} arquivos`);
 check(!files.some((item) => item.file === 'components/visual-refresh.css'), 'Regras visuais estão nas folhas de origem');
 check(files.some((item) => item.file === 'design-system/lists.css'), 'O padrão de listas está no design system');
+const pageTitleStyles = files.find((item) => item.file === 'design-system/page-titles.css');
+const pageTitleOverrides = offenders(/\.main\[data-route=["'][^"']+["']\]\s*>\s*\.page-title/g);
+check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main > .page-title') && !pageTitleOverrides.length, 'Cabeçalhos de página usam o componente compartilhado', pageTitleOverrides.join(', '));
+check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main h1[tabindex="-1"]:focus { outline: none; }'), 'Títulos focados pela navegação não exibem contorno de controle');
 check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card')), 'O padrão de cartões compactos está no design system');
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
+const buttonStyles = files.find((item) => item.file === 'design-system/buttons.css');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('.btn:hover')
+  && buttonStyles.text.includes('.btn:active')
+  && buttonStyles.text.includes('.btn:disabled')
+  && buttonStyles.text.includes('.btn[aria-disabled="true"]'), 'Botões cobrem hover, active e indisponibilidade');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('.btn[aria-busy="true"]:not(.is-loading)::before')
+  && buttonStyles.text.includes('@keyframes button-spin'), 'Botões ocupados exibem progresso sem spinner duplicado');
+check(Boolean(buttonStyles)
+  && buttonStyles.text.includes('max-width: 100%')
+  && buttonStyles.text.includes('overflow-wrap: anywhere'), 'Rótulos de botões podem quebrar em telas estreitas');
+check(allText.includes(':focus-visible'), 'O foco de teclado tem estilo visível');
+check(allText.includes('prefers-reduced-motion: reduce'), 'Movimento reduzido tem suporte');
 
 // base.css fixa 16 px no elemento raiz: é a base de todos os rem, por isso é a única exceção.
-const fontLiterals = offenders(/font-size:\s*(?:\d*\.?\d+(?:rem|px)|\d+\.\d+em)\s*[;}]/g)
-  .filter((item) => item !== 'base.css: font-size: 16px;');
-check(!fontLiterals.length, 'Tamanhos de fonte usam --text-* (exceto clamp e o mínimo de 16 px dos campos)', fontLiterals.slice(0, 6).join(' | '));
+const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|vw|vh)\b[^;{}]*[;}]/g)
+  .filter((item) => ![
+    'base.css: font-size: 16px;',
+    'design-system/fields.css: font-size: max(16px, var(--text-base));',
+    'design-system/custom-selects.css: font-size: max(16px, var(--text-base));',
+  ].includes(item));
+check(!fontSizeLiterals.length, 'Tamanhos de fonte usam tokens --text-* (com mínimo de 16 px nos campos)', fontSizeLiterals.slice(0, 6).join(' | '));
 const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
 check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', fontShorthandLiterals.slice(0, 6).join(' | '));
 
@@ -78,6 +100,8 @@ for (const name of [
 ]) {
   check(defined.has(name), `Token ${name} definido`);
 }
+const buttonRadius = allText.match(/--button-radius\s*:\s*var\((--[\w-]+)\)/);
+check(buttonRadius?.[1] === '--r-group', 'Botões usam o raio arredondado --r-group');
 
 const failed = results.filter((item) => !item.passed).length;
 document.querySelector('#status').textContent = failed

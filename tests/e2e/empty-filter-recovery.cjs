@@ -28,8 +28,12 @@ const check = (passed, name, detail = '') => {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Planejar não tem overflow horizontal em 390 px');
 
   await page.goto(`${BASE}/?preview#financas`);
-  await page.getByRole('button', { name: 'Lançamentos' }).click();
+  await page.getByRole('button', { name: 'Lançamentos', exact: true }).click();
   const transactionSearch = page.getByRole('searchbox', { name: 'Buscar lançamentos' });
+  await transactionSearch.fill('Conta principal');
+  const accountMatches = await page.locator('#tx-results .fr').allTextContents();
+  check(accountMatches.length > 0 && accountMatches.every((row) => row.includes('Conta principal')),
+    'busca financeira encontra lançamentos pela conta associada');
   await transactionSearch.fill('nao-existe-aurora');
   await page.locator('#tx-results .empty').waitFor({ state: 'visible' });
   check(await page.locator('#tx-results .empty').getAttribute('role') === 'status'

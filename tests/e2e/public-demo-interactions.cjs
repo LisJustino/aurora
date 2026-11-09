@@ -13,28 +13,133 @@ const check = (passed, name, detail = '') => {
   const page = await context.newPage();
   const errors = [];
   const interactionRequests = [];
+  const mainModuleRequests = [];
   let collectRequests = false;
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
   page.on('request', (request) => {
+    if (new URL(request.url()).pathname.endsWith('/src/js/main.js')) mainModuleRequests.push(request.url());
     if (collectRequests) interactionRequests.push(request.url());
   });
 
   await page.goto(BASE);
-  check(await page.getByRole('heading', { name: 'Mais clareza para a sua semana.' }).count() === 1, 'landing apresenta a proposta principal');
+  check(mainModuleRequests.length === 0, 'landing pública não baixa o módulo completo antes da autenticação');
+  check(await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).count() === 1, 'landing apresenta o benefício principal do Aurora');
+  check(await page.getByText('Da cabeça cheia a um próximo passo possível').count() === 1
+    && await page.locator('.public-journey-step').count() === 3
+    && await page.locator('.public-journey').count() === 0,
+  'landing mostra como o Aurora transforma organização em ações e revisão semanal dentro de uma única seção');
+  check(await page.getByText('Planner de tarefas, hábitos, ciclo e finanças em um só lugar.').count() === 1
+    && await page.getByText('Totalmente grátis').count() > 0
+    && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1,
+  'landing explica o produto, informa que é grátis e mostra a transparência do criador');
+  check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
+    && await page.locator('.public-faq form[data-footer-suggestion]').count() === 0
+    && await page.locator('.public-footer form[data-footer-suggestion]').count() === 0
+    && await page.locator('.public-suggestion form[data-footer-suggestion]').count() === 1,
+  'FAQ começa por preço e a sugestão tem seção própria');
+  check(await page.locator('.public-value-preview').count() === 4
+    && await page.locator('.public-value-preview video').count() === 0
+    && await page.locator('.public-value-preview').evaluateAll((previews) => previews.filter((preview) => preview.getClientRects().length).every((preview) => {
+      const box = preview.getBoundingClientRect();
+      return box.width > 100 && preview.scrollWidth <= box.width + 2;
+    })),
+  'cada área tem uma prévia estática feita em HTML e CSS');
+  check(await page.locator('.public-value:visible').count() === 1, 'celular exibe uma área por vez');
+  await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
+  check(await page.locator('.public-value:visible h3').textContent() === 'Ciclo'
+    && await page.getByRole('button', { name: 'Ciclo', exact: true }).getAttribute('aria-pressed') === 'true',
+  'seletor móvel troca a área exibida');
   check(await page.getByText('profissional e mãe').count() === 0
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
   check(await page.locator('.public-hero [data-public-action="signup"]').evaluate((button) => button.classList.contains('primary'))
-    && !await page.locator('.public-hero [data-public-action="demo"]').evaluate((button) => button.classList.contains('primary')), 'cadastro é o CTA principal e demonstração é alternativa');
+    && await page.locator('.public-hero a[href="/demonstracao"]').count() === 1,
+  'cadastro é o CTA principal e a demonstração abre como página');
+  check(await page.locator('.public-hero a[data-public-action="login"]').textContent().then((text) => /Google/.test(text)),
+    'landing informa que é possível entrar com Google');
+  const heroTask = page.locator('.public-hero [data-landing-task]').last();
+  await heroTask.click();
+  check(await heroTask.getAttribute('aria-pressed') === 'true'
+    && await heroTask.locator('small').textContent() === 'Concluída'
+    && await page.locator('.preview-task-progress i').evaluate((progress) => progress.style.width) === '100%',
+  'mock do hero permite concluir uma tarefa sem sair da landing');
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
+  check(
+    await page.locator('.public-journey-grid').evaluate((grid) => {
+      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().left));
+      return new Set(positions).size === 3 && grid.scrollWidth > grid.clientWidth;
+    }),
+    'percurso de valor usa uma faixa horizontal rolável no celular',
+  );
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Explorar a demonstração' }).click();
-  await page.getByRole('button', { name: 'Iniciar foco de exemplo' }).waitFor();
-  check(await page.getByText('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.').count() === 1, 'a demonstração informa os limites antes do CTA de cadastro');
+  const termsTrigger = page.locator('[data-legal-document="terms"]').first();
+  await page.evaluate(() => window.scrollTo(0, 200));
+  const legalScrollBefore = await page.evaluate(() => window.scrollY);
+  await termsTrigger.evaluate((button) => button.click());
+  const legalDialog = page.locator('dialog[data-legal-modal]');
+  await legalDialog.locator('.legal-document').waitFor();
+  check(await legalDialog.evaluate((dialog) => dialog.open), 'documentos legais continuam acessíveis sem carregar o módulo completo');
+  check(
+    await page.evaluate(() => document.documentElement.dataset.scrollLocked === 'true'
+      && getComputedStyle(document.documentElement).overflow === 'hidden'),
+    'modal legal bloqueia a rolagem do fundo',
+  );
+  await legalDialog.locator('.legal-document h1').click();
+  check(await legalDialog.evaluate((dialog) => dialog.open), 'clique no conteúdo não fecha o modal legal');
+  const hashBeforeLegalIndex = new URL(page.url()).hash;
+  await legalDialog.getByRole('link', { name: 'Limites dos recursos', exact: true }).click();
+  check(await legalDialog.evaluate((dialog) => dialog.open)
+    && new URL(page.url()).hash === hashBeforeLegalIndex
+    && await legalDialog.locator('#terms-limits').isVisible(),
+  'índice do modal navega no documento sem mudar a URL da landing');
+  await legalDialog.locator('.legal-modal-footer [data-legal-modal-close]').focus();
+  await page.keyboard.press('Tab');
+  check(
+    await legalDialog.locator('[data-legal-modal-close]').first().evaluate((button) => document.activeElement === button),
+    'foco permanece preso dentro do modal legal',
+  );
+  await legalDialog.locator('[data-legal-modal-close]').first().click();
+  await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
+  await page.waitForTimeout(200);
+  const legalCloseState = await page.evaluate((scrollY) => ({
+    scrollY: window.scrollY,
+    expectedScrollY: scrollY,
+    locked: document.documentElement.dataset.scrollLocked,
+    activeElement: document.activeElement?.outerHTML,
+  }), legalScrollBefore);
+  check(
+    Math.abs(legalCloseState.scrollY - legalCloseState.expectedScrollY) <= 40
+      && legalCloseState.locked === undefined
+      && legalCloseState.activeElement?.includes('data-legal-document="terms"'),
+    'fechar o modal restaura o foco de abertura e a rolagem',
+    JSON.stringify(legalCloseState),
+  );
+  await page.locator('[data-legal-document="privacy"]').first().click();
+  await legalDialog.locator('.legal-document').waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open
+    && document.activeElement.matches('[data-legal-document="privacy"]'));
+  const escapeFocus = await page.evaluate(() => document.activeElement?.outerHTML || '');
+  check(escapeFocus.includes('data-legal-document="privacy"'), 'Escape fecha o modal e devolve o foco ao acionador', escapeFocus);
+  await termsTrigger.click();
+  await legalDialog.locator('.legal-document').waitFor();
+  await page.mouse.click(1, 1);
+  await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
+  check(true, 'clique no fundo fecha o modal legal');
+  await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+  check(new URL(page.url()).pathname === '/demonstracao'
+    && await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).isVisible(),
+  'o CTA abre a demonstração sem cadastro');
+  mainModuleRequests.length = 0;
+  await page.goto(`${BASE}/demonstracao`);
+  await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
+  check(mainModuleRequests.length === 0, 'a demonstração direta não baixa o módulo completo');
+  check(await page.locator('.demo-nav-link').count() === 5, 'demonstração oferece navegação pelas áreas do app');
+  check(await page.getByText(/dados fictícios, somente leitura/i).count() === 1, 'a demonstração deixa claro que os dados são fictícios e somente de leitura');
   await page.waitForTimeout(500);
   const storageBefore = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
@@ -42,28 +147,25 @@ const check = (passed, name, detail = '') => {
   }));
   collectRequests = true;
 
-  const task = page.locator('[data-demo-action="task-toggle"]');
-  await page.getByRole('button', { name: 'Ver tarefas de exemplo' }).click();
-  await task.focus();
-  await page.keyboard.press('Space');
-  check(await task.getAttribute('aria-checked') === 'true', 'tarefa fictícia pode ser concluída pelo teclado');
-  check(await page.locator('[data-demo-task-summary]').textContent() === '3 de 3 feitos', 'progresso e resumo acompanham a tarefa');
+  await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
+  check(await page.locator('.demo-task-list .task').count() === 3
+    && await page.locator('.demo-task-list button, .demo-task-list input').count() === 0,
+  'tarefas de exemplo são exibidas sem controles de edição');
 
-  const habit = page.getByRole('button', { name: 'Marcar hoje' });
-  await habit.focus();
-  await page.keyboard.press('Enter');
-  check(await page.getByRole('button', { name: 'Desmarcar hoje' }).getAttribute('aria-pressed') === 'true', 'hábito fictício pode ser marcado pelo teclado');
-  check((await page.locator('[data-demo-habit-status]').textContent()).includes('3 dias'), 'resumo semanal do hábito é atualizado');
+  await page.getByRole('link', { name: 'Hábitos', exact: true }).click();
+  check(await page.locator('.demo-habit-card button, .demo-habit-card input').count() === 0,
+    'hábitos de exemplo são somente de leitura');
 
-  const timer = page.locator('[data-demo-timer]');
-  const initialTime = await timer.textContent();
-  await page.getByRole('button', { name: 'Iniciar foco de exemplo' }).focus();
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(1200);
-  const runningTime = await timer.textContent();
-  check(runningTime !== initialTime, 'cronômetro inicia e atualiza');
-  await page.getByRole('button', { name: 'Pausar foco de exemplo' }).click();
-  check(await page.getByRole('button', { name: 'Iniciar foco de exemplo' }).getAttribute('aria-pressed') === 'false', 'cronômetro pode ser pausado');
+  check(await page.getByRole('link', { name: 'Foco', exact: true }).count() === 0
+    && await page.locator('.demo-focus-card, .focus-timer, .pomodoro-mini').count() === 0,
+  'demonstração não oferece uma área de timer');
+
+  await page.getByRole('link', { name: 'Ciclo', exact: true }).click();
+  await page.locator('[data-demo-action="cycle-day"][data-day="13"]').click();
+  check(await page.getByText('Dia 13 · exemplo').count() === 1, 'calendário de ciclo permite navegar por dias fictícios');
+  await page.getByRole('link', { name: 'Finanças', exact: true }).click();
+  await page.getByRole('button', { name: 'Mês anterior' }).click();
+  check(await page.getByRole('heading', { name: 'Setembro de 2026' }).count() === 1, 'finanças permite comparar meses fictícios');
 
   const storageAfter = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
@@ -71,27 +173,72 @@ const check = (passed, name, detail = '') => {
   }));
   check(storageAfter === storageBefore, 'interações não gravam dados no navegador');
   check(interactionRequests.length === 0, 'interações não fazem requisições de rede', interactionRequests.join(', '));
-  check(await page.getByRole('button', { name: 'Criar minha conta' }).count() > 0, 'CTA para criar conta permanece disponível');
+  check(await page.getByRole('link', { name: 'Criar conta' }).count() > 0, 'CTA para criar conta permanece disponível');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em 390 px');
 
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
+  await page.setViewportSize({ width: 1366, height: 900 });
   const demoLayout = await page.evaluate(() => {
-    const header = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
+    const sidebar = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
     const main = document.querySelector('.demo-main').getBoundingClientRect();
-    const disclaimer = document.querySelector('.demo-disclaimer').getBoundingClientRect();
-    const welcome = document.querySelector('.home-head').getBoundingClientRect();
-    const viewportWidth = document.documentElement.clientWidth;
     return {
-      hasInactiveNavigation: Boolean(document.querySelector('.demo-nav')),
-      headerFillsViewport: Math.abs(header.width - viewportWidth) <= 1,
-      mainIsCentered: Math.abs(main.left - (viewportWidth - main.width) / 2) <= 1,
-      disclaimerOverlapsWelcome: disclaimer.bottom > welcome.top,
+      sidebarVisible: sidebar.width >= 180 && sidebar.left === 0 && sidebar.bottom >= innerHeight,
+      mainFitsWorkspace: main.left >= sidebar.right && main.right <= document.documentElement.clientWidth,
     };
   });
-  check(!demoLayout.hasInactiveNavigation, 'demonstração não mostra áreas sem interação');
-  check(demoLayout.headerFillsViewport && demoLayout.mainIsCentered, 'demonstração usa cabeçalho completo e conteúdo centralizado em desktop');
-  check(!demoLayout.disclaimerOverlapsWelcome, 'aviso da demonstração não cobre o cartão de boas-vindas');
+  check(demoLayout.sidebarVisible, 'demonstração usa a navegação lateral do app no desktop');
+  check(demoLayout.mainFitsWorkspace, 'conteúdo respeita a coluna ao lado da navegação');
+  await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
+  check(
+    await page.locator('.public-journey-grid').evaluate((grid) => {
+      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().left));
+      return new Set(positions).size === 3;
+    }),
+    'percurso de valor organiza os três momentos em colunas no desktop',
+  );
+  check(
+    await page.locator('.public-values').evaluate((grid) => {
+      const cards = [...grid.children];
+      const columns = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left)));
+      const rows = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top)));
+      return cards.length === 4 && columns.size === 2 && rows.size === 2;
+    }),
+    'as quatro áreas ficam organizadas em uma grade equilibrada no desktop',
+  );
+  await page.getByRole('link', { name: 'Perguntas', exact: true }).click();
+  check(
+    new URL(page.url()).hash === '#public-faq'
+      && await page.locator('#public-faq').evaluate((section) => {
+        const bounds = section.getBoundingClientRect();
+        return bounds.top >= 0 && bounds.top < innerHeight;
+      }),
+    'o link Perguntas do cabeçalho leva ao FAQ',
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
+  await page.locator('[name="message"]').fill('Uma sugestão de teste');
+  const taskState = await page.locator('[data-landing-task]').last().getAttribute('aria-pressed');
+  await page.locator('.public-hero [data-public-action="login"]').click();
+  await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+  check(await page.title() === 'Entrar na sua conta | aurora.', 'login tem título próprio');
+  await page.locator('.account-home-link').click();
+  await page.locator('.public-hero').waitFor();
+  check(await page.locator('.public-value:visible h3').textContent() === 'Ciclo'
+    && await page.locator('[name="message"]').inputValue() === 'Uma sugestão de teste'
+    && await page.locator('[data-landing-task]').last().getAttribute('aria-pressed') === taskState,
+  'voltar do login preserva o estado da landing nesta aba');
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await page.waitForFunction(() => !document.querySelector('.public-mobile-cta').hidden);
+  check(await page.locator('.public-mobile-cta').isVisible(), 'CTA móvel continua funcionando após voltar do login');
+  await page.locator('.public-hero [data-public-action="signup"]').click();
+  await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
+  check(await page.title() === 'Seu perfil | aurora.', 'cadastro tem título próprio');
+  await page.locator('.account-site-header .public-brand-link').click();
+  await page.locator('.public-hero').waitFor();
+  check(new URL(page.url()).pathname === '/'
+    && await page.locator('[name="message"]').inputValue() === 'Uma sugestão de teste',
+  'logo do cadastro retorna à landing preservando o rascunho');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

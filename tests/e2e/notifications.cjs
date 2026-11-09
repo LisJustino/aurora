@@ -38,6 +38,8 @@ async function addTask(page, title, offsetMinutes) {
       });
       await page.goto(new URL('/?preview', BASE).toString());
       await page.waitForTimeout(500);
+      const installNotice = page.locator('#pwa-install-notice');
+      if (await installNotice.isVisible()) await installNotice.getByRole('button', { name: 'Agora não' }).click();
       await page.addStyleTag({ content: '.preview-shell .header-actions .notification-trigger { display: inline-flex !important; }' });
       await page.evaluate(() => { location.hash = 'planejar'; });
       await page.locator('[data-action="task-new"]').first().waitFor({ state: 'visible' });
@@ -57,10 +59,14 @@ async function addTask(page, title, offsetMinutes) {
       assert.match(await page.locator('#notification-announcer').textContent(), /Abra Notificações para conferir\./);
       await trigger.click();
       await page.locator('#notification-panel').waitFor({ state: 'visible' });
+      assert.notEqual(await page.evaluate(() => document.documentElement.dataset.scrollLocked), 'true', `${name}: a caixa não bloqueia a tela`);
       assert.equal(await page.locator('.notification-item').count(), 2, `${name}: deve exibir os dois lembretes`);
       assert.equal(await page.locator('.notification-section-title').textContent(), 'Agora');
       assert.equal(await page.locator('.notification-upcoming h3').textContent(), 'Ainda hoje');
       assert.equal(await page.locator('.notification-upcoming li').count(), 1, `${name}: deve exibir o próximo lembrete`);
+      assert.equal(await page.locator('.notification-controls').evaluate((el) => getComputedStyle(el).display), 'grid', `${name}: controles devem manter espaçamento em grade`);
+      assert.equal(await page.locator('.notification-controls small').evaluate((el) => getComputedStyle(el).display), 'block', `${name}: explicação deve ficar abaixo do título`);
+      assert.equal(await page.locator('.notification-settings-link').evaluate((el) => getComputedStyle(el).display), 'flex', `${name}: link de ajustes deve manter ícone e texto alinhados`);
 
       if (name === 'mobile') {
         await page.locator('[data-action="rem-snooze"][data-min="60"]').first().click();
