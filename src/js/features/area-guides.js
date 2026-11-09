@@ -8,7 +8,7 @@ export const AREA_GUIDES = {
     fallbackVideo: new URL('../../assets/tutorials/inicio.mp4', import.meta.url).href,
     steps: [
       { title: 'Comece pelo que importa', text: 'Confira as tarefas de hoje e os avisos que pedem sua atenção. Abra uma tarefa para ver detalhes ou atualizar o andamento.' },
-      { title: 'Use os atalhos do painel', text: 'Crie uma tarefa ou inicie um foco sem sair de Início. Os atalhos levam você direto à ação.' },
+      { title: 'Use os atalhos do painel', text: 'Crie uma tarefa sem sair de Início. Os atalhos levam você direto à ação.' },
       { title: 'Deixe a tela com a sua cara', text: 'Em Ajustes, escolha quais áreas aparecem e organize os blocos do painel para destacar o que você mais usa.' },
     ],
   },
@@ -22,18 +22,6 @@ export const AREA_GUIDES = {
       { title: 'Escolha como visualizar', text: 'Use a lista para acompanhar itens, o calendário ou a semana para ver datas e a revisão para retomar o que ficou pendente.' },
       { title: 'Encontre e atualize', text: 'Combine busca e filtros para localizar tarefas. Marque como concluída ou abra para ajustar os detalhes.' },
       { title: 'Reorganize sem perder o fio', text: 'Se os planos mudarem, edite o prazo ou a prioridade. A visualização acompanha as alterações.' },
-    ],
-  },
-  pomodoro: {
-    title: 'Pomodoro',
-    summary: 'Alterne períodos de foco e pausa no seu próprio ritmo.',
-    video: new URL('../../assets/tutorials/pomodoro.webm', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/pomodoro.mp4', import.meta.url).href,
-    steps: [
-      { title: 'Escolha um foco', text: 'Escreva no que quer trabalhar ou associe uma tarefa. Você também pode iniciar sem escolher nenhum dos dois.' },
-      { title: 'Inicie e acompanhe', text: 'Comece o timer para alternar foco e pausa. Se precisar interromper, pause e retome no seu tempo.' },
-      { title: 'Ajuste ao seu ritmo', text: 'Em Ajustes, personalize a duração dos períodos e o som. Notificações fora do Aurora são opcionais.' },
-      { title: 'Confira seu progresso', text: 'Ao concluir um período de foco associado a uma tarefa, o tempo concluído é somado a ela.' },
     ],
   },
   financas: {

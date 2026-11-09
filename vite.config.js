@@ -14,7 +14,6 @@ const pageEntries = [
   'pages/inicio.html',
   'pages/perfil.html',
   'pages/planejar.html',
-  'pages/pomodoro.html',
   'privacy.html',
   'terms.html',
 ];

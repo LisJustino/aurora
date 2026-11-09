@@ -49,6 +49,7 @@ import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/temp
 import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
+import { canAccessCycle } from './features/cycle/access.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
@@ -57,36 +58,18 @@ import {
   markReleaseNotesSeen,
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
+import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
 import {
-  advancePomodoro,
-  customPomodoroSettings,
-  effectivePomodoroSettings,
-  longBreakMinutes,
-  normalizePomodoroHistory,
-  recentFocusDays,
-  POMODORO_PRESETS,
-  phaseDurationSeconds,
-  phaseElapsedSeconds,
-} from './features/pomodoro/pomodoro.js';
-import {
-  DEFAULT_POMODORO_SOUND_VOLUME,
-  POMODORO_SOUND_TONES,
-  playPomodoroChime,
-  resumePomodoroAudioContext,
-} from './features/pomodoro/pomodoro-audio.js';
-import {
-  cancelPomodoroPushSchedule,
   cancelHabitPushReminders,
-  clearPomodoroPushState,
-  configurePomodoroPushStore,
-  disablePomodoroPush,
-  enablePomodoroPush,
-  getPomodoroPushStatus,
-  initializePomodoroPush,
-  pomodoroPushErrorMessage,
+  clearPushNotificationState,
+  configurePushNotificationStore,
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushNotificationStatus,
+  initializePushNotifications,
+  pushNotificationErrorMessage,
   scheduleHabitPushReminders,
-  schedulePomodoroPush,
-} from './services/pomodoro-push.js';
+} from './services/push-notifications.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import {
@@ -111,7 +94,6 @@ function loadGoogleCalendarServiceFactory() {
       window.addEventListener('aurora:push-notification', (event) => {
         const kind = event.detail?.kind;
         if (kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
-        else if (kind === 'pomodoro') toast('Uma nova fase do Pomodoro começou.');
       });
   }
   return googleCalendarServicePromise;
@@ -405,7 +387,7 @@ const findBankByName = (value, allowPrefix = false) => {
 const bankFieldValue = (value) => value === OTHER_BANK
   ? 'Outro / não listado'
   : Object.hasOwn(BANKS, value) ? BANKS[value].name : value || '';
-const AREAS = { pomodoro: ['Pomodoro', 'Timer para alternar blocos de foco e pausa'], finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
+const AREAS = { finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
 const SEX = PROFILE_SEX;
 const hasRequiredProfile = (profile) => typeof profile?.name === 'string'
   && Boolean(profile.name.trim());
@@ -428,7 +410,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { pomodoro: false, finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, pomodoro: { on: false, preset: 'classic', focusMin: 25, breakMin: 5, longBreakMin: 15, cyclesPerLongBreak: 4, autoAdvance: true, soundTone: 'classic', soundVolume: DEFAULT_POMODORO_SOUND_VOLUME }, vibrationEnabled: false, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -453,7 +435,7 @@ const writeSidebarCollapsed = (collapsed) => {
     else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
   } catch { /* storage indisponível */ }
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.cycleConsentBusy = false;
 ui.cycleConsentError = '';
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
@@ -584,6 +566,7 @@ async function saveProfileDraft() {
   const age = ageInput ? Number(ageInput) : null;
   if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
   if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
+  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.'); $('#psex')?.focus(); return; }
   if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
     toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
     $('#page')?.focus();
@@ -639,7 +622,6 @@ function normalizeSettings(s) {
   const profile = isPlainObject(source.profile) ? source.profile : {};
   const areas = isPlainObject(source.areas) ? source.areas : {};
   const prefs = isPlainObject(source.prefs) ? source.prefs : {};
-  const pomodoro = isPlainObject(prefs.pomodoro) ? prefs.pomodoro : {};
   const o = { ...d, ...source };
   o.profile = { ...d.profile, ...profile };
   o.profile.name = typeof profile.name === 'string' ? profile.name.slice(0, 50) : d.profile.name;
@@ -670,24 +652,6 @@ function normalizeSettings(s) {
   o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
   o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
   o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
-  o.prefs.pomodoro = { ...d.prefs.pomodoro, ...pomodoro };
-  o.prefs.pomodoro.on = typeof pomodoro.on === 'boolean' ? pomodoro.on : d.prefs.pomodoro.on;
-  o.prefs.pomodoro.preset = (Object.hasOwn(POMODORO_PRESETS, pomodoro.preset) || pomodoro.preset === 'custom')
-    ? pomodoro.preset
-    : Object.hasOwn(pomodoro, 'focusMin') || Object.hasOwn(pomodoro, 'breakMin')
-      ? 'custom'
-      : d.prefs.pomodoro.preset;
-  o.prefs.pomodoro.focusMin = Number.isInteger(pomodoro.focusMin) && pomodoro.focusMin >= 5 && pomodoro.focusMin <= 120 ? pomodoro.focusMin : d.prefs.pomodoro.focusMin;
-  o.prefs.pomodoro.breakMin = Number.isInteger(pomodoro.breakMin) && pomodoro.breakMin >= 1 && pomodoro.breakMin <= 60 ? pomodoro.breakMin : d.prefs.pomodoro.breakMin;
-  o.prefs.pomodoro.longBreakMin = Number.isInteger(pomodoro.longBreakMin) && pomodoro.longBreakMin >= 5 && pomodoro.longBreakMin <= 60 ? pomodoro.longBreakMin : d.prefs.pomodoro.longBreakMin;
-  o.prefs.pomodoro.soundTone = Object.hasOwn(POMODORO_SOUND_TONES, pomodoro.soundTone)
-    ? pomodoro.soundTone
-    : d.prefs.pomodoro.soundTone;
-  o.prefs.pomodoro.soundVolume = Number.isInteger(pomodoro.soundVolume)
-    && pomodoro.soundVolume >= 0
-    && pomodoro.soundVolume <= 100
-    ? pomodoro.soundVolume
-    : d.prefs.pomodoro.soundVolume;
   o.prefs.waterGoalMl = Number.isInteger(prefs.waterGoalMl) && prefs.waterGoalMl >= 500 && prefs.waterGoalMl <= 10000 ? prefs.waterGoalMl : d.prefs.waterGoalMl;
   o.prefs.habitWaterGoals = Object.fromEntries(
     Object.entries(isPlainObject(prefs.habitWaterGoals) ? prefs.habitWaterGoals : {})
@@ -696,7 +660,6 @@ function normalizeSettings(s) {
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
-  o.prefs.vibrationEnabled = prefs.vibrationEnabled === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
@@ -803,7 +766,7 @@ const isValidTransaction = (record) => isPlainObject(record)
   && (record.type !== 'tr' || isNonEmptyText(record.toAccountId))
   && (record.invoiceInstallment !== true || (record.type === 'tr' && isNonEmptyText(record.groupId)));
 const isValidGoal = (record) => isPlainObject(record)
-  && isNonEmptyText(record.id) && isText(record.name)
+  && isNonEmptyText(record.id) && isNonEmptyText(record.name) && record.name.length <= 50
   && isSafeInteger(record.targetCents) && record.targetCents > 0
   && isSafeInteger(record.savedCents) && record.savedCents >= 0
   && optional(record, 'deadline', (value) => value === '' || value === null || isDay(value));
@@ -889,7 +852,6 @@ function settingsIssueCount(value) {
       && !isValidVisibleMenuItems(prefs.visibleMenuItems)) issues++;
     if (Object.hasOwn(prefs, 'areaTutorialsSeen') && prefs.areaTutorialsSeen !== undefined
       && !isValidAreaTutorialsSeen(prefs.areaTutorialsSeen)) issues++;
-    if (Object.hasOwn(prefs, 'pomodoro') && prefs.pomodoro !== undefined && !isPlainObject(prefs.pomodoro)) issues++;
     ['waterGoalMl'].forEach((key) => {
       if (Object.hasOwn(prefs, key) && prefs[key] !== undefined
         && !(Number.isInteger(prefs[key])
@@ -905,21 +867,6 @@ function settingsIssueCount(value) {
         || prefs.weeklyReflection.text.length > 500)) issues++;
     if (Object.hasOwn(prefs, 'trash') && prefs.trash !== undefined) {
       issues += normalizeTrash(withoutRemovedStudyTrash(prefs.trash), isValidTrashEntry).rejectedCount;
-    }
-    if (isPlainObject(prefs.pomodoro)) {
-      const pomodoro = prefs.pomodoro;
-      if (Object.hasOwn(pomodoro, 'on') && pomodoro.on !== undefined && typeof pomodoro.on !== 'boolean') issues++;
-      if (Object.hasOwn(pomodoro, 'preset') && pomodoro.preset !== undefined && !['classic', 'custom'].includes(pomodoro.preset)) issues++;
-      if (Object.hasOwn(pomodoro, 'focusMin') && pomodoro.focusMin !== undefined
-        && !(Number.isInteger(pomodoro.focusMin) && pomodoro.focusMin >= 5 && pomodoro.focusMin <= 120)) issues++;
-      if (Object.hasOwn(pomodoro, 'breakMin') && pomodoro.breakMin !== undefined
-        && !(Number.isInteger(pomodoro.breakMin) && pomodoro.breakMin >= 1 && pomodoro.breakMin <= 60)) issues++;
-      if (Object.hasOwn(pomodoro, 'longBreakMin') && pomodoro.longBreakMin !== undefined
-        && !(Number.isInteger(pomodoro.longBreakMin) && pomodoro.longBreakMin >= 5 && pomodoro.longBreakMin <= 60)) issues++;
-      if (Object.hasOwn(pomodoro, 'soundTone') && pomodoro.soundTone !== undefined
-        && !Object.hasOwn(POMODORO_SOUND_TONES, pomodoro.soundTone)) issues++;
-      if (Object.hasOwn(pomodoro, 'soundVolume') && pomodoro.soundVolume !== undefined
-        && !(Number.isInteger(pomodoro.soundVolume) && pomodoro.soundVolume >= 0 && pomodoro.soundVolume <= 100)) issues++;
     }
   }
   if (Object.hasOwn(value, 'look') && isPlainObject(value.look)) {
@@ -1005,7 +952,7 @@ function normalizeSlice(k, v) {
       invalidCount++;
     }
     if (!timer.dailyCompletedOn) timer.dailyCompletedPomodoros = 0;
-    timer.history = normalizePomodoroHistory(v.history);
+    timer.history = normalizeLegacyTimerHistory(v.history);
     if (typeof timer.focusTaskId !== 'string') { timer.focusTaskId = ''; invalidCount++; }
     if (typeof timer.focusLabel === 'string' && timer.focusLabel.trim()) timer.focusLabel = timer.focusLabel.trim().slice(0, 40); else delete timer.focusLabel;
     return { value: timer, invalidCount };
@@ -1106,7 +1053,7 @@ const Persist = {
     this.store = new RelationalAccountStore(client, user.id);
     this.confirmedState = null;
     ui.persistError = '';
-    configurePomodoroPushStore(this.store);
+    configurePushNotificationStore(this.store);
   },
   save(slice) {
     return this.saveMany([slice]);
@@ -1261,7 +1208,7 @@ const Persist = {
     this.store = null;
     this.userId = '';
     this.confirmedState = null;
-    clearPomodoroPushState();
+    clearPushNotificationState();
   },
 };
 async function loadAccountData() {
@@ -1469,7 +1416,7 @@ const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" view
 const configLink = () => h`<a class="inline-link" href="/config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
-const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', pomodoro: 'Pomodoro', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
+const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
@@ -1521,25 +1468,23 @@ function notificationsHtml() {
   const canPauseReminders = remindersPaused
     || S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null)
     || S.habits.some((habit) => (habit.status || 'active') === 'active' && habit.remind)
-    || items.some(([, alert]) => alert.kind !== 'pomodoro')
+    || items.length > 0
     || upcoming.some((reminder) => reminder.kind === 'task' || reminder.kind === 'habit');
-  const kindLabel = (a) => a.kind === 'pomodoro' ? 'Pomodoro' : a.kind === 'habit' ? 'Hábito' : 'Tarefa';
+  const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
     ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
       return h`<article class="notification-item is-${a.kind || 'task'}" ${habit ? raw(`style="--nc:${habitColor(habit)}"`) : ''}>
-      <span class="notification-icon">${icon(a.kind === 'pomodoro' ? 'clock' : habit ? habitIconKey(habit) : 'bell', 18)}</span>
-      <div class="notification-copy"><div class="notification-meta"><span class="notification-kind">${kindLabel(a)}</span><span class="notification-ago">${agoLabel(a.at)}</span><button class="ibtn notification-x" data-action="rem-dismiss" data-k="${k}" aria-label="Dispensar: ${a.title}">${icon('close', 16)}</button></div><b class="user-value">${a.title}</b>${a.kind === 'pomodoro' ? '' : h`<small>${a.kind === 'habit' ? `lembrete das ${a.time}` : `tarefa das ${a.time}`}</small>`}${a.detail ? h`<p>${a.detail}</p>` : ''}</div>
-      <div class="notification-actions">${a.kind === 'pomodoro'
-        ? h`<button class="btn sm primary" data-action="pomo-pause" data-k="${k}">Pausar ${a.phase === 'focus' ? 'foco' : 'intervalo'}</button>`
-        : a.kind === 'habit'
+      <span class="notification-icon">${icon(habit ? habitIconKey(habit) : 'bell', 18)}</span>
+      <div class="notification-copy"><div class="notification-meta"><span class="notification-kind">${kindLabel(a)}</span><span class="notification-ago">${agoLabel(a.at)}</span><button class="ibtn notification-x" data-action="rem-dismiss" data-k="${k}" aria-label="Dispensar: ${a.title}">${icon('close', 16)}</button></div><b class="user-value">${a.title}</b><small>${a.kind === 'habit' ? `lembrete das ${a.time}` : `tarefa das ${a.time}`}</small>${a.detail ? h`<p>${a.detail}</p>` : ''}</div>
+      <div class="notification-actions">${a.kind === 'habit'
           ? h`<button class="btn sm primary" data-action="habit-reminder-done" data-k="${k}" data-id="${a.id}">Marcar hábito</button>`
           : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
-    </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos e avisos do Pomodoro aparecem aqui.</span></div>`}
+    </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos aparecem aqui.</span></div>`}
     ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
-    ${canPauseReminders && (areaOn('habits') || areaOn('pomodoro')) ? h`<a class="notification-settings-link" href="${areaOn('habits') ? '/habitos' : '/pomodoro'}">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
+    ${canPauseReminders && areaOn('habits') ? h`<a class="notification-settings-link" href="/habitos">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
   </section>`;
 }
 function closeNotifications(restoreFocus = true) {
@@ -1558,15 +1503,16 @@ function acquireActiveScrollLocks() {
 function fieldError(message, selector) {
   const field = selector ? document.querySelector(`#dlg ${selector}`) : null;
   if (!field) return toast(message);
-  const label = field.closest('label') || field.parentElement;
+  const label = field.type === 'checkbox' ? field.closest('fieldset') : field.closest('label') || field.parentElement;
   label.querySelector('.field-err')?.remove();
   const note = document.createElement('span');
   note.className = 'err field-err'; note.id = `err-${Math.random().toString(36).slice(2, 8)}`; note.setAttribute('role', 'alert'); note.textContent = message;
   label.append(note);
   field.setAttribute('aria-invalid', 'true'); field.setAttribute('aria-describedby', note.id);
-  const clear = () => { note.remove(); field.removeAttribute('aria-invalid'); field.removeAttribute('aria-describedby'); field.removeEventListener('input', clear); field.removeEventListener('change', clear); };
-  field.addEventListener('input', clear);
-  field.addEventListener('change', clear);
+  const inputTarget = field.type === 'checkbox' ? label : field;
+  const clear = () => { note.remove(); field.removeAttribute('aria-invalid'); field.removeAttribute('aria-describedby'); inputTarget.removeEventListener('input', clear); inputTarget.removeEventListener('change', clear); };
+  inputTarget.addEventListener('input', clear);
+  inputTarget.addEventListener('change', clear);
   field.focus();
 }
 function completionFeedback(selector) {
@@ -1579,29 +1525,18 @@ function completionFeedback(selector) {
     setTimeout(() => target.classList.remove('completion-feedback'), 760);
   });
 }
+function vibrateFeedback() {
+  if (!S.settings.prefs.vibrationEnabled || typeof navigator.vibrate !== 'function') return;
+  try { navigator.vibrate(15); } catch { /* A vibração é opcional. */ }
+}
 function updateAccessibilityLook(updates, focusId) {
   updateSettingsDraft((settings) => {
     settings.look = { ...settings.look, ...updates };
   });
   if (focusId) document.getElementById(focusId)?.focus();
 }
-function clearPomodoroNotifications() {
-  Object.keys(ui.alerts).forEach((key) => {
-    const alert = ui.alerts[key];
-    if (alert.kind === 'pomodoro') delete ui.alerts[key];
-  });
-}
 function shell(body) {
   const overdue = S.tasks.filter((t) => !t.done && t.dueDate && t.dueDate < today()).length;
-  const timer = S.pomodoro;
-  const timerNow = Date.now();
-  const timerElapsed = phaseElapsedSeconds(timer, timerNow);
-  const timerDuration = phaseDurationSeconds(pomodoroSettingsForTimer(), timer.phase);
-  const timerRunning = timer.startedAt !== null;
-  const timerHasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || timerElapsed > 0;
-  const miniTimerVisible = ui.route !== 'pomodoro' && (timerRunning || timerHasProgress);
-  const miniFocusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
-  const miniFocusLabel = miniFocusTask?.title || timer.focusLabel || 'Seu bloco atual';
   const saveStatus = ui.persistBlocked.size || ui.persistFailed.size || navigator.onLine === false ? 'warning' : 'saved';
   const saveLabel = ui.preview
     ? ''
@@ -1614,13 +1549,14 @@ function shell(body) {
           : navigator.onLine === false
             ? 'Sem conexão; alterações não serão salvas'
             : '';
-  const menuItems = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
-  const compactItems = menuItems.slice(0, 4);
-  const secondaryItems = menuItems.slice(4);
-  const hasActiveArea = Object.values(S.settings.areas).some(Boolean);
+  const menuAreas = { ...S.settings.areas, cycle: areaOn('cycle') };
+  const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
+  const compactItems = ['inicio', 'planejar', 'habitos'].map((id) => menuItems.find((item) => item.id === id)).filter(Boolean);
+  const secondaryItems = menuItems.filter((item) => !compactItems.includes(item));
+  const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
   const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" data-tip="${label}" title="${ui.sidebarCollapsed ? '' : label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
-  const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
+  const currentInMore = ui.route === 'config' || secondaryItems.some(({ id }) => isCurrent(id));
   const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
     ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
@@ -1637,26 +1573,17 @@ function shell(body) {
     : h`
       <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
       ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
-      ${financeQuickActions}
-      ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
+      ${financeQuickActions}`;
   const quickActionsHeading = isFinanceRoute ? 'Ações de Finanças' : 'Criar rapidamente';
   const quickActions = h`<div class="nav-quick-control">
     <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${menuItems.map((item) => navLink(item, compactItems.includes(item) ? 'nav-primary' : 'nav-secondary'))}<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}${navLink({ id: 'config', label: 'Ajustes', icon: 'user' }, 'nav-more-link')}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
     ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar"><div class="sidebar-brand-row">${brandLink}<button type="button" class="sidebar-toggle" data-action="sidebar-toggle" aria-label="${ui.sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}" aria-expanded="${String(!ui.sidebarCollapsed)}" aria-controls="primary-navigation" title="${ui.sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}">${icon(ui.sidebarCollapsed ? 'chevRight' : 'chevLeft', 18)}</button></div><nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
-      <section class="pomodoro-mini" id="pomodoro-mini" data-phase="${timer.phase}" aria-label="Pomodoro em andamento" ${miniTimerVisible ? raw('') : raw('hidden')}>
-        <a class="pomodoro-mini-open" id="pomodoro-mini-open" href="/pomodoro" aria-label="Abrir Pomodoro: ${standalonePomodoroPhaseName(timer.phase)} ${timerRunning ? 'em andamento' : 'pausado'}, ${clock(Math.max(0, timerDuration - timerElapsed))} restantes">
-          <span class="pomodoro-mini-indicator" aria-hidden="true"></span>
-          <span class="pomodoro-mini-copy"><b id="pomodoro-mini-phase">${standalonePomodoroPhaseName(timer.phase)} · ${timerRunning ? 'em andamento' : 'pausado'}</b><small id="pomodoro-mini-focus">${miniFocusLabel}</small></span>
-          <span class="pomodoro-mini-clock" id="pomodoro-mini-clock" role="timer" aria-live="off">${clock(Math.max(0, timerDuration - timerElapsed))}</span>
-        </a>
-        <button type="button" class="pomodoro-mini-toggle" id="pomodoro-mini-toggle" data-action="pomodoro-mini-toggle" aria-label="${timerRunning ? 'Pausar Pomodoro' : 'Retomar Pomodoro'}">${timerRunning ? 'Pausar' : 'Retomar'}</button>
-      </section>
       ${persistenceNotice()}
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
@@ -1733,7 +1660,7 @@ function weeklyReviewView() {
         ? h`<p class="small muted weekly-plan-guidance">Para cada tarefa, mantenha a data, ajuste os detalhes ou adie por uma semana. O adiamento pode ser desfeito.</p><ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
         : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
     </section></div>
-    <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><a class="btn sm" href="/pomodoro">${icon('clock', 16)}Usar Pomodoro</a><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
+    <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
 }
 
@@ -1749,7 +1676,6 @@ function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') 
 }
 const PAGE_CONTEXT = {
   Planejar: ['Tarefas e prazos', 'Crie tarefas, organize a semana e acompanhe itens atrasados.'],
-  Pomodoro: ['Foco e pausas', 'Configure blocos Pomodoro e associe tarefas ao timer.'],
   Finanças: ['Contas e lançamentos', 'Acompanhe saldos, receitas, despesas e objetivos.'],
   Ciclo: ['Ciclo menstrual', 'Registre menstruação e sintomas para consultar o histórico e as estimativas.'],
   Hábitos: ['Registro de hábitos', 'Marque os dias realizados e consulte a frequência semanal.'],
@@ -1761,9 +1687,11 @@ const pageTitle = (title, action = '') => {
 };
 const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
 const ring = (done, total) => { const c = 2 * Math.PI * 32, pc = total ? done / total : 0; return h`<div class="ringw" role="img" aria-label="${done} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pc)).toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${done}/${total}</div></div>`; };
-const areaOn = (a) => S.settings.areas[a];
+const areaOn = (a) => Boolean(S.settings.areas[a])
+  && (a !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
 function setAreaEnabled(settings, area, enabled) {
   if (!Object.hasOwn(settings.areas, area)) return false;
+  if (area === 'cycle' && enabled && !canAccessCycle(settings.profile, ui.preview)) return false;
   settings.areas[area] = enabled;
   if (enabled) {
     const menuItem = MENU_ITEMS.find((item) => item.area === area);
@@ -1781,7 +1709,8 @@ function gate(area, name) {
   return h`<div class="card">${empty(name + ' está desligado', 'Esta área é opcional. Ative quando quiser; você pode desligar depois sem perder o que registrou.', h`<button class="btn primary" data-action="enable-area" data-area="${area}">Ativar ${name}</button>`)}</div>`;
 }
 function areaNav(cur) {
-  const items = orderMenuItems(S.settings.prefs.menuOrder, S.settings.areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
+  const areas = { ...S.settings.areas, cycle: areaOn('cycle') };
+  const items = orderMenuItems(S.settings.prefs.menuOrder, areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
   if (items.length < 2) return '';
   return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="/${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
 }
@@ -1811,14 +1740,13 @@ function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
   const isHomeNextStep = homeNextStep === true;
   const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
   const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
-  const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? h`<span class="m-warn">Hoje${tm}</span>` : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
+  const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? (isHomeNextStep ? (t.time ? h`<span>${t.time}</span>` : '') : h`<span class="m-warn">Hoje${tm}</span>`) : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
   const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
   const taskIcon = taskIconKey(t.icon);
   return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
     <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
     <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
-      <span class="meta">${due}${t.focusSeconds ? h`<span class="mi">${icon('clock', 12)}Foco ${dur(t.focusSeconds)}</span>` : ''}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
-    ${!t.done && areaOn('pomodoro') ? h`<button type="button" class="ibtn task-focus-button" data-action="task-focus" data-id="${t.id}" aria-label="Iniciar Pomodoro para: ${t.title}" title="Focar nesta tarefa">${icon('play', 16)}</button>` : ''}
+      <span class="meta">${due}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
     <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
     ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
   </li>`;
@@ -2048,8 +1976,8 @@ function registerPwaSupport() {
       } catch (error) {
         pwaSupportPromise = null;
         console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
-        ui.pushNotice = pomodoroPushErrorMessage(error);
-        if (ui.route === 'pomodoro') render();
+        ui.habitPushNotice = pushNotificationErrorMessage(new Error('service-worker'));
+        if (ui.route === 'habitos') render();
         return null;
       }
     })();
@@ -2208,6 +2136,17 @@ function onRoute() {
   ui.quickActionsOpen = false;
   const fallbackRoute = document.querySelector('meta[name="aurora-route"]')?.content || 'inicio';
   const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
+  if (resolved.route === 'ciclo' && !canAccessCycle(S.settings.profile, ui.preview)) {
+    const hasProfileSex = Boolean(S.settings.profile.sex);
+    const destination = hasProfileSex ? '/inicio' : '/config?section=profile';
+    history.replaceState(null, '', destination);
+    resolved.route = hasProfileSex ? 'inicio' : 'config';
+    resolved.query = hasProfileSex ? '' : 'section=profile';
+    resolved.replacePath = null;
+    toast(hasProfileSex
+      ? 'Ciclo está disponível apenas para mulheres.'
+      : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.');
+  }
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
   const routeLocationKey = `${resolved.route}?${resolved.query}`;
   if (wasBooted && routeLocationKey === activeRouteLocationKey) return;
@@ -2250,138 +2189,8 @@ function onRoute() {
 
 /* ========== Páginas: Início, Planejar, Foco ========== */
 const todayTasks = () => S.tasks.filter((t) => t.dueDate && t.dueDate <= today() && taskVisible(t)).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.time || '99:99').localeCompare(b.time || '99:99'));
-const standalonePomodoroPhaseName = (phase) => phase === 'focus' ? 'Foco' : 'Pausa';
-const standalonePomodoroPhaseLabel = (phase, running, started) => {
-  if (!started) return 'Pronto para começar';
-  return `${standalonePomodoroPhaseName(phase)} ${running ? 'em andamento' : 'pausado'}`;
-};
-const timerPhaseMessage = (phase, pom) => phase === 'focus'
-  ? `${pom.focusMin} min de foco, depois pausa de ${pom.breakMin} min.`
-  : `Pausa de ${phase === 'long-break' ? longBreakMinutes(pom) : pom.breakMin} min.`;
-const standaloneTimerReset = (progress = S.pomodoro) => ({
-  elapsedSeconds: 0,
-  startedAt: null,
-  phase: 'focus',
-  phaseElapsedSeconds: 0,
-  completedPomodoros: 0,
-  dailyCompletedPomodoros: progress.dailyCompletedPomodoros || 0,
-  dailyCompletedOn: progress.dailyCompletedOn || '',
-  history: normalizePomodoroHistory(progress.history),
-  focusTaskId: '',
-});
-const pomodoroSettingsForTimer = () => ({
-  ...effectivePomodoroSettings(S.settings.prefs.pomodoro),
-  longBreakEnabled: false,
-});
-
-let pomodoroAudioContext = null;
-let pomodoroAudioUnavailable = false;
-let pomodoroWakeLock = null;
-let pomodoroWakeLockPending = null;
-let pomodoroWakeLockFailed = false;
-function vibrateFeedback() {
-  if (!S.settings.prefs.vibrationEnabled || typeof navigator.vibrate !== 'function') return;
-  try { navigator.vibrate(15); } catch { /* A vibração é opcional. */ }
-}
-async function syncPomodoroWakeLock() {
-  const shouldHold = S.pomodoro.startedAt !== null && document.visibilityState === 'visible';
-  if (!shouldHold) {
-    pomodoroWakeLockFailed = false;
-    const lock = pomodoroWakeLock;
-    pomodoroWakeLock = null;
-    if (lock) {
-      try { await lock.release(); } catch { /* O bloqueio de tela é opcional. */ }
-    }
-    return;
-  }
-  const wakeLock = navigator.wakeLock;
-  if (!wakeLock || typeof wakeLock.request !== 'function' || pomodoroWakeLock || pomodoroWakeLockPending || pomodoroWakeLockFailed) return;
-  pomodoroWakeLockPending = wakeLock.request('screen').then(async (lock) => {
-    if (S.pomodoro.startedAt === null || document.visibilityState !== 'visible') {
-      try { await lock.release(); } catch { /* O bloqueio de tela é opcional. */ }
-      return;
-    }
-    pomodoroWakeLock = lock;
-    lock.addEventListener('release', () => {
-      if (pomodoroWakeLock === lock) pomodoroWakeLock = null;
-      if (!pomodoroWakeLockFailed && S.pomodoro.startedAt !== null && document.visibilityState === 'visible') {
-        void syncPomodoroWakeLock();
-      }
-    }, { once: true });
-  }).catch(() => {
-    pomodoroWakeLockFailed = true;
-  }).finally(() => {
-    pomodoroWakeLockPending = null;
-  });
-  await pomodoroWakeLockPending;
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') pomodoroWakeLockFailed = false;
-  void syncPomodoroWakeLock();
-});
-function activatePomodoroAudio() {
-  if (pomodoroAudioUnavailable) return;
-  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextConstructor) {
-    pomodoroAudioUnavailable = true;
-    console.warn('A reprodução de áudio não está disponível neste navegador.');
-    return;
-  }
-  try {
-    if (!pomodoroAudioContext) pomodoroAudioContext = new AudioContextConstructor();
-    resumePomodoroAudioContext(pomodoroAudioContext)
-      .catch((error) => console.warn('Não foi possível ativar o áudio do Pomodoro.', error));
-  } catch (error) {
-    pomodoroAudioUnavailable = true;
-    console.warn('Não foi possível ativar o áudio do Pomodoro.', error);
-  }
-}
-function playPomodoroSound(preferences = S.settings.prefs.pomodoro) {
-  const context = pomodoroAudioContext;
-  if (!context) return;
-  const play = () => {
-    if (context.state !== 'running') return;
-    try {
-      playPomodoroChime(context, {
-        tone: preferences.soundTone,
-        volume: preferences.soundVolume,
-      });
-    } catch (error) {
-      console.warn('Não foi possível reproduzir o aviso sonoro do Pomodoro.', error);
-    }
-  };
-  if (context.state === 'running') {
-    play();
-  } else {
-    resumePomodoroAudioContext(context)
-      .then(play)
-      .catch((error) => console.warn('Não foi possível ativar o áudio do Pomodoro.', error));
-  }
-}
-function reportPomodoroPushStatus(message) {
-  ui.pushNotice = message;
-  if (ui.route === 'pomodoro') render();
-}
-function syncPomodoroPushSchedule(timer = S.pomodoro) {
-  if (!getPomodoroPushStatus().enabled) return;
-  const stopping = timer.startedAt === null;
-  const request = stopping
-    ? cancelPomodoroPushSchedule()
-    : schedulePomodoroPush(timer, pomodoroSettingsForTimer());
-  request.then(() => {
-    reportPomodoroPushStatus(stopping
-      ? 'O agendamento da próxima fase foi cancelado no serviço.'
-      : 'A próxima mudança de fase foi agendada; a entrega depende da rede e do serviço de notificações.');
-  }).catch((error) => {
-    const timerState = stopping ? 'O timer está parado' : 'O timer continua rodando';
-    const staleNotice = stopping
-      ? ' Um aviso que já estava agendado ainda pode ser entregue.'
-      : ' A próxima fase não foi confirmada; um agendamento anterior, se houver, ainda pode ser entregue.';
-    reportPomodoroPushStatus(`${timerState}, mas ${pomodoroPushErrorMessage(error)}${staleNotice}`);
-  });
-}
 async function syncHabitReminderSchedule() {
-  const status = getPomodoroPushStatus();
+  const status = getPushNotificationStatus();
   if (!status.enabled) return false;
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -2397,22 +2206,22 @@ async function syncHabitReminderSchedule() {
     if (reminders.length) await scheduleHabitPushReminders(reminders);
     else await cancelHabitPushReminders();
     ui.habitPushNotice = reminders.length
-      ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPomodoroPushStatus().native ? 'do dispositivo' : 'do navegador'}.`
+      ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPushNotificationStatus().native ? 'do dispositivo' : 'do navegador'}.`
       : 'Não há horários de lembrete ativos para enviar ao serviço.';
     return true;
   } catch (error) {
-    ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pomodoroPushErrorMessage(error)}`;
+    ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pushNotificationErrorMessage(error)}`;
     return false;
   }
 }
 function toggleHabitPush() {
   if (ui.pushBusy) return;
-  const wasEnabled = getPomodoroPushStatus().enabled;
+  const wasEnabled = getPushNotificationStatus().enabled;
   let operation;
   try {
-    operation = wasEnabled ? disablePomodoroPush() : enablePomodoroPush();
+    operation = wasEnabled ? disablePushNotifications() : enablePushNotifications();
   } catch (error) {
-    ui.habitPushNotice = pomodoroPushErrorMessage(error);
+    ui.habitPushNotice = pushNotificationErrorMessage(error);
     render();
     return;
   }
@@ -2421,123 +2230,15 @@ function toggleHabitPush() {
   render();
   Promise.resolve(operation).then(async () => {
     if (wasEnabled) {
-      ui.habitPushNotice = 'Avisos desativados neste dispositivo; os avisos do Pomodoro também foram interrompidos.';
+      ui.habitPushNotice = 'Avisos desativados neste dispositivo.';
       return;
     }
     await syncHabitReminderSchedule();
-    if (S.pomodoro.startedAt !== null) {
-      try {
-        await schedulePomodoroPush(S.pomodoro, pomodoroSettingsForTimer());
-      } catch (error) {
-        ui.habitPushNotice = `Os lembretes foram ativados, mas o Pomodoro não foi agendado: ${pomodoroPushErrorMessage(error)}`;
-      }
-    }
   }).catch((error) => {
-    ui.habitPushNotice = `Não foi possível ${wasEnabled ? 'desativar' : 'ativar'} os avisos: ${pomodoroPushErrorMessage(error)}`;
+    ui.habitPushNotice = `Não foi possível ${wasEnabled ? 'desativar' : 'ativar'} os avisos: ${pushNotificationErrorMessage(error)}`;
   }).finally(() => {
     ui.pushBusy = false;
     render();
-  });
-}
-function togglePomodoroPush() {
-  if (ui.pushBusy) return;
-  const wasEnabled = getPomodoroPushStatus().enabled;
-  let operation;
-  try {
-    operation = wasEnabled ? disablePomodoroPush() : enablePomodoroPush();
-  } catch (error) {
-    ui.pushNotice = pomodoroPushErrorMessage(error);
-    render();
-    return;
-  }
-  ui.pushBusy = true;
-  ui.pushNotice = wasEnabled ? 'Desativando avisos…' : 'Solicitando permissão e configurando avisos…';
-  render();
-  Promise.resolve(operation).then(async () => {
-    if (wasEnabled) {
-      ui.pushNotice = 'Avisos desativados e inscrição removida deste dispositivo.';
-      ui.habitPushNotice = 'Avisos desativados neste dispositivo; os avisos dos hábitos também foram interrompidos.';
-      return;
-    }
-    await syncHabitReminderSchedule();
-    if (S.pomodoro.startedAt !== null) {
-      try {
-        await schedulePomodoroPush(S.pomodoro, pomodoroSettingsForTimer());
-      } catch (error) {
-        ui.pushNotice = `Avisos ativados, mas a próxima fase não foi agendada: ${pomodoroPushErrorMessage(error)}`;
-        return;
-      }
-      ui.pushNotice = 'Avisos ativados e a próxima mudança de fase foi agendada.';
-    } else {
-      ui.pushNotice = 'Avisos ativados. As mudanças serão agendadas quando você iniciar o Pomodoro.';
-    }
-  }).catch((error) => {
-    ui.pushNotice = wasEnabled
-      ? `Não foi possível concluir a desativação dos avisos: ${pomodoroPushErrorMessage(error)}`
-      : `Não foi possível ativar os avisos: ${pomodoroPushErrorMessage(error)}`;
-  }).finally(() => {
-    ui.pushBusy = false;
-    render();
-  });
-}
-function togglePomodoroTimer() {
-  const now = Date.now(), pom = pomodoroSettingsForTimer();
-  let timer = S.pomodoro;
-  if (timer.startedAt !== null) {
-    const advanced = advancePomodoro(timer, pom, now);
-    timer = { ...advanced.timer, phaseElapsedSeconds: phaseElapsedSeconds(advanced.timer, now), startedAt: null };
-    if (advanced.transitions.length) notifyPomodoroPhase(advanced.transitions[advanced.transitions.length - 1], timer);
-  } else {
-    activatePomodoroAudio();
-    timer = { ...timer, startedAt: now };
-  }
-  S.pomodoro = timer;
-  void syncPomodoroWakeLock();
-  commit('pomodoro');
-  syncPomodoroPushSchedule(timer);
-  updatePomodoroMiniTimer(now);
-}
-function skipPomodoroBreak() {
-  const now = Date.now(), advanced = advancePomodoro(S.pomodoro, pomodoroSettingsForTimer(), now);
-  let timer = advanced.timer;
-  if (timer.phase === 'focus') {
-    if (advanced.transitions.length) {
-      S.pomodoro = timer;
-      notifyPomodoroPhase(advanced.transitions[advanced.transitions.length - 1], timer);
-      commit('pomodoro');
-      syncPomodoroPushSchedule(timer);
-    }
-    return;
-  }
-  S.pomodoro = { ...timer, phase: 'focus', phaseElapsedSeconds: 0, startedAt: timer.startedAt === null ? null : now };
-  commit('pomodoro');
-  syncPomodoroPushSchedule(S.pomodoro);
-}
-function finishPomodoro() {
-  const advanced = advancePomodoro(S.pomodoro, pomodoroSettingsForTimer());
-  if (advanced.transitions.length) notifyPomodoroPhase(advanced.transitions[advanced.transitions.length - 1], advanced.timer);
-  const timer = advanced.timer;
-  clearPomodoroNotifications();
-  const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
-  const focusedSeconds = timer.elapsedSeconds + (timer.phase === 'focus' ? phaseElapsedSeconds(timer) : 0);
-  if (focusTask && focusedSeconds > 0) focusTask.focusSeconds = (focusTask.focusSeconds || 0) + focusedSeconds;
-  S.pomodoro = standaloneTimerReset(timer);
-  void syncPomodoroWakeLock();
-  commit(...(timer.focusTaskId ? ['pomodoro', 'tasks'] : ['pomodoro']));
-  syncPomodoroPushSchedule(S.pomodoro);
-  toast('Sessão encerrada.');
-}
-function discardPomodoro() {
-  const previous = S.pomodoro;
-  clearPomodoroNotifications();
-  S.pomodoro = standaloneTimerReset(previous);
-  void syncPomodoroWakeLock();
-  commit('pomodoro');
-  syncPomodoroPushSchedule(S.pomodoro);
-  toast('Pomodoro descartado.', () => {
-    S.pomodoro = previous;
-    commit('pomodoro');
-    syncPomodoroPushSchedule(previous);
   });
 }
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
@@ -2640,17 +2341,16 @@ function homeFirstSteps() {
   if (S.settings.prefs.firstStepsDismissed) return '';
   const hasActiveHabit = S.habits.some((habit) => (habit.status || 'active') === 'active');
   const steps = [
-    ['Criar uma tarefa', '#planejar', 'calendarCheck', S.tasks.length > 0],
+    ['Criar uma tarefa', '/planejar', 'calendarCheck', S.tasks.length > 0],
     ...(areaOn('habits') ? [[
       hasActiveHabit ? 'Marcar um hábito' : 'Criar seu primeiro hábito',
-      '#habitos',
+      '/habitos',
       'leaf',
       hasActiveHabit
         ? S.habits.some((habit) => habitCompletedFor(habit, today()))
         : false,
     ]] : []),
-    ...(areaOn('pomodoro') ? [['Iniciar um foco', '#pomodoro', 'clock', S.pomodoro.startedAt !== null || S.pomodoro.completedPomodoros > 0]] : []),
-    ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '#financas', 'wallet', S.finance.accounts.length > 0]] : []),
+    ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '/financas', 'wallet', S.finance.accounts.length > 0]] : []),
   ];
   if (steps.every(([, , , complete]) => complete)) return '';
   const completedSteps = steps.filter(([, , , complete]) => complete).length;
@@ -2710,7 +2410,7 @@ function viewInicio() {
           <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
         </section>` : ''}
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(!nextTask)}</div>` : ''}
-        ${showHomeBlock('today') ? h`        <section class="card home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje<i>.</i></h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
+        ${showHomeBlock('today') ? h`        <section class="home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje</h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
@@ -2818,8 +2518,7 @@ function taskCalendar() {
         : h`<p class="small muted">Nenhum evento das agendas conectadas neste dia.</p>`}
     </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
-      ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul>` : h`<p class="small muted">Nada marcado para este dia.</p>`}
-      <button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button></section>`;
+      ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul><button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>` : empty('Dia livre', 'Nada marcado para este dia.', h`<button type="button" class="btn primary" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>`, 'calendarCheck')}</section>`;
 }
 function taskWeek() {
   const days = weekDays(ui.taskWeek, weekStartDay());
@@ -2832,8 +2531,7 @@ function taskWeek() {
     <div class="mnav"><button class="ibtn" data-action="tweek-nav" data-n="-1" aria-label="Semana anterior">${icon('chevLeft', 20)}</button><b>${label}</b><button class="ibtn" data-action="tweek-nav" data-n="1" aria-label="Próxima semana">${icon('chevRight', 20)}</button><button class="btn sm" data-action="tweek-today">Esta semana</button></div>
     <div class="week-days">${entries.map(({ day, tasks }) => h`<section class="week-day${day === today() ? ' is-today' : ''}" aria-labelledby="week-${day}">
       <div class="head"><h3 id="week-${day}">${cap(DIAS[pk(day).getDay()])} <span>${shortDate(day)}</span>${day === today() ? h` <span class="badge">Hoje</span>` : ''}</h3><span class="small muted">${tasks.filter((task) => !task.done).length} pendente(s)</span></div>
-      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul>` : h`<p class="small muted">Nada marcado.</p>`}
-      <button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>
+      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>` : empty('Dia livre', 'Nada marcado.', h`<button type="button" class="btn primary" data-action="week-add" data-d="${day}">Adicionar tarefa</button>`, 'calendarCheck')}
     </section>`)}</div>
   </div>`;
 }
@@ -3098,9 +2796,9 @@ function viewPlanejar() {
         <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="caixa" aria-pressed="${ui.planView === 'lista' && f.f === 'caixa' && !f.q}"><span>Sem data</span><b>${inboxCount}</b></button>
       </div>
     </section>
-    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button><a href="/pomodoro">${icon('clock', 16)}Usar Pomodoro</a></section>
+    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button></section>
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
-      <div class="seg" role="group" aria-label="Modo de visualização"><button type="button" aria-pressed="${ui.planView === 'lista'}" data-action="plan-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.planView === 'calendario'}" data-action="plan-view" data-v="calendario">${icon('calendar', 16)}Calendário</button><button type="button" aria-pressed="${ui.planView === 'semana'}" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Semana</button><button type="button" aria-pressed="${ui.planView === 'revisao'}" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Revisão</button></div>
+      <label class="plan-view-select"><span>Ver como</span><select data-change="plan-view" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<option value="${value}" ${ui.planView === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
       ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
@@ -3257,8 +2955,8 @@ function viewHabits() {
   return renderHabitsView({
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
-    weekStartDay, habitCompletedFor, getPomodoroPushStatus, plural, habitRow,
-    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
+    weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
+    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate, empty,
   });
 }
 
@@ -3279,101 +2977,8 @@ function requestHabitsTemplate() {
     },
   );
 }
-function viewPomodoro() {
-  const g = gate('pomodoro', 'Pomodoro');
-  if (g) return h`${areaNav('pomodoro')}${areaPageTitle('pomodoro', 'Pomodoro')}${g}`;
-  const timer = S.pomodoro, preferences = settingsView().prefs.pomodoro;
-  const pom = effectivePomodoroSettings(preferences);
-  const presetLabels = { short: 'Rápido', classic: 'Clássico', extended: 'Estendido', deep: 'Foco profundo' };
-  const running = timer.startedAt !== null;
-  const elapsed = phaseElapsedSeconds(timer);
-  const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
-  const focusedSeconds = timer.elapsedSeconds + (timer.phase === 'focus' ? elapsed : 0);
-  const duration = phaseDurationSeconds(pom, timer.phase);
-  const remaining = Math.max(0, duration - elapsed);
-  const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
-  const completedToday = timer.dailyCompletedOn === today() ? timer.dailyCompletedPomodoros : 0;
-  const circumference = 2 * Math.PI * 50;
-  const presetDisabled = running || hasProgress;
-  const pushStatus = getPomodoroPushStatus();
-  const pushButtonDisabled = ui.pushBusy || (!pushStatus.enabled && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
-  return h`${areaNav('pomodoro')}${areaPageTitle('pomodoro', 'Pomodoro')}
-    <section class="card focus-timer free-pomodoro" data-phase="${timer.phase}" aria-labelledby="standalone-pomodoro-title">
-      <header class="focus-timer-head"><div><span class="focus-eyebrow">${standalonePomodoroPhaseName(timer.phase)}</span><h2 id="standalone-pomodoro-title">Foque em uma coisa por vez<i>.</i></h2><p class="free-pomodoro-subtitle">${focusTask ? h`Tarefa vinculada: <b class="user-value">${focusTask.title}</b> · ${dur(focusedSeconds)} focados` : timer.focusLabel ? h`Foco em: <b class="user-value">${timer.focusLabel}</b>` : 'Defina um foco opcional e comece seu primeiro bloco.'}</p></div></header>
-      <div class="focus-timer-body">
-        <div class="focus-dial-column">
-          <div class="focus-dial" aria-hidden="true"><svg viewBox="0 0 112 112"><circle class="focus-dial-track" cx="56" cy="56" r="50"/><circle class="focus-dial-progress" id="standalone-pomo-progress" cx="56" cy="56" r="50" style="stroke-dasharray:314.2;stroke-dashoffset:${(circumference * (1 - Math.min(1, elapsed / duration))).toFixed(1)}"/></svg><div class="focus-clock"><div class="timer" id="standalone-pomo-clock" role="timer" aria-live="off">${clock(remaining)}</div><span class="small muted" id="standalone-pomo-state">${standalonePomodoroPhaseLabel(timer.phase, running, hasProgress)}</span></div></div>
-          <div class="focus-controls">
-            <button type="button" class="btn primary" data-action="toggle-free-timer" aria-keyshortcuts="Space" title="Atalho: barra de espaço">${icon(running ? 'pause' : 'play', 18)}${running ? 'Pausar' : hasProgress ? 'Retomar' : 'Começar foco'}</button>
-            ${timer.phase !== 'focus' ? h`<button type="button" class="btn" data-action="skip-free-break">Pular pausa</button>` : ''}
-          </div>
-        </div>
-        <div class="focus-timer-actions">
-          <label class="f free-pomodoro-label"><span>Em que você vai focar?</span><small class="muted">${timer.focusTaskId ? '(tarefa vinculada)' : '(opcional)'}</small><input type="text" id="pomo-focus-label" data-change="pomo-label" maxlength="40" autocomplete="off" placeholder="Ex.: estudar inglês" value="${timer.focusLabel || ''}" ${timer.focusTaskId ? raw('disabled') : ''}></label>
-          ${hasProgress || running ? h`<details class="pomodoro-end-actions" id="d-pomodoro-end-actions" ${ui.openDetails['pomodoro-end-actions'] ? raw('open') : ''}><summary>Encerrar antes do tempo<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><div><button type="button" class="btn" data-action="finish-free-timer">${icon('check', 18)}Encerrar sessão</button><button type="button" class="btn ghost" data-action="discard-free-timer">Descartar sessão</button></div></details>` : ''}
-          <p class="focus-prompt" id="standalone-pomo-copy">${timerPhaseMessage(timer.phase, pom)}</p>
-        </div>
-      </div>
-      <p class="err" id="standalone-pomo-error" role="alert"></p>
-    </section>
-    <section class="card pomodoro-session-summary" aria-label="Resumo do seu foco">
-      <div class="pomodoro-session-stat"><span>Hoje</span><strong>${completedToday}</strong><small>${plural(completedToday, 'bloco concluído', 'blocos concluídos')}</small></div>
-      <div class="pomodoro-session-stat"><span>Nesta sessão</span><strong>${timer.completedPomodoros}</strong><small>${plural(timer.completedPomodoros, 'bloco concluído', 'blocos concluídos')}</small></div>
-      <div class="pomodoro-session-stat"><span>Tempo em foco</span><strong>${dur(focusedSeconds)}</strong><small>nesta sessão</small></div>
-    </section>
-    <details class="card free-pomodoro-settings" id="d-pomodoro-options" ${ui.openDetails['pomodoro-options'] ? raw('open') : ''}>
-            <summary class="free-pomodoro-settings-summary"><span><b>Tempos e som</b><small>Ajuste o ritmo do seu Pomodoro</small></span><b>${pom.focusMin} min de foco · ${pom.breakMin} min de pausa</b><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
-            <form class="free-pomodoro-settings-form" data-form="settings-save" novalidate>
-            <div class="free-pomodoro-settings-head"><div><span>PERSONALIZE</span><h3>Tempo de cada fase</h3></div><b>${pom.focusMin} / ${pom.breakMin} min</b></div>
-            <div class="free-pomodoro-presets" role="group" aria-label="Bloco de tempo">
-              ${Object.entries(POMODORO_PRESETS).map(([preset, times]) => h`<button type="button" class="chip" data-action="set-free-pomodoro-preset" data-preset="${preset}" aria-pressed="${preferences.preset === preset ? 'true' : 'false'}" ${presetDisabled ? raw('disabled') : ''}>${presetLabels[preset]} · ${times.focusMin}/${times.breakMin} min</button>`)}
-            </div>
-            <p class="small muted free-pomodoro-hint">${presetDisabled ? 'Conclua ou descarte a sessão para editar os tempos.' : 'Escolha um ritmo pronto ou digite seus próprios minutos.'}</p>
-            <div class="form free-pomodoro-durations">
-              <label class="f">Foco (min)<input type="number" inputmode="numeric" data-change="free-pomo-focus" min="5" max="120" step="1" value="${pom.focusMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-              <label class="f">Pausa (min)<input type="number" inputmode="numeric" data-change="free-pomo-break" min="1" max="60" step="1" value="${pom.breakMin}" ${presetDisabled ? raw('disabled') : ''}></label>
-            </div>
-            ${settingsSaveButton('Salvar tempos')}
-            <label class="check free-pomodoro-auto"><input type="checkbox" data-change="free-pomo-auto" ${preferences.autoAdvance !== false ? raw('checked') : ''} ${presetDisabled ? raw('disabled') : ''}><span><b>Avançar fases automaticamente</b><small class="muted">Quando uma fase termina, a próxima começa sozinha.</small></span></label>
-            <div class="form free-pomodoro-durations">
-              <label class="f">Toque do alerta
-                <select data-change="free-pomo-sound-tone">
-                  ${Object.entries(POMODORO_SOUND_TONES).map(([id, sound]) => h`<option value="${id}" ${preferences.soundTone === id ? raw('selected') : ''}>${sound.label}</option>`)}
-                </select>
-              </label>
-              <label class="f pomodoro-sound-volume">
-                <span>Volume do alerta <output data-pomodoro-volume-value>${preferences.soundVolume}%</output></span>
-                <input type="range" min="0" max="100" step="5" value="${preferences.soundVolume}" data-change="free-pomo-sound-volume" aria-label="Volume do alerta do Pomodoro">
-              </label>
-              <button type="button" class="btn" data-action="preview-pomodoro-sound">Ouvir toque</button>
-            </div>
-            <label class="check free-pomodoro-auto"><input type="checkbox" data-change="vibration-enabled" ${settingsView().prefs.vibrationEnabled ? raw('checked') : ''}><span><b>Vibração leve</b><small class="muted">Ao concluir uma tarefa ou terminar um bloco de foco. Desativada por padrão.</small></span></label>
-          </form>
-    </details>
-    <details class="card pomodoro-push-settings" id="d-pomodoro-push" ${ui.openDetails['pomodoro-push'] ? raw('open') : ''}>
-        <summary><span>Avisos quando o app estiver fechado</span><small>${pushStatus.enabled ? 'Ativos nos dois' : 'Opcionais · compartilhados'}</small><span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
-        <div class="pomodoro-push-content">
-          <div><h3 id="pomodoro-push-title">Avisos fora do app</h3><p>Receba uma notificação do sistema a cada mudança de fase enquanto este Pomodoro estiver rodando.</p><p class="small muted">A inscrição é compartilhada com Hábitos: este controle ativa ou desativa os avisos de ambos neste dispositivo.</p></div>
-          <button type="button" class="btn" data-action="pomodoro-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
-          <p class="pomodoro-push-status" role="status" aria-live="polite">${preserveCopyTerms(ui.pushNotice || pushStatus.message)}</p>
-          <details class="pomodoro-push-details"><summary>Quando usar e como funciona<span class="pomodoro-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><p class="pomodoro-push-privacy">A autorização é opcional. Seus dados e nomes de tarefas/hábitos ficam neste dispositivo; o serviço recebe o token de notificação e apenas os horários e fases necessários ao timer e aos lembretes, sem nomes de hábitos. A inscrição é compartilhada com Hábitos; desativar interrompe os avisos de ambos.</p>${!pushStatus.enabled ? h`<p class="notice pomo-background-notice" role="note">Sem alertas <span class="case-preserve">Push</span>, o sistema pode suspender o cronômetro quando o Aurora fica em segundo plano ou com a tela bloqueada.</p>` : ''}</details>
-        </div>
-    </details>
-    ${pomodoroHistoryCard(timer)}`;
-}
-function pomodoroHistoryCard(timer) {
-  const days = recentFocusDays(timer.history, today(), 7);
-  const total = days.reduce((sum, item) => sum + item.count, 0);
-  const max = Math.max(1, ...days.map((item) => item.count));
-  return h`<section class="card pomodoro-history" aria-labelledby="pomodoro-history-title">
-    <div class="head"><div><h2 id="pomodoro-history-title">Últimos 7 dias<i>.</i></h2><p class="small muted">${total ? `${total} ${plural(total, 'bloco de foco concluído', 'blocos de foco concluídos')} na semana.` : 'Os blocos de foco concluídos aparecem aqui.'}</p></div></div>
-    <ol class="pomodoro-history-bars" aria-label="Blocos de foco por dia">${days.map(({ day, count }) => h`<li><span class="pomodoro-history-count">${count || ''}</span><span class="pomodoro-history-bar" role="img" aria-label="${count} ${plural(count, 'bloco', 'blocos')} em ${shortDate(day)}"><i style="height:${count ? Math.max(8, Math.round(count / max * 100)) : 4}%"></i></span><span class="pomodoro-history-day">${DIAS[pk(day).getDay()]}</span></li>`)}</ol>
-  </section>`;
-}
-
-/* ========== Páginas: Início, Planejar, Hábitos, Finanças, Ciclo, Ajustes ========== */
 function areaTiles() {
-  const defs = [['pomodoro', 'clock'], ['finances', 'wallet'], ['cycle', 'heart']]
+  const defs = [['finances', 'wallet'], ['cycle', 'heart']]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
   return h`<div class="head"><h2 id="ar">Áreas opcionais<i>.</i></h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
@@ -3577,9 +3182,8 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
-    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de foco e lembretes que já fazem parte do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('pomodoro') ? '/pomodoro' : '/config?section=areas-navigation'}">${icon('clock', 17)}${areaOn('pomodoro') ? 'Foco e notificações' : 'Ativar Pomodoro'}</a>
+    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.filter(({ id }) => id !== 'cycle' || canAccessCycle(s.profile, ui.preview)).map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
+    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de lembretes e hábitos do Aurora.', h`<div class="routine-settings-links">
       <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
     </div>`) }
     ${settingsSaveButton()}
@@ -3618,7 +3222,7 @@ function profileSettings(s) {
       <div class="form profile-settings-fields">
         <label class="f" for="pname">Nome<input type="text" id="pname" data-profile-field="name" value="${p.name}" maxlength="50" autocomplete="name" required></label>
         <label class="f" for="ppreferred">Como prefere ser chamada?<input type="text" id="ppreferred" data-profile-field="preferredName" value="${p.preferredName}" maxlength="50" autocomplete="nickname" aria-describedby="profile-preferred-help" placeholder="${firstName(p.name) || 'Elisa'}"><span class="profile-field-help" id="profile-preferred-help">É o nome que aparece na saudação.</span></label>
-        <label class="f" for="psex">Identidade de gênero · opcional<select id="psex" data-profile-field="sex" aria-describedby="profile-sex-help"><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Só você vê. Pode deixar em branco.</span></label>
+        <label class="f" for="psex">Identidade de gênero · obrigatória<select id="psex" data-profile-field="sex" aria-describedby="profile-sex-help" required><option value="">Selecione uma opção</option>${Object.entries(SEX).map(([key, label]) => h`<option value="${key}" ${p.sex === key ? raw('selected') : ''}>${label}</option>`)}</select><span class="profile-field-help" id="profile-sex-help">Selecione uma opção. Ciclo fica disponível apenas para mulheres.</span></label>
         <label class="f" for="page">Idade · opcional<input type="number" id="page" data-profile-field="age" min="0" max="120" step="1" inputmode="numeric" aria-describedby="profile-age-help" value="${p.age}" placeholder="Opcional"><span class="profile-field-help" id="profile-age-help">Usamos só para sugerir a meta de água nos Hábitos.</span></label>
       </div>
     </section>
@@ -3695,7 +3299,8 @@ function areasNavigationSettings(s) {
   s = settingsView();
   const items = normalizeMenuOrder(s.prefs.menuOrder)
     .map((id) => MENU_ITEMS.find((item) => item.id === id))
-    .filter((item) => item && !HIDDEN_MENU_IDS.includes(item.id));
+    .filter((item) => item && !HIDDEN_MENU_IDS.includes(item.id)
+      && (item.id !== 'ciclo' || canAccessCycle(s.profile, ui.preview)));
   const orderedItems = items;
   const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
@@ -4186,7 +3791,7 @@ function viewConfig() {
     </div>`;
 }
 
-const ROUTES = { inicio: viewInicio, planejar: viewPlanejar, pomodoro: viewPomodoro, financas: viewFinancas, ciclo: viewCiclo, habitos: viewHabits, config: viewConfig };
+const ROUTES = { inicio: viewInicio, planejar: viewPlanejar, financas: viewFinancas, ciclo: viewCiclo, habitos: viewHabits, config: viewConfig };
 
 /* ========== Diálogos ========== */
 function profileSetupDraft() {
@@ -4348,7 +3953,7 @@ function dlgReleaseNotes() {
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
-    <form id="dlgform" class="form task-form" data-form="dlg-task">${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
+    <form id="dlgform" class="form task-form" data-form="dlg-task" novalidate>${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
       <fieldset class="task-icon-field full"><legend>Ícone <span>(opcional)</span></legend><div class="task-icon-picker">
         <label title="Sem ícone"><input type="radio" name="task-icon" value="" data-dlg="icon" ${!taskIconKey(d.icon) ? raw('checked') : ''}><span>${icon('close', 18)}<i class="sr">Sem ícone</i></span></label>
         ${TASK_ICONS.map(([key, label]) => h`<label title="${label}"><input type="radio" name="task-icon" value="${key}" data-dlg="icon" aria-label="${label}" ${taskIconKey(d.icon) === key ? raw('checked') : ''}><span>${icon(key, 20)}<i class="sr">${label}</i></span></label>`)}
@@ -4360,11 +3965,11 @@ function dlgTask() {
       <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary><span>Adicionar notas</span><span>opcional</span><span class="task-notes-disclosure" aria-hidden="true">${icon('chevDown', 16)}</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
     <div class="f"><span class="lbl">Etiquetas</span>
       ${(d.tags || []).length ? h`<div class="chips">${d.tags.map((g, i) => h`<span class="chip on tgchip">#${g}<button type="button" class="ibtn" data-action="tg-del" data-i="${i}" aria-label="Remover etiqueta ${g}">${icon('close', 14)}</button></span>`)}</div>` : ''}
-      <form class="aibar" data-form="tg-add" style="border-radius:14px"><label class="sr" for="tgn">Nova etiqueta</label><input type="text" id="tgn" name="tg" maxlength="24" placeholder="Adicionar etiqueta" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form>
+      <form class="aibar" data-form="tg-add"><label class="sr" for="tgn">Nova etiqueta</label><input type="text" id="tgn" name="tg" maxlength="24" placeholder="Adicionar etiqueta" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form>
       ${allTags().filter((g) => !(d.tags || []).includes(g)).length ? h`<div class="chips">${allTags().filter((g) => !(d.tags || []).includes(g)).slice(0, 8).map((g) => h`<button type="button" class="chip" data-action="tg-pick" data-v="${g}">#${g}</button>`)}</div>` : ''}</div>
     <div class="f"><span class="lbl">Subtarefas${subs.length ? ` (${subs.filter((x) => x.done).length}/${subs.length})` : ''}</span>
       ${subs.length ? h`<ul class="list tight subl">${subs.map((x, i) => h`<li><button type="button" class="chk" role="checkbox" aria-checked="${!!x.done}" aria-label="${x.done ? 'Reabrir' : 'Concluir'}: ${x.title}" data-action="st-toggle" data-i="${i}"><span>${icon('check', 15)}</span></button><span class="grow ${x.done ? 'st-done' : ''}">${x.title}</span><button type="button" class="ibtn" data-action="st-del" data-i="${i}" aria-label="Remover ${x.title}">${icon('close', 18)}</button></li>`)}</ul>` : ''}
-      <form class="aibar" data-form="st-add" style="border-radius:14px"><label class="sr" for="stn">Nova subtarefa</label><input type="text" id="stn" name="st" maxlength="100" placeholder="Adicionar subtarefa" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form></div>`,
+      <form class="aibar" data-form="st-add"><label class="sr" for="stn">Nova subtarefa</label><input type="text" id="stn" name="st" maxlength="100" placeholder="Adicionar subtarefa" autocomplete="off"><button class="btn sm" type="submit">${icon('plus', 16)}Adicionar</button></form></div>`,
     creating
       ? h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Adicionar tarefa</button>`
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
@@ -4382,7 +3987,7 @@ function dlgHabitEdit() {
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
   return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
-    <form id="dlgform" class="form" data-form="habit-edit">
+    <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
       ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
         <span class="water-weight-input"><input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
@@ -4423,6 +4028,9 @@ function updateWaterSuggestionWeight(weightInput) {
   if (goalInput && !draft.waterGoalEdited && goal) goalInput.value = String(goal.ml);
 }
 function globalSearchResults(query) {
+  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
+    ? 'Planejar, Hábitos, Finanças e Ciclo'
+    : 'Planejar, Hábitos e Finanças';
   const searchableCycleLogs = areaOn('cycle')
     ? Object.fromEntries(Object.entries(S.cycleLog).map(([date, value]) => {
       const log = value && typeof value === 'object' ? value : {};
@@ -4442,7 +4050,7 @@ function globalSearchResults(query) {
     water: [],
     cycleLogs: searchableCycleLogs,
   }, query);
-  if (String(query).trim().length < 2) return h`<p class="small muted">Digite pelo menos duas letras para buscar em Planejar, Hábitos, Finanças e Ciclo.</p>`;
+  if (String(query).trim().length < 2) return h`<p class="small muted">Digite pelo menos duas letras para buscar em ${searchAreas}.</p>`;
   if (!results.length) return empty('Nenhum resultado', 'Tente outro nome, categoria ou descrição.', '', 'search');
   const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart' };
   const groups = [...results.reduce((map, item) => {
@@ -4454,7 +4062,10 @@ function globalSearchResults(query) {
 }
 function dlgSearch() {
   const query = ui.dlg.d.query || '';
-  return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora<i>.</i></h2><p class="small muted">Planejar, Hábitos, Finanças e Ciclo</p></div>${closeBtn}</div>
+  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
+    ? 'Planejar, Hábitos, Finanças e Ciclo'
+    : 'Planejar, Hábitos e Finanças';
+  return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora<i>.</i></h2><p class="small muted">${searchAreas}</p></div>${closeBtn}</div>
     <label class="search global-search-input"><span class="sr">Buscar em todas as áreas</span>${icon('search', 18)}<input id="f0" type="search" data-dlg="query" value="${query}" placeholder="Tarefa, hábito, conta ou descrição" autocomplete="off"></label>
     <div id="global-search-results" aria-live="polite">${globalSearchResults(query)}</div>`,
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back" data-action="dlg-close">Fechar</button>`);
@@ -4476,13 +4087,11 @@ function dlgWipeComplete() {
 /* ---- Personalização inicial ---- */
 const ONBOARDING_NEEDS = [
   { id: 'organization', icon: 'calendarCheck', title: 'Organizar meu dia', description: 'Tarefas, prazos e prioridades.', areas: [] },
-  { id: 'focus', icon: 'clock', title: 'Manter o foco', description: 'Sessões de foco e pausas no seu ritmo.', areas: ['pomodoro'] },
   { id: 'habits', icon: 'check', title: 'Criar bons hábitos', description: 'Água, leitura, movimento e outros hábitos.', areas: ['habits'] },
   { id: 'finances', icon: 'wallet', title: 'Organizar meu dinheiro', description: 'Receitas, gastos e objetivos.', areas: ['finances'] },
   { id: 'cycle', icon: 'heart', title: 'Acompanhar meu ciclo', description: 'Registrar sinais e consultar estimativas.', areas: ['cycle'] },
 ];
 const ONBOARDING_AREAS = [
-  { id: 'pomodoro', icon: 'clock', title: 'Pomodoro', description: 'Alterne períodos de foco e pausas.' },
   { id: 'habits', icon: 'check', title: 'Hábitos', description: 'Crie uma rotina e acompanhe sua constância.' },
   { id: 'finances', icon: 'wallet', title: 'Finanças', description: 'Organize contas, gastos, receitas e objetivos.' },
   { id: 'cycle', icon: 'heart', title: 'Ciclo', description: 'Registre sinais e acompanhe estimativas do ciclo.' },
@@ -4500,15 +4109,17 @@ function refreshOnboardingRecommendations(draft) {
 }
 function dlgOnboard() {
   const d = ui.dlg.d, st = d.step;
+  const onboardingNeeds = ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
+  const onboardingAreas = ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
   const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 3">${[0, 1, 2].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
   let body, foot;
   if (st === 0) {
     body = h`${dots}<div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Personalização inicial</span><h2 id="dt">O que você quer melhorar no seu dia a dia?</h2><p>Escolha uma ou mais opções; você pode mudar depois.</p></div></div>
-      <fieldset class="onboard-fieldset"><legend>Escolha o que faz sentido para você agora.</legend><div class="onboard-options">${ONBOARDING_NEEDS.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
+      <fieldset class="onboard-fieldset"><legend>Escolha o que faz sentido para você agora.</legend><div class="onboard-options">${onboardingNeeds.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
       <p class="fine">${icon('info', 15)} Suas tarefas e seu planejamento já ficam disponíveis; não é preciso ativar uma área para começar a se organizar.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Ver sugestões</button>`;
   } else if (st === 1) {
-    const solutionIds = ONBOARDING_AREAS.filter((area) => d.areas[area.id] || d.recommendedAreas.includes(area.id));
+    const solutionIds = onboardingAreas.filter((area) => d.areas[area.id] || d.recommendedAreas.includes(area.id));
     const hasOrganizationNeed = d.needs.includes('organization');
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
       ${hasOrganizationNeed ? h`<article class="onboard-solution-note"><span class="mk">${icon('calendarCheck', 22)}</span><span class="tx"><b>Planejar</b><span>Tarefas, prazos e prioridades já estão disponíveis para organizar seu dia.</span></span><span class="onboard-always-on">Sempre disponível</span></article>` : ''}
@@ -4782,7 +4393,7 @@ function loadSample() {
   S.finance.budgets = { ...S.finance.budgets, 'Alimentação': { cents: 80000, sample: true }, 'Lazer': { cents: 30000, sample: true } };
   S.finance.goals.push({ id: newId(), name: 'Viagem de férias', targetCents: 400000, savedCents: 120000, deadline: addDays(t, 150), ...sm });
   [-57, -29, -1].forEach((off, i) => { const st0 = addDays(t, off); for (let d = 0; d < (i < 2 ? 5 : 1); d++) { const k = addDays(st0, d); if (k > t) break; S.cycleLog[k] = { flow: d === 0 ? 'medium' : d < 3 ? 'heavy' : 'light', pain: d < 2 ? ['cramp'] : [], mood: d === 0 ? ['sensitive'] : [], energy: d < 2 ? 'low' : '', sample: true }; } });
-  Object.assign(S.settings.areas, { water: true, finances: true, cycle: true, habits: true, pomodoro: true });
+  Object.assign(S.settings.areas, { water: true, finances: true, cycle: true, habits: true });
   S.settings.prefs.sample = true;
   S.settings.areas.cycle = true;
   commit(...SLICES);
@@ -4910,7 +4521,7 @@ function parseBackup(text) {
     Object.assign(settings.profile, { sex: SEX[a.sex] ? a.sex : '', age: Number.isFinite(a.age) ? a.age : null, weightKg: Number.isFinite(a.weightKg) ? a.weightKg : null, heightCm: Number.isFinite(a.heightCm) ? a.heightCm : null });
   }
   settings.prefs.sample = false;
-  const pomodoro = validatedBackupSlice('pomodoro', Object.hasOwn(ex, 'pomodoroTimer') ? ex.pomodoroTimer : standaloneTimerReset());
+  const pomodoro = validatedBackupSlice('pomodoro', Object.hasOwn(ex, 'pomodoroTimer') ? ex.pomodoroTimer : defaults().pomodoro);
   const habits = backupRecords(ex.habits, isValidHabit, 'hábitos');
   return {
     tasks: validatedBackupSlice('tasks', tasks),
@@ -5040,7 +4651,6 @@ const ACTIONS = {
     newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card');
   },
   'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
-  'quick-action-pomodoro': () => { ui.quickActionsOpen = false; nav('pomodoro'); },
   'areas-nav-open': (_, event) => {
     event.preventDefault();
     nav('config?section=areas-navigation');
@@ -5158,31 +4768,13 @@ const ACTIONS = {
       return;
     }
     ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
-    Object.entries(ui.alerts).forEach(([key, alert]) => {
-      if (alert.kind !== 'pomodoro') delete ui.alerts[key];
-    });
+    Object.keys(ui.alerts).forEach((key) => { delete ui.alerts[key]; });
     render();
     toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.');
   },
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
   'backup-reminder-dismiss': () => { ui.backupReminderHidden = true; render(); },
-  'task-focus': (el) => {
-    const task = findTask(el.dataset.id);
-    if (!task || task.done || !areaOn('pomodoro')) return;
-    const timer = S.pomodoro;
-    const hasProgress = timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0;
-    if (hasProgress && timer.focusTaskId !== task.id) return toast('Conclua ou descarte o Pomodoro atual antes de trocar de tarefa.');
-    if (!hasProgress) {
-      activatePomodoroAudio();
-      S.pomodoro = { ...standaloneTimerReset(timer), focusTaskId: task.id, focusLabel: task.title, startedAt: Date.now() };
-      commit('pomodoro');
-      syncPomodoroPushSchedule(S.pomodoro);
-    } else if (timer.startedAt === null && timer.phase === 'focus') {
-      togglePomodoroTimer();
-    }
-    nav('pomodoro');
-  },
   'accessibility-mode': (el) => { setThemeMode(el.dataset.v); document.getElementById(el.id)?.focus(); },
   'accessibility-contrast': (el) => updateAccessibilityLook({ contrast: !settingsView().look.contrast }, el.id),
   'accessibility-readable': (el) => updateAccessibilityLook({ readable: !settingsView().look.readable }, el.id),
@@ -5221,12 +4813,6 @@ const ACTIONS = {
     ui.finFilter = 'todos';
     ui.finQ = transaction.desc || transaction.category || query;
     nav('financas');
-  },
-  'pomo-pause': (el) => {
-    const alert = ui.alerts[el.dataset.k];
-    if (!alert || alert.kind !== 'pomodoro') return;
-    delete ui.alerts[el.dataset.k];
-    togglePomodoroTimer();
   },
   'plan-view': (el) => {
     if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
@@ -5607,25 +5193,7 @@ const ACTIONS = {
     toast('Modo inicial restaurado. Salve para aplicar permanentemente.');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
-  'set-free-pomodoro-preset': (el) => {
-    const preset = el.dataset.preset, timer = S.pomodoro;
-    if (preset !== 'custom' && !Object.hasOwn(POMODORO_PRESETS, preset)) return;
-    if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
-      return toast('Conclua ou descarte o Pomodoro atual para trocar o bloco.');
-    }
-    updateSettingsDraft((settings) => { settings.prefs.pomodoro.preset = preset; });
-  },
-  'toggle-free-timer': () => togglePomodoroTimer(),
-  'pomodoro-mini-toggle': () => togglePomodoroTimer(),
-  'skip-free-break': () => skipPomodoroBreak(),
-  'finish-free-timer': () => finishPomodoro(),
-  'discard-free-timer': () => discardPomodoro(),
-  'pomodoro-push-toggle': () => togglePomodoroPush(),
   'habit-push-toggle': () => toggleHabitPush(),
-  'preview-pomodoro-sound': () => {
-    activatePomodoroAudio();
-    playPomodoroSound(settingsView().prefs.pomodoro);
-  },
   'filter-inbox': (_, event) => {
     event.preventDefault();
     ui.filters.f = 'caixa';
@@ -5927,14 +5495,13 @@ const ACTIONS = {
       toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.');
       return;
     }
-    if (getPomodoroPushStatus().enabled) {
+    if (getPushNotificationStatus().enabled) {
       try {
-        await cancelPomodoroPushSchedule();
-        await disablePomodoroPush();
+        await disablePushNotifications();
       } catch (error) {
         button.disabled = false;
         console.error('Aurora: não foi possível desativar os avisos Push antes de apagar os dados.', error);
-        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pomodoroPushErrorMessage(error)}`);
+        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`);
         return;
       }
     }
@@ -6170,14 +5737,14 @@ const FORMS = {
     if (draft?.waterSuggestion && waterWeightInput && parseWaterWeightKg(waterWeightInput) === null) {
       return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="waterWeightKg"]');
     }
-    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.');
+    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
     if (remind && !isTime(remind)) return fieldError('Informe um horário válido para o lembrete.', '[data-dlg="remind"]');
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
     const tracksWater = Boolean(draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
     const waterGoalMl = tracksWater
-      ? Number(d.get('waterGoalMl') || (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
+      ? Number(d.has('waterGoalMl') ? d.get('waterGoalMl') : (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
       : null;
     if (tracksWater && !isValidWaterGoalMl(waterGoalMl)) {
       return fieldError('A meta deve ser um valor inteiro entre 500 e 10.000 mL.', '[data-dlg="waterGoalMl"]');
@@ -6200,11 +5767,14 @@ const FORMS = {
   'st-add': (f, d) => { const v = String(d.get('st') || '').trim().slice(0, 100); if (!v) return; (ui.dlg.d.subs = ui.dlg.d.subs || []).push({ id: newId(), title: v, done: false }); render(); const i = $('#stn'); if (i) i.focus(); },
   'dlg-task': () => {
     const d = ui.dlg.d, title = String(d.title || '').trim();
-    if (!title) return toast('Escreva um título.');
+    if (!title) return fieldError('Escreva um título.', '[data-dlg="title"]');
     const parsed = parseTags(title), repeat = REPEATS[d.repeat] && d.repeat !== 'none' ? d.repeat : null;
+    if (document.querySelector('#dlg [data-dlg="time"]')?.validity.badInput || (d.time && !isTime(d.time))) return fieldError('Informe uma hora válida.', '[data-dlg="time"]');
     const time = isTime(d.time) ? d.time : null;
     const remind = time && REMINDS.some(([value]) => value === String(d.remind)) && d.remind !== '' ? Number(d.remind) : null;
-    const dueDate = isDay(d.due) ? d.due : (repeat || time) ? today() : null;
+    if ((repeat || time) && !isDay(d.due)) return fieldError('Defina um prazo para repetir ou ter horário.', '[data-dlg="due"]');
+    if (d.due && !isDay(d.due)) return fieldError('Informe um prazo válido.', '[data-dlg="due"]');
+    const dueDate = isDay(d.due) ? d.due : null;
     const priority = ['high', 'normal', 'low'].includes(d.priority) ? d.priority : 'normal';
     if (d.create) {
       const tags = [...new Set([...(Array.isArray(d.tags) ? d.tags : []), ...parsed.tags])];
@@ -6302,6 +5872,7 @@ const FORMS = {
   },
 };
 const CHANGES = {
+  'plan-view': (el) => ACTIONS['plan-view']({ dataset: { v: el.value } }),
   'habit-idea-category': (el) => {
     ui.habitIdeaCategory = el.value || 'all';
     updateHabitIdeaFilters();
@@ -6316,7 +5887,6 @@ const CHANGES = {
     if (button) button.disabled = !el.checked || ui.legacyImport.busy;
   },
   'sort': (el) => { ui.filters.sort = el.value; render(); },
-  'pomo-label': (el) => { const v = el.value.trim().slice(0, 40); if (v) S.pomodoro.focusLabel = v; else delete S.pomodoro.focusLabel; commit('pomodoro'); },
   'area': (el) => updateSettingsDraft((settings) => { setAreaEnabled(settings, el.dataset.area, el.checked); }),
   'menu-visible': (el) => {
     const id = el.dataset.menuId;
@@ -6364,56 +5934,9 @@ const CHANGES = {
   'look-readable': (el) => updateSettingsDraft((settings) => { settings.look.readable = el.checked; }),
   'look-highlight-links': (el) => updateSettingsDraft((settings) => { settings.look.highlightLinks = el.checked; }),
   'look-motion': (el) => updateSettingsDraft((settings) => { settings.look.reduceMotion = el.checked; }),
-  'free-pomo-focus': (el) => {
-    const timer = S.pomodoro;
-    if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
-      return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
-    }
-    updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro = {
-        ...customPomodoroSettings(settings.prefs.pomodoro),
-        focusMin: clamp(Math.round(num(el.value)) || 25, 5, 120),
-      };
-    }, false);
-  },
-  'free-pomo-auto': (el) => {
-    const timer = S.pomodoro;
-    if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
-      el.checked = !el.checked;
-      return toast('Conclua ou descarte o Pomodoro atual para alterar o avanço.');
-    }
-    updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro.autoAdvance = el.checked;
-    }, false);
-  },
-  'free-pomo-break': (el) => {
-    const timer = S.pomodoro;
-    if (timer.startedAt !== null || timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || phaseElapsedSeconds(timer) > 0) {
-      return toast('Conclua ou descarte o Pomodoro atual para editar os tempos.');
-    }
-    updateSettingsDraft((settings) => {
-      settings.prefs.pomodoro = {
-        ...customPomodoroSettings(settings.prefs.pomodoro),
-        breakMin: clamp(Math.round(num(el.value)) || 5, 1, 60),
-      };
-    }, false);
-  },
-  'free-pomo-sound-tone': (el) => {
-    if (!Object.hasOwn(POMODORO_SOUND_TONES, el.value)) return;
-    updateSettingsDraft((settings) => { settings.prefs.pomodoro.soundTone = el.value; }, false);
-  },
-  'free-pomo-sound-volume': (el) => {
-    const soundVolume = clamp(Math.round(num(el.value)), 0, 100);
-    updateSettingsDraft((settings) => { settings.prefs.pomodoro.soundVolume = soundVolume; }, false);
-    const output = el.closest('label')?.querySelector('output');
-    if (output) output.textContent = `${soundVolume}%`;
-  },
-  'vibration-enabled': (el) => {
-    updateSettingsDraft((settings) => { settings.prefs.vibrationEnabled = el.checked; }, false);
-  },
   'import': (el) => { const f = el.files && el.files[0]; void importFile(f); el.value = ''; },
 };
-const SETTINGS_INPUT_CHANGES = new Set(['free-pomo-focus', 'free-pomo-break', 'free-pomo-sound-volume', 'home-message']);
+const SETTINGS_INPUT_CHANGES = new Set(['home-message']);
 
 /* ---- Salvar sem trocar a tela debaixo do dedo (campos de texto salvam ao sair do campo) ---- */
 const flushDirty = () => { if (ui.dirty) { ui.dirty = false; clearTimeout(ui.dirtyT); render(); } };
@@ -6456,7 +5979,6 @@ function checkReminders() {
   }
   Object.keys(ui.alerts).forEach((k) => {
     const alert = ui.alerts[k];
-    if (alert.kind === 'pomodoro') return;
     if (alert.kind === 'habit') {
       const habit = S.habits.find((item) => item.id === alert.id);
       if (!habit || (habit.status || 'active') !== 'active' || habitCompletedFor(habit, day)) {
@@ -6477,115 +5999,22 @@ function checkReminders() {
     }
   }
 }
-function notifyPomodoroPhase(phase, timer = S.pomodoro) {
-  playPomodoroSound();
-  if (phase === 'short-break' || phase === 'long-break') vibrateFeedback();
-  clearPomodoroNotifications();
-  const pom = pomodoroSettingsForTimer();
-  const key = `pomodoro:${timer.completedPomodoros}:${phase}`;
-  const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const alert = phase === 'focus'
-    ? { title: 'Hora de voltar ao foco', detail: `A pausa acabou. O próximo bloco de foco dura ${pom.focusMin} min.` }
-    : { title: 'Hora da pausa', detail: `Bloco de foco concluído. Descanse por ${pom.breakMin} min.` };
-  ui.alerts[key] = { kind: 'pomodoro', phase, ...alert, time, at: Date.now() };
-}
-function syncPomodoroTimer(now = Date.now()) {
-  const advanced = advancePomodoro(S.pomodoro, pomodoroSettingsForTimer(), now);
-  if (!advanced.transitions.length) return false;
-  S.pomodoro = advanced.timer;
-  if (pomodoroSettingsForTimer().autoAdvance === false) {
-    S.pomodoro = { ...advanced.timer, startedAt: null, phaseElapsedSeconds: 0 };
-  }
-  void syncPomodoroWakeLock();
-  notifyPomodoroPhase(advanced.transitions[advanced.transitions.length - 1], advanced.timer);
-  commit('pomodoro');
-  const pomodoroAlert = Object.values(ui.alerts).find((alert) => alert.kind === 'pomodoro');
-  if (pomodoroAlert) notificationAnnouncer.textContent = `${pomodoroAlert.title}. ${pomodoroAlert.detail} Abra Notificações para conferir.`;
-  syncPomodoroPushSchedule(S.pomodoro);
-  return true;
-}
-function updatePomodoroMiniTimer(now = Date.now()) {
-  const mini = $('#pomodoro-mini');
-  if (!mini) return;
-  const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
-  const elapsed = phaseElapsedSeconds(timer, now);
-  const duration = phaseDurationSeconds(pom, timer.phase);
-  const running = timer.startedAt !== null;
-  const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
-  const visible = ui.route !== 'pomodoro' && (running || hasProgress);
-  mini.hidden = !visible;
-  if (!visible) return;
-  const remaining = Math.max(0, duration - elapsed);
-  const phaseName = standalonePomodoroPhaseName(timer.phase);
-  const phase = $('#pomodoro-mini-phase');
-  const focus = $('#pomodoro-mini-focus');
-  const clockElement = $('#pomodoro-mini-clock');
-  const open = $('#pomodoro-mini-open');
-  const toggle = $('#pomodoro-mini-toggle');
-  const focusTask = S.tasks.find((task) => task.id === timer.focusTaskId);
-  const focusLabel = focusTask?.title || timer.focusLabel || 'Seu bloco atual';
-  if (phase) phase.textContent = `${phaseName} · ${running ? 'em andamento' : 'pausado'}`;
-  if (focus) focus.textContent = focusLabel;
-  if (clockElement) clockElement.textContent = clock(remaining);
-  if (open) open.setAttribute('aria-label', `Abrir Pomodoro: ${phaseName} ${running ? 'em andamento' : 'pausado'}, ${clock(remaining)} restantes`);
-  if (toggle) {
-    toggle.textContent = running ? 'Pausar' : 'Retomar';
-    toggle.setAttribute('aria-label', running ? 'Pausar Pomodoro' : 'Retomar Pomodoro');
-  }
-  mini.setAttribute('data-phase', timer.phase);
-}
 function tick() {
   if (Persist.replacing) return;
   if (tickN++ % 10 === 0) checkReminders();
-  if (syncPomodoroTimer()) return;
-  if (dk() !== lastDay) { lastDay = dk(); render(); return; }
-  const now = Date.now();
-  const timer = S.pomodoro, pom = pomodoroSettingsForTimer();
-  const elapsed = phaseElapsedSeconds(timer, now), duration = phaseDurationSeconds(pom, timer.phase);
-  updatePomodoroMiniTimer(now);
-  const clockElement = $('#standalone-pomo-clock');
-  if (!clockElement) return;
-  clockElement.textContent = clock(Math.max(0, duration - elapsed));
-  const copy = $('#standalone-pomo-copy'), dial = $('#standalone-pomo-progress');
-  const hasProgress = timer.elapsedSeconds > 0 || timer.completedPomodoros > 0 || elapsed > 0;
-  if (copy) copy.textContent = timerPhaseMessage(timer.phase, pom);
-  const state = $('#standalone-pomo-state');
-  if (state) state.textContent = standalonePomodoroPhaseLabel(timer.phase, timer.startedAt !== null, hasProgress);
-  if (dial) {
-    dial.style.strokeDashoffset = `${(2 * Math.PI * 50 * (1 - Math.min(1, elapsed / duration))).toFixed(1)}`;
-    dial.closest('.focus-timer')?.setAttribute('data-phase', timer.phase);
-  }
+  if (dk() !== lastDay) { lastDay = dk(); render(); }
 }
 
 /* ---- Eventos globais ---- */
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
-  syncPomodoroTimer();
   if (!Persist.store || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
-    if (ui.route === 'pomodoro') render();
     return;
   }
   try {
     await loadAccountData();
   } catch (error) {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
-  }
-  if (ui.route === 'pomodoro') render();
-});
-window.addEventListener('pageshow', () => {
-  syncPomodoroTimer();
-  void syncPomodoroWakeLock();
-});
-document.addEventListener('keydown', (event) => {
-  if (ui.route !== 'pomodoro' || event.ctrlKey || event.metaKey || event.altKey) return;
-  const target = event.target;
-  if (target instanceof Element && target.closest('input, textarea, select, button, a, summary, [contenteditable="true"], [role="button"]')) return;
-  if (event.code === 'Space') {
-    event.preventDefault();
-    togglePomodoroTimer();
-  } else if (event.key.toLowerCase() === 's') {
-    event.preventDefault();
-    skipPomodoroBreak();
   }
 });
 document.addEventListener('click', (e) => {
@@ -7125,8 +6554,8 @@ function finOrc() {
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
       ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p></div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => { const m = outMeta(r.n), over = r.lim && r.sp > r.lim; return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="Definir limite de ${r.n}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`; })}</ul></section>
-    <section class="card"><div class="head"><h2>Objetivos<i>.</i></h2><button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button></div>
-      ${F.goals.length ? h`<ul class="list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; return h`<li class="goal-item"><div class="grow"><div class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}</div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${pc}%${g.deadline ? ' · até ' + shortDate(g.deadline) : ''}</span></div><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
+    <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
+      ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; const complete = g.savedCents >= g.targetCents; return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
 }
 
 /* ---- Relatórios ---- */
@@ -7322,15 +6751,15 @@ function dlgBudget() {
 }
 function dlgGoal() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Novo objetivo<i>.</i></h2>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-goal">${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
-    h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Criar objetivo</button>`);
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${d.id ? 'Editar objetivo' : 'Novo objetivo'}<i>.</i></h2>${closeBtn}</div>
+    <form id="dlgform" class="form" data-form="dlg-goal" novalidate>${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
+    h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">${d.id ? 'Salvar' : 'Criar objetivo'}</button>`);
 }
 function dlgDeposit() {
   const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id);
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span><i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Este valor atualiza apenas o acompanhamento do objetivo; não altera o saldo de uma conta nem cria um lançamento. Para retirar, informe um valor negativo.</p>
-    <form id="dlgform" class="form" data-form="dlg-deposit">${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-deposit" novalidate>${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Confirmar</button>`);
 }
 function invoicePlanPreviewText(d) {
@@ -7574,6 +7003,7 @@ Object.assign(ACTIONS, {
   },
   'budget-clear-cancel': () => { ui.dlg.d.confirmClear = false; render(); },
   'goal-new': () => dlgOpen('goal', { name: '', target: '', saved: '', deadline: '' }),
+  'goal-edit': (el) => { const g = S.finance.goals.find((item) => item.id === el.dataset.id); if (!g) return toast('Objetivo não encontrado.'); dlgOpen('goal', { id: g.id, name: g.name, target: moneyIn(g.targetCents), saved: moneyIn(g.savedCents), deadline: g.deadline || '' }); },
   'goal-dep': (el) => dlgOpen('deposit', { id: el.dataset.id, amount: '' }),
   'goal-del': (el) => {
     const goal = S.finance.goals.find((item) => item.id === el.dataset.id);
@@ -7783,8 +7213,33 @@ Object.assign(FORMS, {
     commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
     toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.');
   },
-  'dlg-goal': () => { const d = ui.dlg.d, t = parseMoney(d.target), sv = d.saved.trim() ? parseMoney(d.saved) : 0; if (!d.name.trim() || !(t > 0) || Number.isNaN(sv)) return toast('Informe o nome e o valor do objetivo.'); S.finance.goals.push({ id: newId(), name: d.name.trim().slice(0, 50), targetCents: t, savedCents: Math.max(0, sv), deadline: isDay(d.deadline) ? d.deadline : '' }); ui.dlg = null; commit('finance'); },
-  'dlg-deposit': () => { const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id), v = parseMoney(d.amount); if (!g || Number.isNaN(v) || v === 0) return toast('Informe um valor.'); g.savedCents = Math.max(0, g.savedCents + v); ui.dlg = null; commit('finance'); toast(v > 0 ? 'Valor guardado.' : 'Valor retirado.'); },
+  'dlg-goal': () => {
+    const d = ui.dlg.d, name = d.name.trim(), target = parseMoney(d.target), saved = d.saved.trim() ? parseMoney(d.saved) : 0;
+    if (!name || name.length > 50) return fieldError('Informe um nome com até 50 caracteres.', '[data-dlg="name"]');
+    if (!Number.isSafeInteger(target) || target <= 0) return fieldError('Informe um valor maior que zero.', '[data-dlg="target"]');
+    if (!Number.isSafeInteger(saved) || saved < 0) return fieldError('Informe um valor válido, igual ou maior que zero.', '[data-dlg="saved"]');
+    if (d.deadline && !isDay(d.deadline)) return fieldError('Informe um prazo válido.', '[data-dlg="deadline"]');
+    const values = { name, targetCents: target, savedCents: saved, deadline: d.deadline || '' };
+    if (d.id) {
+      const goal = S.finance.goals.find((item) => item.id === d.id);
+      if (!goal) return toast('Objetivo não encontrado.');
+      Object.assign(goal, values);
+    } else S.finance.goals.push({ id: newId(), ...values });
+    ui.dlg = null;
+    commit('finance');
+  },
+  'dlg-deposit': () => {
+    const d = ui.dlg.d, goal = S.finance.goals.find((item) => item.id === d.id), amount = parseMoney(d.amount);
+    if (!goal) return toast('Objetivo não encontrado.');
+    if (!Number.isSafeInteger(amount) || amount === 0) return fieldError('Informe um valor diferente de zero.', '[data-dlg="amount"]');
+    const total = goal.savedCents + amount;
+    if (!Number.isSafeInteger(total)) return fieldError('Informe um valor menor.', '[data-dlg="amount"]');
+    goal.savedCents = Math.max(0, total);
+    ui.dlg = null;
+    const saved = saveSlices('finance');
+    render();
+    if (saved) toast(amount > 0 ? 'Valor guardado.' : 'Valor retirado.');
+  },
   'dlg-payinv': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), card = accById(d.cardId), source = accById(d.from);
     if (!Number.isSafeInteger(cents) || cents <= 0) return toast('Informe um valor maior que zero.');
@@ -7915,7 +7370,7 @@ function dlgRecurList() {
   const rs = recList();
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Lançamentos fixos<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Contas e receitas que se repetem todo mês. O Aurora cria os próximos meses sozinho. Para criar uma, use Lançamento e escolha "Fixa mensal".</p>
-    ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : h`<div class="empty"><b>Nenhuma fixa ainda</b><span>Aluguel, salário, assinaturas: crie uma vez e esqueça.</span></div>`}`,
+    ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : empty('Nenhuma fixa ainda', 'Aluguel, salário, assinaturas: crie uma vez e acompanhe todos os meses.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Novo lançamento</button>`, 'repeat')}`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgRecur() {
@@ -8165,22 +7620,20 @@ async function continueAuthenticatedAurora(root, user) {
   });
   releaseNoticePending = true;
   onRoute();
-  void syncPomodoroWakeLock();
   if (!profileSetupComplete()) openProfileSetup();
   else void maybeOpenReleaseNotes();
   setInterval(tick, 1000);
   const registration = await registerPwaSupport();
   if (registration || isNativeApp()) {
     try {
-      await initializePomodoroPush();
+      await initializePushNotifications();
       await syncHabitReminderSchedule();
     } catch (error) {
       console.error('O Aurora não conseguiu iniciar as notificações Push.', error);
-      ui.pushNotice = pomodoroPushErrorMessage(error);
-      if (ui.route === 'pomodoro') render();
+      ui.habitPushNotice = pushNotificationErrorMessage(error);
+      if (ui.route === 'habitos') render();
     }
   }
-  if (S.pomodoro.startedAt !== null && getPomodoroPushStatus().enabled) syncPomodoroPushSchedule(S.pomodoro);
   Persist.retryPending();
 }
 
@@ -8197,7 +7650,7 @@ async function maybeOpenReleaseNotes() {
 
 const RETURN_TO_KEY = 'aurora:return-to';
 const SESSION_EXPIRED_KEY = 'aurora:session-expired';
-const RETURN_TO_PATTERN = /^\/(?:inicio|planejar|pomodoro|financas|habitos|ciclo|config)(?:\?[\w=&%.-]*)?$/;
+const RETURN_TO_PATTERN = /^\/(?:inicio|planejar|financas|habitos|ciclo|config)(?:\?[\w=&%.-]*)?$/;
 let intentionalSignOut = false;
 
 function readStorage(key) {
@@ -8230,7 +7683,7 @@ function watchSessionExpiry(client) {
   });
 }
 
-export async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
+export async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false, authCallback = false) {
   const { requireAccount } = await import('./services/account-auth.js');
   renderAccountLoading(root);
   let returnedToPublic = false;
@@ -8257,7 +7710,7 @@ export async function startAuthenticatedAurora(root, initialMode = 'login', allo
   }
   const returnTo = readStorage(RETURN_TO_KEY);
   writeStorage(RETURN_TO_KEY, null);
-  if (accountModeFromLocation(location)) {
+  if (accountModeFromLocation(location) || authCallback) {
     const url = new URL(location.href);
     if (returnTo && RETURN_TO_PATTERN.test(returnTo)) {
       history.replaceState(null, '', returnTo);
@@ -8304,7 +7757,8 @@ async function startAurora() {
   const root = document.getElementById('app');
   startPwaInstallPrompt();
   const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
-  const isPublicLanding = routeMeta && isPublicLandingLocation(location);
+  const authCallback = document.documentElement.dataset.auroraAuthCallback === 'true';
+  const isPublicLanding = routeMeta && isPublicLandingLocation(location) && !authCallback;
   const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));
   if (localPreview) {
     ui.preview = true;
@@ -8337,6 +7791,7 @@ async function startAurora() {
       root,
       routeMode || (requestedMode === 'signup' ? 'signup' : 'login'),
       routeMeta,
+      authCallback,
     );
     return;
   }
@@ -8424,10 +7879,9 @@ document.addEventListener('click', async (event) => {
     return;
   }
   try {
-    await cancelPomodoroPushSchedule();
     await cancelHabitPushReminders();
   } catch {
-    if (!await confirmInDialog('Não foi possível cancelar todos os avisos Push de Pomodoro e Hábitos. Eles podem continuar neste dispositivo. Deseja sair mesmo assim?')) {
+    if (!await confirmInDialog('Não foi possível cancelar os lembretes de Hábitos deste dispositivo. Eles podem continuar ativos até o próximo ajuste. Deseja sair mesmo assim?')) {
       button.disabled = false;
       return;
     }

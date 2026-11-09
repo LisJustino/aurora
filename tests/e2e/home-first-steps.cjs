@@ -23,9 +23,10 @@ const check = (passed, name, detail = '') => {
   check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem recolhidos no Início');
   check(await card.getByRole('link').count() === 0, 'ações iniciais ficam recolhidas por padrão');
   await card.locator('summary').click();
-  check(await card.getByRole('link').count() === 4, 'ações iniciais podem ser expandidas');
-  check(await card.locator('ol > li').count() === 4, 'cartão lista as quatro ações iniciais');
-  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 4 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
+  check(await card.getByRole('link').count() === 3, 'ações iniciais podem ser expandidas');
+  check(await card.locator('ol > li').count() === 3, 'cartão lista as três ações iniciais');
+  check((await card.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).join(',') === '/planejar,/habitos,/financas', 'ações iniciais usam rotas canônicas');
+  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 3 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
   check(await card.locator('li.is-next').count() === 1 && await card.locator('li.is-next small').innerText() === 'Sugestão para você', 'cartão destaca uma próxima ação personalizada');
   check(await page.locator('#dlg').count() === 0, 'tutorial não abre automaticamente');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Início não tem overflow horizontal em 390 px');
@@ -50,10 +51,10 @@ const check = (passed, name, detail = '') => {
   });
   check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1', 'atalho do tutorial fica no cabeçalho e primeiros passos ocupam a largura total no desktop');
   check(desktopLayout.guideUsesContrastToken, 'atalho do tutorial usa o token de contraste dos botões');
-  check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 4, 'ações iniciais ficam em quatro colunas no desktop');
+  check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 3, 'ações iniciais ficam em três colunas no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
 
-  for (const route of ['planejar', 'pomodoro', 'financas', 'habitos', 'ciclo']) {
+  for (const route of ['planejar', 'financas', 'habitos', 'ciclo']) {
     await page.goto(`${BASE}/?preview#${route}`);
     const guide = page.locator('.page-title .area-page-actions .area-guide-button');
     await guide.waitFor({ state: 'visible' });

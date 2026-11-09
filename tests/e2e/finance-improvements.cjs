@@ -34,7 +34,7 @@ const check = (passed, name, detail = '') => {
     const fab = document.querySelector('.finance-fab');
     const fabBounds = fab.getBoundingClientRect();
     const fabBottom = parseFloat(getComputedStyle(fab).bottom);
-    return Math.abs(nav.bottom - innerHeight) <= 1
+    return Math.abs(nav.bottom - (innerHeight - 8)) <= 1
       && Math.abs(fabBounds.bottom - (innerHeight - fabBottom)) <= 1
       && fabBounds.bottom <= nav.top - 12;
   }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');

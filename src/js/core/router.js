@@ -1,5 +1,5 @@
 const APP_ROUTES = new Set([
-  'inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'ciclo', 'config',
+  'inicio', 'planejar', 'financas', 'habitos', 'ciclo', 'config',
 ]);
 const ACCOUNT_ROUTES = new Set(['entrar', 'criar-conta', 'esqueci-senha', 'nova-senha']);
 

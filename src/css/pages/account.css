@@ -977,8 +977,8 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-password-strength { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
 .account-strength-track { height: var(--space-1); overflow: hidden; border-radius: var(--r-pill); background: var(--line); }
 .account-strength-track span { display: block; width: 20%; height: 100%; border-radius: inherit; background: var(--bad); transition: width var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard); }
-.account-password-strength[data-strength="medium"] .account-strength-track span { width: 66%; background: var(--warn); }
-.account-password-strength[data-strength="strong"] .account-strength-track span { width: 100%; background: var(--ok); }
+.account-password-strength[data-criteria-state="partial"] .account-strength-track span { background: var(--warn); }
+.account-password-strength[data-criteria-state="complete"] .account-strength-track span { background: var(--ok); }
 .account-strength-label { color: var(--muted); font-size: var(--text-xs); }
 .account-password-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1) var(--space-3); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
 .account-password-criterion { display: flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: var(--text-xs); }
@@ -1212,7 +1212,6 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   background: color-mix(in srgb, var(--area-color, var(--accent)) 13%, var(--surface));
   color: var(--area-color, var(--accent));
 }
-.setting-toggle-icon[data-area="pomodoro"] { --area-color: var(--area-pomodoro, var(--accent)); }
 .setting-toggle-icon[data-area="finances"] { --area-color: var(--area-finances); }
 .setting-toggle-icon[data-area="habits"] { --area-color: var(--area-habits, var(--ok)); }
 .setting-toggle-icon[data-area="water"] { --area-color: var(--area-water); }
@@ -2657,8 +2656,8 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-gate.is-public-account .account-password-strength { display: grid; gap: var(--space-1); margin-top: var(--space-2); }
 .account-gate.is-public-account .account-strength-track { height: 8px; background: #f3e4e8; }
 .account-gate.is-public-account .account-strength-track span { background: linear-gradient(90deg, #e46a8d, #e6a15a); }
-.account-gate.is-public-account .account-password-strength[data-strength="medium"] .account-strength-track span { background: linear-gradient(90deg, #e6a15a, #d6c34f); }
-.account-gate.is-public-account .account-password-strength[data-strength="strong"] .account-strength-track span { background: linear-gradient(90deg, #4fbf8f, #2f9e6e); }
+.account-gate.is-public-account .account-password-strength[data-criteria-state="partial"] .account-strength-track span { background: linear-gradient(90deg, #e6a15a, #d6c34f); }
+.account-gate.is-public-account .account-password-strength[data-criteria-state="complete"] .account-strength-track span { background: linear-gradient(90deg, #4fbf8f, #2f9e6e); }
 .account-gate.is-public-account .account-password-checklist {
   padding: var(--space-3);
   border: 1px solid #f1d9dc;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import './pages-routing-check.mjs';
 
 const dist = resolve(fileURLToPath(new URL('..', import.meta.url)), 'dist');
 const origin = 'https://aurora-rotinas.com.br';
@@ -9,17 +10,21 @@ const origin = 'https://aurora-rotinas.com.br';
 const distFile = (urlPath) => resolve(dist, `.${decodeURIComponent(urlPath)}`);
 const meta = (html, attr, name) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`))?.[1];
+const redirectRules = (await readFile(resolve(dist, '_redirects'), 'utf8'))
+  .split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
+  .map((line) => line.split(/\s+/));
+
+assert.equal(await readFile(resolve(dist, '_redirects'), 'utf8'),
+  await readFile(new URL('../_redirects', import.meta.url), 'utf8'),
+  'O build deve publicar as regras de rotas atuais.');
 
 async function assertServed(urlPath, label) {
   await access(distFile(urlPath)).catch(() => assert.fail(`${label}: ${urlPath} não existe em dist/.`));
 }
 
 async function assertNotRedirected(urlPath, label) {
-  const rules = (await readFile(resolve(dist, '_redirects'), 'utf8')).split('\n').map((l) => l.trim()).filter(Boolean);
-  for (const rule of rules) {
-    const [from, , status] = rule.split(/\s+/);
-    if (status !== '404' || !from.endsWith('/*')) continue;
-    assert.ok(!urlPath.startsWith(from.slice(0, -1)), `${label}: ${urlPath} cai na regra bloqueada "${rule}".`);
+  for (const [from] of redirectRules) {
+    assert.notEqual(urlPath, from, `${label}: ${urlPath} não deve ser reescrito como rota da SPA.`);
   }
 }
 

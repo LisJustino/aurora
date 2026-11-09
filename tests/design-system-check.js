@@ -5,18 +5,18 @@ const check = (passed, name, detail = '') => results.push({ passed: Boolean(pass
 
 const loadCss = async (url, seen = new Set()) => {
   const source = new URL(url, location.href);
-  source.searchParams.set('raw', '');
+  source.search += `${source.search ? '&' : '?'}raw`;
   if (seen.has(source.href)) return [];
   seen.add(source.href);
   const response = await fetch(source.href, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Não foi possível carregar ${source.pathname}: HTTP ${response.status}.`);
   const moduleText = await response.text();
-  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?$/);
+  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?/);
   const text = rawExport ? JSON.parse(rawExport[1]) : moduleText;
   const out = [{ file: source.pathname.replace(/^.*\/src\/css\//, ''), text }];
   for (const [, rel] of text.matchAll(/@import\s+url\(["']?([^"')]+)["']?\)/g)) {
     const dependency = new URL(rel, source);
-    dependency.searchParams.set('raw', '');
+    dependency.search += `${dependency.search ? '&' : '?'}raw`;
     out.push(...await loadCss(dependency.href, seen));
   }
   return out;

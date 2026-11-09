@@ -23,16 +23,19 @@ function localDateValue(date) {
   const heroAt320 = await page.locator('.public-hero').evaluate((hero) => Math.round(hero.getBoundingClientRect().height));
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
-      && await page.locator('.public-values').evaluate((grid) => {
-        const lefts = [...grid.children].map((card) => Math.round(card.getBoundingClientRect().left));
-        return new Set(lefts).size === 1;
-      }),
-    'landing se ajusta a 320 px sem overflow e mantém uma coluna legível',
+      && await page.locator('.public-value:visible').count() === 1,
+    'landing se ajusta a 320 px sem overflow e exibe uma área por vez',
   );
-  check(heroAt320 <= 660, 'hero mobile estreito mantém altura controlada', `${heroAt320}px`);
+  check(
+    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    'hero mobile estreito mantém o cadastro visível sem rolagem',
+    `${heroAt320}px`,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
-  const heroAt390 = await page.locator('.public-hero').evaluate((hero) => Math.round(hero.getBoundingClientRect().height));
-  check(heroAt390 <= 620, 'hero mobile compacto deixa mais conteúdo visível sem rolagem', `${heroAt390}px`);
+  check(
+    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    'hero mobile compacto mantém o cadastro visível sem rolagem',
+  );
   await page.setViewportSize({ width: 768, height: 900 });
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
@@ -52,31 +55,34 @@ function localDateValue(date) {
       .map((card) => card.getBoundingClientRect());
     const cardsContainer = document.querySelector('.public-values').getBoundingClientRect();
     const firstRow = values.filter((card) => Math.abs(card.top - values[0].top) < 1);
-    const secondRow = values.filter((card) => Math.abs(card.top - values[3].top) < 1);
+    const secondRow = values.filter((card) => Math.abs(card.top - values[2].top) < 1);
     return {
       actionsShareRow: actions.length === 2 && Math.abs(actions[0].top - actions[1].top) < 1,
-      firstRow: firstRow.length === 3,
-      secondRow: secondRow.length === 2,
-      centeredSecondRow: Math.abs(
+      balancedRows: values.length === 4 && firstRow.length === 2 && secondRow.length === 2,
+      centeredRows: Math.abs(
         (secondRow[0].left + secondRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
+      ) < 2,
+      centeredFirstRow: Math.abs(
+        (firstRow[0].left + firstRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
       ) < 2,
       cardWidth: Math.max(...values.map((card) => card.width)),
     };
   });
   check(desktopLanding.actionsShareRow, 'CTAs do hero ficam lado a lado no desktop');
   check(
-    desktopLanding.firstRow && desktopLanding.secondRow && desktopLanding.centeredSecondRow,
-    'áreas do produto formam três mais duas e centralizam a última linha',
+    desktopLanding.balancedRows && desktopLanding.centeredRows && desktopLanding.centeredFirstRow,
+    'quatro áreas formam uma grade equilibrada no desktop',
   );
-  check(desktopLanding.cardWidth <= 320, 'cards da landing permanecem compactos no desktop', `${Math.round(desktopLanding.cardWidth)}px`);
+  check(desktopLanding.cardWidth <= 560, 'cards da landing permanecem dentro da coluna no desktop', `${Math.round(desktopLanding.cardWidth)}px`);
   await page.setViewportSize({ width: 320, height: 780 });
   check(
     await page.locator('.public-account-section, .public-account-access').count() === 0,
     'convite final redundante foi removido da landing',
   );
   check(
-    await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-faq')),
-    'FAQ encerra o conteúdo principal antes do rodapé',
+    await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-suggestion')
+      && main.lastElementChild.previousElementSibling?.classList.contains('public-faq')),
+    'FAQ e formulário de sugestões encerram o conteúdo principal antes do rodapé',
   );
   const heroSignup = page.locator('.public-hero [data-public-action="signup"]');
   check(
@@ -87,8 +93,8 @@ function localDateValue(date) {
   const emailFaqItem = page.locator('.public-faq-item', { hasText: 'Preciso confirmar meu e-mail?' });
   await emailFaqItem.locator('summary').click();
   const emailFaq = await emailFaqItem.textContent();
-  check(/acesso é liberado assim que a conta é criada/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
-  check(/erro de digitação pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
+  check(/Não\.\s+No cadastro, você digita o endereço duas vezes/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
+  check(/endereço inválido pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
   await page.getByRole('link', { name: /criar conta/i }).first().click();
   await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
   check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');

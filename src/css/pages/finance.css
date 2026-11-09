@@ -736,3 +736,10 @@
   .finance-month-snapshot .fh-row { gap: 8px; }
   .finance-month-snapshot .fh-row .finance-summary-stat { min-height: 138px; gap: 7px 8px; padding: 12px; }
 }
+.goal-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.goal-item { display: grid; min-width: 0; gap: var(--space-2); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface); }
+.goal-item.is-complete { background: var(--ok-soft); }
+.goal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.goal-percent { flex: none; font-size: var(--text-2xl); font-variant-numeric: tabular-nums; }
+.goal-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.goal-actions .btn { min-height: var(--control-md); }

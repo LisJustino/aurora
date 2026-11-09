@@ -2,7 +2,7 @@
   "name": "Aurora",
   "short_name": "Aurora",
   "lang": "pt-BR",
-  "description": "Organize tarefas, foco, rotina e finanças em um só lugar.",
+  "description": "Organize tarefas, rotina e finanças em um só lugar.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -54,12 +54,6 @@
       "name": "Tarefas",
       "short_name": "Tarefas",
       "url": "./planejar",
-      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Foco",
-      "short_name": "Foco",
-      "url": "./pomodoro",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     }
   ]

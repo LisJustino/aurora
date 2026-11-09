@@ -440,7 +440,7 @@
   font-size: var(--text-xs);
   font-weight: 750;
 }
-.task-dialog .aibar { min-height: var(--control-md); }
+.task-dialog .aibar { min-height: var(--control-md); border-radius: var(--r-control); }
 .dlg-body.task-dialog + .dlg-foot {
   padding: 14px 26px 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--soft) 32%, var(--surface-strong)), var(--surface-strong));

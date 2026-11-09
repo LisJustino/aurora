@@ -5,8 +5,9 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
 
 (async () => {
   const browser = await chromium.launch();
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await context.addInitScript(() => {
+    window.__pwaInitialUrl = location.href;
     const listeners = new Map();
     const eventTarget = () => ({
       addEventListener(type, callback) {
@@ -77,11 +78,22 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
   await notice.getByRole('button', { name: 'Atualizar' }).click();
   await page.waitForFunction(() => window.__pwaMessages?.some((message) => message.type === 'SKIP_WAITING'));
   assert.equal(await notice.getByRole('button', { name: 'Atualizar' }).isDisabled(), true);
+  await page.evaluate(() => history.replaceState(null, '', '/inicio?origem=teste#main'));
+  const [response] = await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    page.evaluate(() => window.__pwaServiceWorker.dispatchEvent(new Event('controllerchange'))),
+  ]);
+  assert.equal(response.status(), 200, 'a atualização deve recarregar a rota atual sem 404');
+  const reloadedUrl = new URL(await page.evaluate(() => window.__pwaInitialUrl));
+  assert.equal(reloadedUrl.pathname, '/inicio');
+  assert.equal(reloadedUrl.search, '?origem=teste');
+  assert.equal(reloadedUrl.hash, '#main');
+  assert.equal(await page.getByText('Esta página não existe').count(), 0);
   assert.deepEqual(errors, []);
 
   await context.close();
   await browser.close();
-  console.log('PWA: aviso de atualização, adiamento, nova notificação e ativação explícita aprovados.');
+  console.log('PWA: aviso, adiamento, ativação explícita e recarga da rota móvel aprovados.');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

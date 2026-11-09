@@ -73,22 +73,22 @@ function pushEvent(data) {
   };
 }
 
-test('Push visível não duplica o aviso do sistema; Push em segundo plano o exibe', async () => {
+test('Push desconhecido é ignorado e lembrete de hábito em segundo plano é exibido', async () => {
   const harness = serviceWorkerHarness();
-  const { event, complete } = pushEvent({ title: 'aurora. · Pomodoro', body: 'Pausa curta concluída.' });
+  const { event, complete } = pushEvent({ kind: 'unknown' });
   harness.windows.push({ visibilityState: 'visible', url: 'https://aurora.example/' });
   harness.listeners.get('push')(event);
   await complete();
   assert.equal(harness.shown.length, 0);
 
   harness.windows[0].visibilityState = 'hidden';
-  const hiddenPush = pushEvent({ title: 'aurora. · Pomodoro', body: 'Pausa curta concluída.' });
+  const hiddenPush = pushEvent({ kind: 'habit-reminder' });
   harness.listeners.get('push')(hiddenPush.event);
   await hiddenPush.complete();
   assert.equal(harness.shown.length, 1);
-  assert.equal(harness.shown[0][0], 'aurora. · Pomodoro');
-  assert.equal(harness.shown[0][1].body, 'Pausa curta concluída.');
-  assert.equal(harness.shown[0][1].tag, 'aurora-pomodoro');
+  assert.equal(harness.shown[0][0], 'aurora. · Hábitos');
+  assert.match(harness.shown[0][1].body, /horário de hábito chegou/i);
+  assert.equal(harness.shown[0][1].tag, 'aurora-habits');
 });
 
 test('aviso de hábito usa texto genérico e abre a área de Hábitos ao ser clicado', async () => {
@@ -115,34 +115,26 @@ test('aviso de hábito usa texto genérico e abre a área de Hábitos ao ser cli
     waitUntil: (promise) => { completion = promise; },
   });
   await completion;
-  assert.deepEqual(navigated, ['https://aurora.example/pages/habitos.html']);
+  assert.deepEqual(navigated, ['https://aurora.example/habitos']);
   assert.deepEqual(focused, [true]);
 });
 
-test('clique na notificação foca uma janela existente ou abre o app', async () => {
+test('clique em notificação legada do timer não abre uma rota removida', async () => {
   const harness = serviceWorkerHarness();
   const focused = [];
   harness.windows.push({
     visibilityState: 'hidden',
-    url: 'https://aurora.example/pages/pomodoro.html',
+    url: 'https://aurora.example/',
     focus: async () => focused.push(true),
   });
   let completion;
   harness.listeners.get('notificationclick')({
-    notification: { close() {} },
+    notification: { data: { route: 'pomodoro' }, close() {} },
     waitUntil: (promise) => { completion = promise; },
   });
   await completion;
-  assert.deepEqual(focused, [true]);
+  assert.deepEqual(focused, []);
   assert.equal(harness.opened.length, 0);
-
-  harness.windows.length = 0;
-  harness.listeners.get('notificationclick')({
-    notification: { close() {} },
-    waitUntil: (promise) => { completion = promise; },
-  });
-  await completion;
-  assert.deepEqual(harness.opened, ['https://aurora.example/pages/pomodoro.html']);
 });
 
 test('Cache Storage guarda apenas recursos estáticos e documentos HTML de navegação', async () => {
@@ -183,4 +175,19 @@ test('Cache Storage guarda apenas recursos estáticos e documentos HTML de naveg
   harness.listeners.get('fetch')(navigationFetch.event);
   assert.equal(await navigationFetch.getResponse(), html);
   assert.equal(harness.cached.has('https://aurora.example/pages/inicio.html'), true);
+});
+
+test('rota legada do timer usa o shell offline em vez de uma tela removida', async () => {
+  const shell = basicResponse('text/html; charset=utf-8');
+  const harness = serviceWorkerHarness({
+    fetchImplementation: async () => { throw new Error('offline'); },
+  });
+  harness.cached.set('https://aurora.example/index.html', shell);
+  const navigationFetch = fetchEvent({
+    method: 'GET',
+    mode: 'navigate',
+    url: 'https://aurora.example/pomodoro',
+  });
+  harness.listeners.get('fetch')(navigationFetch.event);
+  assert.equal(await navigationFetch.getResponse(), shell);
 });

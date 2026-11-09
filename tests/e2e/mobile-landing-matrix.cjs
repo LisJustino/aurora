@@ -51,7 +51,15 @@ async function checkLanding(page, profile, viewportLabel) {
       title: rect('.public-hero h1'),
       hero: rect('.public-hero'),
       preview: rect('.public-hero .product-preview'),
+      demoNote: rect('.public-hero .public-price-note'),
+      demoNoteText: document.querySelector('.public-hero .public-price-note')?.textContent || '',
       previewTasks: Boolean(document.querySelector('.public-hero .product-preview .preview-task-row')),
+      makerFollowsFeatures: [...document.querySelector('.public-main').children]
+        .findIndex((element) => element.classList.contains('public-maker'))
+        > [...document.querySelector('.public-main').children]
+          .findIndex((element) => element.classList.contains('public-features')),
+      heroProofOmitsCycle: !document.querySelector('.public-hero-support .public-proof')?.textContent
+        .toLowerCase().includes('ciclo'),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
         return { width: bounds.width, height: bounds.height };
@@ -74,6 +82,11 @@ async function checkLanding(page, profile, viewportLabel) {
     profile, `prévia móvel mostra tarefas fictícias (${viewportLabel})`);
   check(metrics.title?.visible && metrics.title.width > 0 && metrics.title.height > 0,
     profile, `título principal visível (${viewportLabel})`);
+  check(metrics.demoNote?.visible
+    && /dados fictícios, sem cadastro/i.test(metrics.demoNoteText),
+  profile, `demo informa que não exige cadastro (${viewportLabel})`);
+  check(metrics.makerFollowsFeatures, profile, `transparência sobre a autoria vem após as áreas (${viewportLabel})`);
+  check(metrics.heroProofOmitsCycle, profile, `Ciclo permanece apresentado junto às áreas e ao consentimento (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
     profile, `hero cabe na largura disponível (${viewportLabel})`);
   check(metrics.targets.length >= 4
@@ -174,8 +187,8 @@ async function checkAccountScreen(page, profile, viewportLabel) {
 
       await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
       await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
-      check(await page.locator('.demo-nav-link').count() === 6,
-        profile.name, 'demonstração expõe navegação das seis áreas');
+      check(await page.locator('.demo-nav-link').count() === 5,
+        profile.name, 'demonstração expõe navegação sem o timer removido');
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         profile.name, 'demonstração não tem overflow horizontal');
       check(await page.locator('.demo-nav-link').evaluateAll((links) =>

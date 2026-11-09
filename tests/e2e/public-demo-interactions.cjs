@@ -31,7 +31,7 @@ const check = (passed, name, detail = '') => {
     && await page.locator('.public-journey-step').count() === 3
     && await page.locator('.public-journey').count() === 0,
   'landing mostra como o Aurora transforma organização em ações e revisão semanal dentro de uma única seção');
-  check(await page.getByText('Planner de tarefas, hábitos, foco e finanças em um só lugar.').count() === 1
+  check(await page.getByText('Planner de tarefas, hábitos, ciclo e finanças em um só lugar.').count() === 1
     && await page.getByText('Totalmente grátis').count() > 0
     && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1,
   'landing explica o produto, informa que é grátis e mostra a transparência do criador');
@@ -40,7 +40,7 @@ const check = (passed, name, detail = '') => {
     && await page.locator('.public-footer form[data-footer-suggestion]').count() === 0
     && await page.locator('.public-suggestion form[data-footer-suggestion]').count() === 1,
   'FAQ começa por preço e a sugestão tem seção própria');
-  check(await page.locator('.public-value-preview').count() === 5
+  check(await page.locator('.public-value-preview').count() === 4
     && await page.locator('.public-value-preview video').count() === 0
     && await page.locator('.public-value-preview').evaluateAll((previews) => previews.filter((preview) => preview.getClientRects().length).every((preview) => {
       const box = preview.getBoundingClientRect();
@@ -138,7 +138,7 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/demonstracao`);
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(mainModuleRequests.length === 0, 'a demonstração direta não baixa o módulo completo');
-  check(await page.locator('.demo-nav-link').count() === 6, 'demonstração oferece navegação pelas áreas do app');
+  check(await page.locator('.demo-nav-link').count() === 5, 'demonstração oferece navegação pelas áreas do app');
   check(await page.getByText(/dados fictícios, somente leitura/i).count() === 1, 'a demonstração deixa claro que os dados são fictícios e somente de leitura');
   await page.waitForTimeout(500);
   const storageBefore = await page.evaluate(() => JSON.stringify({
@@ -156,10 +156,9 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.demo-habit-card button, .demo-habit-card input').count() === 0,
     'hábitos de exemplo são somente de leitura');
 
-  await page.getByRole('link', { name: 'Foco', exact: true }).click();
-  check(await page.locator('.demo-focus-card button, .demo-focus-card input').count() === 0
-    && await page.getByText('Prévia somente de leitura', { exact: false }).count() === 1,
-  'foco de exemplo não inicia nem altera um cronômetro');
+  check(await page.getByRole('link', { name: 'Foco', exact: true }).count() === 0
+    && await page.locator('.demo-focus-card, .focus-timer, .pomodoro-mini').count() === 0,
+  'demonstração não oferece uma área de timer');
 
   await page.getByRole('link', { name: 'Ciclo', exact: true }).click();
   await page.locator('[data-demo-action="cycle-day"][data-day="13"]').click();
@@ -197,6 +196,24 @@ const check = (passed, name, detail = '') => {
       return new Set(positions).size === 3;
     }),
     'percurso de valor organiza os três momentos em colunas no desktop',
+  );
+  check(
+    await page.locator('.public-values').evaluate((grid) => {
+      const cards = [...grid.children];
+      const columns = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left)));
+      const rows = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top)));
+      return cards.length === 4 && columns.size === 2 && rows.size === 2;
+    }),
+    'as quatro áreas ficam organizadas em uma grade equilibrada no desktop',
+  );
+  await page.getByRole('link', { name: 'Perguntas', exact: true }).click();
+  check(
+    new URL(page.url()).hash === '#public-faq'
+      && await page.locator('#public-faq').evaluate((section) => {
+        const bounds = section.getBoundingClientRect();
+        return bounds.top >= 0 && bounds.top < innerHeight;
+      }),
+    'o link Perguntas do cabeçalho leva ao FAQ',
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Ciclo', exact: true }).click();

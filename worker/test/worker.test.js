@@ -178,7 +178,7 @@ test('requisições autenticadas também respeitam o limite por instalação', a
   const env = await environment();
   const client = await register(env);
   env.API_RATE_LIMIT = { limit: async ({ key }) => ({ success: key !== client.clientId }) };
-  const limited = await call(env, '/api/schedule', {
+  const limited = await call(env, '/api/subscription', {
     method: 'DELETE',
     headers: authHeaders(client),
   });
@@ -199,133 +199,20 @@ test('a inscrição rejeita destinos de rede arbitrários e estruturas inesperad
   assert.equal(result.body.error, 'invalid-subscription');
 });
 
-test('credencial autoriza a inscrição; o alarme avança a pausa mesmo após quatro blocos', async () => {
+test('endpoint antigo de agendamento do timer não é mais aceito', async () => {
   const env = await environment();
   const client = await register(env);
-  const pushSubscription = await createSubscription();
-  const unauthenticated = await call(env, '/api/schedule', {
-    method: 'POST',
-    body: {},
-    headers: { 'X-Aurora-Client': client.clientId },
-  });
-  assert.equal(unauthenticated.response.status, 401);
-
-  const subscribed = await call(env, '/api/subscription', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: { subscription: pushSubscription },
-  });
-  assert.equal(subscribed.response.status, 200);
-
-  const now = Date.now();
-  const schedule = {
-    phase: 'focus',
-    phaseEndsAt: now + 60_000,
-    focusMin: 25,
-    breakMin: 5,
-    longBreakMin: 15,
-    completedPomodoros: 3,
-  };
-  const scheduled = await call(env, '/api/schedule', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: schedule,
-  });
-  assert.equal(scheduled.response.status, 200);
-
-  const object = env.POMODORO_ALARMS.get(client.clientId);
-  const originalNow = Date.now;
-  const originalFetch = globalThis.fetch;
-  let pushCount = 0;
-  Date.now = () => schedule.phaseEndsAt;
-  globalThis.fetch = async (url, init) => {
-    pushCount += 1;
-    assert.equal(url, pushSubscription.endpoint);
-    assert.equal(init.method, 'post');
-    return new Response(null, { status: 201 });
-  };
-  try {
-    await object.instance.alarm();
-  } finally {
-    Date.now = originalNow;
-    globalThis.fetch = originalFetch;
+  for (const method of ['GET', 'POST', 'DELETE']) {
+    const result = await call(env, '/api/schedule', {
+      method,
+      headers: authHeaders(client),
+      ...(method === 'POST' ? { body: { phase: 'focus' } } : {}),
+    });
+    assert.equal(result.response.status, 404);
+    assert.equal(result.body.error, 'not-found');
   }
-
-  const next = await object.state.storage.get('schedule');
-  assert.equal(next.phase, 'short-break');
-  assert.equal(next.completedPomodoros, 4);
-  assert.equal(next.phaseEndsAt, schedule.phaseEndsAt + 5 * 60_000);
-  assert.equal(object.state.storage.alarm, next.phaseEndsAt);
-  assert.equal(pushCount, 1);
-  assert.equal(Object.keys(next).some((key) => /task|name|email/i.test(key)), false);
-});
-
-test('o servidor impõe horizonte curto e cancelar remove o alarme', async () => {
-  const env = await environment();
-  const client = await register(env);
-  const pushSubscription = await createSubscription();
-  await call(env, '/api/subscription', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: { subscription: pushSubscription },
-  });
-  const tooFar = await call(env, '/api/schedule', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: {
-      phase: 'focus',
-      phaseEndsAt: Date.now() + 5 * 60 * 60 * 1000,
-      focusMin: 25,
-      breakMin: 5,
-      longBreakMin: 15,
-      completedPomodoros: 0,
-    },
-  });
-  assert.equal(tooFar.response.status, 400);
-  assert.equal(tooFar.body.error, 'schedule-horizon');
-
-  const valid = await call(env, '/api/schedule', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: {
-      phase: 'focus',
-      phaseEndsAt: Date.now() + 60_000,
-      focusMin: 25,
-      breakMin: 5,
-      longBreakMin: 15,
-      completedPomodoros: 0,
-    },
-  });
-  assert.equal(valid.response.status, 200);
-  const cancelled = await call(env, '/api/schedule', {
-    method: 'DELETE',
-    headers: authHeaders(client),
-  });
-  assert.equal(cancelled.response.status, 200);
   const object = env.POMODORO_ALARMS.get(client.clientId);
-  assert.equal(object.state.storage.alarm, null);
   assert.equal(await object.state.storage.get('schedule'), undefined);
-  assert.ok(await object.state.storage.get('subscription'));
-  await call(env, '/api/schedule', {
-    method: 'POST',
-    headers: authHeaders(client),
-    body: {
-      phase: 'focus',
-      phaseEndsAt: Date.now() + 60_000,
-      focusMin: 25,
-      breakMin: 5,
-      longBreakMin: 15,
-      completedPomodoros: 0,
-    },
-  });
-  const unsubscribed = await call(env, '/api/subscription', {
-    method: 'DELETE',
-    headers: authHeaders(client),
-  });
-  assert.equal(unsubscribed.response.status, 200);
-  assert.equal(object.state.storage.alarm, null);
-  assert.equal(await object.state.storage.get('schedule'), undefined);
-  assert.equal(await object.state.storage.get('subscription'), undefined);
 });
 
 test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme do dispositivo', async () => {
@@ -338,7 +225,6 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
     body: { subscription: pushSubscription },
   });
   const now = Date.parse('2026-10-26T14:00:00.000Z');
-  const pomoEndsAt = Date.parse('2026-10-26T15:00:00.000Z');
   const reminder = {
     id: 'habit-0',
     days: [1],
@@ -349,21 +235,10 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
   const originalNow = Date.now;
   const originalFetch = globalThis.fetch;
   let pushCount = 0;
+  const object = env.POMODORO_ALARMS.get(client.clientId);
   Date.now = () => now;
   try {
-    const pomodoro = await call(env, '/api/schedule', {
-      method: 'POST',
-      headers: authHeaders(client),
-      body: {
-        phase: 'focus',
-        phaseEndsAt: pomoEndsAt,
-        focusMin: 25,
-        breakMin: 5,
-        longBreakMin: 15,
-        completedPomodoros: 0,
-      },
-    });
-    assert.equal(pomodoro.response.status, 200);
+    await object.state.storage.put('schedule', { phase: 'focus', phaseEndsAt: now + 60_000 });
     const invalid = await call(env, '/api/habits', {
       method: 'POST',
       headers: authHeaders(client),
@@ -379,10 +254,10 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
     });
     assert.equal(scheduled.response.status, 200);
     assert.equal(scheduled.body.scheduledAt, Date.parse('2026-10-26T14:02:00.000Z'));
-    const object = env.POMODORO_ALARMS.get(client.clientId);
     const saved = await object.state.storage.get('habitReminders');
     assert.deepEqual(saved, [reminder]);
     assert.equal(JSON.stringify(saved).includes('Beber água'), false);
+    assert.equal(await object.state.storage.get('schedule'), undefined);
 
     Date.now = () => scheduled.body.scheduledAt;
     globalThis.fetch = async (url) => {
@@ -392,14 +267,8 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
     };
     await object.instance.alarm();
     assert.equal(pushCount, 1);
-    assert.equal(object.state.storage.alarm, pomoEndsAt);
-    assert.equal((await object.state.storage.get('schedule')).phase, 'focus');
-
-    Date.now = () => pomoEndsAt;
-    await object.instance.alarm();
-    assert.equal(pushCount, 2);
-    assert.equal((await object.state.storage.get('schedule')).phase, 'short-break');
-    assert.equal(object.state.storage.alarm, Date.parse('2026-10-26T15:05:00.000Z'));
+    assert.equal(object.state.storage.alarm, Date.parse('2026-11-02T15:02:00.000Z'));
+    assert.equal(await object.state.storage.get('schedule'), undefined);
 
     const cleared = await call(env, '/api/habits', {
       method: 'DELETE',
@@ -407,8 +276,6 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
     });
     assert.equal(cleared.response.status, 200);
     assert.equal(await object.state.storage.get('habitReminders'), undefined);
-    assert.equal(object.state.storage.alarm, Date.parse('2026-10-26T15:05:00.000Z'));
-    await call(env, '/api/schedule', { method: 'DELETE', headers: authHeaders(client) });
     assert.equal(object.state.storage.alarm, null);
   } finally {
     Date.now = originalNow;

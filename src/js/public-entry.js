@@ -18,7 +18,7 @@ if (isNativeApp()) {
   void import('./services/native-auth.js')
     .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
     .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
-  void import('./services/pomodoro-push.js')
+  void import('./services/push-notifications.js')
     .catch((error) => console.error('O Aurora não conseguiu preparar as notificações nativas.', error));
 }
 const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
@@ -259,6 +259,7 @@ normalizeLegacyRoute();
 
 const installedLanding = routeMeta
   && !isDemoLocation(location)
+  && document.documentElement.dataset.auroraAuthCallback !== 'true'
   && isAppInstalled()
   && isPublicLandingLocation(location);
 if (installedLanding) {
@@ -270,7 +271,7 @@ const publicEntryRoute = routeMeta && (
   || isPublicAccountLocation(location)
 );
 
-if (localPreview || !publicEntryRoute || installedLanding) {
+if (localPreview || !publicEntryRoute || installedLanding || document.documentElement.dataset.auroraAuthCallback === 'true') {
   import('./main.js').catch((error) => {
     console.error('Aurora: não foi possível carregar a aplicação.', error);
     showEntryError(root);

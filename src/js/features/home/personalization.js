@@ -11,7 +11,6 @@ export const HOME_SHORTCUTS = [
   { id: 'task', label: 'Nova tarefa', icon: 'calendarCheck', description: 'Criar uma tarefa para hoje.', action: 'quick-action-task' },
   { id: 'habit', label: 'Novo hábito', icon: 'check', description: 'Adicionar um hábito à rotina.', action: 'quick-action-habit', area: 'habits' },
   { id: 'finance', label: 'Finanças', icon: 'wallet', description: 'Criar uma conta ou lançamento.', action: 'quick-action-finance', area: 'finances' },
-  { id: 'pomodoro', label: 'Abrir Pomodoro', icon: 'clock', description: 'Ir para o seu espaço de foco.', action: 'quick-action-pomodoro', area: 'pomodoro' },
 ];
 
 export const HOME_MODES = Object.freeze({
@@ -22,10 +21,10 @@ export const HOME_MODES = Object.freeze({
     shortcuts: HOME_SHORTCUTS.map(({ id }) => id),
   }),
   focus: Object.freeze({
-    label: 'Foco',
-    description: 'Tarefa rápida, plano do dia e Pomodoro.',
+    label: 'Essencial',
+    description: 'Tarefa rápida e plano do dia.',
     layout: Object.freeze({ order: ['quick', 'today', 'summary', 'habits'], visible: ['quick', 'today'] }),
-    shortcuts: ['task', 'pomodoro'],
+    shortcuts: ['task'],
   }),
   routine: Object.freeze({
     label: 'Rotina',
@@ -37,7 +36,6 @@ export const HOME_MODES = Object.freeze({
 
 export const HOME_AREA_COLORS = Object.freeze([
   Object.freeze({ id: 'planning', label: 'Planejar', css: 'planning' }),
-  Object.freeze({ id: 'pomodoro', label: 'Pomodoro', css: 'pomodoro' }),
   Object.freeze({ id: 'habits', label: 'Hábitos', css: 'habits' }),
   Object.freeze({ id: 'finances', label: 'Finanças', css: 'finances' }),
   Object.freeze({ id: 'cycle', label: 'Ciclo', css: 'cycle' }),

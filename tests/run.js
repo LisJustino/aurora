@@ -23,7 +23,6 @@ import {
   isValidMenuOrder,
   isValidVisibleMenuItems,
   canMoveMenuItem,
-  MENU_ITEMS,
   moveMenuItem,
   normalizeMenuOrder,
   normalizeVisibleMenuItems,
@@ -103,6 +102,7 @@ import {
   PROFILE_AVATAR_COLORS,
   PROFILE_GREETING_STYLES,
 } from '../src/js/features/profile/model.js';
+import { canAccessCycle } from '../src/js/features/cycle/access.js';
 import {
   defaultHomeLayout,
   HOME_AREA_COLORS,
@@ -134,22 +134,6 @@ import {
   trashDaysRemaining,
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
-import {
-  advancePomodoro,
-  customPomodoroSettings,
-  cyclesPerLongBreak,
-  effectivePomodoroSettings,
-  longBreakMinutes,
-  normalizePomodoroHistory,
-  phaseDurationSeconds,
-  POMODORO_PRESETS,
-  recentFocusDays,
-} from '../src/js/features/pomodoro/pomodoro.js';
-import {
-  DEFAULT_POMODORO_SOUND_VOLUME,
-  playPomodoroChime,
-  resumePomodoroAudioContext,
-} from '../src/js/features/pomodoro/pomodoro-audio.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
 import {
   createCyclePeriod,
@@ -159,7 +143,6 @@ import {
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from '../src/js/features/cycle/period.js';
-import { createPomodoroSchedule } from '../src/js/services/pomodoro-push.js';
 import {
   BACKUP_ACTIVITY_THRESHOLD,
   BACKUP_REMINDER_DAYS,
@@ -239,11 +222,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Explorar demonstração',
     'Começar grátis',
     'Ver demo em 1 minuto',
-    'Planner de tarefas, hábitos, foco e finanças em um só lugar.',
+    'Demo com dados fictícios, sem cadastro.',
+    'Planner de tarefas, hábitos, ciclo e finanças em um só lugar.',
     'Totalmente grátis',
     'Feito por uma pessoa só, com cuidado',
     'preview-area-cycle',
-    'Cinco áreas, no seu ritmo',
+    'Quatro áreas, no seu ritmo',
     'Posso exportar meus dados?',
     'data-footer-suggestion',
     'Escolha como quer começar',
@@ -253,11 +237,14 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'O acesso aos registros é restrito à sua conta autenticada.',
     'não são criptografados de ponta a ponta',
     'href="/privacy.html"',
-    'Acompanhe períodos e sintomas',
+    'Com consentimento específico, acompanhe períodos e sintomas',
   ];
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
+  if (root.innerHTML.indexOf('public-maker') < root.innerHTML.indexOf('public-features')) {
+    throw new Error('A transparência sobre a autoria deve vir depois da apresentação das áreas.');
+  }
   if (root.innerHTML.includes('É o dado mais sensível do app')) {
     throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
   }
@@ -356,7 +343,7 @@ test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', 
 });
 
 test('orientações cobrem as telas e esclarecem a privacidade financeira', () => {
-  const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'ciclo'];
+  const routes = ['inicio', 'planejar', 'financas', 'habitos', 'ciclo'];
   equal(AREA_GUIDE_IDS.join(','), routes.join(','));
   Object.values(AREA_GUIDES).forEach((guide) => {
     ok(guide.title);
@@ -738,10 +725,11 @@ test('normaliza datas legadas sem aceitar dias inexistentes', () => {
   equal(normalizeDay('2024/04/31'), '');
 });
 
-test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {
-  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
+test('mantém aliases legados e direciona rotas removidas ou desconhecidas para Início', () => {
+  const routes = new Set(['inicio', 'planejar', 'financas', 'habitos', 'config']);
 
-  truthy(MENU_ITEMS.some((item) => item.id === 'pomodoro'));
+  equal(resolveRoute('pomodoro', routes).route, 'inicio');
+  equal(resolveRoute('pomodoro', routes).replaceHash, null);
   equal(resolveRoute('estudos', routes).route, 'inicio');
   equal(resolveRoute('estudos', routes).replaceHash, null);
   equal(resolveRoute('removida', routes).route, 'inicio');
@@ -757,11 +745,13 @@ test('mantém aliases legados, redireciona Água para Hábitos e limita rotas de
 });
 
 test('usa caminhos legíveis e converte hashes antigos sem perder query ou âncoras', () => {
-  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'config']);
+  const routes = new Set(['inicio', 'planejar', 'financas', 'habitos', 'config']);
   equal(routePathFor('financas'), '/financas');
   equal(routePathFor('perfil'), '/config');
   equal(routePathFor('config?section=calendars'), '/config?section=calendars');
   equal(routeFromLocation(new URL('https://aurora.local/financas'), routes).route, 'financas');
+  equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).route, 'inicio');
+  equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).replacePath, '/inicio');
   equal(routeFromLocation(new URL('https://aurora.local/pages/inicio.html#main'), routes).replacePath, '/inicio#main');
   equal(routeFromLocation(new URL('https://aurora.local/#agua'), routes).replacePath, '/habitos');
   equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/config?section=data');
@@ -782,25 +772,25 @@ test('resolve rotas públicas por caminho e preserva as âncoras da landing', ()
   falsy(isPublicLandingLocation(new URL('https://aurora.local/#financas')));
 });
 
-test('descarta opções de menu desconhecidas ao normalizar preferências', () => {
+test('descarta opções de menu removidas ao normalizar preferências antigas', () => {
   const oldOrder = ['inicio', 'planejar', 'pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
   const oldVisibleItems = ['pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
 
   truthy(isValidMenuOrder(oldOrder));
   truthy(isValidVisibleMenuItems(oldVisibleItems));
-  equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,financas,ciclo,habitos,agua');
+  equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'financas,ciclo,habitos,agua');
   falsy(isValidMenuOrder([...oldOrder, 'retired']));
   falsy(isValidVisibleMenuItems([...oldVisibleItems, 'retired']));
 });
 
 test('mantém Início e Planejar fixos e só oferece movimentos possíveis no menu', () => {
-  const order = ['inicio', 'pomodoro', 'planejar', 'financas', 'agua', 'ciclo', 'habitos'];
+  const order = ['inicio', 'planejar', 'financas', 'agua', 'ciclo', 'habitos'];
 
-  equal(normalizeMenuOrder(order).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(moveMenuItem(order, 'planejar', 1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(moveMenuItem(order, 'pomodoro', -1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  truthy(canMoveMenuItem(order, 'pomodoro', 1));
+  equal(normalizeMenuOrder(order).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'planejar', 1).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'pomodoro', -1).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  falsy(canMoveMenuItem(order, 'pomodoro', 1));
   falsy(canMoveMenuItem(order, 'inicio', 1));
   falsy(canMoveMenuItem(order, 'planejar', 1));
   falsy(canMoveMenuItem(order, 'habitos', 1));
@@ -1386,214 +1376,6 @@ test('ideias de hábitos omitem hábitos já existentes sem diferenciar acentos 
   ok(remaining.some((idea) => idea.id === 'sleep'));
 });
 
-/* ---- Pomodoro ---- */
-const noon = new Date(2026, 9, 21, 12, 0, 0).getTime();
-function mockAudioContext() {
-  const oscillators = [], gains = [];
-  return {
-    currentTime: 1,
-    destination: {},
-    oscillators,
-    gains,
-    createOscillator() {
-      const oscillator = {
-        frequency: { setValueAtTime(value) { oscillator.frequencyValue = value; } },
-        connect() {},
-        start(value) { oscillator.startAt = value; },
-        stop(value) { oscillator.stopAt = value; },
-      };
-      oscillators.push(oscillator);
-      return oscillator;
-    },
-    createGain() {
-      const ramps = [];
-      const gain = {
-        ramps,
-        gain: {
-          setValueAtTime(value) { gain.initialGain = value; },
-          exponentialRampToValueAtTime(value) { ramps.push(value); },
-        },
-        connect() {},
-      };
-      gains.push(gain);
-      return gain;
-    },
-  };
-}
-const freshTimer = (extra = {}) => ({
-  elapsedSeconds: 0,
-  startedAt: noon - 26 * 60 * 1000,
-  phase: 'focus',
-  phaseElapsedSeconds: 0,
-  completedPomodoros: 0,
-  dailyCompletedPomodoros: 0,
-  dailyCompletedOn: '',
-  ...extra,
-});
-
-test('retoma o áudio interrompido no Safari móvel', () => {
-  let resumes = 0;
-  const context = {
-    state: 'interrupted',
-    resume() {
-      resumes += 1;
-      return Promise.resolve();
-    },
-  };
-
-  resumePomodoroAudioContext(context);
-  equal(resumes, 1);
-});
-
-test('não reinicia um contexto de áudio que já está ativo', () => {
-  let resumes = 0;
-  const context = {
-    state: 'running',
-    resume() {
-      resumes += 1;
-      return Promise.resolve();
-    },
-  };
-
-  resumePomodoroAudioContext(context);
-  equal(resumes, 0);
-});
-
-test('o toque padrão do Pomodoro tem volume reforçado', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context);
-  equal(DEFAULT_POMODORO_SOUND_VOLUME, 75);
-  equal(Math.round(context.gains[0].ramps[0] * 100), 60);
-});
-
-test('o toque e o volume escolhidos alteram o aviso sonoro', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context, { tone: 'bell', volume: 40 });
-  equal(context.oscillators.length, 3);
-  equal(context.oscillators[0].type, 'triangle');
-  equal(context.oscillators[0].frequencyValue, 1046);
-  equal(Math.round(context.gains[0].ramps[0] * 100), 32);
-});
-
-test('volume zero silencia o aviso sem criar áudio', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context, { volume: 0 });
-  equal(context.oscillators.length, 0);
-});
-
-test('pausa longa usa o tempo configurado e volta a 15 min se o valor for inválido', () => {
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 20 }, 'long-break'), 1200);
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 3 }, 'long-break'), 900);
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5 }, 'long-break'), 900);
-  equal(longBreakMinutes({ longBreakMin: 60 }), 60);
-});
-
-test('preset clássico fixa 25/5/15 mesmo com valores personalizados salvos', () => {
-  const effective = effectivePomodoroSettings({ preset: 'classic', focusMin: 40, breakMin: 10, longBreakMin: 30 });
-  equal(effective.focusMin, 25);
-  equal(effective.breakMin, 5);
-  equal(effective.longBreakMin, 15);
-});
-
-test('presets de Pomodoro oferecem ritmos curtos, estendidos e profundos', () => {
-  for (const [preset, focusMin, breakMin] of [
-    ['short', 15, 3],
-    ['extended', 50, 10],
-    ['deep', 90, 20],
-  ]) {
-    const effective = effectivePomodoroSettings({ preset, focusMin: 25, breakMin: 5, autoAdvance: false });
-    equal(effective.focusMin, focusMin);
-    equal(effective.breakMin, breakMin);
-    equal(effective.longBreakMin, POMODORO_PRESETS[preset].longBreakMin);
-    equal(effective.autoAdvance, false);
-  }
-});
-
-test('editar um preset mantém o ritmo escolhido e o avanço automático', () => {
-  const custom = customPomodoroSettings({
-    preset: 'deep',
-    focusMin: 25,
-    breakMin: 5,
-    autoAdvance: false,
-  });
-  equal(custom.preset, 'custom');
-  equal(custom.focusMin, 90);
-  equal(custom.breakMin, 20);
-  equal(custom.autoAdvance, false);
-});
-
-test('concluir um bloco de foco avança a fase e registra o dia no histórico', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 15 };
-  const { timer, transitions } = advancePomodoro(freshTimer(), settings, noon);
-  equal(transitions.length, 1);
-  equal(timer.phase, 'short-break');
-  equal(timer.completedPomodoros, 1);
-  equal(timer.history['2026-10-21'], 1);
-});
-
-test('o quarto bloco leva à pausa longa configurada', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20 };
-  const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
-  equal(timer.phase, 'long-break');
-  equal(phaseDurationSeconds(settings, timer.phase), 1200);
-});
-
-test('a quantidade de blocos até a pausa longa pode ser personalizada', () => {
-  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 6 }), 6);
-  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 1 }), 4);
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, cyclesPerLongBreak: 6 };
-  let timer = freshTimer({ completedPomodoros: 5 });
-  const { timer: advanced } = advancePomodoro(timer, settings, noon);
-  equal(advanced.phase, 'long-break');
-});
-
-test('Pomodoro independente alterna foco e pausa sem ciclos', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, longBreakEnabled: false };
-  const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
-  equal(timer.phase, 'short-break');
-  equal(phaseDurationSeconds(settings, timer.phase), 300);
-});
-
-test('histórico do Pomodoro descarta entradas inválidas e limita a 30 dias', () => {
-  const dirty = { 'ruim': 2, '2026-10-01': -1, '2026-10-02': 1.5, '2026-10-03': 4 };
-  const clean = normalizePomodoroHistory(dirty);
-  equal(JSON.stringify(clean), JSON.stringify({ '2026-10-03': 4 }));
-  equal(JSON.stringify(normalizePomodoroHistory(null)), '{}');
-  const many = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`2026-01-${String(index % 28 + 1).padStart(2, '0')}`, 1]));
-  truthy(Object.keys(normalizePomodoroHistory(many)).length <= 30);
-});
-
-test('últimos 7 dias do Pomodoro preenchem zeros e terminam no dia informado', () => {
-  const days = recentFocusDays({ '2026-10-21': 3, '2026-10-18': 2 }, '2026-10-21', 7);
-  equal(days.length, 7);
-  equal(days[0].day, '2026-10-15');
-  equal(days[6].day, '2026-10-21');
-  equal(days[6].count, 3);
-  equal(days[3].count, 2);
-  equal(days[1].count, 0);
-});
-
-test('o agendamento Push do Pomodoro contém somente fase, horários e durações', () => {
-  const now = 1_000_000;
-  const schedule = createPomodoroSchedule({
-    phase: 'short-break',
-    startedAt: now - 60_000,
-    phaseElapsedSeconds: 30,
-    completedPomodoros: 1,
-    focusTaskId: 'local-task',
-    focusLabel: 'texto privado',
-  }, {
-    focusMin: 25,
-    breakMin: 5,
-    longBreakMin: 15,
-  }, now);
-
-  equal(schedule.phaseEndsAt, now + 210_000);
-  equal(schedule.completedPomodoros, 1);
-  equal(Object.keys(schedule).some((key) => /task|label|name|text/i.test(key)), false);
-  equal(createPomodoroSchedule({ startedAt: null }, {}, now), null);
-});
-
 /* ---- Paletas de cor ---- */
 const contrastOnWhite = (hex) => 1.05 / (lum(hex) + .05);
 
@@ -1647,6 +1429,15 @@ test('aparência de perfil valida opções sem descartar preferências futuras',
   truthy(PROFILE_AVATARS.length >= 4);
   truthy(PROFILE_AVATAR_COLORS.length >= 6);
   truthy(PROFILE_GREETING_STYLES.some(([id]) => id === 'dynamic'));
+});
+
+test('Ciclo só é acessível para mulheres, exceto na demonstração fictícia', () => {
+  equal(canAccessCycle({ sex: '' }), false);
+  equal(canAccessCycle({ sex: 'm' }), false);
+  equal(canAccessCycle({ sex: 'nb' }), false);
+  equal(canAccessCycle({ sex: 'n' }), false);
+  equal(canAccessCycle({ sex: 'f' }), true);
+  equal(canAccessCycle({ sex: '' }, true), true);
 });
 
 test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {

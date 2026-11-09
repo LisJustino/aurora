@@ -50,16 +50,50 @@ const check = (passed, name, detail = '') => {
   const timeBox = await page.locator('#dlg input[type="time"]').boundingBox();
   check(Boolean(timeBox && timeBox.x >= 0 && timeBox.x + timeBox.width <= 390), 'campo de horário cabe na largura mobile');
   check(await page.locator('#dlg .task-icon-picker input[type="radio"]').count() >= 20, 'formulário oferece uma variedade de ícones');
-  await page.getByRole('radio', { name: 'Estudos' }).check();
+  await page.locator('#dlg button[form="dlgform"]').click();
+  check(await page.locator('#dlg [data-dlg="title"]').getAttribute('aria-invalid') === 'true'
+    && await page.locator('#dlg [role="alert"]').innerText() === 'Escreva um título.',
+  'título vazio recebe erro inline');
   await page.locator('#dlg [data-dlg="title"]').fill('Revisar leitura');
+  await page.locator('#dlg [data-dlg="repeat"]').selectOption('day');
+  await page.locator('#dlg button[form="dlgform"]').click();
+  check(await page.locator('#dlg [data-dlg="due"]').getAttribute('aria-invalid') === 'true'
+    && await page.locator('#dlg [role="alert"]').innerText() === 'Defina um prazo para repetir ou ter horário.',
+  'repetição exige prazo explícito');
+  await page.locator('#dlg [data-dlg="repeat"]').selectOption('none');
+  await page.locator('#dlg [data-dlg="time"]').fill('10:30');
+  await page.locator('#dlg button[form="dlgform"]').click();
+  check(await page.locator('#dlg [data-dlg="due"]').getAttribute('aria-invalid') === 'true',
+    'horário exige prazo explícito');
+  await page.locator('#dlg [data-dlg="due"]').fill('2026-11-15');
+  await page.getByRole('radio', { name: 'Estudos' }).check();
   await page.locator('#dlg button[form="dlgform"]').click();
   const createdTask = page.locator('.task').filter({ hasText: 'Revisar leitura' });
   check(await createdTask.locator('.task-title-icon').count() === 1, 'ícone escolhido aparece na tarefa criada');
   await createdTask.locator('.tt[data-action="edit-task"]').click();
   check(await page.locator('#dlg [data-dlg="icon"][value="book"]').isChecked(), 'ícone permanece selecionado ao editar');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  await page.locator('[data-change="plan-view"]').selectOption('calendario');
+  await page.locator('[data-action="tcal-month"][data-n="1"]').click();
+  const calendarDay = page.locator('[data-action="tcal-day"]').first();
+  const calendarDate = await calendarDay.getAttribute('data-d');
+  await calendarDay.click();
+  const calendarEmpty = page.locator('.empty[role="status"]').filter({ hasText: 'Nada marcado para este dia.' });
+  await calendarEmpty.getByRole('button', { name: 'Adicionar tarefa neste dia' }).click();
+  check(await page.locator('#dlg [data-dlg="due"]').inputValue() === calendarDate, 'ação do calendário pré-seleciona o dia vazio');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  await page.locator('[data-change="plan-view"]').selectOption('semana');
+  const weekAction = page.locator('.week-day .empty[role="status"] [data-action="week-add"]').first();
+  const weekDate = await weekAction.getAttribute('data-d');
+  await weekAction.click();
+  check(await page.locator('#dlg [data-dlg="due"]').inputValue() === weekDate, 'ação da semana pré-seleciona o dia vazio');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
   await page.setViewportSize({ width: 320, height: 568 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Planejar não tem overflow horizontal em 320 px');
+  check(await page.locator('.header-actions .iconbtn:visible').evaluateAll((buttons) => buttons.every((button) => {
+    const rect = button.getBoundingClientRect();
+    return rect.width >= 44 && rect.height >= 44;
+  })), 'botões visíveis do cabeçalho mantêm alvo de 44 px');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await context.close();

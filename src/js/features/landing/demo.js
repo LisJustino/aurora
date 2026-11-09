@@ -6,7 +6,6 @@ import { timeBasedGreeting } from '../profile/model.js';
 const DEMO_NAV_ITEMS = [
   ['today', 'Hoje', 'home'],
   ['tasks', 'Tarefas', 'calendarCheck'],
-  ['focus', 'Foco', 'clock'],
   ['habits', 'Hábitos', 'leaf'],
   ['cycle', 'Ciclo', 'heart'],
   ['finance', 'Finanças', 'wallet'],
@@ -38,15 +37,6 @@ function renderTaskRows(tasks) {
       <span class="chk" aria-hidden="true"><span>${demoIcon('check', 15)}</span></span>
       <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta">${task.done ? '<span>Concluída</span>' : task.id === nextTaskId ? '<span class="m-warn">Próximo passo</span>' : '<span class="m-warn">Hoje</span>'}<span>Exemplo</span></span></div>
     </li>`).join('')}</ul>`;
-}
-
-function renderFocusCard({ large = false } = {}) {
-  return `
-    <section class="card demo-focus-card ${large ? 'demo-focus-card--large' : ''}" aria-labelledby="demo-focus-title">
-      <div class="head"><div><p class="section-kicker">Um tempo para você</p><h2 id="demo-focus-title">${large ? 'Foco no seu ritmo' : 'Foco, depois uma pausa'}</h2></div>${demoIcon('clock', 20)}</div>
-      <div class="timer" aria-label="Exemplo de sessão de foco de 25 minutos">25:00</div>
-      <p class="demo-muted">Prévia somente de leitura · exemplo fictício.</p>
-    </section>`;
 }
 
 function renderHabitCard({ large = false } = {}) {
@@ -161,10 +151,6 @@ function renderDemoScreen(state) {
 
 function renderDemoArea(state) {
   if (state.view === 'tasks') return renderTasks(state);
-  if (state.view === 'focus') {
-    return `${renderPageHeading('Seu tempo', 'Foco', 'Escolha uma duração e experimente um período para você.')}
-      <div class="demo-area-single">${renderFocusCard({ large: true })}</div>`;
-  }
   if (state.view === 'habits') {
     return `${renderPageHeading('Pequenos cuidados', 'Hábitos', 'Acompanhe o que faz sentido para sua rotina, um dia de cada vez.')}
       <div class="demo-area-single">${renderHabitCard({ large: true })}
@@ -211,7 +197,7 @@ export function renderLandingDemo(root) {
       ${renderPublicHeader({ demo: true }).replace('<span class="header-actions public-header-actions">', `<nav class="nav demo-nav" aria-label="Áreas de exemplo">${renderNavigation(state)}</nav><span class="header-actions public-header-actions">`)}
       <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
         <div class="demo-screen" data-demo-screen></div>
-        <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, foco, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><a class="btn primary" href="/criar-conta" data-public-action="signup">Criar conta</a><a class="btn" href="/" data-public-action="landing">Voltar à página inicial</a></div></section>
+        <section class="demo-cta" id="demo-help"><div><p class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div class="public-actions"><a class="btn primary" href="/criar-conta" data-public-action="signup">Criar conta</a><a class="btn" href="/" data-public-action="landing">Voltar à página inicial</a></div></section>
         <footer class="demo-footer"><button type="button" class="footer-link" data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">·</span><button type="button" class="footer-link" data-legal-document="privacy">Privacidade</button></footer>
       </main>
     </div>`;

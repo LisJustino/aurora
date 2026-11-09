@@ -11,7 +11,7 @@
 .week-planner { display: flex; flex-direction: column; gap: var(--space-3); }
 .week-planner > .mnav { flex-wrap: wrap; }
 .week-planner > .mnav > b { min-width: 0; flex: 1; text-align: center; }
-.week-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.week-days { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .week-day {
   display: flex;
   min-width: 0;
@@ -23,7 +23,7 @@
   border-radius: var(--r-group);
   background: var(--surface-strong);
 }
-.week-day.is-today { border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); }
+.week-day.is-today { border-left: 4px solid var(--accent); }
 .week-day > .head { align-items: center; margin: 0; }
 .week-day h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .week-day .list { min-width: 0; }
@@ -489,6 +489,50 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .main[data-route="habitos"] .habit-resume-list li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
 .main[data-route="habitos"] .habit-resume-list li > span { min-width: 0; overflow-wrap: anywhere; }
 .main[data-route="habitos"] .habit-row.is-pending { border-color: color-mix(in srgb, var(--area-tone) 28%, var(--line)); }
+
+.habit-today .habit-row,
+.habit-today .habit-row.is-done,
+.main[data-route="habitos"] .habit-today .habit-row.is-pending {
+  border-color: var(--line);
+  background: var(--surface);
+}
+.habit-today .empty { border-color: var(--area-tone, var(--accent)); background: var(--soft); }
+.habit-today .empty .eic { color: var(--area-tone, var(--accent)); }
+.habit-today .habit-circle { width: 44px; height: 44px; }
+.habit-today .habit-week { max-width: 320px; gap: 0; }
+.habit-today .habit-dot,
+.habit-today button.habit-dot.is-done {
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.habit-today .habit-dot i {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+}
+.habit-today .habit-dot.is-done i { border-color: var(--hc); background: var(--hc); color: var(--on-solid); }
+.habit-today .habit-dot.is-skipped i, .habit-today .habit-dot.is-off i { border-style: dashed; }
+.habit-today .habit-dot.is-today i { outline: 2px solid var(--accent); outline-offset: 2px; }
+.plan-view-select { display: grid; width: min(100%, 240px); gap: var(--space-1); font-weight: 700; }
+.week-day > .btn { min-height: var(--control-md); }
+@media (max-width: 899px) {
+  .week-day.is-today { order: -1; }
+}
+@media (min-width: 900px) {
+  .week-days { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
+  .week-day { padding: var(--space-2); }
+  .week-day > .head { align-items: flex-start; flex-direction: column; }
+  .week-day .list > .task { flex-wrap: wrap; padding: var(--space-2); }
+  .week-day .task .tt { flex-basis: calc(100% - 44px); }
+  .week-day .empty { min-width: 0; min-height: 0; flex-direction: column; padding: var(--space-2); }
+  .week-day .empty-action, .week-day .empty-action > .btn { width: 100%; min-width: 0; }
+}
 .main[data-route="habitos"] .habit-reminder-note .ic { flex: none; margin-top: 1px; color: var(--area-tone); }
 .main[data-route="habitos"] .habit-record-actions > .btn { min-height: var(--control-sm); padding-inline: 14px; }
 :root[data-theme="dark"] .habit-record { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }

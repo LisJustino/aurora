@@ -25,7 +25,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 /* ---- Início: o plano de hoje é o foco; o resto fica mais leve ---- */
 .home-today-card {
   border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
-  box-shadow: var(--card-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: none;
 }
 @media (max-width: 640px) {
   .home-quick-copy p { display: none; }

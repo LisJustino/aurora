@@ -1,7 +1,7 @@
-const CACHE_NAME = 'aurora-static-v12';
+const CACHE_NAME = 'aurora-static-v13';
 const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
 const APP_ROUTE = /^\/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?$/i;
-const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar|pomodoro)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
+const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
 const APP_SHELL_ASSET = /^\/(?:(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf))|(?:icons\/.+\.(?:svg|png|jpe?g|webp|ico))|(?:screenshots\/.+\.(?:png|webp))|favicon\.svg)$/i;
 
 self.addEventListener('message', (event) => {
@@ -108,23 +108,14 @@ self.addEventListener('push', (event) => {
       payload = {};
     }
     const habitReminder = payload.kind === 'habit-reminder';
-    const title = habitReminder
-      ? 'aurora. · Hábitos'
-      : typeof payload.title === 'string' && payload.title.length <= 80
-      ? payload.title
-      : 'aurora. · Pomodoro';
-    const body = habitReminder
-      ? 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.'
-      : typeof payload.body === 'string' && payload.body.length <= 180
-      ? payload.body
-      : 'Uma nova fase do Pomodoro começou.';
-    await self.registration.showNotification(title, {
-      body,
+    if (!habitReminder) return;
+    await self.registration.showNotification('aurora. · Hábitos', {
+      body: 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.',
       icon: new URL('./icons/aurora-192.png', self.registration.scope).href,
       badge: new URL('./icons/aurora-192.png', self.registration.scope).href,
-      tag: habitReminder ? 'aurora-habits' : 'aurora-pomodoro',
+      tag: 'aurora-habits',
       renotify: false,
-      data: { route: habitReminder ? 'habitos' : 'pomodoro' },
+      data: { route: 'habitos' },
     });
   })());
 });
@@ -132,10 +123,10 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
+    if (event.notification.data?.route !== 'habitos') return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-    const route = event.notification.data?.route === 'habitos' ? 'habitos' : 'pomodoro';
-    const targetUrl = new URL(`./${route}`, self.registration.scope).href;
+    const targetUrl = new URL('./habitos', self.registration.scope).href;
     if (existing) {
       if (typeof existing.navigate === 'function') await existing.navigate(targetUrl);
       await existing.focus();

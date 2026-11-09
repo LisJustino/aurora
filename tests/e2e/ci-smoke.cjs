@@ -125,13 +125,14 @@ async function main() {
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('mobile-landing-matrix.cjs', DEV_URL);
   runSuite('habits-app-experience.cjs', DEV_URL);
+  runSuite('dashboard-hierarchy.cjs', DEV_URL);
   runSuite('backup-export-import.cjs', DEV_URL);
   runSuite('pwa-update.cjs', PREVIEW_URL);
+  runSuite('auth-callback-loading.cjs', PREVIEW_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);
   runSuite('signup-birthdate.cjs', DEV_URL);
   runSuite('auth-flows.cjs');
   runSuite('app-shell-quick-actions.cjs', DEV_URL);
-  runSuite('app-shell-pomodoro-mini.cjs', DEV_URL);
   runSuite('accessibility.cjs', DEV_URL);
   runSuite('custom-select.cjs', DEV_URL);
   runSuite('cycle-intimacy.cjs', DEV_URL);

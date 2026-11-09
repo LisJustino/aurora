@@ -16,7 +16,6 @@ const VIDEO_HEIGHT = 720;
 const accents = {
   inicio: '#b5527a',
   planejar: '#6474c0',
-  pomodoro: '#7551a0',
   financas: '#2f796e',
   habitos: '#7b8d46',
   ciclo: '#a84f88',
@@ -32,7 +31,6 @@ const focusSteps = {
     { open: '[data-action="plan-view"][data-v="lista"]', target: '.grp .gh' },
     '.task',
   ],
-  pomodoro: ['#pomo-focus-label', '[data-action="toggle-free-timer"]', '.free-pomodoro-settings', '.focus-dial'],
   financas: [
     { open: '[data-action="fin-tab"][data-t="contas"]', target: '.fin-section-content .acc' },
     { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '[data-action="tx-new"]' },

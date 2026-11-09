@@ -494,5 +494,3 @@
 .icopick[aria-pressed="true"] { border-color: var(--accent); background: var(--soft2); color: var(--accent); }
 .list.tight > li { padding: 0; }
 .list.tight .fr-main { width: 100%; }
-
-.free-pomodoro-label { display: grid; gap: 6px; width: 100%; }

@@ -755,7 +755,7 @@ export function createAccountForm(root, {
     const nameInput = createField(form, 'Nome', 'name', 'text', 'name', signupProfile?.name || '');
     const preferredNameInput = createField(
       form,
-      'Como você prefere ser chamado(a)?',
+      'Nome de preferência (opcional)',
       'preferredName',
       'text',
       'nickname',
@@ -763,6 +763,7 @@ export function createAccountForm(root, {
     );
     nameInput.maxLength = 50;
     preferredNameInput.maxLength = 50;
+    preferredNameInput.required = false;
     let preferredNameEdited = Boolean(signupProfile?.preferredName);
     preferredNameInput.addEventListener('input', () => { preferredNameEdited = true; });
     nameInput.addEventListener('input', () => {
@@ -956,7 +957,7 @@ export function createAccountForm(root, {
     const confirmPassword = form.elements.confirmPassword;
     const passwordField = password.closest('.account-field');
     const strength = create('div', 'account-password-strength');
-    strength.innerHTML = '<div class="account-strength-track" aria-hidden="true"><span></span></div><p class="account-strength-label" aria-live="polite">Força da senha: <b>fraca</b></p>';
+    strength.innerHTML = '<div class="account-strength-track" aria-hidden="true"><span></span></div><p class="account-strength-label" aria-live="polite">Critérios atendidos: <b>0 de 5</b></p>';
     const checklist = create('ul', 'account-password-checklist');
     checklist.id = 'account-password-checklist';
     checklist.setAttribute('aria-live', 'polite');
@@ -987,9 +988,13 @@ export function createAccountForm(root, {
         item.querySelector('.account-password-criterion-icon').innerHTML = iconSvg(valid ? 'check' : 'circle', 12);
         if (valid) passed += 1;
       });
-      const level = passed >= 5 ? 'forte' : passed >= 3 ? 'média' : 'fraca';
-      strength.dataset.strength = passed >= 5 ? 'strong' : passed >= 3 ? 'medium' : 'weak';
-      strength.querySelector('.account-strength-label b').textContent = level;
+      strength.dataset.criteriaState = passed === PASSWORD_REQUIREMENTS.length
+        ? 'complete'
+        : passed >= 3 ? 'partial' : 'incomplete';
+      strength.querySelector('.account-strength-track span').style.width =
+        `${(passed / PASSWORD_REQUIREMENTS.length) * 100}%`;
+      strength.querySelector('.account-strength-label b').textContent =
+        `${passed} de ${PASSWORD_REQUIREMENTS.length}`;
       const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === value;
       confirmPassword.setCustomValidity(confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '');
       const confirmEmail = form.elements.confirmEmail;
@@ -1066,7 +1071,6 @@ export function createAccountForm(root, {
       }
       submit.disabled = !(
         form.elements.name.value.trim()
-        && form.elements.preferredName.value.trim()
         && age !== null
         && age >= MINIMUM_ACCOUNT_AGE
         && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
@@ -1468,7 +1472,8 @@ export async function requireAccount(root, initialMode = 'login', {
       const birthdayReference = birthDate ? createBirthdayReference(birthDate) : null;
       return {
         name: form.elements.name.value.trim(),
-        preferredName: form.elements.preferredName.value.trim(),
+        preferredName: form.elements.preferredName.value.trim()
+          || form.elements.name.value.trim().split(/\s+/)[0],
         birthDate,
         age: birthdayReference?.ageAtReference ?? null,
         birthdayReference,
@@ -1588,7 +1593,7 @@ export async function requireAccount(root, initialMode = 'login', {
         return null;
       }
       const profile = result.signupProfile;
-      if (!profile || !profile.name || !profile.preferredName
+      if (!profile || !profile.name
         || !profile.birthdayReference) {
         message = 'Preencha seus dados e informe uma data de nascimento válida para continuar.';
         continue;
@@ -1788,7 +1793,7 @@ export async function requireAccount(root, initialMode = 'login', {
       }
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
-        if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
+        if (!result.signupProfile || !result.signupProfile.name
           || !birthdayReference) {
           message = 'Preencha seus dados e informe uma data de nascimento válida para criar uma conta.';
           continue;

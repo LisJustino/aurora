@@ -85,7 +85,7 @@ const check = (passed, name, detail = '') => {
             columns: getComputedStyle(menu).gridTemplateColumns.split(' ').length,
             expectedColumns: innerWidth <= 380 ? 2 : 3,
             fits: menu.scrollWidth === menu.clientWidth
-              && links.length === 6
+              &&               links.length === 7
               && links.every((link) => {
                 const rect = link.getBoundingClientRect();
                 return rect.width > 0 && rect.left >= menuRect.left && rect.right <= menuRect.right;

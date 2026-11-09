@@ -2,7 +2,7 @@
   position: fixed;
   z-index: var(--z-fab);
   right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px));
   display: inline-flex;
   min-height: var(--control-field);
   align-items: center;
@@ -441,6 +441,7 @@
     font-weight: 700;
     cursor: pointer;
   }
+
   .nav-more-menu .nav-more-create .ni {
     display: grid;
     width: 26px;
@@ -936,6 +937,17 @@
     background-color var(--duration-fast) var(--ease-standard),
     border-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
+}
+
+@media (max-width: 899px) {
+  .topbar .nav { display: flex; }
+  .topbar .nav > .nav-primary, .topbar .nav > .nav-more-trigger { min-width: 44px; min-height: 56px; flex: 1 1 0; }
+  .topbar .nav > .nav-enable-areas, .topbar .nav > .nav-quick-control > .nav-quick-trigger { display: none; }
+  .topbar .nav > .nav-quick-control { display: contents; }
+  .topbar .nav > .nav-primary .tab-label, .topbar .nav > .nav-more-trigger { font-size: 12px; }
+}
+@media (min-width: 900px) {
+  .app > .topbar .nav a[aria-current="page"] { background: var(--soft2); }
 }
 
 .nav-more-menu .nav-more-link .ni,
