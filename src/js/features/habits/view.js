@@ -11,8 +11,8 @@ export function renderHabitsView(dependencies) {
   const {
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
-    weekStartDay, habitCompletedFor, getPomodoroPushStatus, plural, habitRow,
-    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
+    weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
+    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate, empty,
   } = dependencies;
 
   if (!areaOn('habits')) return h`${areaPageTitle('habitos', 'Hábitos')}${gate('habits', 'Hábitos')}`;
@@ -47,7 +47,7 @@ export function renderHabitsView(dependencies) {
     (habit, day) => habitIsSkipped(habit, day, today()),
   );
   const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind);
-  const pushStatus = hasReminders ? getPomodoroPushStatus() : null;
+  const pushStatus = hasReminders ? getPushNotificationStatus() : null;
   const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
     && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
   const dow = pk(today()).getDay();
@@ -78,20 +78,20 @@ export function renderHabitsView(dependencies) {
   const slots = {
     'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
     'today-summary': h`${todaySummary}`.s,
-    'add-icon': icon('plus', 16).s,
+    'add-button': todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`.s : '',
     'today-progress': eligibleToday
       ? h`<div class="habit-today-bar" role="progressbar" aria-label="Hábitos concluídos hoje, sem contar dias pulados" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`.s
       : '',
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
-      : h`<div class="habit-empty" role="status"><span>${icon('check', 18)}</span><div><b>Dia livre</b><p>Crie um hábito ou escolha uma ideia abaixo.</p></div></div>`.s,
+      : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
     'reminder-note': hasReminders
       ? h`<details class="habit-reminder-note">
-        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos nos dois' : 'Opcionais · compartilhados'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
         <div class="habit-reminder-content">
         <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede, das permissões e do serviço de notificações.</p>
-        <p>Este interruptor controla a inscrição compartilhada de Hábitos e Pomodoro neste dispositivo; não há controles independentes. Os lembretes de hábitos só são enviados nos horários configurados.</p>
-        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos dos dois' : 'Ativar avisos dos dois'}</button>
+        <p>Este interruptor controla os avisos de Hábitos neste dispositivo. Os lembretes só são enviados nos horários configurados.</p>
+        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
         <p class="small muted">O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
         </div>

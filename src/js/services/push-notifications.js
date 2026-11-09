@@ -1,7 +1,6 @@
-import { phaseDurationSeconds, phaseElapsedSeconds } from '../features/pomodoro/pomodoro.js';
 import { Capacitor } from '@capacitor/core';
 import { isNativeApp } from '../utils/platform.js';
-import { POMODORO_PUSH_API_URL } from './pomodoro-push-config.js';
+import { PUSH_NOTIFICATIONS_API_URL } from './push-notifications-config.js';
 
 const LEGACY_STORAGE_KEY = 'aurora.push.pomodoro';
 let mutationQueue = Promise.resolve();
@@ -54,13 +53,13 @@ function removeLegacyCredentials() {
   }
 }
 
-export function configurePomodoroPushStore(store) {
+export function configurePushNotificationStore(store) {
   credentialStore = store;
   activeCredentials = null;
   nativePushConfigured = false;
 }
 
-export async function initializePomodoroPush() {
+export async function initializePushNotifications() {
   activeCredentials = null;
   if (!credentialStore) return;
   if (isNativeApp()) {
@@ -102,7 +101,7 @@ export async function initializePomodoroPush() {
   }
 }
 
-export function clearPomodoroPushState() {
+export function clearPushNotificationState() {
   activeCredentials = null;
   credentialStore = null;
 }
@@ -133,13 +132,12 @@ async function ensureNativePushListeners() {
     await plugin.addListener('registrationError', nativePushError);
     await plugin.addListener('pushNotificationReceived', (notification) => {
       const kind = notification.data?.kind;
-      if (kind === 'habit-reminder' || kind === 'pomodoro') {
+      if (kind === 'habit-reminder') {
         window.dispatchEvent(new CustomEvent('aurora:push-notification', { detail: { kind } }));
       }
     });
     await plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      const route = notification.data?.kind === 'habit-reminder' ? 'habitos' : 'pomodoro';
-      window.location.assign(`/${route}`);
+      if (notification.data?.kind === 'habit-reminder') window.location.assign('/habitos');
     });
     if (Capacitor.getPlatform() === 'ios') {
       const { FCM } = await import('@capacitor-community/fcm');
@@ -262,10 +260,10 @@ async function enableNativePush() {
 }
 
 function apiUrl(path) {
-  if (!POMODORO_PUSH_API_URL) throw new Error('not-configured');
+  if (!PUSH_NOTIFICATIONS_API_URL) throw new Error('not-configured');
   let base;
   try {
-    base = new URL(POMODORO_PUSH_API_URL);
+    base = new URL(PUSH_NOTIFICATIONS_API_URL);
   } catch {
     throw new Error('not-configured');
   }
@@ -324,7 +322,7 @@ function assertPushSupport() {
   ) throw new Error('unsupported');
 }
 
-export function getPomodoroPushStatus() {
+export function getPushNotificationStatus() {
   const native = typeof window !== 'undefined' && isNativeApp();
   const supported = native || (typeof window !== 'undefined'
     && window.isSecureContext
@@ -335,9 +333,9 @@ export function getPomodoroPushStatus() {
   const permission = native
     ? nativePushPermission
     : supported ? Notification.permission : 'unsupported';
-  const configured = Boolean(POMODORO_PUSH_API_URL && (!native || nativePushConfigured));
+  const configured = Boolean(PUSH_NOTIFICATIONS_API_URL && (!native || nativePushConfigured));
   let message = '';
-  if (!POMODORO_PUSH_API_URL) {
+  if (!PUSH_NOTIFICATIONS_API_URL) {
     message = 'O endereço do serviço de avisos ainda precisa ser configurado.';
   } else if (native && !nativePushConfigured) {
     message = 'O serviço de notificações nativas ainda precisa ser configurado.';
@@ -357,21 +355,7 @@ export function getPomodoroPushStatus() {
   return { configured, supported, enabled, permission, native, message };
 }
 
-export function createPomodoroSchedule(timer, pomodoro, now = Date.now()) {
-  if (!timer || timer.startedAt === null) return null;
-  const durationSeconds = phaseDurationSeconds(pomodoro, timer.phase);
-  const remainingSeconds = Math.max(0, durationSeconds - phaseElapsedSeconds(timer, now));
-  return {
-    phase: timer.phase,
-    phaseEndsAt: now + remainingSeconds * 1000,
-    focusMin: pomodoro.focusMin,
-    breakMin: pomodoro.breakMin,
-    longBreakMin: pomodoro.longBreakMin,
-    completedPomodoros: timer.completedPomodoros,
-  };
-}
-
-export async function enablePomodoroPush() {
+export async function enablePushNotifications() {
   if (!credentialStore) throw new Error('account-storage');
   if (isNativeApp()) return enableNativePush();
   assertPushSupport();
@@ -428,7 +412,7 @@ export async function enablePomodoroPush() {
   });
 }
 
-export async function disablePomodoroPush() {
+export async function disablePushNotifications() {
   const credentials = activeCredentials;
   if (isNativeApp()) {
     const plugin = await loadNativePushPlugin();
@@ -457,29 +441,6 @@ export async function disablePomodoroPush() {
   });
 }
 
-export async function schedulePomodoroPush(timer, pomodoro) {
-  return serializeMutation(async () => {
-    const credentials = activeCredentials;
-    if (!credentials?.enabled) return false;
-    const schedule = createPomodoroSchedule(timer, pomodoro);
-    if (!schedule) {
-      await request('/api/schedule', { method: 'DELETE', credentials });
-      return false;
-    }
-    await request('/api/schedule', { method: 'POST', credentials, body: schedule });
-    return true;
-  });
-}
-
-export async function cancelPomodoroPushSchedule() {
-  return serializeMutation(async () => {
-    const credentials = activeCredentials;
-    if (!credentials?.enabled) return false;
-    await request('/api/schedule', { method: 'DELETE', credentials });
-    return true;
-  });
-}
-
 export async function scheduleHabitPushReminders(reminders) {
   return serializeMutation(async () => {
     const credentials = activeCredentials;
@@ -502,7 +463,7 @@ export async function cancelHabitPushReminders() {
   });
 }
 
-export function pomodoroPushErrorMessage(error) {
+export function pushNotificationErrorMessage(error) {
   const messages = {
     'not-configured': 'O serviço de avisos não está configurado para esta instalação.',
     'account-storage': 'Entre na sua conta para guardar a inscrição Push com segurança.',
@@ -521,22 +482,15 @@ export function pomodoroPushErrorMessage(error) {
     'unsubscribe-failed': 'O navegador não conseguiu remover a inscrição local.',
     'rate-limited': 'Muitas solicitações em pouco tempo. Aguarde um minuto e tente novamente.',
     'server-unavailable': 'O serviço de avisos está indisponível no momento.',
-    'schedule-horizon': 'A próxima fase está fora do limite de agendamento permitido.',
     'invalid-habit-reminders': 'Os dias, horários ou o fuso dos lembretes foram rejeitados pelo serviço.',
     'invalid-request': 'A solicitação enviada ao serviço de avisos foi rejeitada.',
     'invalid-subscription': 'A inscrição Push deste navegador foi rejeitada pelo serviço.',
-    'subscription-required': 'Ative os avisos antes de agendar as mudanças de fase.',
+    'subscription-required': 'Ative os avisos antes de configurar os lembretes.',
     unauthorized: 'A autorização deste dispositivo expirou. Desative e ative novamente os avisos.',
     cors: 'A origem desta página não está autorizada pelo serviço de avisos.',
     storage: 'Não foi possível atualizar a autorização local deste dispositivo.',
   };
-  return messages[error?.message] || 'Não foi possível atualizar os avisos Push. O estado do timer não foi revertido.';
-}
-
-if (typeof window !== 'undefined' && isNativeApp()) {
-  void ensureNativePushListeners().catch((error) => {
-    console.error('Aurora: não foi possível preparar os avisos nativos.', error);
-  });
+  return messages[error?.message] || 'Não foi possível atualizar os avisos Push.';
 }
 
 if (typeof window !== 'undefined' && isNativeApp()) {

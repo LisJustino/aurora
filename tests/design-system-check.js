@@ -5,18 +5,18 @@ const check = (passed, name, detail = '') => results.push({ passed: Boolean(pass
 
 const loadCss = async (url, seen = new Set()) => {
   const source = new URL(url, location.href);
-  source.searchParams.set('raw', '');
+  source.search += `${source.search ? '&' : '?'}raw`;
   if (seen.has(source.href)) return [];
   seen.add(source.href);
   const response = await fetch(source.href, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Não foi possível carregar ${source.pathname}: HTTP ${response.status}.`);
   const moduleText = await response.text();
-  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?$/);
+  const rawExport = moduleText.match(/^export default ("(?:\\.|[^"\\])*");?/);
   const text = rawExport ? JSON.parse(rawExport[1]) : moduleText;
   const out = [{ file: source.pathname.replace(/^.*\/src\/css\//, ''), text }];
   for (const [, rel] of text.matchAll(/@import\s+url\(["']?([^"')]+)["']?\)/g)) {
     const dependency = new URL(rel, source);
-    dependency.searchParams.set('raw', '');
+    dependency.search += `${dependency.search ? '&' : '?'}raw`;
     out.push(...await loadCss(dependency.href, seen));
   }
   return out;
@@ -45,6 +45,7 @@ check(files.some((item) => item.file === 'design-system/lists.css'), 'O padrão 
 const pageTitleStyles = files.find((item) => item.file === 'design-system/page-titles.css');
 const pageTitleOverrides = offenders(/\.main\[data-route=["'][^"']+["']\]\s*>\s*\.page-title/g);
 check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main > .page-title') && !pageTitleOverrides.length, 'Cabeçalhos de página usam o componente compartilhado', pageTitleOverrides.join(', '));
+check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main h1[tabindex="-1"]:focus { outline: none; }'), 'Títulos focados pela navegação não exibem contorno de controle');
 check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card')), 'O padrão de cartões compactos está no design system');
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');

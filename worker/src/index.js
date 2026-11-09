@@ -2,13 +2,11 @@ import { buildPushPayload } from '@block65/webcrypto-web-push';
 
 const API_PREFIX = '/api';
 const MAX_BODY_BYTES = 16_384;
-const MAX_SCHEDULE_HORIZON_MS = 4 * 60 * 60 * 1000;
 const MAX_HABIT_REMINDERS = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,64}$/;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
-const PHASES = new Set(['focus', 'short-break', 'long-break']);
 const PUSH_HOSTS = [
   (hostname) => hostname === 'web.push.apple.com' || hostname.endsWith('.push.apple.com'),
   (hostname) => hostname === 'fcm.googleapis.com',
@@ -96,20 +94,6 @@ function validEncodedBytes(value, expectedLength, prefix) {
   } catch {
     return false;
   }
-}
-
-function validSchedule(value, now = Date.now()) {
-  return hasExactKeys(value, ['phase', 'phaseEndsAt', 'focusMin', 'breakMin', 'longBreakMin', 'completedPomodoros'])
-    && PHASES.has(value.phase)
-    && Number.isSafeInteger(value.phaseEndsAt)
-    && value.phaseEndsAt > now
-    && value.phaseEndsAt <= now + MAX_SCHEDULE_HORIZON_MS
-    && Number.isInteger(value.focusMin) && value.focusMin >= 5 && value.focusMin <= 120
-    && Number.isInteger(value.breakMin) && value.breakMin >= 1 && value.breakMin <= 60
-    && Number.isInteger(value.longBreakMin) && value.longBreakMin >= 5 && value.longBreakMin <= 60
-    && Number.isSafeInteger(value.completedPomodoros)
-    && value.completedPomodoros >= 0
-    && value.completedPomodoros <= 1_000_000;
 }
 
 function validCivilDate(value) {
@@ -302,13 +286,10 @@ async function dispatchClientOperation(env, request, headers, operation, body) {
   if (operation === 'subscribe' && !validSubscription(body)) {
     return json({ error: 'invalid-subscription' }, 400, headers);
   }
-  if (operation === 'schedule' && request.method === 'POST' && !validSchedule(body)) {
-    return json({ error: 'schedule-horizon' }, 400, headers);
-  }
   if (operation === 'habits' && request.method === 'POST' && !validHabitReminders(body)) {
     return json({ error: 'invalid-habit-reminders' }, 400, headers);
   }
-  if (!['subscribe', 'unsubscribe', 'schedule', 'cancel', 'habits', 'clear-habits'].includes(operation)) {
+  if (!['subscribe', 'unsubscribe', 'habits', 'clear-habits'].includes(operation)) {
     return json({ error: 'not-found' }, 404, headers);
   }
   if (env.API_RATE_LIMIT) {
@@ -378,17 +359,6 @@ export default {
         return dispatchClientOperation(env, request, headers, 'unsubscribe', {});
       }
     }
-    if (path === `${API_PREFIX}/schedule`) {
-      if (request.method === 'POST') {
-        const body = await readJson(request);
-        if (!body) return json({ error: 'invalid-request' }, 400, headers);
-        return dispatchClientOperation(env, request, headers, 'schedule', body);
-      }
-      if (request.method === 'DELETE') {
-        if (request.body) return json({ error: 'invalid-request' }, 400, headers);
-        return dispatchClientOperation(env, request, headers, 'cancel', {});
-      }
-    }
     if (path === `${API_PREFIX}/habits`) {
       if (request.method === 'POST') {
         const body = await readJson(request);
@@ -403,52 +373,6 @@ export default {
     return json({ error: 'not-found' }, 404, headers);
   },
 };
-
-function validStoredSchedule(value) {
-  return isPlainObject(value)
-    && PHASES.has(value.phase)
-    && Number.isSafeInteger(value.phaseEndsAt)
-    && Number.isInteger(value.focusMin)
-    && Number.isInteger(value.breakMin)
-    && Number.isInteger(value.longBreakMin)
-    && Number.isSafeInteger(value.completedPomodoros);
-}
-
-function phaseDurationMs(schedule, phase) {
-  const minutes = phase === 'focus'
-    ? schedule.focusMin
-    : phase === 'long-break'
-      ? schedule.longBreakMin
-      : schedule.breakMin;
-  return minutes * 60_000;
-}
-
-function transition(schedule) {
-  let completedPomodoros = schedule.completedPomodoros;
-  let phase;
-  if (schedule.phase === 'focus') {
-    completedPomodoros += 1;
-    phase = 'short-break';
-  } else {
-    phase = 'focus';
-  }
-  return {
-    ...schedule,
-    phase,
-    completedPomodoros,
-    phaseEndsAt: schedule.phaseEndsAt + phaseDurationMs(schedule, phase),
-  };
-}
-
-function notificationFor(phase) {
-  if (phase === 'focus') {
-    return { title: 'aurora. · Pomodoro', body: 'A pausa terminou. Hora de retomar o foco.' };
-  }
-  if (phase === 'long-break') {
-    return { title: 'aurora. · Pomodoro', body: 'Hora da pausa.' };
-  }
-  return { title: 'aurora. · Pomodoro', body: 'Bloco de foco concluído. Hora da pausa.' };
-}
 
 function habitReminderNotification() {
   return { kind: 'habit-reminder' };
@@ -502,19 +426,6 @@ export class PomodoroAlarm {
       await this.state.storage.deleteAlarm();
       return json({ ok: true });
     }
-    if (path === '/schedule' && request.method === 'POST') {
-      const body = await readJson(request);
-      if (!validSchedule(body)) return json({ error: 'schedule-horizon' }, 400);
-      if (!(await this.storage.get('subscription'))) return json({ error: 'subscription-required' }, 409);
-      await this.storage.put('schedule', body);
-      await this.refreshAlarm();
-      return json({ ok: true, scheduledAt: body.phaseEndsAt });
-    }
-    if (path === '/cancel' && request.method === 'POST') {
-      await this.storage.delete('schedule');
-      await this.refreshAlarm();
-      return json({ ok: true });
-    }
     if (path === '/habits' && request.method === 'POST') {
       const body = await readJson(request);
       if (!validHabitReminders(body)) return json({ error: 'invalid-habit-reminders' }, 400);
@@ -532,7 +443,7 @@ export class PomodoroAlarm {
   }
 
   async refreshAlarm(now = Date.now()) {
-    const schedule = await this.storage.get('schedule');
+    await this.storage.delete('schedule');
     let reminderAt = null;
     const reminders = await this.storage.get('habitReminders');
     if (validStoredHabitReminders(reminders) && reminders.length) {
@@ -540,17 +451,12 @@ export class PomodoroAlarm {
     }
     if (reminderAt === null) await this.storage.delete('habitReminderAt');
     else await this.storage.put('habitReminderAt', reminderAt);
-    const candidates = [
-      validStoredSchedule(schedule) ? schedule.phaseEndsAt : null,
-      reminderAt,
-    ].filter(Number.isSafeInteger);
-    if (!candidates.length) {
+    if (!Number.isSafeInteger(reminderAt)) {
       await this.state.storage.deleteAlarm();
       return null;
     }
-    const scheduledAt = Math.min(...candidates);
-    await this.state.storage.setAlarm(scheduledAt);
-    return scheduledAt;
+    await this.state.storage.setAlarm(reminderAt);
+    return reminderAt;
   }
 
   async sendNotification(notification, subscription) {
@@ -578,39 +484,22 @@ export class PomodoroAlarm {
   }
 
   async alarm() {
-    let schedule = await this.storage.get('schedule');
     const subscription = await this.storage.get('subscription');
     if (!subscription) {
       await this.storage.delete(['schedule', 'habitReminders', 'habitReminderAt']);
       await this.state.storage.deleteAlarm();
       return;
     }
-    if (!validStoredSchedule(schedule)) {
-      await this.storage.delete('schedule');
-      schedule = null;
-    }
+    await this.storage.delete('schedule');
     let reminders = await this.storage.get('habitReminders');
     if (!validStoredHabitReminders(reminders)) {
       await this.storage.delete(['habitReminders', 'habitReminderAt']);
       reminders = [];
     }
-    let transitions = 0;
     const now = Date.now();
-    if (schedule) {
-      while (schedule.phaseEndsAt <= now && transitions < 512) {
-        schedule = transition(schedule);
-        transitions += 1;
-      }
-    }
-    if (transitions >= 512) {
-      await this.storage.delete('schedule');
-      schedule = null;
-    }
-    if (schedule) await this.storage.put('schedule', schedule);
     const reminderAt = await this.storage.get('habitReminderAt');
     const reminderDue = reminders.length > 0 && Number.isSafeInteger(reminderAt) && reminderAt <= now;
     await this.refreshAlarm(now);
-    if (transitions && schedule && !(await this.sendNotification(notificationFor(schedule.phase), subscription))) return;
     if (reminderDue) await this.sendNotification(habitReminderNotification(), subscription);
   }
 }

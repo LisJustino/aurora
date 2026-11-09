@@ -1,7 +1,6 @@
 export const MENU_ITEMS = [
   { id: 'inicio', label: 'Início', icon: 'home', area: null },
   { id: 'planejar', label: 'Planejar', icon: 'calendarCheck', area: null },
-  { id: 'pomodoro', label: 'Pomodoro', icon: 'clock', area: 'pomodoro' },
   { id: 'financas', label: 'Finanças', icon: 'wallet', area: 'finances' },
   { id: 'ciclo', label: 'Ciclo', icon: 'heart', area: 'cycle' },
   { id: 'habitos', label: 'Hábitos', icon: 'check', area: 'habits' },
@@ -13,7 +12,6 @@ const LEGACY_MENU_ID_ALIASES = {
   finances: 'financas',
   cycle: 'ciclo',
   water: 'agua',
-  pomodoro: 'pomodoro',
   inicio: 'inicio',
   planejar: 'planejar',
 };

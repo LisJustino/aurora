@@ -45,12 +45,17 @@
 }
 
 .legal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--ink) !important;
   font-size: var(--text-xl);
   font-weight: var(--weight-bold);
   letter-spacing: -.04em;
   text-decoration: none;
 }
+
+.legal-brand img { flex: none; }
 
 .legal-brand span {
   color: var(--accent);
@@ -96,6 +101,23 @@
   margin: 0 0 var(--space-2);
   font-size: var(--text-lg);
 }
+
+.legal-summary,
+.legal-index {
+  margin: var(--space-5) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface-soft);
+}
+.legal-summary ul,
+.legal-index ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.4em;
+}
+.legal-document section { scroll-margin-top: var(--space-4); }
 
 .legal-document p,
 .legal-document li {

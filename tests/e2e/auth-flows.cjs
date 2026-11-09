@@ -101,6 +101,8 @@ async function main() {
   let expectedAuthErrorResponses = 0;
   let expectedAuthUnauthorizedResponses = 0;
   let expectedAuthServerErrors = 0;
+  let pkceRequests = 0;
+  let simulateRelational = false;
   const assertAccountCardDoesNotScrollInternally = async (label) => {
     const dimensions = await page.locator('.account-card').evaluate((card) => ({
       overflowY: getComputedStyle(card).overflowY,
@@ -198,6 +200,9 @@ async function main() {
     }
 
     const endpoint = `${request.method()} ${requestUrl.pathname}`;
+    if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
+      return jsonResponse(route, 200, [], corsOrigin);
+    }
     if (endpoint === 'POST /auth/v1/signup') {
       signupRequests += 1;
       const body = request.postDataJSON();
@@ -236,7 +241,12 @@ async function main() {
     }
     if (endpoint === 'POST /auth/v1/token') {
       const body = request.postDataJSON();
-      if (requestUrl.searchParams.get('grant_type') === 'password') {
+      if (requestUrl.searchParams.get('grant_type') === 'pkce') {
+        pkceRequests += 1;
+        assert.equal(body.auth_code, 'callback-test');
+        assert.equal(body.code_verifier, 'verifier-test');
+        await delay(350);
+      } else if (requestUrl.searchParams.get('grant_type') === 'password') {
         loginPasswords.push(body.password);
         if (!user || body.email !== user.email || body.password !== password) {
           expectedAuthErrorResponses += 1;
@@ -298,6 +308,62 @@ async function main() {
   });
 
   try {
+    await page.goto(BASE);
+    await page.evaluate(() => {
+      sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
+    });
+    user = {
+      id: '00000000-0000-4000-8000-000000000002',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'google@example.test',
+      app_metadata: { provider: 'google', providers: ['google'] },
+      user_metadata: { name: 'Pessoa de teste' },
+      identities: [{ identity_id: 'e2e-google-identity', provider: 'google' }],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    await page.goto(`${BASE}/?code=callback-test`);
+    await page.locator('.app-skeleton[role="status"]').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('.public-site').count(), 0, 'callback Google não deve renderizar a landing');
+    await page.getByRole('heading', { name: 'Complete seu perfil' }).waitFor();
+    assert.equal(pkceRequests, 1, 'callback deve trocar o código PKCE exatamente uma vez');
+    assert.equal(await page.locator('.public-site').count(), 0);
+    assert.equal(new URL(page.url()).searchParams.has('code'), false);
+    user.user_metadata = {
+      name: 'Pessoa de teste',
+      preferred_name: 'Pessoa',
+      age: 36,
+      birthday_month: 1,
+      birthday_day: 1,
+      birthday_reference_date: '2026-01-01',
+      terms_accepted_at: '2026-01-01T00:00:00.000Z',
+      terms_version: '1.9',
+      privacy_policy_version: '1.9',
+    };
+    simulateRelational = true;
+    for (const destination of ['/inicio', '/planejar']) {
+      await page.evaluate((returnTo) => {
+        sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token');
+        sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
+        if (returnTo === '/planejar') sessionStorage.setItem('aurora:return-to', returnTo);
+        else sessionStorage.removeItem('aurora:return-to');
+      }, destination);
+      await page.goto(`${BASE}/?code=callback-test`);
+      await page.locator('.app-skeleton[role="status"]').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('.public-site').count(), 0, 'a landing não deve aparecer durante a troca de código');
+      await page.waitForURL(`**${destination}`);
+      await page.locator('.main').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('.public-site').count(), 0);
+    }
+    assert.equal(pkceRequests, 3);
+    await page.evaluate(() => sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
+    simulateRelational = false;
+    user = null;
+    await page.goto(`${BASE}/?error=access_denied`);
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    assert.match(await page.locator('.account-form').innerText(), /Não foi possível concluir o link de acesso/);
+    assert.equal(new URL(page.url()).searchParams.has('error'), false);
     await page.goto(BASE);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator('.public-topbar [data-public-action="login"]').click();
@@ -373,10 +439,18 @@ async function main() {
     await page.setViewportSize({ width: 390, height: 844 });
     await assertAuthLayout('perfil do cadastro no celular');
     await page.getByLabel('Nome', { exact: true }).fill('Pessoa de teste');
-    await page.getByLabel('Como você prefere ser chamado(a)?', { exact: true }).fill('Teste');
+    const preferredName = page.getByLabel('Nome de preferência (opcional)', { exact: true });
+    assert.equal(await preferredName.evaluate((input) => input.required), false, 'nome de preferência deve ser opcional');
+    await preferredName.fill('');
     await page.getByLabel('Data de nascimento').fill('1990-01-01');
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
+    const passwordCriteria = page.locator('.account-password-strength .account-strength-label');
+    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 0 de 5');
+    await page.getByLabel('Senha', { exact: true }).fill('Aurora1');
+    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 4 de 5');
+    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
+    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 5 de 5');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'etapa de acesso deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('cadastro em desktop');
@@ -403,6 +477,7 @@ async function main() {
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
     assert.equal(await page.evaluate(() => window.authFlowResult?.user.email), 'pessoa@example.com');
+    assert.equal(user.user_metadata.preferred_name, 'Pessoa', 'nome de preferência vazio deve usar o primeiro nome como padrão');
     assert.equal(signupRequests, 1, 'cadastro válido deve chamar o provedor uma vez');
 
     await page.evaluate(async () => {
@@ -411,7 +486,7 @@ async function main() {
     });
     await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
     await page.getByLabel('Nome', { exact: true }).fill('Segunda tentativa');
-    await page.getByLabel('Como você prefere ser chamado(a)?', { exact: true }).fill('Teste');
+    await page.getByLabel('Nome de preferência (opcional)', { exact: true }).fill('');
     await page.getByLabel('Data de nascimento').fill('1990-01-01');
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
@@ -540,7 +615,7 @@ async function main() {
     assert.deepEqual(externalRequests, [], 'nenhuma requisição real fora do servidor local e do mock deve ocorrer');
     assert.deepEqual(unexpectedAuthRequests, [], 'somente endpoints de autenticação esperados devem ser chamados');
     assert.deepEqual(errors, [], 'o fluxo não deve gerar erros no console');
-    console.log('auth-flows: cadastro, bloqueio de e-mail duplicado, login, recuperação, limite de tentativas e redefinição passaram com Supabase simulado');
+    console.log('auth-flows: callback Google, cadastro, login, recuperação e redefinição passaram com Supabase simulado');
   } finally {
     await page.close();
     await browser.close();
