@@ -969,6 +969,12 @@
   background: var(--surface);
 }
 
+.main[data-route="inicio"] .home-primary > .home-today-card {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--surface) 44%);
+}
+
 .main[data-route="inicio"] .home-quick-card {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
   background:

@@ -158,6 +158,7 @@ const state = {
     lists: [],
     cats: { out: [], in: [] },
     prefs: {
+      releaseNotesSeen: 'release-123',
       trash: [{
         id: 'trashed-cycle-period',
         deletedAt: Date.parse('2026-10-29T12:00:00Z'),
@@ -289,6 +290,7 @@ assert.equal(changeByTable.get('trash_records')[0].record_key, '2026-10-10|2026-
 assert.equal(changeByTable.get('profiles')[0].display_name, 'Pessoa');
 assert.equal(changeByTable.get('user_settings')[0].preferences.onboardingComplete, true);
 assert.equal(changeByTable.get('user_settings')[0].preferences.introSeen, true);
+assert.equal(changeByTable.get('user_settings')[0].preferences.releaseNotesSeen, 'release-123');
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
   month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29',
 });
@@ -363,6 +365,7 @@ assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
 assert.deepEqual(loadedState.checkins, [{
   date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],
 }]);
@@ -412,6 +415,65 @@ assert.deepEqual(trashedPeriodRecord.value, {
   end: '2026-10-12',
   sample: undefined,
 });
+
+const restrictedQueries = [];
+let restrictedChanges = [];
+const restrictedLoadClient = {
+  from(table) {
+    const query = {
+      select() { return this; },
+      not(...filter) {
+        restrictedQueries.push({ table, filter });
+        return this;
+      },
+      async range() {
+        const rows = changeByTable.get(table) || [];
+        return {
+          data: table === 'trash_records'
+            ? rows.filter((row) => !['cycle', 'cycleLog'].includes(row.collection))
+            : rows,
+          error: null,
+        };
+      },
+    };
+    restrictedQueries.push({ table });
+    return query;
+  },
+  async rpc(_name, args) {
+    restrictedChanges = args.p_changes;
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          updated_at: versionStamp,
+        })),
+      })),
+      error: null,
+    };
+  },
+};
+const restrictedStore = new RelationalAccountStore(restrictedLoadClient, userId);
+const restrictedState = await restrictedStore.load({ includeCycle: false });
+assert.deepEqual(restrictedState.cycle, []);
+assert.deepEqual(restrictedState.cycleLog, {});
+assert.equal(restrictedState.settings.prefs.trash.some((entry) => (
+  entry.records.some((record) => ['cycle', 'cycleLog'].includes(record.collection))
+)), false);
+assert.equal(restrictedQueries.some(({ table }) => ['cycle_periods', 'cycle_days'].includes(table)), false);
+assert.ok(restrictedQueries.some(({ table, filter }) => (
+  table === 'trash_records' && filter?.[0] === 'collection'
+    && filter?.[1] === 'in' && filter?.[2] === '("cycle","cycleLog")'
+)));
+const updatedRestrictedState = structuredClone(restrictedState);
+updatedRestrictedState.settings.profile.preferredName = 'Nome atualizado';
+await restrictedStore.save(updatedRestrictedState, restrictedState);
+for (const table of ['cycle_periods', 'cycle_days', 'trash_records']) {
+  const change = restrictedChanges.find((item) => item.table === table);
+  assert.equal(change.replace_missing, false, `${table} must not be replaced without Cycle consent`);
+  assert.deepEqual(change.rows, [], `${table} must remain untouched without Cycle consent`);
+}
 
 const saveErrorClient = {
   async rpc() {

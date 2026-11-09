@@ -3,9 +3,10 @@ import { createSuggestionMailto } from '../src/js/features/footer/suggestions.js
 import { renderFooterContent } from '../src/js/features/footer/view.js';
 
 const publicFooter = renderFooterContent({ demoAvailable: true });
-assert.match(publicFooter, /href="#public-features">Explorar demonstração/);
-assert.doesNotMatch(publicFooter, /data-public-action="demo"/);
-assert.doesNotMatch(renderFooterContent(), /data-public-action="demo"/);
+assert.match(publicFooter, /href="\/demonstracao" data-public-action="demo">Explorar demonstração/);
+assert.match(publicFooter, /data-action="copy-contact-email">Copiar e-mail de contato/);
+assert.match(publicFooter, /data-suggestion-copy-status role="status"/);
+assert.match(renderFooterContent(), /data-action="copy-contact-email"/);
 assert.match(publicFooter, /class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo/);
 assert.doesNotMatch(publicFooter, /Supabase|service_role|\.env\.local/);
 

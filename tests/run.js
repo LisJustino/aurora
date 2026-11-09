@@ -186,7 +186,7 @@ const test = (name, run) => {
 test('inicia os alertas antes de aguardar o service worker', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   const start = source.indexOf('async function continueAuthenticatedAurora(');
-  const end = source.indexOf('\nasync function startAuthenticatedAurora', start);
+  const end = source.indexOf('\nexport async function startAuthenticatedAurora', start);
   if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização dos dados autenticados.');
   const startup = source.slice(start, end);
   const timer = startup.indexOf('setInterval(tick, 1000)');
@@ -198,7 +198,7 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   const start = source.indexOf('function showAccountDataLoadError(');
   const end = source.indexOf('\nasync function continueAuthenticatedAurora', start);
-  const continuation = source.slice(end, source.indexOf('\nasync function startAuthenticatedAurora', end));
+  const continuation = source.slice(end, source.indexOf('\nexport async function startAuthenticatedAurora', end));
   const screen = source.slice(start, end);
   if (start < 0 || end <= start
     || !screen.includes("retry.textContent = 'Tentar novamente'")
@@ -217,7 +217,7 @@ test('confirmações nativas foram substituídas e o feedback de persistência n
 });
 
 test('landing comunica valor, demonstração e privacidade financeira com precisão', () => {
-  const root = { innerHTML: '', querySelectorAll: () => [] };
+  const root = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener: () => {} };
   const previousDocument = globalThis.document;
   const documentStub = { title: '' };
   globalThis.document = documentStub;
@@ -247,12 +247,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Posso exportar meus dados?',
     'data-footer-suggestion',
     'Escolha como quer começar',
-    'sem cadastro e sem salvar alterações',
+    'Explore a demonstração somente de leitura, com dados fictícios e sem cadastro',
     'Finanças manuais',
     'O Aurora não se conecta a bancos',
-    'associados à sua conta',
+    'O acesso aos registros é restrito à sua conta autenticada.',
     'não são criptografados de ponta a ponta',
-    'href="./privacy.html"',
+    'href="/privacy.html"',
     'Acompanhe períodos e sintomas',
   ];
   expectedContent.forEach((text) => {
@@ -273,8 +273,9 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
     throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
   }
-  if (root.innerHTML.indexOf('data-public-action="signup"') > root.innerHTML.indexOf('href="#public-features"')) {
-    throw new Error('O cadastro deve aparecer antes do link interno para a demonstração.');
+  const heroMarkup = root.innerHTML.slice(root.innerHTML.indexOf('class="public-hero'));
+  if (heroMarkup.indexOf('href="/criar-conta"') > heroMarkup.indexOf('href="/demonstracao"')) {
+    throw new Error('O cadastro deve aparecer antes do link para a demonstração no hero.');
   }
   if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
@@ -297,9 +298,9 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const demoView =  readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
   if (!demoView.includes("['today', 'Hoje', 'home']")
     || !demoView.includes("['finance', 'Finanças', 'wallet']")
-    || !demoView.includes('nada é salvo')
-    || !demoView.includes("state.tasks.push")) {
-    throw new Error('A demonstração precisa apresentar navegação e interações locais com dados fictícios.');
+    || !demoView.includes('somente de leitura')
+    || /state\.tasks\.(?:push|splice)|task\.done\s*=/.test(demoView)) {
+    throw new Error('A demonstração precisa apresentar dados fictícios somente de leitura.');
   }
 });
 

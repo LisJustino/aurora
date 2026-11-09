@@ -100,7 +100,7 @@ function showEntryError(rootElement) {
 
 let appWarmed = false;
 function warmApplication() {
-  if (appWarmed) return;
+  if (appWarmed || isDemoLocation(location)) return;
   const href = import.meta.env.DEV
     ? '/src/js/main.js'
     : document.querySelector('meta[name="aurora-app-chunk"]')?.content;
@@ -112,9 +112,28 @@ function warmApplication() {
   document.head.append(link);
 }
 
+let mobileCtaCleanup = () => {};
+function observeLandingScroll() {
+  mobileCtaCleanup();
+  const update = () => {
+    const cta = root.querySelector('.public-mobile-cta');
+    if (!cta) return;
+    cta.hidden = !window.matchMedia('(max-width: 700px)').matches || window.scrollY < 420;
+  };
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  mobileCtaCleanup = () => {
+    window.removeEventListener('scroll', update);
+    window.removeEventListener('resize', update);
+  };
+  update();
+}
+
+let applicationLoaded = false;
 async function loadApplication(mode = 'login') {
   publicPwaCleanup();
   publicConnectionCleanup();
+  mobileCtaCleanup();
   stopLandingDemo(root);
   const url = new URL(location.href);
   url.searchParams.delete('aurora-account-mode');
@@ -126,7 +145,13 @@ async function loadApplication(mode = 'login') {
   url.searchParams.delete('etapa');
   target.searchParams.forEach((value, key) => url.searchParams.set(key, value));
   history.pushState(null, '', `${url.pathname}${url.search}`);
-  await import('./main.js');
+  if (applicationLoaded) {
+    const { startAuthenticatedAurora } = await import('./main.js');
+    await startAuthenticatedAurora(root, mode, true);
+  } else {
+    await import('./main.js');
+    applicationLoaded = true;
+  }
 }
 
 function startPublicPwaSupport() {
@@ -257,11 +282,13 @@ if (localPreview || !publicEntryRoute || installedLanding) {
   const renderPublicRoute = () => {
     renderedPublicPath = `${location.pathname}${location.search}`;
     if (isDemoLocation(location)) {
+      mobileCtaCleanup();
       renderLandingDemo(root);
       document.title = 'Demonstração | aurora.';
     } else {
       renderLanding(root);
       document.title = 'aurora. — planner semanal, hábitos e finanças em um só lugar';
+      observeLandingScroll();
     }
     updatePublicConnectionNotice();
   };
@@ -273,12 +300,10 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     });
   }
 
-  if (isPublicLandingLocation(location)) {
+  if (isPublicLandingLocation(location) && !isDemoLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
-    const scheduleWarm = window.requestIdleCallback || ((callback) => setTimeout(callback, 1200));
-    scheduleWarm(warmApplication);
-    ['pointerover', 'focusin', 'touchstart'].forEach((type) => {
+    ['focusin', 'touchstart'].forEach((type) => {
       root.addEventListener(type, (event) => {
         if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmApplication();
       }, { passive: true });
@@ -293,7 +318,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
     updatePublicConnectionNotice();
   }
 
-  const sessionRestore = isPublicLandingLocation(location) ? (async () => {
+  const sessionRestore = isPublicLandingLocation(location) && !isDemoLocation(location) ? (async () => {
     try {
       const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
         import('./services/account-auth.js'),
@@ -304,6 +329,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
       if (!data.session?.user) return false;
+      if (!isPublicLandingLocation(location) || isDemoLocation(location)) return false;
       try {
         await loadApplication();
       } catch (error) {
@@ -326,11 +352,43 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       window.location.reload();
     }
   };
+  window.addEventListener('aurora:public-return', () => {
+    if (!isDemoLocation(location) && root.querySelector('.public-site')) {
+      observeLandingScroll();
+      startPublicPwaSupport();
+      window.addEventListener('online', updatePublicConnectionNotice);
+      window.addEventListener('offline', updatePublicConnectionNotice);
+      publicConnectionCleanup = () => {
+        window.removeEventListener('online', updatePublicConnectionNotice);
+        window.removeEventListener('offline', updatePublicConnectionNotice);
+        document.getElementById('public-offline-notice')?.remove();
+      };
+      updatePublicConnectionNotice();
+    }
+  });
   window.addEventListener('popstate', onPublicNavigation);
   window.addEventListener('hashchange', onPublicNavigation);
 
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
+    const copyContactButton = event.target instanceof Element
+      ? event.target.closest('[data-action="copy-contact-email"]')
+      : null;
+    if (copyContactButton) {
+      const status = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-status]');
+      const fallback = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-fallback]');
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('A área de transferência não está disponível.');
+        await navigator.clipboard.writeText('lisjustino@gmail.com');
+        if (status) status.textContent = 'E-mail copiado.';
+        if (fallback) fallback.hidden = true;
+      } catch (error) {
+        console.warn('Aurora: não foi possível copiar o e-mail de contato.', error);
+        if (status) status.textContent = 'Não foi possível copiar automaticamente.';
+        if (fallback) fallback.hidden = false;
+      }
+      return;
+    }
     const installAction = event.target instanceof Element
       ? event.target.closest('[data-action="pwa-install"]')
       : null;
@@ -362,6 +420,7 @@ if (localPreview || !publicEntryRoute || installedLanding) {
       return;
     }
     if (action === 'demo') {
+      mobileCtaCleanup();
       const url = new URL(location.href);
       url.pathname = '/demonstracao';
       url.hash = '';

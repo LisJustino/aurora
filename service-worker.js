@@ -1,11 +1,23 @@
-const CACHE_NAME = 'aurora-static-v11';
+const CACHE_NAME = 'aurora-static-v12';
 const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
 const APP_ROUTE = /^\/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?$/i;
 const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar|pomodoro)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
-const APP_SHELL_ASSET = /^\/(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf)|icons\/.+\.(?:svg|png|jpe?g|webp|ico)|favicon\.svg)$/i;
+const APP_SHELL_ASSET = /^\/(?:(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf))|(?:icons\/.+\.(?:svg|png|jpe?g|webp|ico))|(?:screenshots\/.+\.(?:png|webp))|favicon\.svg)$/i;
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('install', (event) => {
+  event.waitUntil((async () => {
+    const offlineUrl = new URL('./offline.html', self.registration.scope);
+    const response = await fetch(offlineUrl, { cache: 'reload' });
+    if (!response.ok || response.type !== 'basic') {
+      throw new Error('A página offline não pôde ser armazenada.');
+    }
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(offlineUrl.href, response);
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -77,6 +89,8 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       const fallback = await cache.match(new URL('./index.html', self.registration.scope).href);
       if (fallback) return fallback;
+      const offlinePage = await cache.match(new URL('./offline.html', self.registration.scope).href);
+      if (offlinePage) return offlinePage;
       throw networkError;
     }
   })());

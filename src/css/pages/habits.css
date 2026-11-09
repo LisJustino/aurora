@@ -459,6 +459,10 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 }
 .main[data-route="habitos"] .habit-reminder-note p { margin: 0; }
 .main[data-route="habitos"] .habit-week-overview { display: grid; gap: 10px; }
+.main[data-route="habitos"] .habit-today {
+  border-color: color-mix(in srgb, var(--area-tone) 28%, var(--line));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--area-tone) 4%, var(--surface)), var(--surface) 48%);
+}
 .main[data-route="habitos"] .habit-week-overview h2 { margin: 0; font-size: var(--text-lg); }
 .main[data-route="habitos"] .habit-week-overview > div > p { margin: 4px 0 0; }
 .main[data-route="habitos"] .habit-week-overview > progress { width: 100%; height: 8px; accent-color: var(--area-tone); }

@@ -122,6 +122,16 @@ export function initializeLegalDialogEvents() {
     }
 
     const dialog = target.closest('dialog[data-legal-modal]');
+    const anchor = dialog && target.closest('a[href^="#"]');
+    if (anchor) {
+      const id = anchor.getAttribute('href').slice(1);
+      const destination = [...dialog.querySelectorAll('[id]')].find((element) => element.id === id);
+      if (destination) {
+        event.preventDefault();
+        destination.scrollIntoView({ block: 'start' });
+      }
+      return;
+    }
     if (dialog && target === dialog) {
       const bounds = dialog.getBoundingClientRect();
       const isBackdrop = event.clientX < bounds.left || event.clientX > bounds.right

@@ -21,23 +21,26 @@ const accents = {
   habitos: '#7b8d46',
   ciclo: '#a84f88',
 };
+const FOCUS_SAFE_MARGIN = 32;
+const FOCUS_HORIZONTAL_MARGIN = 16;
+const CAPTION_HEIGHT = 176;
 const focusSteps = {
-  inicio: ['.home-today-card', '.home-head-actions', '.profile-link'],
+  inicio: ['.home-today-card > .head', '.home-head-actions', '.profile-link'],
   planejar: [
     '.planning-overview',
     { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },
-    { open: '[data-action="plan-view"][data-v="lista"]', target: '#task-results' },
+    { open: '[data-action="plan-view"][data-v="lista"]', target: '.grp .gh' },
     '.task',
   ],
-  pomodoro: ['#pomo-focus-label', '[data-action="toggle-free-timer"]', '.free-pomodoro-settings', '.focus-timer'],
+  pomodoro: ['#pomo-focus-label', '[data-action="toggle-free-timer"]', '.free-pomodoro-settings', '.focus-dial'],
   financas: [
-    { open: '[data-action="fin-tab"][data-t="contas"]', target: '.fin-section-content' },
+    { open: '[data-action="fin-tab"][data-t="contas"]', target: '.fin-section-content .acc' },
     { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '[data-action="tx-new"]' },
-    { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '.fin-section-content' },
-    { open: '[data-action="fin-tab"][data-t="relatorios"]', target: '.fin-section-content' },
+    { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '.fin-section-content .fr-main' },
+    { open: '[data-action="fin-tab"][data-t="relatorios"]', target: '.fin-section-content .card svg' },
   ],
-  habitos: ['.habit-today', '[data-action="habit-new"]', '.habit-ideas', '[data-habit-idea]'],
-  ciclo: ['.cycle-day-entry', '.cycle-calendar-card', '.cycle-overview'],
+  habitos: ['.habit-today', '[data-action="habit-new"]', '.habit-ideas > summary', '[data-habit-idea]'],
+  ciclo: ['.cycle-day-entry', '.cycle-calendar-card .cal', '.cycle-overview'],
 };
 const readVint = (buffer, offset, includeMarker) => {
   const first = buffer[offset];
@@ -199,9 +202,32 @@ try {
         const { x, y, width, height } = element.getBoundingClientRect();
         return { x, y, width, height };
       });
+      if (selector !== '.main' && rect.height <= VIDEO_HEIGHT - FOCUS_SAFE_MARGIN * 2) {
+        await locator.evaluate((element, margin) => {
+          const bounds = element.getBoundingClientRect();
+          const offset = bounds.top < margin
+            ? bounds.top - margin - 4
+            : bounds.bottom > innerHeight - margin
+              ? bounds.bottom - (innerHeight - margin) + 4
+              : 0;
+          if (offset) window.scrollBy(0, offset);
+        }, FOCUS_SAFE_MARGIN);
+      }
+      const focus = await locator.evaluate((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      });
+      if (selector !== '.main' && (
+        focus.x < FOCUS_HORIZONTAL_MARGIN
+        || focus.x + focus.width > VIDEO_WIDTH - FOCUS_HORIZONTAL_MARGIN
+        || focus.y < FOCUS_SAFE_MARGIN
+        || focus.y + focus.height > VIDEO_HEIGHT - FOCUS_SAFE_MARGIN
+      )) {
+        throw new Error(`Tutorial ${id} target ${selector} does not fit inside the video frame: ${JSON.stringify(focus)}.`);
+      }
       return {
         image: (await appPage.screenshot({ type: 'png' })).toString('base64'),
-        focus: rect,
+        focus,
       };
     };
 
@@ -256,6 +282,7 @@ try {
       width,
       height,
       slideDurationMs,
+      captionHeight,
     }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -330,18 +357,18 @@ try {
             context.restore();
           }
 
-          const gradient = context.createLinearGradient(0, height - 250, 0, height);
+          const gradient = context.createLinearGradient(0, height - captionHeight, 0, height);
           gradient.addColorStop(0, 'rgba(24, 19, 26, 0)');
           gradient.addColorStop(0.42, 'rgba(24, 19, 26, .76)');
           gradient.addColorStop(1, 'rgba(24, 19, 26, .94)');
           context.fillStyle = gradient;
-          context.fillRect(0, height - 250, width, 250);
+          context.fillRect(0, height - captionHeight, width, captionHeight);
           context.textAlign = 'left';
           context.fillStyle = '#ffffff';
           context.font = '700 16px "DM Sans", Arial, sans-serif';
-          context.fillText(slide.label, 66, height - 118);
+          context.fillText(slide.label, 66, height - 126);
           context.font = '700 34px "DM Sans", Arial, sans-serif';
-          context.fillText(slide.title, 66, height - 72, width - 132);
+          context.fillText(slide.title, 66, height - 88, width - 132);
           context.fillStyle = 'rgba(255,255,255,.88)';
           context.font = '400 20px "DM Sans", Arial, sans-serif';
           const words = slide.text.split(/\s+/);
@@ -359,7 +386,7 @@ try {
           if (line) lines.push(line);
           const visibleLines = lines.slice(0, 2);
           if (lines.length > 2) visibleLines[1] = `${visibleLines[1].slice(0, -1)}…`;
-          visibleLines.forEach((value, index) => context.fillText(value, 66, height - 36 + index * 24));
+          visibleLines.forEach((value, index) => context.fillText(value, 66, height - 50 + index * 24));
 
           const progressWidth = (width - 132) * Math.min(1, elapsed / duration);
           context.fillStyle = 'rgba(255,255,255,.34)';
@@ -386,20 +413,25 @@ try {
       width: VIDEO_WIDTH,
       height: VIDEO_HEIGHT,
       slideDurationMs: slideDuration,
+      captionHeight: CAPTION_HEIGHT,
     });
 
     const [report, downloads] = await Promise.all([reportPromise, Promise.all(downloadEvents)]);
+    const generatedFiles = [];
     for (const [index, download] of downloads.entries()) {
       const format = formats[index];
       const output = join(outputDirectory, `${id}.${format}`);
       const tempOutput = join(tempDirectory, `${id}.${format}`);
       await download.saveAs(tempOutput);
       if (format === 'webm') await addSeekableDuration(tempOutput, durationMilliseconds);
-      await copyTutorialOutput(tempOutput, output);
       const result = report.files.find((file) => file.format === format);
       if (!result || result.size < 10_000 || result.frames < slides.length * 2) {
         throw new Error(`Tutorial ${id} ${format} is incomplete (${result?.frames ?? 0} frames, ${result?.size ?? 0} bytes).`);
       }
+      generatedFiles.push({ format, output, tempOutput, result });
+    }
+    for (const { format, output, tempOutput, result } of generatedFiles) {
+      await copyTutorialOutput(tempOutput, output);
       console.log(`Created ${output} (${result.size} bytes)`);
     }
     if (pageErrors.length) throw new AggregateError(pageErrors.splice(0), `Failed to render ${id}.`);

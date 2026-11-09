@@ -2594,7 +2594,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 .account-gate.is-public-account .account-login-row .account-remember-session { margin: 0; font-size: var(--text-sm); }
 .account-gate.is-public-account .account-forgot-link {
-  min-height: var(--control-sm);
+  min-height: var(--target-size);
   padding: 0;
   border: 0;
   background: transparent;

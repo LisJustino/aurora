@@ -53,6 +53,11 @@ import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
+  getReleaseNotes,
+  markReleaseNotesSeen,
+  shouldShowReleaseNotes,
+} from './features/release-notes.js';
+import {
   advancePomodoro,
   customPomodoroSettings,
   effectivePomodoroSettings,
@@ -136,6 +141,11 @@ const googleCalendar = {
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
+import {
+  createCycleDataConsentMetadata,
+  createCycleDataConsentRevocationMetadata,
+  hasCurrentCycleDataConsent,
+} from './services/account-auth.js';
 import { prefersReducedMotion } from './utils/motion.js';
 import {
   createCyclePeriod,
@@ -424,6 +434,7 @@ const defaults = () => ({
 const SLICES = Object.keys(defaults());
 let S = defaults();
 let accountSession = null;
+let releaseNoticePending = false;
 let pwaRegistration = null;
 let pwaReloading = false;
 let pwaSupportPromise = null;
@@ -443,6 +454,8 @@ const writeSidebarCollapsed = (collapsed) => {
   } catch { /* storage indisponível */ }
 };
 const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, pushNotice: '', habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+ui.cycleConsentBusy = false;
+ui.cycleConsentError = '';
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
   const announcer = document.createElement('div');
   announcer.id = 'notification-announcer';
@@ -1214,6 +1227,9 @@ const Persist = {
   },
   async replaceAll() {
     if (!this.store) throw new Error('A conta não está pronta para restaurar dados.');
+    if (!hasCurrentCycleDataConsent(accountSession?.user)) {
+      throw new Error('Para restaurar um backup e substituir os dados da conta, registre primeiro o consentimento específico de Ciclo. Assim, os registros de saúde existentes não serão alterados sem autorização.');
+    }
     if (navigator.onLine === false) throw new Error('Sem conexão: o backup não foi restaurado.');
     if (this.inFlight) await this.inFlight;
     await this.store.save(JSON.parse(JSON.stringify(S)));
@@ -1249,7 +1265,9 @@ const Persist = {
   },
 };
 async function loadAccountData() {
-  const loaded = await Persist.store.load();
+  const loaded = await Persist.store.load({
+    includeCycle: hasCurrentCycleDataConsent(accountSession?.user),
+  });
   const next = defaults();
   const integrityIssues = {};
   const persistBlocked = new Set();
@@ -1613,14 +1631,18 @@ function shell(body) {
         <button type="button" data-action="quick-action-finance" data-kind="out"><span class="ni">${icon('arrowDown', 18)}</span><span>Despesa</span></button>
         ${S.finance.accounts.some(isCredit) ? h`<button type="button" data-action="quick-action-finance" data-kind="card"><span class="ni">${icon('card', 18)}</span><span>Despesa cartão</span></button>` : ''}`
       : h`<button type="button" data-action="quick-action-transaction"><span class="ni">${icon('wallet', 18)}</span><span>Lançamento</span></button>`;
-  const quickActionItems = h`
-    <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
-    ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
-    ${financeQuickActions}
-    ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
+  const isFinanceRoute = ui.route === 'financas';
+  const quickActionItems = isFinanceRoute
+    ? financeQuickActions
+    : h`
+      <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
+      ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
+      ${financeQuickActions}
+      ${areaOn('pomodoro') ? h`<button type="button" data-action="quick-action-pomodoro"><span class="ni">${icon('clock', 18)}</span><span>Abrir Pomodoro</span></button>` : ''}`;
+  const quickActionsHeading = isFinanceRoute ? 'Ações de Finanças' : 'Criar rapidamente';
   const quickActions = h`<div class="nav-quick-control">
     <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
-    <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="Criar rapidamente" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">Criar rapidamente</p>${quickActionItems}</div>
+    <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
   const navItems = h`${compactItems.map((item) => navLink(item, 'nav-primary'))}${secondaryItems.map((item) => navLink(item, 'nav-secondary'))}${secondaryItems.length ? h`<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>` : ''}${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
@@ -1904,6 +1926,21 @@ function restoreDialogOpener(opener) {
   }
   target?.focus({ preventScroll: true });
 }
+function cycleDataConsentGate() {
+  return h`${areaNav('ciclo')}${pageTitle('Ciclo')}
+    <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
+      <span class="section-kicker">Consentimento específico</span>
+      <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
+      <p>Os registros de ciclo menstrual e sintomas são dados pessoais sensíveis de saúde. Usamos o que você escolher registrar para mostrar períodos, histórico e estimativas nesta área. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
+      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado; os registros já salvos permanecerão na conta até que você solicite a exclusão ou apague a conta.</p>
+      <form class="cycle-consent-form" data-form="cycle-data-consent">
+        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados de saúde que eu registrar na área Ciclo para oferecer esses recursos.</span></label>
+        <p>Leia a <a href="/privacy.html" data-legal-document="privacy" target="_blank" rel="noopener noreferrer">Política de Privacidade</a> para detalhes e formas de retirar o consentimento.</p>
+        <p class="notice warn" role="alert" ${ui.cycleConsentError ? '' : raw('hidden')}>${ui.cycleConsentError}</p>
+        <div class="row cycle-consent-actions"><button class="btn primary" type="submit" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>${ui.cycleConsentBusy ? 'Registrando…' : 'Concordar e abrir Ciclo'}</button><a class="btn back" href="/inicio">Agora não</a></div>
+      </form>
+    </section>`;
+}
 function render() {
   acquireActiveScrollLocks();
   ui.dirty = false;
@@ -1914,7 +1951,11 @@ function render() {
   const active = document.activeElement;
   const af = active && active.id;
   if (ui.dlg && !$('#dlg') && !ui.lastFocus) ui.lastFocus = describeDialogOpener(active);
-  const page = (ROUTES[ui.route] || ROUTES.inicio)();
+  const needsCycleConsent = ui.route === 'ciclo'
+    && !ui.preview
+    && areaOn('cycle')
+    && !hasCurrentCycleDataConsent(accountSession?.user);
+  const page = needsCycleConsent ? cycleDataConsentGate() : (ROUTES[ui.route] || ROUTES.inicio)();
   const app = $('#app');
   app.innerHTML = shell(page).s;
   initializeFaqDisclosure(app);
@@ -3450,6 +3491,7 @@ function viewCiclo() {
   const top = topSymptoms();
   const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
   return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}
+    <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
     ${!hasCycleHistory && !hasCycleRecords
       ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
@@ -3846,6 +3888,10 @@ async function applyLegacyImport() {
     return;
   }
   const addedTotal = Object.values(preview.plan.added).reduce((sum, count) => sum + count, 0);
+  if (!hasCurrentCycleDataConsent(accountSession?.user)) {
+    setLegacyImportError('Antes de importar dados antigos, registre o consentimento específico de Ciclo. A importação substitui tabelas da conta e precisa preservar os dados de saúde que possam existir.');
+    return;
+  }
   if (!await confirmInDialog(`Importar os dados antigos para esta conta? A prévia encontrou ${addedTotal} novo(s) registro(s), além de configurações que possam ser recuperadas. Dados atuais desta conta serão mantidos e não haverá duplicação por ID. Os dados antigos só serão apagados depois de nova confirmação.`)) return;
   if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
     setLegacyImportError('A conta atual tem dados bloqueados para gravação. Resolva a integridade dos dados antes de importar; nenhuma origem antiga foi alterada.');
@@ -4292,6 +4338,13 @@ function dlgConfirmation() {
     <p class="confirmation-copy">${d.message}</p>`,
     h`<button type="button" class="btn back" data-action="confirmation-cancel">Cancelar</button><button type="button" class="btn primary" data-action="confirmation-accept">Continuar</button>`);
 }
+function dlgReleaseNotes() {
+  const notes = getReleaseNotes();
+  return dlgWrap(h`<div class="release-notes-heading"><p class="release-notes-version">Atualização do Aurora</p><h2 id="dt">${notes.title}<i>.</i></h2></div>
+    <p class="release-notes-intro">Veja o que há de novo nesta versão do Aurora.</p>
+    <ul class="release-notes-list">${notes.items.map((item) => h`<li><strong>${item.title}</strong>${item.description ? h`<p>${item.description}</p>` : ''}</li>`)}</ul>`,
+  h`<button type="button" class="btn primary" data-action="dlg-close">Entendi</button>`, 'release-notes-dialog');
+}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
@@ -4575,7 +4628,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -4751,6 +4804,8 @@ function clearSample() {
 /* ---- Backup ---- */
 function buildBackup() {
   const s = S.settings;
+  const backupPreferences = { ...s.prefs };
+  delete backupPreferences.releaseNotesSeen;
   return JSON.stringify({ app: 'aurora', version: 2, exportedAt: new Date().toISOString(), data: {
     profile: {
       name: s.profile.name.slice(0, 50),
@@ -4758,7 +4813,7 @@ function buildBackup() {
     },
     tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
     areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
-    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: s.prefs, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
+    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
 async function doExport() {
   if (Object.keys(ui.integrityIssues).length) {
@@ -4844,6 +4899,7 @@ function parseBackup(text) {
   });
   if (settingsResult.invalidCount) throw new Error('As configurações do backup contêm dados inválidos; nada foi importado.');
   const settings = settingsResult.value;
+  delete settings.prefs.releaseNotesSeen;
   if (ex.about !== undefined && !isPlainObject(ex.about)) throw new Error('Os dados do perfil no backup estão inválidos.');
   if (ex.about && typeof ex.about === 'object') {
     const a = ex.about;
@@ -4900,6 +4956,33 @@ async function importFile(file) {
 
 /* ---- Ações por clique ---- */
 const ACTIONS = {
+  'cycle-consent-revoke': async () => {
+    if (ui.cycleConsentBusy || !accountSession?.client?.auth?.updateUser) return;
+    const confirmed = await confirmInDialog(
+      'Retirar o consentimento vai bloquear a área Ciclo, mas não apaga os registros já salvos. Para pedir a exclusão, use o contato da Política de Privacidade ou exclua sua conta em Ajustes → Seu perfil.',
+    );
+    if (!confirmed) return;
+    ui.cycleConsentBusy = true;
+    render();
+    try {
+      const { data, error } = await accountSession.client.auth.updateUser({
+        data: createCycleDataConsentRevocationMetadata(),
+      });
+      if (error) throw error;
+      if (!data?.user || data.user.id !== accountSession.user?.id
+        || hasCurrentCycleDataConsent(data.user)) {
+        throw new Error('O provedor não confirmou a revogação do consentimento.');
+      }
+      accountSession.user = data.user;
+      toast('Consentimento retirado. Ciclo foi bloqueado; os registros existentes foram mantidos.');
+    } catch (error) {
+      console.error('Aurora: não foi possível retirar o consentimento para dados de Ciclo.', error);
+      toast('Não foi possível retirar o consentimento. Confira sua conexão e tente novamente.');
+    } finally {
+      ui.cycleConsentBusy = false;
+      render();
+    }
+  },
   'footer-scroll-top': () => {
     if (prefersReducedMotion(settingsView().look.reduceMotion)) {
       window.scrollTo(0, 0);
@@ -5808,6 +5891,11 @@ const ACTIONS = {
       p.settings.prefs.birthdayCorrectionUsed = true;
       p.settings.profile.age = S.settings.profile.age;
     }
+    if (typeof S.settings.prefs.releaseNotesSeen === 'string') {
+      p.settings.prefs.releaseNotesSeen = S.settings.prefs.releaseNotesSeen;
+    } else {
+      delete p.settings.prefs.releaseNotesSeen;
+    }
     for (const k of SLICES) S[k] = p[k];
     if (Persist.replacing) return;
     Persist.replacing = true;
@@ -5920,6 +6008,7 @@ function finishOnboard(skip = false) {
   ui.returnDialog = null;
   render();
   toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.');
+  void maybeOpenReleaseNotes();
   return true;
 }
 
@@ -5980,6 +6069,43 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'cycle-data-consent': async (form) => {
+    const checkbox = form.elements.namedItem('cycleConsent');
+    if (!(checkbox instanceof HTMLInputElement) || !checkbox.checked) return;
+    if (ui.cycleConsentBusy || !accountSession?.client?.auth?.updateUser) {
+      ui.cycleConsentError = 'Não foi possível acessar a conta para registrar o consentimento. Atualize a página e tente novamente.';
+      render();
+      return;
+    }
+    ui.cycleConsentBusy = true;
+    ui.cycleConsentError = '';
+    render();
+    let consentRecorded = false;
+    try {
+      if (!await Persist.flush()) {
+        throw new Error('Sincronize as alterações da conta antes de abrir Ciclo.');
+      }
+      const { data, error } = await accountSession.client.auth.updateUser({
+        data: createCycleDataConsentMetadata(),
+      });
+      if (error) throw error;
+      if (!data?.user || data.user.id !== accountSession.user?.id
+        || !hasCurrentCycleDataConsent(data.user)) {
+        throw new Error('O provedor não confirmou o consentimento para dados de Ciclo.');
+      }
+      accountSession.user = data.user;
+      consentRecorded = true;
+      await loadAccountData();
+    } catch (error) {
+      console.error('Aurora: não foi possível registrar o consentimento para dados de Ciclo.', error);
+      ui.cycleConsentError = consentRecorded
+        ? 'Seu consentimento foi registrado, mas os dados de Ciclo não puderam ser carregados. Atualize a página para tentar novamente.'
+        : 'Não foi possível registrar seu consentimento. Seus dados não foram alterados; confira a conexão e tente novamente.';
+    } finally {
+      ui.cycleConsentBusy = false;
+      render();
+    }
+  },
   'account-delete': deleteAccountFromSettings,
   'water-add': (f, d) => {
     const habit = S.habits.find((item) => item.id === f.dataset.id);
@@ -8037,9 +8163,11 @@ async function continueAuthenticatedAurora(root, user) {
     const route = routeFromLocation(location, new Set(Object.keys(ROUTES)));
     if (location.hash && route.replacePath) onRoute();
   });
+  releaseNoticePending = true;
   onRoute();
   void syncPomodoroWakeLock();
   if (!profileSetupComplete()) openProfileSetup();
+  else void maybeOpenReleaseNotes();
   setInterval(tick, 1000);
   const registration = await registerPwaSupport();
   if (registration || isNativeApp()) {
@@ -8054,6 +8182,17 @@ async function continueAuthenticatedAurora(root, user) {
   }
   if (S.pomodoro.startedAt !== null && getPomodoroPushStatus().enabled) syncPomodoroPushSchedule(S.pomodoro);
   Persist.retryPending();
+}
+
+async function maybeOpenReleaseNotes() {
+  if (!releaseNoticePending || !accountSession?.user?.id || ui.dlg || !profileSetupComplete()) return;
+  releaseNoticePending = false;
+  if (!shouldShowReleaseNotes(S.settings)) return;
+  const snapshot = snapshotSlices(['settings']);
+  if (!markReleaseNotesSeen(S.settings)) return;
+  if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a confirmação das novidades')) return;
+  if (!await Persist.flush()) return;
+  dlgOpen('release-notes');
 }
 
 const RETURN_TO_KEY = 'aurora:return-to';
@@ -8091,7 +8230,7 @@ function watchSessionExpiry(client) {
   });
 }
 
-async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
+export async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false) {
   const { requireAccount } = await import('./services/account-auth.js');
   renderAccountLoading(root);
   let returnedToPublic = false;
@@ -8112,6 +8251,7 @@ async function startAuthenticatedAurora(root, initialMode = 'login', allowPublic
       initializePublicAppearance();
       if (isDemoLocation(location)) renderLandingDemo(root);
       else renderLanding(root);
+      window.dispatchEvent(new Event('aurora:public-return'));
     }
     return;
   }

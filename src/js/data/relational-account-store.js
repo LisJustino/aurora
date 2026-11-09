@@ -113,10 +113,14 @@ function queryError(table, error) {
   throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
 }
 
-async function selectAll(client, table) {
+async function selectAll(client, table, { excludeCycleTrash = false } = {}) {
   const rows = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await client.from(table).select('*').range(from, from + 999);
+    let query = client.from(table).select('*');
+    if (excludeCycleTrash && table === 'trash_records') {
+      query = query.not('collection', 'in', '("cycle","cycleLog")');
+    }
+    const { data, error } = await query.range(from, from + 999);
     if (error) queryError(table, error);
     rows.push(...(data || []));
     if (!data || data.length < 1000) return rows;
@@ -948,11 +952,14 @@ export class RelationalAccountStore {
     this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 
-  async load() {
+  async load({ includeCycle = true } = {}) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. Os dados da conta não foram carregados.');
     }
-    const result = await Promise.all(TABLES.map(async (table) => [table, await selectAll(this.client, table)]));
+    const result = await Promise.all(TABLES.map(async (table) => {
+      if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
+      return [table, await selectAll(this.client, table, { excludeCycleTrash: !includeCycle })];
+    }));
     const tables = Object.fromEntries(result);
     this.rawTables = tables;
     for (const table of TABLES) {

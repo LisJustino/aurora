@@ -27,6 +27,22 @@
       "purpose": "maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "./screenshots/demo-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Demonstração do Aurora no computador"
+    },
+    {
+      "src": "./screenshots/demo-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Demonstração do Aurora no celular"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Hoje",

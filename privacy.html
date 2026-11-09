@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Política de Privacidade do Aurora e informações sobre o tratamento de dados pessoais.">
-  <meta name="aurora-legal-version" content="1.8">
+  <meta name="aurora-legal-version" content="1.9">
   <meta name="theme-color" content="#e8e6e0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -16,68 +16,109 @@
 <body class="legal-page">
   <a class="legal-skip-link" href="#conteudo">Pular para o conteúdo</a>
   <header class="legal-header">
-    <a class="legal-brand" href="/" aria-label="aurora., página inicial">aurora<span>.</span></a>
+    <a class="legal-brand" href="/" aria-label="aurora., página inicial"><img src="/icons/favicon.svg" alt="" width="36" height="36">aurora<span>.</span></a>
     <nav aria-label="Documentos legais">
       <a href="/terms.html" target="_blank" rel="noopener noreferrer">Termos de Uso</a>
     </nav>
   </header>
   <main class="legal-document" id="conteudo">
-    <p class="legal-eyebrow">aurora. · versão 1.8 · 5 de novembro de 2026</p>
+    <p class="legal-eyebrow">aurora. · versão 1.9 · 8 de novembro de 2026</p>
     <h1>Política de Privacidade</h1>
-    <section>
-      <h2>1. Quem responde pelos dados</h2>
-      <p>Quem administra o Aurora e atende assuntos de privacidade é Elisa da Silva Justino, pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>. Esta política descreve o funcionamento atual do aplicativo, mas não substitui a validação das configurações de produção.</p>
+    <aside class="legal-summary" aria-labelledby="privacy-summary">
+      <h2 id="privacy-summary">Em resumo</h2>
+      <ul>
+        <li>Guardamos os dados da conta e os registros que você decidir criar.</li>
+        <li>Os registros são processados pelo Supabase e protegidos por acesso à conta, sem criptografia de ponta a ponta.</li>
+        <li>A área Ciclo exige consentimento específico, que você pode retirar.</li>
+        <li>Alguns fornecedores podem processar dados fora do Brasil.</li>
+        <li>Você pode exportar seus dados ou excluir a conta em Ajustes.</li>
+        <li>Para solicitar a exclusão de registros de Ciclo ou exercer seus direitos, entre em contato.</li>
+      </ul>
+    </aside>
+    <nav class="legal-index" aria-label="Índice da política">
+      <h2>Índice</h2>
+      <ol>
+        <li><a href="#privacy-contact">Responsável e contato</a></li>
+        <li><a href="#privacy-data">Dados tratados</a></li>
+        <li><a href="#privacy-bases">Finalidades e bases legais</a></li>
+        <li><a href="#privacy-storage">Armazenamento e segurança</a></li>
+        <li><a href="#privacy-sharing">Compartilhamento</a></li>
+        <li><a href="#privacy-retention">Retenção e exclusão</a></li>
+        <li><a href="#privacy-rights">Seus direitos</a></li>
+        <li><a href="#privacy-updates">Segurança e atualizações</a></li>
+      </ol>
+    </nav>
+    <section id="privacy-contact">
+      <h2>1. Responsável e contato</h2>
+      <p>Elisa da Silva Justino administra o Aurora e recebe solicitações sobre privacidade e dados pessoais pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
     </section>
 
-    <section>
+    <section id="privacy-data">
       <h2>2. Dados tratados</h2>
       <ul>
-        <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para calcular a idade do perfil e exige pelo menos 16 anos para o cadastro; o Aurora registra a idade calculada, a data de referência da idade e o mês/dia do aniversário, não a data completa de nascimento.</li>
-        <li><strong>Conteúdo que você adiciona:</strong> tarefas, preferências e registros das áreas disponíveis, que podem incluir informações sobre saúde e ciclo menstrual, além de dados financeiros e de rotina.</li>
-        <li><strong>Google Calendar opcional:</strong> após sua autorização separada, o Aurora pode ler várias contas Google e os nomes de calendários e eventos (título, data e horário) selecionados para exibi-los em Planejar. A integração usa acesso somente de leitura.</li>
-        <li><strong>Aceite dos documentos:</strong> versão dos Termos de Uso e da Política de Privacidade, além do instante do aceite, associados aos metadados da conta.</li>
-        <li><strong>Avisos Push opcionais:</strong> se ativados, o navegador ou o app nativo mantém um token/inscrição Push por dispositivo. Para o Pomodoro, o serviço recebe fase, horário previsto e durações necessárias ao timer. Para lembretes de Hábitos, recebe somente dias da semana, horário local, fuso e, quando aplicável, a data do check-in para não repetir o aviso naquele dia. Os avisos são genéricos; nomes, conteúdos e histórico não são enviados ao serviço.</li>
-        <li><strong>Sugestões por e-mail:</strong> o formulário do FAQ apenas prepara uma mensagem no aplicativo de e-mail do seu dispositivo. O Aurora não recebe nem armazena o rascunho; se você enviar, o conteúdo e os dados da sua conta de e-mail serão tratados pelos provedores de e-mail envolvidos.</li>
+        <li><strong>Conta e perfil:</strong> e-mail, nome, nome preferido, identidade de gênero e idade. O formulário recebe a data de nascimento para calcular a idade e exige pelo menos 16 anos; a data completa não é armazenada. O e-mail é solicitado duas vezes no cadastro, mas não precisa ser confirmado para entrar.</li>
+        <li><strong>Registros que você cria:</strong> tarefas, hábitos, preferências e informações de rotina e finanças. A área Ciclo pode tratar dados pessoais sensíveis de saúde, como períodos menstruais e sintomas.</li>
+        <li><strong>Consentimentos:</strong> versão e horário de aceite dos Termos e desta Política. Se você aceitar o uso da área Ciclo, também registramos a versão, a data e eventual retirada desse consentimento.</li>
+        <li><strong>Google Calendar opcional:</strong> após autorização separada, o Aurora lê contas, calendários e eventos selecionados (título, data e horário) para exibi-los em Planejar. O acesso é somente de leitura.</li>
+        <li><strong>Avisos Push opcionais:</strong> se ativados, são tratados identificadores do dispositivo e os dados mínimos para agendar Pomodoro ou lembretes de Hábitos. Os avisos são genéricos; nomes, conteúdos e histórico dos hábitos não são enviados.</li>
+        <li><strong>Sugestões:</strong> o formulário prepara uma mensagem no aplicativo de e-mail do dispositivo. O Aurora não recebe o rascunho; se você enviar, o conteúdo e os dados da conta de e-mail são tratados pelos provedores envolvidos.</li>
       </ul>
     </section>
 
-    <section>
-      <h2>3. Para que usamos os dados</h2>
-      <p>Usamos os dados para criar e proteger a conta, oferecer os recursos solicitados, carregar e salvar seus registros na conta autenticada e cumprir obrigações legais aplicáveis. Se você conectar o Google Calendar, os dados dos eventos são usados somente para exibição no Planejar. A demonstração pública usa dados fictícios, é somente de leitura e não acessa sua conta nem calendários.</p>
+    <section id="privacy-bases">
+      <h2>3. Finalidades e bases legais</h2>
+      <p>O Aurora segue a Lei Geral de Proteção de Dados Pessoais (LGPD). Conforme a finalidade, o tratamento pode se apoiar em:</p>
+      <ul>
+        <li><strong>Execução do serviço solicitado:</strong> criar e proteger a conta, exibir e sincronizar registros e oferecer os recursos que você utiliza (LGPD, art. 7º, V).</li>
+        <li><strong>Consentimento específico:</strong> antes de abrir Ciclo, o app pede uma autorização separada para tratar os dados de saúde que você decidir registrar nessa área (LGPD, art. 11, I). Sem aceitar, você pode continuar usando as demais áreas. Você pode retirar o consentimento em Ciclo; isso bloqueia a área, mas não apaga registros que já estavam salvos. Para pedir a exclusão desses registros, escreva para o contato desta Política ou exclua a conta em Ajustes → Seu perfil.</li>
+        <li><strong>Obrigação legal ou regulatória:</strong> quando aplicável, atender exigências legais (LGPD, art. 7º, II).</li>
+        <li><strong>Legítimo interesse:</strong> proteger a conta e a disponibilidade do serviço, quando aplicável e após considerar seus direitos e expectativas (LGPD, art. 7º, IX). Essa base não é usada para os dados sensíveis de saúde da área Ciclo.</li>
+      </ul>
+      <p>O Google Calendar só é conectado depois de uma ação e autorização expressas. A demonstração pública usa informações fictícias, não acessa sua conta nem calendários e não envia dados para autenticação ou persistência; alterações feitas nela ficam apenas em memória durante a visita.</p>
     </section>
 
-    <section>
-      <h2>4. Onde e como são tratados</h2>
-      <p>A autenticação e os dados da conta são processados pelo Supabase configurado para o serviço. As regras de acesso do banco restringem os registros à conta autenticada, mas os dados relacionais não são criptografados de ponta a ponta pelo Aurora. A região de hospedagem precisa ser confirmada nas configurações de produção.</p>
-      <p>A conexão com uma ou mais contas Google Calendar exige autorização separada e explícita, limitada à leitura. O navegador solicita diretamente à API do Google os calendários selecionados e seus eventos no mês exibido. As identificações das contas, nomes, títulos, datas, horários e tokens de acesso ficam somente na memória da aba: não são enviados ao Supabase ou ao Worker, nem gravados em armazenamento local, backups ou registros do Aurora. Os tokens expiram ou são descartados ao fechar/recarregar a aba; você também pode remover as permissões nas configurações das Contas Google. O Google processa as solicitações conforme seus próprios termos e política de privacidade.</p>
-      <p>Se você ativar avisos Push, o Cloudflare Worker recebe o token/inscrição e os dados mínimos descritos acima para agendar os avisos. No app Android/iOS, o token FCM e a credencial do dispositivo ficam associados à sua conta em `push_subscriptions`, protegidos por regras de acesso; o Worker também guarda o token para fazer a entrega. O Firebase Cloud Messaging recebe o token e o conteúdo genérico da notificação e encaminha a mensagem ao dispositivo; no iOS, a entrega usa o Apple Push Notification service (APNs) configurado no Firebase. No navegador, o PushManager mantém a inscrição e o serviço Push da plataforma entrega a mensagem. Os lembretes de Hábitos podem se repetir semanalmente até que você os edite ou desative os avisos; a inscrição Push é compartilhada com o Pomodoro neste dispositivo. A permissão não é solicitada automaticamente, e a entrega pode atrasar ou não ocorrer por limitações de rede, navegador, sistema operacional ou serviço Push. Ao desativar os avisos, o Aurora remove a inscrição/tokens e cancela os agendamentos remotos; a exclusão da conta também tenta remover essas inscrições antes de apagar os dados. Por padrão, a sessão de autenticação é mantida pelo navegador em armazenamento de sessão. Se você marcar “Manter conectado”, a sessão do Supabase pode ser armazenada em armazenamento local neste dispositivo. O app atual mantém os dados de uso em memória e os grava no Supabase, mas versões anteriores podem ter deixado dados pessoais nas chaves `aurora.app.*` e em caches cifrados locais; esses dados podem permanecer até você revisar a importação e a limpeza em Ajustes. Uma chave legada de autorização Push também pode existir até a migração da inscrição. O `PushManager` mantém a inscrição Push web quando ativada, e o service worker armazena recursos estáticos do aplicativo.</p>
-      <p>Backups exportados são arquivos JSON sem criptografia e ficam sob seu controle depois do download. O Aurora não os envia automaticamente como parte da exportação.</p>
+    <section id="privacy-storage">
+      <h2>4. Armazenamento e segurança</h2>
+      <h3>Conta e registros</h3>
+      <p>A autenticação e os registros da conta são processados pelo Supabase. As regras de acesso do banco restringem os registros à conta autenticada. Os dados relacionais não são criptografados de ponta a ponta pelo Aurora. O acesso também depende da segurança da sua conta, senha e dispositivo.</p>
+      <h3>Serviços e transferências internacionais</h3>
+      <p>O Aurora usa infraestrutura de Supabase e Cloudflare; recursos opcionais também podem envolver Google, Firebase, Apple e serviços Push do navegador. Esses fornecedores podem processar dados em infraestrutura localizada fora do Brasil. A localização pode variar conforme o serviço e a configuração do ambiente; o Aurora não fixa uma região única para todos os fornecedores. Cada fornecedor aplica seus próprios termos e políticas, que recomendamos consultar.</p>
+      <h3>Dispositivo e cópias</h3>
+      <p>A sessão fica no armazenamento de sessão do navegador por padrão; se você escolher “Manter conectado”, pode ficar no armazenamento local deste dispositivo. Versões anteriores podem ter deixado dados nas cópias locais legadas, que podem ser revisadas em Ajustes → Dados e backup. O service worker guarda recursos estáticos. Backups exportados ficam sob seu controle e não são enviados automaticamente pelo Aurora; os backups comuns podem ser protegidos por senha, enquanto cópias de recuperação não são criptografadas.</p>
+      <details class="legal-technical-details">
+        <summary>Saiba mais: detalhes técnicos de calendário, Push e armazenamento legado</summary>
+        <div>
+          <p>Ao conectar o Google Calendar, o navegador solicita diretamente à API do Google os calendários selecionados e os eventos do mês exibido. Identificações de contas, nomes, títulos, datas, horários e tokens ficam somente na memória da aba: não são enviados ao Supabase ou ao Worker nem gravados em armazenamento local, backups ou registros do Aurora. Eles são descartados ao fechar ou recarregar a aba; as permissões também podem ser removidas nas configurações das Contas Google. O Google processa as solicitações segundo seus termos e sua política.</p>
+          <p>Se você ativar Push, o Cloudflare Worker recebe a inscrição do dispositivo e os dados mínimos necessários para agendar avisos. Nos apps Android e iOS, tokens e credenciais são associados à conta em registros protegidos por regras de acesso; o Worker também mantém tokens para entrega. O Firebase Cloud Messaging recebe o token e o conteúdo genérico da notificação; no iOS, a entrega também envolve o serviço da Apple. No navegador, o serviço Push da plataforma entrega a mensagem. A inscrição é compartilhada entre Pomodoro e Hábitos. A entrega pode atrasar ou não ocorrer. Ao desativar Push, o Aurora remove a inscrição e cancela os agendamentos; a exclusão da conta também tenta remover essas inscrições.</p>
+          <p>O app atual mantém os dados de uso em memória e os grava no Supabase. Versões anteriores podem ter deixado dados pessoais nas chaves locais do Aurora e em caches cifrados; essas cópias podem permanecer até que você revise a importação e a limpeza em Ajustes. Uma autorização Push legada também pode existir até a migração da inscrição.</p>
+        </div>
+      </details>
     </section>
 
-    <section>
+    <section id="privacy-sharing">
       <h2>5. Compartilhamento</h2>
-      <p>Os provedores de autenticação, banco de dados e, quando ativado, notificações Push participam da operação dos recursos que você utiliza. Para Push nativo, isso inclui Cloudflare, Firebase Cloud Messaging e, no iOS, Apple Push Notification service (APNs); no navegador, inclui o serviço Push da plataforma. Se conectar o Google Calendar, o Google processa a autorização e as solicitações de leitura feitas pelo navegador. Se enviar uma sugestão, os provedores de e-mail escolhidos por você também a processam para entregá-la ao contato do Aurora. Dados podem ainda ser tratados quando necessário para cumprir uma obrigação legal ou proteger direitos e segurança, nos limites aplicáveis. Elisa deve confirmar os contratos e configurações dos provedores antes da publicação.</p>
+      <p>Os fornecedores de hospedagem, autenticação e banco participam da operação do serviço. Se você ativar Push, os dados mínimos descritos nesta Política são compartilhados com os serviços de entrega envolvidos. Se conectar o Google Calendar, o Google processa a autorização e as solicitações feitas pelo navegador. Se enviar uma sugestão, os provedores de e-mail escolhidos por você processam a mensagem. O Aurora também pode compartilhar dados quando necessário para cumprir a lei ou proteger direitos e segurança, nos limites legais.</p>
     </section>
 
-    <section>
+    <section id="privacy-retention">
       <h2>6. Retenção e exclusão</h2>
-      <p>Os dados ficam associados à conta para permitir o uso do Aurora. Quando uma pessoa autenticada recusa uma versão atualizada destes documentos, o aplicativo apresenta um aviso e exige uma confirmação final digitando <strong>EXCLUIR</strong>. Confirmada a ação, a função segura do Supabase exclui a conta de autenticação e os registros associados no banco. Se houver inscrição Push, a remoção no serviço externo é tentada antes; se essa etapa ou a exclusão falhar, o aplicativo informa que a conta não foi excluída e permite tentar novamente ou voltar para aceitar.</p>
-      <p>A exclusão da conta não apaga arquivos JSON que você já baixou nem cópias que você tenha guardado fora do Aurora. Backups baixados devem ser removidos separadamente dos dispositivos e locais onde foram guardados. Obrigações legais e prazos de retenção aplicáveis devem ser confirmados por Elisa e pelos provedores antes da publicação.</p>
+      <p>Os registros permanecem associados à conta enquanto você usa o Aurora. Em Ajustes → Seu perfil, você pode iniciar a exclusão permanente da conta e dos registros associados, com confirmação digitada. Se houver inscrição Push, o Aurora tenta removê-la antes de confirmar a exclusão; se a limpeza ou a exclusão falhar, a conta não é apresentada como apagada. Obrigações legais podem exigir retenção nos casos previstos em lei.</p>
+      <p>Retirar o consentimento de Ciclo bloqueia essa área, mas não apaga os registros existentes. Para solicitar a exclusão desses registros sem excluir a conta, escreva para o contato desta Política. A retirada do consentimento também fica registrada. A exclusão da conta não apaga backups JSON baixados nem cópias guardadas fora do Aurora. Cópias mantidas pelos fornecedores seguem os prazos e políticas de retenção próprios deles.</p>
     </section>
 
-    <section>
-      <h2>7. Seus direitos e solicitações</h2>
-      <p>Você pode solicitar confirmação de tratamento, acesso, correção, portabilidade, informações sobre compartilhamento, anonimização ou eliminação, observadas as hipóteses legais de retenção. Para exercer esses direitos, entre em contato com Elisa da Silva Justino pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
+    <section id="privacy-rights">
+      <h2>7. Seus direitos pela LGPD</h2>
+      <p>Você pode solicitar confirmação de tratamento, acesso, correção, portabilidade, informações sobre compartilhamento, anonimização, bloqueio ou eliminação, observadas as hipóteses legais de retenção. Você também pode retirar o consentimento de Ciclo. Para exercer seus direitos ou tirar dúvidas, escreva para Elisa da Silva Justino pelo e-mail <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
     </section>
 
-    <section>
+    <section id="privacy-updates">
       <h2>8. Segurança e atualizações</h2>
-      <p>O Aurora aplica autenticação e regras de acesso por conta, mas nenhum serviço conectado à internet pode prometer segurança absoluta. Proteja seu dispositivo, sua senha e os arquivos de backup. A versão e a data de atualização desta política aparecem neste documento; Elisa deve definir como comunicar mudanças antes da publicação.</p>
+      <p>O Aurora usa autenticação e regras de acesso por conta, mas nenhum serviço conectado à internet pode prometer segurança absoluta. Proteja seu dispositivo, sua senha e os arquivos de backup. A versão e a data de atualização aparecem neste documento. Quando uma atualização exigir novo aceite, ela será apresentada no app antes de continuar; você poderá aceitar ou iniciar o fluxo de exclusão da conta.</p>
     </section>
 
     <footer class="legal-document-footer">
       <a href="/">Voltar ao Aurora</a>
-      <span>Versão 1.8 · última atualização: 5 de novembro de 2026</span>
+      <span>Versão 1.9 · última atualização: 8 de novembro de 2026</span>
     </footer>
   </main>
 </body>

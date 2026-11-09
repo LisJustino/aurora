@@ -47,7 +47,7 @@ assert.equal(meta(home, 'property', 'og:image:height'), '630');
 
 const jsonLd = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => JSON.parse(m[1]));
 const types = jsonLd.map((item) => item['@type']);
-assert.ok(types.includes('WebApplication') && types.includes('FAQPage'), 'JSON-LD sem WebApplication/FAQPage.');
+assert.ok(types.includes('SoftwareApplication') && types.includes('FAQPage'), 'JSON-LD sem SoftwareApplication/FAQPage.');
 
 const manifest = JSON.parse(await readFile(resolve(dist, 'manifest.webmanifest'), 'utf8'));
 for (const icon of manifest.icons) {
@@ -55,6 +55,13 @@ for (const icon of manifest.icons) {
   await assertServed(urlPath, 'manifest');
   await assertNotRedirected(urlPath, 'manifest');
 }
+assert.equal(manifest.screenshots?.length, 2, 'manifest deve incluir capturas para formatos amplo e estreito.');
+for (const screenshot of manifest.screenshots) {
+  const urlPath = `/${screenshot.src.replace(/^\.\//, '')}`;
+  await assertServed(urlPath, 'manifest screenshot');
+  await assertNotRedirected(urlPath, 'manifest screenshot');
+}
+await assertServed('/offline.html', 'fallback offline');
 for (const href of ['/favicon.ico', '/icons/apple-touch-icon.png', '/icons/favicon-32.png']) {
   await assertServed(href, 'ícone');
   await assertNotRedirected(href, 'ícone');

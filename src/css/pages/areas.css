@@ -12,6 +12,7 @@
   gap: 20px;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--water-accent) 22%, var(--line));
+  border-inline-start: 4px solid var(--water-accent);
   background: linear-gradient(135deg, var(--water-soft), var(--surface-strong) 72%);
 }
 .water-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -77,6 +78,18 @@
 
 .main[data-route="ciclo"] .notice { line-height: 1.55; }
 .main[data-route="ciclo"] .card:has(> .cal) > .head { width: min(100%, 420px); margin-inline: auto; }
+.cycle-consent-card { display: grid; gap: var(--space-3); max-width: 760px; margin-inline: auto; }
+.cycle-consent-card h2,
+.cycle-consent-card p { margin: 0; }
+.cycle-consent-card .section-kicker { color: var(--area-cycle); font-size: var(--text-2xs); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; }
+.cycle-consent-card p { color: var(--muted); line-height: var(--leading-relaxed); }
+.cycle-consent-card a { color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
+.cycle-consent-form { display: grid; gap: var(--space-3); }
+.cycle-consent-check { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
+.cycle-consent-check input { width: var(--control-sm); height: var(--control-sm); flex: none; margin: 2px 0 0; accent-color: var(--area-cycle); }
+.cycle-consent-actions { flex-wrap: wrap; }
+.cycle-consent-management { align-items: center; justify-content: space-between; }
+.cycle-consent-management > span { flex: 1; }
 .cycle-overview { display: grid; gap: 18px; padding: clamp(20px, 3vw, 30px); border: 1px solid color-mix(in srgb, var(--area-cycle) 30%, var(--line)); border-radius: var(--r-large); background: radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--area-cycle) 15%, transparent), transparent 16rem), linear-gradient(145deg, color-mix(in srgb, var(--area-cycle) 8%, var(--surface-strong)), var(--surface-strong) 62%); box-shadow: var(--card-shadow); }
 .cycle-overview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .cycle-overview-head > div { min-width: 0; }
@@ -105,7 +118,7 @@
 .cycle-calendar-card .head .section-kicker { margin-bottom: 2px; color: var(--area-cycle); }
 .cycle-calendar-help { max-width: 38ch; margin: 4px 0 0; color: var(--muted); font-size: var(--text-meta); line-height: 1.45; }
 .cycle-calendar-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.cycle-calendar-legend > span { display: inline-flex; align-items: center; color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
+.cycle-calendar-legend > span { display: inline-flex; min-height: var(--control-sm); align-items: center; padding: 4px 9px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-soft); color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
 .cycle-calendar-legend .lg { width: 10px; height: 10px; margin: 0 7px 0 0; }
 .cycle-calendar-legend .lg.m { background: color-mix(in srgb, var(--area-cycle) 76%, var(--surface)); }
 .cycle-calendar-legend .lg.fertile { background: color-mix(in srgb, var(--area-water) 74%, var(--surface)); }
@@ -284,6 +297,8 @@
 }
 
 @media (max-width: 600px) {
+  .cycle-consent-management { align-items: stretch; flex-direction: column; }
+  .cycle-consent-management .btn { width: 100%; }
   .cycle-overview-head { flex-direction: column; }
   .cycle-overview-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); }
   .cycle-overview-actions > .btn { width: 100%; }
@@ -298,6 +313,7 @@
   .cycle-log-dialog .dlg-body { padding: 20px; }
   .cycle-group-heading { flex-wrap: wrap; }
   .cycle-group-mode { margin-left: 0; }
+  .cycle-symptom-group .chips { grid-template-columns: minmax(0, 1fr); }
   .cycle-flow-group .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cycle-flow-group .chip { min-width: 0; padding-inline: 6px; }
   .cycle-symptom-grid { grid-template-columns: minmax(0, 1fr); }
@@ -335,7 +351,7 @@
   padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--r-group);
-  background: var(--surface);
+  background: var(--surface-soft);
 }
 .free-pomodoro-settings > summary,
 .pomodoro-push-settings > summary,

@@ -1,8 +1,10 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { readReleaseMetadata } from './scripts/release-metadata.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
+const releaseMetadata = readReleaseMetadata(root);
 const pageEntries = [
   'pages/agua.html',
   'pages/ajustes.html',
@@ -35,6 +37,9 @@ function appChunkHint() {
 }
 
 export default defineConfig({
+  define: {
+    __AURORA_RELEASE_METADATA__: JSON.stringify(releaseMetadata),
+  },
   plugins: [appChunkHint()],
   build: {
     rollupOptions: {

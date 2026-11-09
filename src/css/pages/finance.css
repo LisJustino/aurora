@@ -86,11 +86,12 @@
   flex-direction: column;
   gap: 4px;
   padding: var(--space-5);
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
-  border-inline-start: 4px solid var(--accent);
+  border: 1px solid color-mix(in srgb, var(--area-finances, var(--accent)) 20%, var(--line));
+  border-inline-start: 4px solid var(--area-finances, var(--accent));
   border-radius: var(--r-large);
   background: var(--hero);
 }
+.fin-hero .fh-l { color: var(--area-finances, var(--muted)); font-weight: var(--weight-semibold); }
 .fin-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .fin-hero-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .fin-hero-actions .btn { min-height: var(--control-sm); }
@@ -570,14 +571,10 @@
 }
 .main[data-route="financas"] { --area-tone: var(--area-finances); }
 
-/* A ação primária de Finanças vive no cabeçalho no desktop, sem sobrepor cards. */
+/* A ação primária de Finanças compartilha o cabeçalho com o atalho da área. */
 .finance-page-action {
-  position: absolute;
-  z-index: 2;
-  top: 50%;
-  right: 26px;
+  flex: 0 1 auto;
   min-height: var(--control-md);
-  transform: translateY(-50%);
 }
 @media (min-width: 900px) {
   .main[data-route="financas"] > .finance-fab { display: none; }
@@ -617,6 +614,7 @@
 .main[data-route="financas"] .fin-section-option.is-active {
   border-color: transparent;
   background: var(--surface-strong);
+  color: var(--area-finances);
   box-shadow: 0 4px 10px -8px var(--ink);
 }
 

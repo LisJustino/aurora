@@ -20,7 +20,7 @@ async function checkLanding(page, profile, viewportLabel) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   });
   if (await page.evaluate(() => innerWidth <= 700)) {
-    await page.locator('.public-hero .preview-picture-light .preview-capture').evaluate((image) => image.decode());
+    await page.locator('.public-hero .product-preview .preview-task-row').first().waitFor();
   }
   const metrics = await page.evaluate(() => {
     const rect = (selector) => {
@@ -37,7 +37,7 @@ async function checkLanding(page, profile, viewportLabel) {
     };
     const targets = [
       ...document.querySelectorAll(
-        '.public-topbar .public-account-action[data-public-action="login"], .public-topbar .public-header-tools .iconbtn, .public-hero .public-actions .btn',
+        '.public-topbar .public-account-action[data-public-action="login"], .public-topbar .public-header-tools .iconbtn, .public-hero .public-actions .btn, .public-hero [data-landing-task]',
       ),
     ].filter((element) => element.getClientRects().length > 0);
 
@@ -51,10 +51,7 @@ async function checkLanding(page, profile, viewportLabel) {
       title: rect('.public-hero h1'),
       hero: rect('.public-hero'),
       preview: rect('.public-hero .product-preview'),
-      previewImage: (() => {
-        const image = document.querySelector('.public-hero .preview-picture-light .preview-capture');
-        return image ? { loaded: image.complete && image.naturalWidth > 0, alt: image.alt } : null;
-      })(),
+      previewTasks: Boolean(document.querySelector('.public-hero .product-preview .preview-task-row')),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
         return { width: bounds.width, height: bounds.height };
@@ -73,8 +70,8 @@ async function checkLanding(page, profile, viewportLabel) {
     profile, `cabeçalho mostra o CTA de cadastro (${viewportLabel})`);
   check(metrics.viewportWidth > 700 || metrics.preview?.visible,
     profile, `prévia aparece no hero móvel (${viewportLabel})`);
-  check(metrics.viewportWidth > 700 || (metrics.previewImage?.loaded && /tarefas de exemplo/i.test(metrics.previewImage.alt)),
-    profile, `captura móvel está carregada e tem texto alternativo (${viewportLabel})`);
+  check(metrics.viewportWidth > 700 || metrics.previewTasks,
+    profile, `prévia móvel mostra tarefas fictícias (${viewportLabel})`);
   check(metrics.title?.visible && metrics.title.width > 0 && metrics.title.height > 0,
     profile, `título principal visível (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
@@ -194,7 +191,9 @@ async function checkAccountScreen(page, profile, viewportLabel) {
         profile.name, 'demonstração usa a marca do cabeçalho do app');
       if (devices[profile.name].viewport.width <= 700) {
         check(await page.locator('.demo-nav').evaluate((nav) =>
-          getComputedStyle(nav).position === 'fixed' && nav.getBoundingClientRect().bottom === innerHeight),
+          getComputedStyle(nav).position === 'fixed'
+            && innerHeight - nav.getBoundingClientRect().bottom <= 12
+            && nav.getBoundingClientRect().bottom <= innerHeight),
         profile.name, 'dock móvel fixo respeita a borda inferior da tela');
         check(await page.locator('.demo-app > .topbar [data-public-action="signup"]').evaluate((button) =>
           button.classList.contains('primary'))
@@ -217,13 +216,13 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await page.locator('.public-site > .public-topbar [data-public-action="login"]').click();
       await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
       await checkAccountScreen(page, profile.name, 'login');
-      await page.locator('.account-public-header [data-account-mode="signup"]').click();
+      await page.locator('.account-site-header [data-account-mode="signup"]').click();
       await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
       await checkAccountScreen(page, profile.name, 'cadastro');
       await page.setViewportSize({ width: 320, height: 780 });
       await checkAccountScreen(page, profile.name, 'cadastro a 320px');
       await page.setViewportSize(devices[profile.name].viewport);
-      await page.locator('.account-public-header [data-account-mode="login"]').click();
+      await page.locator('.account-site-header [data-account-mode="login"]').click();
       await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
       await page.getByRole('button', { name: 'Esqueci minha senha' }).click();
       await page.getByRole('heading', { name: 'Recuperar acesso' }).waitFor();

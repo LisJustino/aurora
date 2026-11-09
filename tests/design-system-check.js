@@ -45,6 +45,7 @@ check(files.some((item) => item.file === 'design-system/lists.css'), 'O padrão 
 const pageTitleStyles = files.find((item) => item.file === 'design-system/page-titles.css');
 const pageTitleOverrides = offenders(/\.main\[data-route=["'][^"']+["']\]\s*>\s*\.page-title/g);
 check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main > .page-title') && !pageTitleOverrides.length, 'Cabeçalhos de página usam o componente compartilhado', pageTitleOverrides.join(', '));
+check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main h1[tabindex="-1"]:focus { outline: none; }'), 'Títulos focados pela navegação não exibem contorno de controle');
 check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card')), 'O padrão de cartões compactos está no design system');
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');

@@ -31,6 +31,12 @@ const assetResponse = {
   headers: { get: () => 'application/javascript' },
   clone() { return this; },
 };
+const offlineResponse = {
+  ok: true,
+  type: 'basic',
+  headers: { get: () => 'text/html; charset=utf-8' },
+  clone() { return this; },
+};
 
 runInNewContext(source, {
   self,
@@ -39,7 +45,13 @@ runInNewContext(source, {
   caches: { keys: async () => [], open: async () => cache, match: cache.match },
   fetch: async (request, options) => {
     fetchCalls.push({ request, options });
-    const pathname = new URL(typeof request === 'string' ? request : request.url).pathname;
+    const requestUrl = typeof request === 'string'
+      ? request
+      : request instanceof URL
+        ? request.href
+        : request.url;
+    const pathname = new URL(requestUrl).pathname;
+    if (pathname === '/offline.html') return offlineResponse;
     if (pathname === '/loading-appearance.js' && appearanceOffline) throw new Error('offline');
     if (pathname === '/pages/inicio.html' || pathname === '/config') {
       throw new Error('offline');
@@ -52,7 +64,11 @@ runInNewContext(source, {
   console,
 });
 
-assert.equal(handlers.has('install'), false, 'updated workers must wait for the user action');
+assert.equal(handlers.has('install'), true, 'the offline fallback should be cached during install');
+let installPromise;
+handlers.get('install')({ waitUntil: (promise) => { installPromise = promise; } });
+await installPromise;
+assert.equal(stored.get('https://aurora.test/offline.html'), offlineResponse, 'the branded offline page should be available offline');
 let waitUntilPromise;
 handlers.get('message')({
   data: { type: 'OTHER' },
@@ -91,6 +107,7 @@ assert.equal(await dispatchFetch(assetRequest), assetResponse);
 const fetchCountAfterAssetMiss = fetchCalls.length;
 assert.equal(await dispatchFetch(assetRequest), assetResponse, 'app assets should be cache-first');
 assert.equal(fetchCalls.length, fetchCountAfterAssetMiss, 'cached app assets should not be fetched again');
+assert.equal(await dispatchFetch(request('/screenshots/demo-wide.png')), assetResponse, 'PWA screenshots should be cache-first');
 
 const appearanceRequest = request('/loading-appearance.js');
 assert.equal(await dispatchFetch(appearanceRequest), assetResponse);
@@ -107,8 +124,10 @@ assert.equal(indexFallback, htmlResponse, 'the HTML shell should be available as
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), htmlResponse, 'offline routes should fall back to the HTML shell');
 assert.equal(await dispatchFetch(request('/config?section=data', 'navigate')), htmlResponse, 'offline path routes with query state should fall back to the HTML shell');
 assert.equal(stored.has('https://aurora.test/config?section=data'), false, 'query-specific route state must not be cached');
+stored.delete('https://aurora.test/index.html');
+assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), offlineResponse, 'uncached offline routes should show the branded offline page');
 
-assert.match(source, /aurora-static-v11/);
+assert.match(source, /aurora-static-v12/);
 assert.match(source, /APP_SHELL_ASSET/);
 assert.match(source, /APP_ROUTE/);
 assert.match(source, /APP_DOCUMENT/);

@@ -243,6 +243,7 @@
 
 .main[data-route="config"] .settings-unsaved-bar {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-inline-start: 4px solid var(--accent);
 }
 
 :root[data-density="compact"] .main[data-route="config"] {

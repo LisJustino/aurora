@@ -48,6 +48,8 @@
   letter-spacing: -.055em;
 }
 
+.main h1[tabindex="-1"]:focus { outline: none; }
+
 .main > .page-title h1 i { color: var(--area-tone, var(--accent)); }
 
 .main > .page-title p {

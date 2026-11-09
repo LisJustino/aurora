@@ -2,6 +2,25 @@ import { iconSvg } from '../../utils/icons.js';
 
 const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
 
+export function renderSuggestionForm() {
+  return `<div class="footer-faq-content">
+    <p>O formulário abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Se não tiver um aplicativo configurado, copie o e-mail de contato. Não inclua senhas nem informações pessoais sensíveis.</p>
+    <form class="footer-suggestion-form" data-footer-suggestion>
+      <label for="footer-suggestion-name">Seu nome (opcional)</label>
+      <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
+      <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
+      <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
+      <label for="footer-suggestion-message">Sua sugestão</label>
+      <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
+      <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
+      <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
+      <button class="btn back" type="button" data-action="copy-contact-email">Copiar e-mail de contato</button>
+      <p class="fine" data-suggestion-copy-status role="status" aria-live="polite"></p>
+      <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: lisjustino@gmail.com</p>
+    </form>
+  </div>`;
+}
+
 export function renderFooterContent({
   authenticated = false,
   accountError = false,
@@ -26,7 +45,7 @@ export function renderFooterContent({
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
   const demoLink = demoAvailable
-    ? '<a class="footer-link" href="#public-features">Explorar demonstração</a>'
+    ? '<a class="footer-link" href="/demonstracao" data-public-action="demo">Explorar demonstração</a>'
     : '';
   const installLink = pwaInstall && !isStandalone && typeof window !== 'undefined'
     ? '<button class="footer-link" type="button" data-action="pwa-install">Baixar o app</button>'
@@ -70,7 +89,7 @@ export function renderFooterContent({
           </details>
           <details>
             <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-            <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas ou informações pessoais sensíveis.</p>
+            <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Se não tiver um aplicativo configurado, copie o e-mail de contato. Não inclua senhas ou informações pessoais sensíveis.</p>
             <form class="footer-suggestion-form" data-footer-suggestion>
               <label for="footer-suggestion-name">Seu nome (opcional)</label>
               <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
@@ -79,6 +98,9 @@ export function renderFooterContent({
               <label for="footer-suggestion-message">Sua sugestão</label>
               <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
               <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
+              <button class="btn back" type="button" data-action="copy-contact-email">Copiar e-mail de contato</button>
+              <p class="fine" data-suggestion-copy-status role="status" aria-live="polite"></p>
+              <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: lisjustino@gmail.com</p>
             </form>
           </details>
           <details>
@@ -89,19 +111,7 @@ export function renderFooterContent({
       </details>` : ''}
       ${suggestionForm ? `<details class="footer-faq footer-suggestion">
         <summary>Enviar uma sugestão <span aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-        <div class="footer-faq-content">
-          <p>O formulário abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Não inclua senhas nem informações pessoais sensíveis.</p>
-          <form class="footer-suggestion-form" data-footer-suggestion>
-            <label for="footer-suggestion-name">Seu nome (opcional)</label>
-            <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
-            <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
-            <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
-            <label for="footer-suggestion-message">Sua sugestão</label>
-            <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
-            <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
-            <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
-          </form>
-        </div>
+        ${renderSuggestionForm()}
       </details>` : ''}
       <div class="footer-meta">
         <span>© ${new Date().getFullYear()} aurora.</span>
