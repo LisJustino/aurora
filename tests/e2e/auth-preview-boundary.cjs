@@ -31,7 +31,7 @@ const check = (passed, name, detail = '') => {
   await page.getByText('Você está vendo dados de exemplo.', { exact: false }).waitFor({ state: 'visible' });
   check(await page.locator('.preview-shell').count() === 1, 'prévia local abre a área de demonstração');
 
-  const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'ciclo', 'habitos', 'config'];
+  const routes = ['inicio', 'planejar', 'financas', 'ciclo', 'habitos', 'config'];
   for (const route of routes) {
     const link = route === 'config'
       ? page.locator('.profile-link[href="/config"]')

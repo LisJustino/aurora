@@ -386,7 +386,7 @@ const check = (passed, name, detail = '') => {
     const navBounds = rect(nav);
     const createBounds = rect(create);
     const firstContent = [...main.children].find((element) => (
-      !element.matches('.pomodoro-mini, .notification-panel, .fab')
+      !element.matches('.notification-panel, .fab')
       && getComputedStyle(element).display !== 'none'
     ));
     return {
@@ -420,7 +420,7 @@ const check = (passed, name, detail = '') => {
         : item.getAttribute('href'))
   ));
   check(sidebarItemOrder[0] === '/inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
-  check(sidebarItemOrder.slice(0, 6).join(',') === '/inicio,/planejar,/pomodoro,/financas,/ciclo,/habitos',
+  check(sidebarItemOrder.slice(0, 5).join(',') === '/inicio,/planejar,/financas,/ciclo,/habitos',
     'ordem padrão das áreas segue o menu visual nos breakpoints', sidebarItemOrder.join(', '));
   const sidebarHabitsIndex = sidebarItemOrder.indexOf('/habitos');
   const sidebarCreateIndex = sidebarItemOrder.indexOf('criar');

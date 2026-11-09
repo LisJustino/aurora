@@ -24,7 +24,8 @@ import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.8';
+export const LEGAL_DOCUMENT_VERSION = '1.9';
+export const CYCLE_DATA_CONSENT_VERSION = '1.9';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -45,6 +46,33 @@ export function hasCurrentLegalConsent(user) {
     && metadata.privacy_policy_version === LEGAL_DOCUMENT_VERSION
     && typeof metadata.terms_accepted_at === 'string'
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
+}
+
+export function createCycleDataConsentMetadata(acceptedAt = new Date()) {
+  if (!(acceptedAt instanceof Date) || Number.isNaN(acceptedAt.getTime())) {
+    throw new TypeError('A data de consentimento para dados de Ciclo é inválida.');
+  }
+  return {
+    cycle_data_consent_at: acceptedAt.toISOString(),
+    cycle_data_consent_version: CYCLE_DATA_CONSENT_VERSION,
+    cycle_data_consent_revoked_at: null,
+  };
+}
+
+export function createCycleDataConsentRevocationMetadata(revokedAt = new Date()) {
+  if (!(revokedAt instanceof Date) || Number.isNaN(revokedAt.getTime())) {
+    throw new TypeError('A data de revogação do consentimento para dados de Ciclo é inválida.');
+  }
+  return { cycle_data_consent_revoked_at: revokedAt.toISOString() };
+}
+
+export function hasCurrentCycleDataConsent(user) {
+  const metadata = user?.user_metadata;
+  return Boolean(metadata
+    && metadata.cycle_data_consent_version === CYCLE_DATA_CONSENT_VERSION
+    && typeof metadata.cycle_data_consent_at === 'string'
+    && Number.isFinite(Date.parse(metadata.cycle_data_consent_at))
+    && !metadata.cycle_data_consent_revoked_at);
 }
 
 export function hasCompleteProfile(user) {
@@ -727,7 +755,7 @@ export function createAccountForm(root, {
     const nameInput = createField(form, 'Nome', 'name', 'text', 'name', signupProfile?.name || '');
     const preferredNameInput = createField(
       form,
-      'Como você prefere ser chamado(a)?',
+      'Nome de preferência (opcional)',
       'preferredName',
       'text',
       'nickname',
@@ -735,6 +763,7 @@ export function createAccountForm(root, {
     );
     nameInput.maxLength = 50;
     preferredNameInput.maxLength = 50;
+    preferredNameInput.required = false;
     let preferredNameEdited = Boolean(signupProfile?.preferredName);
     preferredNameInput.addEventListener('input', () => { preferredNameEdited = true; });
     nameInput.addEventListener('input', () => {
@@ -928,7 +957,7 @@ export function createAccountForm(root, {
     const confirmPassword = form.elements.confirmPassword;
     const passwordField = password.closest('.account-field');
     const strength = create('div', 'account-password-strength');
-    strength.innerHTML = '<div class="account-strength-track" aria-hidden="true"><span></span></div><p class="account-strength-label" aria-live="polite">Força da senha: <b>fraca</b></p>';
+    strength.innerHTML = '<div class="account-strength-track" aria-hidden="true"><span></span></div><p class="account-strength-label" aria-live="polite">Critérios atendidos: <b>0 de 5</b></p>';
     const checklist = create('ul', 'account-password-checklist');
     checklist.id = 'account-password-checklist';
     checklist.setAttribute('aria-live', 'polite');
@@ -959,9 +988,13 @@ export function createAccountForm(root, {
         item.querySelector('.account-password-criterion-icon').innerHTML = iconSvg(valid ? 'check' : 'circle', 12);
         if (valid) passed += 1;
       });
-      const level = passed >= 5 ? 'forte' : passed >= 3 ? 'média' : 'fraca';
-      strength.dataset.strength = passed >= 5 ? 'strong' : passed >= 3 ? 'medium' : 'weak';
-      strength.querySelector('.account-strength-label b').textContent = level;
+      strength.dataset.criteriaState = passed === PASSWORD_REQUIREMENTS.length
+        ? 'complete'
+        : passed >= 3 ? 'partial' : 'incomplete';
+      strength.querySelector('.account-strength-track span').style.width =
+        `${(passed / PASSWORD_REQUIREMENTS.length) * 100}%`;
+      strength.querySelector('.account-strength-label b').textContent =
+        `${passed} de ${PASSWORD_REQUIREMENTS.length}`;
       const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === value;
       confirmPassword.setCustomValidity(confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '');
       const confirmEmail = form.elements.confirmEmail;
@@ -1038,7 +1071,6 @@ export function createAccountForm(root, {
       }
       submit.disabled = !(
         form.elements.name.value.trim()
-        && form.elements.preferredName.value.trim()
         && age !== null
         && age >= MINIMUM_ACCOUNT_AGE
         && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
@@ -1440,7 +1472,8 @@ export async function requireAccount(root, initialMode = 'login', {
       const birthdayReference = birthDate ? createBirthdayReference(birthDate) : null;
       return {
         name: form.elements.name.value.trim(),
-        preferredName: form.elements.preferredName.value.trim(),
+        preferredName: form.elements.preferredName.value.trim()
+          || form.elements.name.value.trim().split(/\s+/)[0],
         birthDate,
         age: birthdayReference?.ageAtReference ?? null,
         birthdayReference,
@@ -1560,7 +1593,7 @@ export async function requireAccount(root, initialMode = 'login', {
         return null;
       }
       const profile = result.signupProfile;
-      if (!profile || !profile.name || !profile.preferredName
+      if (!profile || !profile.name
         || !profile.birthdayReference) {
         message = 'Preencha seus dados e informe uma data de nascimento válida para continuar.';
         continue;
@@ -1760,7 +1793,7 @@ export async function requireAccount(root, initialMode = 'login', {
       }
       if (mode === 'signup-profile') {
         const birthdayReference = result.signupProfile?.birthdayReference;
-        if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.preferredName
+        if (!result.signupProfile || !result.signupProfile.name
           || !birthdayReference) {
           message = 'Preencha seus dados e informe uma data de nascimento válida para criar uma conta.';
           continue;

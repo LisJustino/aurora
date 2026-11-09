@@ -8,7 +8,7 @@
     "build": "vite build && node scripts/copy-static-assets.mjs && node scripts/prerender-landing.mjs",
     "preview": "vite preview",
     "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
-    "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs",
+    "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs && node tests/release-notes-check.mjs",
     "test:seo": "node tests/seo-check.mjs",
     "test:e2e:ci": "node tests/e2e/ci-smoke.cjs",
     "test:supabase:concurrency": "node tests/supabase-concurrency-check.mjs",

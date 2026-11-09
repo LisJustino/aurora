@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import {
   calculateAge,
   createLegalConsentMetadata,
+  createCycleDataConsentMetadata,
+  createCycleDataConsentRevocationMetadata,
   hasCurrentLegalConsent,
+  hasCurrentCycleDataConsent,
   hasCompleteProfile,
   hasSocialIdentity,
   authCallbackErrorMessage,
@@ -202,30 +205,40 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: LEGAL_DOCUMENT_VERSION,
   privacy_policy_version: LEGAL_DOCUMENT_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.8');
+assert.equal(LEGAL_DOCUMENT_VERSION, '1.9');
+assert.deepEqual(createCycleDataConsentMetadata(new Date('2026-11-08T12:00:00.000Z')), {
+  cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+  cycle_data_consent_version: '1.9',
+  cycle_data_consent_revoked_at: null,
+});
+assert.deepEqual(createCycleDataConsentRevocationMetadata(new Date('2026-11-08T13:00:00.000Z')), {
+  cycle_data_consent_revoked_at: '2026-11-08T13:00:00.000Z',
+});
+assert.throws(() => createCycleDataConsentMetadata('2026-11-08T12:00:00.000Z'), TypeError);
+assert.throws(() => createCycleDataConsentRevocationMetadata(new Date('invalid')), TypeError);
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
-assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.8">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.8">/);
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.9">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.9">/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);
 assert.match(signupAgeMigration, /message = 'signup_minimum_age'/);
 assert.match(signupAgeMigration, /make_date\(2000, birth_month, birth_day\)/);
-assert.match(termsDocument, /provedor deve permitir o acesso sem confirmação do e-mail/);
+assert.match(termsDocument, /cadastro não exige confirmação do e-mail, mas pede que você digite o endereço duas vezes/);
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
 assert.match(accountAuthSource, /erro pode impedir a recuperação da senha/i);
-assert.match(landingSource, /acesso é liberado assim que a conta é criada/i);
-assert.match(landingSource, /erro de digitação pode impedir a recuperação da senha/i);
+assert.match(landingSource, /você digita o endereço duas vezes/i);
+assert.match(landingSource, /endereço inválido pode impedir a recuperação da senha/i);
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
-    terms_version: '1.8',
-    privacy_policy_version: '1.8',
+    terms_version: '1.9',
+    privacy_policy_version: '1.9',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
@@ -251,6 +264,28 @@ assert.equal(hasCurrentLegalConsent({
   },
 }), false);
 assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '1.9',
+    cycle_data_consent_revoked_at: null,
+  },
+}), true);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '1.8',
+    cycle_data_consent_revoked_at: null,
+  },
+}), false);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '1.9',
+    cycle_data_consent_revoked_at: '2026-11-08T13:00:00.000Z',
+  },
+}), false);
+assert.equal(hasCurrentCycleDataConsent({ user_metadata: null }), false);
 assert.throws(() => createLegalConsentMetadata(new Date('invalid')), TypeError);
 assert.equal(getOAuthRedirectUrl('https://aurora.example/pages/financas.html'), 'https://aurora.example/');
 assert.equal(getOAuthRedirectUrl('http://127.0.0.1:5173/'), 'http://127.0.0.1:5173/');

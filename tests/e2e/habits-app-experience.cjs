@@ -18,8 +18,27 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#habitos`);
   await page.locator('.habit-today').waitFor({ state: 'visible' });
-  check(await page.locator('.habit-empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
-  check(await page.locator('.habit-today-head [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
+  check(await page.locator('.habit-today .empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
+  check(await page.locator('.habit-today [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
+  await page.locator('.habit-today .empty [data-action="habit-new"]').click();
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [data-dlg="name"]').getAttribute('aria-invalid') === 'true', 'nome vazio do hábito recebe erro inline');
+  await page.locator('#dlg [data-dlg="name"]').fill('Leitura de teste');
+  for (const day of await page.locator('#dlg [name="days"]').all()) await day.uncheck();
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [name="days"]').first().getAttribute('aria-invalid') === 'true'
+    && await page.locator('#dlg .habit-schedule [role="alert"]').count() === 1, 'dias vazios recebem erro inline');
+  await page.locator('#dlg [name="days"]').last().check();
+  check(await page.locator('#dlg .habit-schedule [role="alert"]').count() === 0, 'selecionar outro dia remove o erro');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  if (await page.locator('#dlg [data-action="dlg-discard"]').count()) await page.locator('#dlg [data-action="dlg-discard"]').click();
+  await page.locator('[data-action="habit-idea"][data-id="water"]').click();
+  await page.locator('#dlg [data-dlg="waterGoalMl"]').fill('');
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [data-dlg="waterGoalMl"]').getAttribute('aria-invalid') === 'true',
+    'meta de água vazia continua inválida');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  if (await page.locator('#dlg [data-action="dlg-discard"]').count()) await page.locator('#dlg [data-action="dlg-discard"]').click();
   check(await page.locator('.habit-week-overview').count() === 0, 'sem hábitos, a revisão semanal não ocupa espaço');
   check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4, 'prévia mostra quatro ideias');
   check(await page.locator('.habit-ideas summary b').textContent() === 'Escolha seus primeiros hábitos'
@@ -116,7 +135,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('[data-action="dlg-close"]').last().click();
   check(await page.locator('.habit-row[data-habit-id]').count() === 0,
     'abrir personalização não grava a ideia');
-  await page.locator('.habit-today-head [data-action="habit-new"]').click();
+  await page.locator('.habit-today [data-action="habit-new"]').click();
   await page.locator('#dlgform [data-dlg="name"]').fill('Alongar por cinco minutos');
   await page.locator('#dlgform [data-dlg="remind"]').fill('09:00');
   await page.locator('button[form="dlgform"][type="submit"]').click();
@@ -127,9 +146,9 @@ const check = (passed, name, detail = '') => {
   check(await row.locator('.habit-more').evaluate((details) => !details.open), 'detalhes do hábito começam recolhidos');
   const reminderNote = page.locator('.habit-reminder-note');
   await reminderNote.locator('summary').click();
-  check((await reminderNote.textContent()).includes('inscrição compartilhada de Hábitos e Pomodoro')
-    && await reminderNote.getByRole('button', { name: 'Ativar avisos dos dois' }).count() === 1,
-  'controle de Hábitos informa que a inscrição Push também afeta o Pomodoro');
+  check((await reminderNote.textContent()).includes('Este interruptor controla os avisos de Hábitos neste dispositivo')
+    && await reminderNote.getByRole('button', { name: 'Ativar avisos' }).count() === 1,
+  'controle de notificações informa que os avisos de Hábitos são deste dispositivo');
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
   check(await page.locator('#toast').getByText('Hábito marcado como concluído.').count() === 1, 'marcação de hábito oferece desfazer');
@@ -182,12 +201,6 @@ const check = (passed, name, detail = '') => {
   }));
   check(darkLayout.theme === 'dark' && !darkLayout.overflow && darkLayout.surface !== lightSurface,
     'cartões e filtros permanecem utilizáveis em tema escuro', JSON.stringify(darkLayout));
-  await page.evaluate(() => { location.hash = 'pomodoro'; });
-  const pomodoroPush = page.locator('#d-pomodoro-push');
-  await page.locator('#d-pomodoro-push > summary').click();
-  check((await pomodoroPush.textContent()).includes('este controle ativa ou desativa os avisos de ambos')
-    && await pomodoroPush.getByRole('button', { name: 'Ativar avisos dos dois' }).count() === 1,
-  'controle do Pomodoro informa o mesmo alcance compartilhado');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();
