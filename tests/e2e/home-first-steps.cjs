@@ -23,46 +23,72 @@ const check = (passed, name, detail = '') => {
   check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem recolhidos no Início');
   check(await card.getByRole('link').count() === 0, 'ações iniciais ficam recolhidas por padrão');
   await card.locator('summary').click();
-  check(await card.getByRole('link').count() === 4, 'ações iniciais podem ser expandidas');
-  check(await card.locator('ol > li').count() === 4, 'cartão lista as quatro ações iniciais');
-  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 4 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
+  check(await card.getByRole('link').count() === 3, 'ações iniciais podem ser expandidas');
+  check(await card.locator('ol > li').count() === 3, 'cartão lista as três ações iniciais');
+  check((await card.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).join(',') === '/planejar,/habitos,/financas', 'ações iniciais usam rotas canônicas');
+  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 3 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
   check(await card.locator('li.is-next').count() === 1 && await card.locator('li.is-next small').innerText() === 'Sugestão para você', 'cartão destaca uma próxima ação personalizada');
   check(await page.locator('#dlg').count() === 0, 'tutorial não abre automaticamente');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Início não tem overflow horizontal em 390 px');
   await page.setViewportSize({ width: 1366, height: 768 });
   const desktopLayout = await page.evaluate(() => {
     const hero = document.querySelector('.home-head').getBoundingClientRect();
-    const guide = document.querySelector('.area-guide-control');
+    const guide = document.querySelector('.home-head-actions .area-guide-button');
     const steps = document.querySelector('.home-first-steps');
+    const colorProbe = document.createElement('span');
+    colorProbe.style.color = 'var(--btn)';
+    document.body.append(colorProbe);
+    const guideUsesContrastToken = getComputedStyle(guide).color === getComputedStyle(colorProbe).color;
+    colorProbe.remove();
     return {
       heroWidth: hero.width,
-      guideColumn: getComputedStyle(guide).gridColumn,
+      guideInHeader: Boolean(guide),
+      guideUsesContrastToken,
       stepsColumn: getComputedStyle(steps).gridColumn,
       stepsWidth: steps.getBoundingClientRect().width,
       actionColumns: getComputedStyle(steps.querySelector('.home-first-steps-list')).gridTemplateColumns.split(' ').length,
     };
   });
-  check(desktopLayout.guideColumn === '1 / -1' && desktopLayout.stepsColumn === '1 / -1', 'tutorial e primeiros passos ocupam a largura total no desktop');
-  check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 4, 'ações iniciais ficam em quatro colunas no desktop');
+  check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1', 'atalho do tutorial fica no cabeçalho e primeiros passos ocupam a largura total no desktop');
+  check(desktopLayout.guideUsesContrastToken, 'atalho do tutorial usa o token de contraste dos botões');
+  check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 3, 'ações iniciais ficam em três colunas no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
 
-  await page.getByRole('link', { name: 'Personalizar início' }).click();
-  await page.locator('.home-layout-settings').waitFor({ state: 'visible' });
-  check(await page.locator('.areas-navigation-settings').count() === 1, 'atalho abre as opções de personalização da Home');
-  await page.locator('.nav a[href="#inicio"]').click();
+  for (const route of ['planejar', 'financas', 'habitos', 'ciclo']) {
+    await page.goto(`${BASE}/?preview#${route}`);
+    const guide = page.locator('.page-title .area-page-actions .area-guide-button');
+    await guide.waitFor({ state: 'visible' });
+    check(await guide.count() === 1, `atalho “Como usar?” fica junto ao título em ${route}`);
+    check(await guide.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth;
+    }), `atalho de ${route} cabe na largura móvel`);
+  }
+  await page.goto(`${BASE}/?preview#inicio`);
   await card.waitFor({ state: 'visible' });
 
-  await page.getByRole('link', { name: 'Personalizar início' }).click();
+  check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
+  await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
+  await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
+  check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
+  check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo ao navegar para Ajustes');
+  await page.locator('.nav a[href="/inicio"]').click();
+  await card.waitFor({ state: 'visible' });
+
+  await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
   for (const area of activeAreas) {
     await page.locator(`.areas-navigation-toggle input[data-area="${area}"]`).uncheck();
   }
   await page.locator('.areas-navigation-settings [data-settings-save-button]').click();
-  await page.locator('.nav a[href="#inicio"]').click();
+  await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'primeiros passos oculta ações de áreas desativadas e some quando a tarefa restante já está concluída');
 
   await page.reload();
   await card.waitFor({ state: 'visible' });
+  check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo após recarregar');
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Dispensar' }).click();
   check(await card.count() === 0, 'cartão pode ser dispensado');
@@ -78,6 +104,7 @@ const check = (passed, name, detail = '') => {
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
   await page.locator('.profile-link').click();
+  await page.locator('.settings-link[data-settings-tab="account"]').click();
   await page.locator('.account-resources-card').waitFor({ state: 'visible' });
   await page.locator('.account-resources-card [data-legal-document="terms"]').click();
   await page.locator('dialog[data-legal-modal][open] .legal-document').waitFor({ state: 'visible' });

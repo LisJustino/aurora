@@ -5,10 +5,17 @@ import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
 import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
+  accountModeFromLocation,
+  accountPathForMode,
+  canonicalPublicPath,
+  isDemoLocation,
   isPublicLandingHash,
+  isPublicLandingLocation,
   postSignOutPath,
   redirectToPublicLanding,
   resolveRoute,
+  routeFromLocation,
+  routePathFor,
   settingsRootPath,
 } from '../src/js/core/router.js';
 import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
@@ -16,7 +23,6 @@ import {
   isValidMenuOrder,
   isValidVisibleMenuItems,
   canMoveMenuItem,
-  MENU_ITEMS,
   moveMenuItem,
   normalizeMenuOrder,
   normalizeVisibleMenuItems,
@@ -26,6 +32,7 @@ import {
   accountBalance,
   byCategory as summarizeByCategory,
   monthStats,
+  monthlyCloseSummary,
   netAccountBalance,
   netAccountBalanceOn,
   reportMonthStats,
@@ -95,6 +102,7 @@ import {
   PROFILE_AVATAR_COLORS,
   PROFILE_GREETING_STYLES,
 } from '../src/js/features/profile/model.js';
+import { canAccessCycle } from '../src/js/features/cycle/access.js';
 import {
   defaultHomeLayout,
   HOME_AREA_COLORS,
@@ -111,6 +119,14 @@ import {
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
+  buildDayPlan,
+  checkinFor,
+  isValidCheckin,
+  reduceDay,
+  upsertCheckin,
+} from '../src/js/features/home/day-plan.js';
+import { homeBills } from '../src/js/features/home/bills.js';
+import {
   isTrashExpired,
   isValidTrashEntry,
   normalizeTrash,
@@ -118,22 +134,6 @@ import {
   trashDaysRemaining,
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
-import {
-  advancePomodoro,
-  customPomodoroSettings,
-  cyclesPerLongBreak,
-  effectivePomodoroSettings,
-  longBreakMinutes,
-  normalizePomodoroHistory,
-  phaseDurationSeconds,
-  POMODORO_PRESETS,
-  recentFocusDays,
-} from '../src/js/features/pomodoro/pomodoro.js';
-import {
-  DEFAULT_POMODORO_SOUND_VOLUME,
-  playPomodoroChime,
-  resumePomodoroAudioContext,
-} from '../src/js/features/pomodoro/pomodoro-audio.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
 import {
   createCyclePeriod,
@@ -143,7 +143,6 @@ import {
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from '../src/js/features/cycle/period.js';
-import { createPomodoroSchedule } from '../src/js/services/pomodoro-push.js';
 import {
   BACKUP_ACTIVITY_THRESHOLD,
   BACKUP_REMINDER_DAYS,
@@ -170,7 +169,7 @@ const test = (name, run) => {
 test('inicia os alertas antes de aguardar o service worker', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   const start = source.indexOf('async function continueAuthenticatedAurora(');
-  const end = source.indexOf('\nasync function startAuthenticatedAurora', start);
+  const end = source.indexOf('\nexport async function startAuthenticatedAurora', start);
   if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização dos dados autenticados.');
   const startup = source.slice(start, end);
   const timer = startup.indexOf('setInterval(tick, 1000)');
@@ -182,7 +181,7 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   const start = source.indexOf('function showAccountDataLoadError(');
   const end = source.indexOf('\nasync function continueAuthenticatedAurora', start);
-  const continuation = source.slice(end, source.indexOf('\nasync function startAuthenticatedAurora', end));
+  const continuation = source.slice(end, source.indexOf('\nexport async function startAuthenticatedAurora', end));
   const screen = source.slice(start, end);
   if (start < 0 || end <= start
     || !screen.includes("retry.textContent = 'Tentar novamente'")
@@ -201,23 +200,57 @@ test('confirmações nativas foram substituídas e o feedback de persistência n
 });
 
 test('landing comunica valor, demonstração e privacidade financeira com precisão', () => {
-  const root = { innerHTML: '' };
-  renderLanding(root);
+  const root = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener: () => {} };
+  const previousDocument = globalThis.document;
+  const documentStub = { title: '' };
+  globalThis.document = documentStub;
+  try {
+    renderLanding(root);
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+  if (documentStub.title !== 'aurora. — planner semanal, hábitos e finanças em um só lugar') {
+    throw new Error('A landing deve atualizar o título da aba.');
+  }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Mais clareza para a sua semana',
-    'registre suas finanças manualmente',
-    'Criar conta e começar',
-    'Explorar a demonstração',
-    'não são salvas nem sincronizadas',
+    'Menos ruído. Mais clareza no dia',
+    'Da cabeça cheia a um próximo passo possível',
+    'Registre receitas, despesas e cartões manualmente',
+    'Criar conta',
+    'Explorar demonstração',
+    'Começar grátis',
+    'Ver demo em 1 minuto',
+    'Demo com dados fictícios, sem cadastro.',
+    'Planner de tarefas, hábitos, ciclo e finanças em um só lugar.',
+    'Totalmente grátis',
+    'Feito por uma pessoa só, com cuidado',
+    'preview-area-cycle',
+    'Quatro áreas, no seu ritmo',
+    'Posso exportar meus dados?',
+    'data-footer-suggestion',
+    'Escolha como quer começar',
+    'Explore a demonstração somente de leitura, com dados fictícios e sem cadastro',
     'Finanças manuais',
     'O Aurora não se conecta a bancos',
-    'associados à sua conta',
-    'Acompanhe períodos e sintomas',
+    'O acesso aos registros é restrito à sua conta autenticada.',
+    'não são criptografados de ponta a ponta',
+    'href="/privacy.html"',
+    'Com consentimento específico, acompanhe períodos e sintomas',
   ];
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
+  if (root.innerHTML.indexOf('public-maker') < root.innerHTML.indexOf('public-features')) {
+    throw new Error('A transparência sobre a autoria deve vir depois da apresentação das áreas.');
+  }
+  if (root.innerHTML.includes('É o dado mais sensível do app')) {
+    throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
+  }
+  if (root.innerHTML.includes('Na demonstração, tarefas, hábitos e Pomodoro')) {
+    throw new Error('O aviso sobre dados fictícios da demonstração não deve aparecer no hero da landing.');
+  }
   if (root.innerHTML.includes('public-testimonial')
     || root.innerHTML.includes('profissional e mãe')
     || root.innerHTML.includes('estudante e freelancer')
@@ -227,20 +260,34 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
     throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
   }
-  if (root.innerHTML.indexOf('data-public-action="signup"') > root.innerHTML.indexOf('data-public-action="demo"')) {
-    throw new Error('O cadastro deve aparecer antes da demonstração como ação principal.');
+  const heroMarkup = root.innerHTML.slice(root.innerHTML.indexOf('class="public-hero'));
+  if (heroMarkup.indexOf('href="/criar-conta"') > heroMarkup.indexOf('href="/demonstracao"')) {
+    throw new Error('O cadastro deve aparecer antes do link para a demonstração no hero.');
   }
   if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
   }
-  if (!entryHtml.includes('<title>aurora. — mais clareza para a sua rotina</title>')
-    || !entryHtml.includes('property="og:title" content="aurora. — mais clareza para a sua rotina"')
-    || !entryHtml.includes('name="twitter:title" content="aurora. — mais clareza para a sua rotina"')) {
+  const landingTitle = 'aurora. — planner de tarefas, hábitos, foco e finanças';
+  if (!entryHtml.includes(`<title>${landingTitle}</title>`)
+    || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
+    || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
-  const landingView = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
-  if (!landingView.includes('Finanças, ciclo e os demais recursos estão disponíveis ao criar uma conta.')) {
-    throw new Error('A demonstração precisa informar quais recursos não são interativos.');
+  if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
+    || !entryHtml.includes('account-loading-indicator')
+    || !entryHtml.includes('/landing-guard.js')) {
+    throw new Error('A entrada precisa exibir o carregamento animado e carregar o guard externo.');
+  }
+  const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
+  if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
+    throw new Error('O build precisa pré-renderizar a landing sem URLs file://.');
+  }
+  const demoView =  readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
+  if (!demoView.includes("['today', 'Hoje', 'home']")
+    || !demoView.includes("['finance', 'Finanças', 'wallet']")
+    || !demoView.includes('somente de leitura')
+    || /state\.tasks\.(?:push|splice)|task\.done\s*=/.test(demoView)) {
+    throw new Error('A demonstração precisa apresentar dados fictícios somente de leitura.');
   }
 });
 
@@ -296,7 +343,7 @@ test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', 
 });
 
 test('orientações cobrem as telas e esclarecem a privacidade financeira', () => {
-  const routes = ['inicio', 'planejar', 'pomodoro', 'financas', 'habitos', 'ciclo'];
+  const routes = ['inicio', 'planejar', 'financas', 'habitos', 'ciclo'];
   equal(AREA_GUIDE_IDS.join(','), routes.join(','));
   Object.values(AREA_GUIDES).forEach((guide) => {
     ok(guide.title);
@@ -509,6 +556,12 @@ test('transação identifica quando o próprio rollback falha', () => {
   equal(result.rollbackFailed, true);
 });
 
+test('o backup preserva o tema personalizado em vez de reverter para a paleta base', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  ok(source.includes("theme: s.theme"), 'o backup precisa manter a seleção de tema atual');
+  ok(!source.includes("theme: s.theme === 'custom' ? 'rose' : s.theme"), 'não pode forçar a cor personalizada de volta para a paleta rosé');
+});
+
 test('reconhece objetos simples e rejeita formatos incompatíveis', () => {
   truthy(isPlainObject({ value: 1 }));
   equal(isPlainObject([]), false);
@@ -672,10 +725,11 @@ test('normaliza datas legadas sem aceitar dias inexistentes', () => {
   equal(normalizeDay('2024/04/31'), '');
 });
 
-test('mantém aliases legados, redireciona Água para Hábitos e limita rotas desconhecidas', () => {
-  const routes = new Set(['inicio', 'planejar', 'pomodoro', 'habitos', 'config']);
+test('mantém aliases legados e direciona rotas removidas ou desconhecidas para Início', () => {
+  const routes = new Set(['inicio', 'planejar', 'financas', 'habitos', 'config']);
 
-  truthy(MENU_ITEMS.some((item) => item.id === 'pomodoro'));
+  equal(resolveRoute('pomodoro', routes).route, 'inicio');
+  equal(resolveRoute('pomodoro', routes).replaceHash, null);
   equal(resolveRoute('estudos', routes).route, 'inicio');
   equal(resolveRoute('estudos', routes).replaceHash, null);
   equal(resolveRoute('removida', routes).route, 'inicio');
@@ -690,25 +744,53 @@ test('mantém aliases legados, redireciona Água para Hábitos e limita rotas de
   equal(resolveRoute('invalida', routes).route, 'inicio');
 });
 
-test('descarta opções de menu desconhecidas ao normalizar preferências', () => {
+test('usa caminhos legíveis e converte hashes antigos sem perder query ou âncoras', () => {
+  const routes = new Set(['inicio', 'planejar', 'financas', 'habitos', 'config']);
+  equal(routePathFor('financas'), '/financas');
+  equal(routePathFor('perfil'), '/config');
+  equal(routePathFor('config?section=calendars'), '/config?section=calendars');
+  equal(routeFromLocation(new URL('https://aurora.local/financas'), routes).route, 'financas');
+  equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).route, 'inicio');
+  equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).replacePath, '/inicio');
+  equal(routeFromLocation(new URL('https://aurora.local/pages/inicio.html#main'), routes).replacePath, '/inicio#main');
+  equal(routeFromLocation(new URL('https://aurora.local/#agua'), routes).replacePath, '/habitos');
+  equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/config?section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/?source=pwa#config?section=data'), routes).replacePath, '/config?source=pwa&section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/agua'), routes).route, 'habitos');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#inicio')), '/inicio');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#criar-conta?etapa=acesso')), '/criar-conta?etapa=acesso');
+});
+
+test('resolve rotas públicas por caminho e preserva as âncoras da landing', () => {
+  equal(accountPathForMode('login'), '/entrar');
+  equal(accountPathForMode('signup-access'), '/criar-conta?etapa=acesso');
+  equal(accountModeFromLocation(new URL('https://aurora.local/criar-conta?etapa=acesso')), 'signup-access');
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/')));
+  truthy(isPublicLandingLocation(new URL('https://aurora.local/#landing-main')));
+  truthy(isDemoLocation(new URL('https://aurora.local/demonstracao')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/inicio')));
+  falsy(isPublicLandingLocation(new URL('https://aurora.local/#financas')));
+});
+
+test('descarta opções de menu removidas ao normalizar preferências antigas', () => {
   const oldOrder = ['inicio', 'planejar', 'pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
   const oldVisibleItems = ['pomodoro', 'financas', 'retired', 'agua', 'ciclo', 'habitos'];
 
   truthy(isValidMenuOrder(oldOrder));
   truthy(isValidVisibleMenuItems(oldVisibleItems));
-  equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'pomodoro,financas,agua,ciclo,habitos');
+  equal(normalizeMenuOrder(oldOrder).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(normalizeVisibleMenuItems(oldVisibleItems).join(','), 'financas,ciclo,habitos,agua');
   falsy(isValidMenuOrder([...oldOrder, 'retired']));
   falsy(isValidVisibleMenuItems([...oldVisibleItems, 'retired']));
 });
 
 test('mantém Início e Planejar fixos e só oferece movimentos possíveis no menu', () => {
-  const order = ['inicio', 'pomodoro', 'planejar', 'financas', 'agua', 'ciclo', 'habitos'];
+  const order = ['inicio', 'planejar', 'financas', 'agua', 'ciclo', 'habitos'];
 
-  equal(normalizeMenuOrder(order).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(moveMenuItem(order, 'planejar', 1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  equal(moveMenuItem(order, 'pomodoro', -1).join(','), 'inicio,planejar,pomodoro,financas,agua,ciclo,habitos');
-  truthy(canMoveMenuItem(order, 'pomodoro', 1));
+  equal(normalizeMenuOrder(order).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'planejar', 1).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  equal(moveMenuItem(order, 'pomodoro', -1).join(','), 'inicio,planejar,financas,agua,ciclo,habitos');
+  falsy(canMoveMenuItem(order, 'pomodoro', 1));
   falsy(canMoveMenuItem(order, 'inicio', 1));
   falsy(canMoveMenuItem(order, 'planejar', 1));
   falsy(canMoveMenuItem(order, 'habitos', 1));
@@ -739,11 +821,11 @@ test('ao excluir a conta, navega para a landing pública', () => {
 
 test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
   equal(
-    settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html?source=pwa#config?section=data' }),
-    '/pages/ajustes.html?source=pwa#config',
+    settingsRootPath({ href: 'https://aurora.local/config?source=pwa&section=data' }),
+    '/config?source=pwa',
   );
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/inicio.html#inicio' }), null);
-  equal(settingsRootPath({ href: 'https://aurora.local/pages/ajustes.html#config' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/inicio' }), null);
+  equal(settingsRootPath({ href: 'https://aurora.local/config' }), null);
 });
 
 test('normaliza contas Dinheiro antigas para corrente e reconhece investimentos', () => {
@@ -926,6 +1008,37 @@ test('resume mensal distingue transferência e compra no cartão', () => {
   equal(summary.outPaid, 2500);
   equal(summary.cardOut, 1500);
   equal(summary.tx.length, 3);
+});
+
+test('fechamento mensal resume pendências, fixas e cartão em centavos', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking' },
+    { id: 'card', type: 'credit' },
+  ];
+  const transactions = [
+    { type: 'in', date: '2026-10-01', cents: 10000, paid: true, accountId: 'checking' },
+    { type: 'out', date: '2026-10-02', cents: 2500, paid: true, accountId: 'checking', category: 'Mercado' },
+    { type: 'out', date: '2026-10-03', cents: 1000, paid: false, accountId: 'checking', category: 'Moradia', recId: 'rent' },
+    { type: 'out', date: '2026-10-04', cents: 750, paid: false, accountId: 'card', category: 'Transporte' },
+    { type: 'out', date: '2026-10-05', cents: 2000, paid: true, accountId: 'checking', category: 'Moradia', recId: 'utilities' },
+    { type: 'tr', date: '2026-10-06', cents: 7000, paid: true, accountId: 'checking' },
+    { type: 'out', date: '2026-09-30', cents: 9000, paid: false, accountId: 'checking', category: 'Fora do mês' },
+  ];
+  const summary = monthlyCloseSummary(
+    transactions,
+    '2026-10',
+    (id) => accounts.find((account) => account.id === id),
+  );
+
+  equal(summary.resultCents, 3750);
+  equal(summary.inPaid, 10000);
+  equal(summary.outPaid, 4500);
+  equal(summary.pendingInCents, 0);
+  equal(summary.pendingOutCents, 1000);
+  equal(summary.recurringCents, 3000);
+  equal(summary.recurringCount, 2);
+  equal(summary.cardOut, 750);
+  equal(summary.topExpense.join(':'), 'Moradia:3000');
 });
 
 test('notificações incluem apenas contas fixas pendentes com vencimento hoje', () => {
@@ -1263,214 +1376,6 @@ test('ideias de hábitos omitem hábitos já existentes sem diferenciar acentos 
   ok(remaining.some((idea) => idea.id === 'sleep'));
 });
 
-/* ---- Pomodoro ---- */
-const noon = new Date(2026, 9, 21, 12, 0, 0).getTime();
-function mockAudioContext() {
-  const oscillators = [], gains = [];
-  return {
-    currentTime: 1,
-    destination: {},
-    oscillators,
-    gains,
-    createOscillator() {
-      const oscillator = {
-        frequency: { setValueAtTime(value) { oscillator.frequencyValue = value; } },
-        connect() {},
-        start(value) { oscillator.startAt = value; },
-        stop(value) { oscillator.stopAt = value; },
-      };
-      oscillators.push(oscillator);
-      return oscillator;
-    },
-    createGain() {
-      const ramps = [];
-      const gain = {
-        ramps,
-        gain: {
-          setValueAtTime(value) { gain.initialGain = value; },
-          exponentialRampToValueAtTime(value) { ramps.push(value); },
-        },
-        connect() {},
-      };
-      gains.push(gain);
-      return gain;
-    },
-  };
-}
-const freshTimer = (extra = {}) => ({
-  elapsedSeconds: 0,
-  startedAt: noon - 26 * 60 * 1000,
-  phase: 'focus',
-  phaseElapsedSeconds: 0,
-  completedPomodoros: 0,
-  dailyCompletedPomodoros: 0,
-  dailyCompletedOn: '',
-  ...extra,
-});
-
-test('retoma o áudio interrompido no Safari móvel', () => {
-  let resumes = 0;
-  const context = {
-    state: 'interrupted',
-    resume() {
-      resumes += 1;
-      return Promise.resolve();
-    },
-  };
-
-  resumePomodoroAudioContext(context);
-  equal(resumes, 1);
-});
-
-test('não reinicia um contexto de áudio que já está ativo', () => {
-  let resumes = 0;
-  const context = {
-    state: 'running',
-    resume() {
-      resumes += 1;
-      return Promise.resolve();
-    },
-  };
-
-  resumePomodoroAudioContext(context);
-  equal(resumes, 0);
-});
-
-test('o toque padrão do Pomodoro tem volume reforçado', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context);
-  equal(DEFAULT_POMODORO_SOUND_VOLUME, 75);
-  equal(Math.round(context.gains[0].ramps[0] * 100), 60);
-});
-
-test('o toque e o volume escolhidos alteram o aviso sonoro', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context, { tone: 'bell', volume: 40 });
-  equal(context.oscillators.length, 3);
-  equal(context.oscillators[0].type, 'triangle');
-  equal(context.oscillators[0].frequencyValue, 1046);
-  equal(Math.round(context.gains[0].ramps[0] * 100), 32);
-});
-
-test('volume zero silencia o aviso sem criar áudio', () => {
-  const context = mockAudioContext();
-  playPomodoroChime(context, { volume: 0 });
-  equal(context.oscillators.length, 0);
-});
-
-test('pausa longa usa o tempo configurado e volta a 15 min se o valor for inválido', () => {
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 20 }, 'long-break'), 1200);
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5, longBreakMin: 3 }, 'long-break'), 900);
-  equal(phaseDurationSeconds({ focusMin: 25, breakMin: 5 }, 'long-break'), 900);
-  equal(longBreakMinutes({ longBreakMin: 60 }), 60);
-});
-
-test('preset clássico fixa 25/5/15 mesmo com valores personalizados salvos', () => {
-  const effective = effectivePomodoroSettings({ preset: 'classic', focusMin: 40, breakMin: 10, longBreakMin: 30 });
-  equal(effective.focusMin, 25);
-  equal(effective.breakMin, 5);
-  equal(effective.longBreakMin, 15);
-});
-
-test('presets de Pomodoro oferecem ritmos curtos, estendidos e profundos', () => {
-  for (const [preset, focusMin, breakMin] of [
-    ['short', 15, 3],
-    ['extended', 50, 10],
-    ['deep', 90, 20],
-  ]) {
-    const effective = effectivePomodoroSettings({ preset, focusMin: 25, breakMin: 5, autoAdvance: false });
-    equal(effective.focusMin, focusMin);
-    equal(effective.breakMin, breakMin);
-    equal(effective.longBreakMin, POMODORO_PRESETS[preset].longBreakMin);
-    equal(effective.autoAdvance, false);
-  }
-});
-
-test('editar um preset mantém o ritmo escolhido e o avanço automático', () => {
-  const custom = customPomodoroSettings({
-    preset: 'deep',
-    focusMin: 25,
-    breakMin: 5,
-    autoAdvance: false,
-  });
-  equal(custom.preset, 'custom');
-  equal(custom.focusMin, 90);
-  equal(custom.breakMin, 20);
-  equal(custom.autoAdvance, false);
-});
-
-test('concluir um bloco de foco avança a fase e registra o dia no histórico', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 15 };
-  const { timer, transitions } = advancePomodoro(freshTimer(), settings, noon);
-  equal(transitions.length, 1);
-  equal(timer.phase, 'short-break');
-  equal(timer.completedPomodoros, 1);
-  equal(timer.history['2026-10-21'], 1);
-});
-
-test('o quarto bloco leva à pausa longa configurada', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20 };
-  const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
-  equal(timer.phase, 'long-break');
-  equal(phaseDurationSeconds(settings, timer.phase), 1200);
-});
-
-test('a quantidade de blocos até a pausa longa pode ser personalizada', () => {
-  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 6 }), 6);
-  equal(cyclesPerLongBreak({ cyclesPerLongBreak: 1 }), 4);
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, cyclesPerLongBreak: 6 };
-  let timer = freshTimer({ completedPomodoros: 5 });
-  const { timer: advanced } = advancePomodoro(timer, settings, noon);
-  equal(advanced.phase, 'long-break');
-});
-
-test('Pomodoro independente alterna foco e pausa sem ciclos', () => {
-  const settings = { focusMin: 25, breakMin: 5, longBreakMin: 20, longBreakEnabled: false };
-  const { timer } = advancePomodoro(freshTimer({ completedPomodoros: 3 }), settings, noon);
-  equal(timer.phase, 'short-break');
-  equal(phaseDurationSeconds(settings, timer.phase), 300);
-});
-
-test('histórico do Pomodoro descarta entradas inválidas e limita a 30 dias', () => {
-  const dirty = { 'ruim': 2, '2026-10-01': -1, '2026-10-02': 1.5, '2026-10-03': 4 };
-  const clean = normalizePomodoroHistory(dirty);
-  equal(JSON.stringify(clean), JSON.stringify({ '2026-10-03': 4 }));
-  equal(JSON.stringify(normalizePomodoroHistory(null)), '{}');
-  const many = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`2026-01-${String(index % 28 + 1).padStart(2, '0')}`, 1]));
-  truthy(Object.keys(normalizePomodoroHistory(many)).length <= 30);
-});
-
-test('últimos 7 dias do Pomodoro preenchem zeros e terminam no dia informado', () => {
-  const days = recentFocusDays({ '2026-10-21': 3, '2026-10-18': 2 }, '2026-10-21', 7);
-  equal(days.length, 7);
-  equal(days[0].day, '2026-10-15');
-  equal(days[6].day, '2026-10-21');
-  equal(days[6].count, 3);
-  equal(days[3].count, 2);
-  equal(days[1].count, 0);
-});
-
-test('o agendamento Push do Pomodoro contém somente fase, horários e durações', () => {
-  const now = 1_000_000;
-  const schedule = createPomodoroSchedule({
-    phase: 'short-break',
-    startedAt: now - 60_000,
-    phaseElapsedSeconds: 30,
-    completedPomodoros: 1,
-    focusTaskId: 'local-task',
-    focusLabel: 'texto privado',
-  }, {
-    focusMin: 25,
-    breakMin: 5,
-    longBreakMin: 15,
-  }, now);
-
-  equal(schedule.phaseEndsAt, now + 210_000);
-  equal(schedule.completedPomodoros, 1);
-  equal(Object.keys(schedule).some((key) => /task|label|name|text/i.test(key)), false);
-  equal(createPomodoroSchedule({ startedAt: null }, {}, now), null);
-});
-
 /* ---- Paletas de cor ---- */
 const contrastOnWhite = (hex) => 1.05 / (lum(hex) + .05);
 
@@ -1526,9 +1431,18 @@ test('aparência de perfil valida opções sem descartar preferências futuras',
   truthy(PROFILE_GREETING_STYLES.some(([id]) => id === 'dynamic'));
 });
 
+test('Ciclo só é acessível para mulheres, exceto na demonstração fictícia', () => {
+  equal(canAccessCycle({ sex: '' }), false);
+  equal(canAccessCycle({ sex: 'm' }), false);
+  equal(canAccessCycle({ sex: 'nb' }), false);
+  equal(canAccessCycle({ sex: 'n' }), false);
+  equal(canAccessCycle({ sex: 'f' }), true);
+  equal(canAccessCycle({ sex: '' }, true), true);
+});
+
 test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {
   equal(JSON.stringify(normalizeHomeLayout({ order: ['quick', 'invalid'], visible: ['today', 'today', 'invalid'] })), JSON.stringify({
-    order: ['quick', 'today', 'habits', 'summary'],
+    order: ['today', 'quick', 'habits', 'summary'],
     visible: ['today'],
   }));
   equal(JSON.stringify(normalizeHomeLayout(null)), JSON.stringify(defaultHomeLayout()));
@@ -1543,7 +1457,7 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
       shortcuts: ['habit', 'invalid', 'habit'],
     },
   }).focus), JSON.stringify({
-    layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick'] },
+    layout: { order: ['today', 'quick', 'habits', 'summary'], visible: ['quick'] },
     shortcuts: ['habit'],
   }));
   equal(normalizeHomeMessage(`  mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH)}  `), `mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH - 9)}`);
@@ -1565,6 +1479,111 @@ test('cores escolhidas para áreas mantêm contraste nos temas claro e escuro', 
 });
 
 const failures = results.filter((result) => !result.passed);
+const eq = (actual, expected) => {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`Esperado ${JSON.stringify(expected)}, recebido ${JSON.stringify(actual)}.`);
+  }
+};
+const planTask = (id, extra = {}) => ({ id, title: id, done: false, dueDate: null, priority: 'normal', ...extra });
+const planIds = (tasks) => tasks.map((task) => task.id);
+
+test('Dia possível sem tarefas devolve listas vazias e limite da energia', () => {
+  const plan = buildDayPlan([], { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), []);
+  eq(planIds(plan.adiadas), []);
+  eq(plan.limit, 3);
+});
+
+test('Dia possível com só tarefas anteriores as trata como sugeridas, recentes primeiro', () => {
+  const tasks = [
+    planTask('a', { dueDate: '2026-11-01' }),
+    planTask('b', { dueDate: '2026-11-04' }),
+    planTask('c', { dueDate: '2026-11-03', done: true }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['b', 'a']);
+  eq(planIds(plan.adiadas), []);
+});
+
+test('Dia possível com energia baixa sugere no máximo 3 e ordena hoje > anteriores > sem data', () => {
+  const tasks = [
+    planTask('sem-data'),
+    planTask('antiga', { dueDate: '2026-11-02' }),
+    planTask('hoje-tarde', { dueDate: '2026-11-05', time: '18:00' }),
+    planTask('hoje-cedo', { dueDate: '2026-11-05', time: '08:00' }),
+    planTask('futura', { dueDate: '2026-11-09' }),
+  ];
+  const plan = buildDayPlan(tasks, { energy: 'low' }, '2026-11-05');
+  eq(planIds(plan.sugeridas), ['hoje-cedo', 'hoje-tarde', 'antiga']);
+  eq(planIds(plan.adiadas), ['sem-data']);
+});
+
+test('Dia possível limita 5 na energia média e 7 na alta com muitas tarefas, de forma determinística', () => {
+  const tasks = Array.from({ length: 12 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  const medium = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
+  const high = buildDayPlan(tasks, { energy: 'high' }, '2026-11-05');
+  eq(medium.sugeridas.length, 5);
+  eq(medium.adiadas.length, 7);
+  eq(high.sugeridas.length, 7);
+  eq(planIds(high.sugeridas), ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
+  eq(planIds(buildDayPlan([...tasks].reverse(), { energy: 'high' }, '2026-11-05').sugeridas).length, 7);
+  eq(JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')), JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')));
+});
+
+test('Reduzir o dia guarda o excedente e é idempotente; desfazer devolve o plano original', () => {
+  const tasks = Array.from({ length: 6 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
+  let checkins = upsertCheckin([], '2026-11-05', { energy: 'low' });
+  const before = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: reduceDay(checkinFor(checkins, '2026-11-05'), before) });
+  const reduced = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
+  eq(planIds(reduced.sugeridas), planIds(before.sugeridas));
+  eq(planIds(reduced.adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, ['t3', 't4', 't5']);
+  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: [] });
+  eq(planIds(buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05').adiadas), ['t3', 't4', 't5']);
+  eq(checkinFor(checkins, '2026-11-05').deferred, []);
+});
+
+test('check-in valida energia, tempo e data, e mantém uma entrada por dia', () => {
+  ok(isValidCheckin({ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: [] }));
+  ok(isValidCheckin({ date: '2026-11-05', energy: null, time: null, dismissed: true, deferred: [] }));
+  falsy(isValidCheckin({ date: '2026-13-45', energy: 'low' }));
+  falsy(isValidCheckin({ date: '2026-11-05', energy: 'extrema' }));
+  falsy(isValidCheckin(null));
+  const list = upsertCheckin(upsertCheckin([], '2026-11-05', { energy: 'high' }), '2026-11-05', { time: '2h' });
+  eq(list.length, 1);
+  eq(list[0].energy, 'high');
+  eq(list[0].time, '2h');
+});
+
+test('contas do Hoje listam hoje e os próximos 3 dias e calculam o livre até o fim do mês', () => {
+  const finance = {
+    accounts: [
+      { id: 'cc', type: 'checking', initialCents: 100000 },
+      { id: 'cartao', type: 'credit', initialCents: 0, closingDay: 5, dueDay: 8, limitCents: 500000 },
+    ],
+    tx: [
+      { id: 'x1', recId: 'r1', type: 'out', date: '2026-11-05', cents: 10000, paid: false, accountId: 'cc', desc: 'Aluguel', createdAt: 1 },
+      { id: 'x2', recId: 'r2', type: 'out', date: '2026-11-08', cents: 5000, paid: false, accountId: 'cc', desc: 'Internet', createdAt: 2 },
+      { id: 'x3', recId: 'r3', type: 'out', date: '2026-11-09', cents: 7000, paid: false, accountId: 'cc', desc: 'Academia', createdAt: 3 },
+      { id: 'x4', recId: 'r4', type: 'out', date: '2026-11-06', cents: 9000, paid: true, accountId: 'cc', desc: 'Paga', createdAt: 4 },
+      { id: 'x5', type: 'out', date: '2026-11-20', cents: 4000, paid: true, accountId: 'cartao', createdAt: 5 },
+    ],
+  };
+  const helpers = {
+    shiftMonth: (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; },
+    parseDate: (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); },
+    accountBalance: (account) => account.initialCents,
+  };
+  const summary = homeBills(finance, '2026-11-05', helpers);
+  eq(summary.upcoming.map((item) => item.id), ['bill:x1', 'bill:x2']);
+  eq(summary.dueCents, 22000);
+  eq(summary.freeCents, 91000 - 22000);
+  eq(summary.daysLeft, 26);
+  eq(summary.perDayCents, Math.floor(69000 / 26));
+  eq(homeBills({ accounts: [], tx: [] }, '2026-11-05', helpers).upcoming, []);
+});
+
 if (typeof document !== 'undefined') {
   const summary = document.querySelector('#summary');
   const list = document.querySelector('#results');

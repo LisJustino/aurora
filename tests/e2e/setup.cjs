@@ -1,4 +1,5 @@
 async function completeProfile(page) {
+  await page.locator('.app').waitFor({ state: 'visible' });
   const onboarding = page.locator('#dlg[data-dialog-type="onboard"]');
   if (!(await onboarding.count())) {
     const customize = page.getByRole('button', { name: 'Personalizar perfil' });

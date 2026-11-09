@@ -38,8 +38,8 @@
 .empty .eic {
   display: grid;
   flex: none;
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
   place-items: center;
   margin-bottom: 5px;
   border-radius: var(--r-control);
@@ -126,9 +126,11 @@
   background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--ink);
+  pointer-events: none;
 }
 .pwa-update-notice p { margin: 0; font-size: var(--text-sm); }
 .pwa-update-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
+.pwa-update-actions > button { pointer-events: auto; }
 
 .offline-banner {
   position: sticky;

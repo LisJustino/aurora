@@ -23,16 +23,19 @@ function localDateValue(date) {
   const heroAt320 = await page.locator('.public-hero').evaluate((hero) => Math.round(hero.getBoundingClientRect().height));
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
-      && await page.locator('.public-values').evaluate((grid) => {
-        const lefts = [...grid.children].map((card) => Math.round(card.getBoundingClientRect().left));
-        return new Set(lefts).size === 1;
-      }),
-    'landing se ajusta a 320 px sem overflow e mantém uma coluna legível',
+      && await page.locator('.public-value:visible').count() === 1,
+    'landing se ajusta a 320 px sem overflow e exibe uma área por vez',
   );
-  check(heroAt320 <= 660, 'hero mobile estreito mantém altura controlada', `${heroAt320}px`);
+  check(
+    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    'hero mobile estreito mantém o cadastro visível sem rolagem',
+    `${heroAt320}px`,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
-  const heroAt390 = await page.locator('.public-hero').evaluate((hero) => Math.round(hero.getBoundingClientRect().height));
-  check(heroAt390 <= 620, 'hero mobile compacto deixa mais conteúdo visível sem rolagem', `${heroAt390}px`);
+  check(
+    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    'hero mobile compacto mantém o cadastro visível sem rolagem',
+  );
   await page.setViewportSize({ width: 768, height: 900 });
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
@@ -52,42 +55,50 @@ function localDateValue(date) {
       .map((card) => card.getBoundingClientRect());
     const cardsContainer = document.querySelector('.public-values').getBoundingClientRect();
     const firstRow = values.filter((card) => Math.abs(card.top - values[0].top) < 1);
-    const secondRow = values.filter((card) => Math.abs(card.top - values[3].top) < 1);
+    const secondRow = values.filter((card) => Math.abs(card.top - values[2].top) < 1);
     return {
       actionsShareRow: actions.length === 2 && Math.abs(actions[0].top - actions[1].top) < 1,
-      firstRow: firstRow.length === 3,
-      secondRow: secondRow.length === 2,
-      centeredSecondRow: Math.abs(
+      balancedRows: values.length === 4 && firstRow.length === 2 && secondRow.length === 2,
+      centeredRows: Math.abs(
         (secondRow[0].left + secondRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
+      ) < 2,
+      centeredFirstRow: Math.abs(
+        (firstRow[0].left + firstRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
       ) < 2,
       cardWidth: Math.max(...values.map((card) => card.width)),
     };
   });
   check(desktopLanding.actionsShareRow, 'CTAs do hero ficam lado a lado no desktop');
   check(
-    desktopLanding.firstRow && desktopLanding.secondRow && desktopLanding.centeredSecondRow,
-    'áreas do produto formam três mais duas e centralizam a última linha',
+    desktopLanding.balancedRows && desktopLanding.centeredRows && desktopLanding.centeredFirstRow,
+    'quatro áreas formam uma grade equilibrada no desktop',
   );
-  check(desktopLanding.cardWidth <= 320, 'cards da landing permanecem compactos no desktop', `${Math.round(desktopLanding.cardWidth)}px`);
+  check(desktopLanding.cardWidth <= 560, 'cards da landing permanecem dentro da coluna no desktop', `${Math.round(desktopLanding.cardWidth)}px`);
   await page.setViewportSize({ width: 320, height: 780 });
   check(
     await page.locator('.public-account-section, .public-account-access').count() === 0,
     'convite final redundante foi removido da landing',
   );
   check(
-    await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-faq')),
-    'FAQ encerra o conteúdo principal antes do rodapé',
+    await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-suggestion')
+      && main.lastElementChild.previousElementSibling?.classList.contains('public-faq')),
+    'FAQ e formulário de sugestões encerram o conteúdo principal antes do rodapé',
   );
   const heroSignup = page.locator('.public-hero [data-public-action="signup"]');
   check(
     await heroSignup.count() === 1 && await heroSignup.evaluate((button) => button.classList.contains('primary')),
     'CTA principal de cadastro permanece disponível no hero',
   );
-  await page.locator('.public-faq-item').nth(1).locator('summary').click();
-  const emailFaq = await page.locator('.public-faq-item').nth(1).textContent();
-  check(/acesso é liberado assim que a conta é criada/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
-  check(/erro de digitação pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
-  await page.getByRole('button', { name: /criar conta/i }).first().click();
+  await page.locator('.public-faq-more > summary').click();
+  const emailFaqItem = page.locator('.public-faq-item', { hasText: 'Preciso confirmar meu e-mail?' });
+  await emailFaqItem.locator('summary').click();
+  const emailFaq = await emailFaqItem.textContent();
+  check(/Não\.\s+No cadastro, você digita o endereço duas vezes/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
+  check(/endereço inválido pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
+  await page.getByRole('link', { name: /criar conta/i }).first().click();
+  await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
+  check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');
+  check(await page.locator('.account-google-icon').count() === 1, 'opção de cadastro inclui o ícone do Google');
 
   const birthDate = page.locator('#account-birthDate');
   const initialState = await birthDate.evaluate((input) => {
@@ -106,8 +117,16 @@ function localDateValue(date) {
   check(initialState.appearance !== 'none', 'aparência e controle nativos estão ativos', initialState.appearance);
   check(initialState.width > 0 && initialState.right <= initialState.viewportWidth, 'campo cabe na viewport de 320 px');
   check(initialState.scrollWidth <= initialState.viewportWidth, 'cadastro não tem overflow horizontal em 320 px');
+  check(
+    await page.locator('#account-age-status').evaluate((status) => status.hidden && !status.textContent.trim()),
+    'campo de nascimento não mostra erro antes de ser tocado',
+  );
 
   await page.locator('#account-name').fill('Pessoa de teste');
+  check(
+    await page.locator('#account-preferredName').inputValue() === 'Pessoa',
+    'nome preferido recebe o primeiro nome automaticamente',
+  );
   await page.locator('#account-preferredName').fill('Teste');
   await birthDate.fill('2000-10-29');
   check(
@@ -117,19 +136,27 @@ function localDateValue(date) {
   check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data válida libera a etapa seguinte');
 
   const minorDate = new Date();
-  minorDate.setFullYear(minorDate.getFullYear() - 17);
+  minorDate.setFullYear(minorDate.getFullYear() - 15);
   await birthDate.fill(localDateValue(minorDate));
   check(
-    (await page.locator('#account-age-status').textContent()).includes('17 anos'),
-    'data de menor de idade calcula a idade',
+    /pelo menos 16 anos/i.test(await page.locator('#account-age-status').textContent()),
+    'cadastro informa que a idade é inferior ao mínimo',
   );
-  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'data de menor libera a etapa seguinte');
+  check(await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade inferior a 16 bloqueia o cadastro');
+  const minimumAgeDate = new Date();
+  minimumAgeDate.setFullYear(minimumAgeDate.getFullYear() - 16);
+  await birthDate.fill(localDateValue(minimumAgeDate));
+  check(
+    (await page.locator('#account-age-status').textContent()).includes('16 anos'),
+    'idade mínima de 16 anos pode continuar o cadastro',
+  );
+  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade mínima libera a etapa seguinte');
   await birthDate.fill(localDateValue(new Date()));
   check(
-    (await page.locator('#account-age-status').textContent()).includes('0 anos'),
-    'idade zero também pode continuar o cadastro',
+    /pelo menos 16 anos/i.test(await page.locator('#account-age-status').textContent()),
+    'idade zero é identificada como inferior ao mínimo',
   );
-  check(!await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade zero não bloqueia o cadastro');
+  check(await page.locator('.account-form button[type="submit"]').isDisabled(), 'idade zero bloqueia o cadastro');
   check(errors.length === 0, 'sem erros JavaScript', errors.slice(0, 3).join(' | '));
 
   await page.setViewportSize({ width: 390, height: 844 });
