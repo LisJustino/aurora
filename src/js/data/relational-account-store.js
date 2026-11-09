@@ -1,8 +1,9 @@
 import { normalizeAccountType } from '../features/finance/accounts.js';
+import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'timer_state',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
   'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
   'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
@@ -112,10 +113,14 @@ function queryError(table, error) {
   throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
 }
 
-async function selectAll(client, table) {
+async function selectAll(client, table, { excludeCycleTrash = false } = {}) {
   const rows = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await client.from(table).select('*').range(from, from + 999);
+    let query = client.from(table).select('*');
+    if (excludeCycleTrash && table === 'trash_records') {
+      query = query.not('collection', 'in', '("cycle","cycleLog")');
+    }
+    const { data, error } = await query.range(from, from + 999);
     if (error) queryError(table, error);
     rows.push(...(data || []));
     if (!data || data.length < 1000) return rows;
@@ -270,6 +275,17 @@ function buildRows(userId, state, idMap) {
       deleted_at: null,
     }));
   }
+  for (const checkin of state.checkins || []) {
+    pushRow(rows, 'daily_checkins', rowId(idMap, 'daily_checkins', userId, checkin.date, {
+      checkin_date: checkin.date,
+      energy: checkin.energy || null,
+      available_time: checkin.time || null,
+      dismissed: checkin.dismissed === true,
+      deferred_task_ids: Array.isArray(checkin.deferred) ? checkin.deferred : [],
+      is_test_data: checkin.sample === true,
+      deleted_at: null,
+    }));
+  }
 
   const tasks = [...(state.tasks || [])];
   const trashedTasks = indexForTrash(settings, 'tasks');
@@ -290,6 +306,9 @@ function buildRows(userId, state, idMap) {
     }));
   }
   for (const task of tasks) {
+    if (task.icon != null && !isTaskIconKey(task.icon)) {
+      throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+    }
     const removedAt = deletedAtFor(settings, 'tasks', task.id);
     const taskId = idFor(idMap, 'tasks', task.id);
     pushRow(rows, 'tasks', rowId(idMap, 'tasks', userId, task.id, {
@@ -309,6 +328,7 @@ function buildRows(userId, state, idMap) {
       notes: task.notes || null,
       sort_order: Number.isFinite(task.order) ? task.order : 0,
       focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
+      icon_key: taskIconKey(task.icon) || null,
       is_test_data: task.sample === true,
       deleted_at: removedAt,
     }));
@@ -498,6 +518,9 @@ function buildRows(userId, state, idMap) {
       amount_cents: transaction.cents,
       transaction_date: transaction.date,
       settled_date: transaction.settledDate || null,
+      interest_cents: transaction.interestCents ?? null,
+      anticipated_date: transaction.anticipatedDate || null,
+      invoice_installment: transaction.invoiceInstallment === true,
       entered_at: Number.isFinite(transaction.createdAt) ? toIso(transaction.createdAt) : null,
       category: transaction.category || null,
       description: transaction.desc || null,
@@ -597,6 +620,10 @@ function buildRows(userId, state, idMap) {
 
 function taskFromRow(row, tables, idMap, includeDeleted = false) {
   const taskId = sourceId(idMap, 'tasks', row.id);
+  const taskIcon = taskIconKey(row.icon_key);
+  if (row.icon_key != null && !taskIcon) {
+    throw new Error('Uma tarefa contém um ícone desconhecido; a conta foi bloqueada para evitar perda de dados.');
+  }
   const list = tables.task_lists.find((item) => item.id === row.list_id)?.name;
   const createdAt = fromIso(row.task_created_at);
   const plannedTime = timeOnly(row.planned_time);
@@ -630,6 +657,7 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
+    ...(taskIcon ? { icon: taskIcon } : {}),
     ...(tags.length ? { tags } : {}),
     ...(subtasks.length ? { subtasks } : {}),
     ...(row.is_test_data ? { sample: true } : {}),
@@ -652,6 +680,9 @@ function financeRecordFromRow(row, table, idMap) {
     ...(row.to_account_id ? { toAccountId: sourceId(idMap, 'finance_accounts', row.to_account_id) } : {}),
     cents: numeric(row.amount_cents), date: row.transaction_date,
     ...(row.settled_date ? { settledDate: row.settled_date } : {}),
+    ...(row.interest_cents != null ? { interestCents: numeric(row.interest_cents) } : {}),
+    ...(row.anticipated_date ? { anticipatedDate: row.anticipated_date } : {}),
+    ...(row.invoice_installment ? { invoiceInstallment: true } : {}),
     ...(row.category ? { category: row.category } : {}),
     ...(row.description ? { desc: row.description } : {}),
     paid: row.is_paid,
@@ -857,6 +888,16 @@ function buildState(tables, idMap) {
     settings,
     tasks: taskRows.map((row) => taskFromRow(row, tables, idMap)),
     pomodoro: mapPomodoroTimer(),
+    checkins: active('daily_checkins')
+      .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
+      .map((row) => ({
+        date: String(row.checkin_date).slice(0, 10),
+        energy: row.energy || null,
+        time: row.available_time || null,
+        dismissed: row.dismissed === true,
+        deferred: Array.isArray(row.deferred_task_ids) ? row.deferred_task_ids : [],
+        ...(row.is_test_data ? { sample: true } : {}),
+      })),
     habits: active('habits').map((row) => habitFromRow(row, tables, idMap)),
     water: active('water_logs').map((row) => ({
       id: sourceId(idMap, 'water_logs', row.id),
@@ -911,11 +952,14 @@ export class RelationalAccountStore {
     this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
 
-  async load() {
+  async load({ includeCycle = true } = {}) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. Os dados da conta não foram carregados.');
     }
-    const result = await Promise.all(TABLES.map(async (table) => [table, await selectAll(this.client, table)]));
+    const result = await Promise.all(TABLES.map(async (table) => {
+      if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
+      return [table, await selectAll(this.client, table, { excludeCycleTrash: !includeCycle })];
+    }));
     const tables = Object.fromEntries(result);
     this.rawTables = tables;
     for (const table of TABLES) {
@@ -1012,7 +1056,8 @@ export class RelationalAccountStore {
       console.error('Aurora: não foi possível ler a inscrição Push da conta.', error);
       throw new Error('Não foi possível verificar os avisos Push da conta.');
     }
-    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint);
+    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint
+      || (item.subscription?.provider === 'fcm' && item.subscription?.token === endpoint));
     return row ? {
       id: row.id,
       clientId: row.worker_client_id,
@@ -1020,6 +1065,18 @@ export class RelationalAccountStore {
       subscription: row.subscription,
       enabled: row.is_enabled,
     } : null;
+  }
+
+  async hasPushSubscriptionProvider(provider) {
+    const { data, error } = await this.client
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', this.userId);
+    if (error) {
+      console.error('Aurora: não foi possível verificar as inscrições Push da conta.', error);
+      throw new Error('Não foi possível verificar os avisos Push da conta.');
+    }
+    return (data || []).some((item) => item.subscription?.provider === provider);
   }
 
   async savePushSubscription(credentials, subscription) {

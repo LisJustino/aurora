@@ -21,7 +21,12 @@
 html {
   box-sizing: border-box;
   min-width: 0;
+  background: var(--bg);
+  --keyboard-offset: 0px;
   scroll-padding-top: env(safe-area-inset-top, 0px);
+  scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-offset));
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
   font-size: 16px;
 }
@@ -31,6 +36,7 @@ html {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -38,6 +44,7 @@ body {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   letter-spacing: -.008em;
+  overscroll-behavior-y: none;
 }
 
 img, svg { max-width: 100%; }
@@ -59,14 +66,15 @@ h1, h2, h3 {
   text-wrap: balance;
 }
 
-h1 { font-size: var(--text-display); }
-h2 { font-size: var(--text-xl); }
-h3 { font-size: var(--text-base); }
+h1 { font-size: var(--text-page-title); }
+h2 { font-size: var(--text-title); }
+h3 { font-size: var(--text-lg); }
 h1 i, h2 i, .wordmark i { color: var(--accent); font-style: normal; }
 p { margin: 0; }
 
 button, input, select, textarea { color: inherit; font: inherit; }
-button { -webkit-tap-highlight-color: transparent; }
+button, a[href], input[type="button"], input[type="submit"], select, [role="button"], [role="tab"] { touch-action: manipulation; }
+button, [role="tab"], .nav a { -webkit-user-select: none; user-select: none; }
 a { color: inherit; }
 a.inline-link {
   color: var(--accent);

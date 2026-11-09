@@ -174,7 +174,7 @@ export function createGoogleCalendarService({
       }
       await identityPromise;
     },
-    authorize() {
+    authorize({ prompt = 'select_account' } = {}) {
       requireCalendarClientId(clientId);
       if (!identity?.accounts?.oauth2) throw new Error('Prepare a conexão com o Google antes de autorizar.');
 
@@ -190,6 +190,7 @@ export function createGoogleCalendarService({
           const tokenClient = identity.accounts.oauth2.initTokenClient({
             client_id: clientId,
             scope: GOOGLE_CALENDAR_SCOPE,
+            prompt,
             callback: (response) => {
               if (response?.error) {
                 fail(response.error === 'access_denied'

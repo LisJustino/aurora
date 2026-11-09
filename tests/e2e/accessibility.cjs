@@ -105,44 +105,18 @@ async function checkContrast(page) {
     await publicPage.goto(BASE);
     await publicPage.emulateMedia({ reducedMotion: 'no-preference' });
 
-    const trigger = publicPage.getByRole('button', { name: 'Abrir tema e acessibilidade' });
-    assert.equal(await trigger.getAttribute('aria-haspopup'), null, 'o disclosure não deve ser anunciado como menu');
-    await trigger.click();
-    const panel = publicPage.locator('#public-accessibility-panel');
-    await panel.waitFor({ state: 'visible' });
-    assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
-    await panel.locator('[data-public-control="font"][data-step="1"]').click();
-    assert.equal(await publicPage.locator('html').getAttribute('data-fs'), 'l');
-    await publicPage.keyboard.press('Escape');
-    await panel.waitFor({ state: 'hidden' });
-    assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
-    assert.equal(await publicPage.evaluate(() => document.activeElement.id), 'public-accessibility-trigger');
+    const trigger = publicPage.getByRole('button', { name: 'Abrir acessibilidade' });
+    assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
+    assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
-    await trigger.click();
-    const motionToggle = panel.locator('[data-public-control="motion"]');
-    await motionToggle.click();
-    assert.equal(await motionToggle.getAttribute('aria-pressed'), 'true');
-    assert.equal(await publicPage.locator('html').getAttribute('data-motion'), 'reduce');
-    await publicPage.keyboard.press('Escape');
-
-    await publicPage.getByRole('button', { name: 'Explorar a demonstração' }).click();
-    await publicPage.getByRole('button', { name: 'Ver tarefas de exemplo' }).waitFor();
-    await publicPage.evaluate(() => {
-      window.__scrollCalls = [];
-      const original = Element.prototype.scrollIntoView;
-      Element.prototype.scrollIntoView = function (options) {
-        window.__scrollCalls.push(options);
-        return original.call(this, options);
-      };
-    });
-    await publicPage.getByRole('button', { name: 'Ver tarefas de exemplo' }).click();
-    const demoScroll = await publicPage.evaluate(() => window.__scrollCalls.at(-1));
-    assert.equal(demoScroll.behavior, 'auto', 'a demonstração deve evitar rolagem animada com a opção ativa');
+    await publicPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+    await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
+    assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
     await systemPage.goto(BASE);
-    await systemPage.getByRole('button', { name: 'Explorar a demonstração' }).click();
+    await systemPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
     await systemPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;
@@ -151,7 +125,7 @@ async function checkContrast(page) {
         return original.call(this, options);
       };
     });
-    await systemPage.getByRole('button', { name: 'Ver tarefas de exemplo' }).click();
+    await systemPage.getByRole('link', { name: 'Tarefas', exact: true }).click();
     const systemScroll = await systemPage.evaluate(() => window.__scrollCalls.at(-1));
     assert.equal(systemScroll.behavior, 'auto', 'a demonstração deve respeitar a preferência de movimento do sistema');
     await systemPage.close();
@@ -170,29 +144,28 @@ async function checkContrast(page) {
     previewUrl.hash = 'inicio';
     await appPage.goto(previewUrl.toString());
     await completeProfile(appPage);
-    const appTrigger = appPage.locator('#accessibility-trigger');
-    assert.equal(await appTrigger.getAttribute('aria-haspopup'), null, 'o painel autenticado também não é um menu ARIA');
-    await appTrigger.click();
-    await appPage.keyboard.press('Escape');
-    await appPage.waitForFunction(() => document.querySelector('#accessibility-panel')?.hidden);
-    assert.equal(await appPage.evaluate(() => document.activeElement.id), 'accessibility-trigger');
-    await appTrigger.click();
-    await appPage.locator('#accessibility-motion').click();
-    await appPage.locator('#accessibility-panel [data-settings-save-button]').click();
+    assert.equal(await appPage.locator('#accessibility-trigger').count(), 0, 'acessibilidade não fica no cabeçalho autenticado');
+    assert.notEqual(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra a marca completa no desktop');
+    await appPage.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra apenas o ícone da marca no celular');
+    await appPage.setViewportSize({ width: 1280, height: 900 });
+    assert.equal(await appPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho');
+    await appPage.evaluate(() => { location.hash = 'config?section=personalization'; });
+    await appPage.locator('#settings-accessibility-readable').waitFor();
+    for (const id of ['settings-accessibility-contrast', 'settings-accessibility-readable', 'settings-accessibility-links', 'settings-accessibility-motion']) {
+      assert.equal(await appPage.locator(`#${id}`).count(), 1, `${id} fica disponível em Ajustes`);
+    }
+    await appPage.locator('#settings-accessibility-motion').click();
+    await appPage.locator('[data-settings-save-button]').click();
     await appPage.waitForFunction(() => document.documentElement.dataset.motion === 'reduce');
-    await appPage.keyboard.press('Escape');
-    await appPage.waitForFunction(() => document.querySelector('#accessibility-panel')?.hidden);
-    await appPage.evaluate(() => {
-      window.__scrollCalls = [];
-      const original = Element.prototype.scrollIntoView;
-      Element.prototype.scrollIntoView = function (options) {
-        window.__scrollCalls.push(options);
-        return original.call(this, options);
-      };
-    });
-    await appPage.locator('[data-action="home-quick-focus"]').click();
-    const homeScroll = await appPage.evaluate(() => window.__scrollCalls.at(-1));
-    assert.equal(homeScroll.behavior, 'auto', 'a preferência salva deve desativar rolagem animada');
+    await appPage.evaluate(() => { location.hash = 'inicio'; });
+    const homeTaskInput = appPage.locator('.home-quick-form input[name="title"]');
+    await homeTaskInput.waitFor();
+    await homeTaskInput.focus();
+    assert.equal(await homeTaskInput.evaluate((input) => input === document.activeElement), true, 'o formulário rápido da Home permanece acessível por foco');
+    assert.equal(await appPage.getByRole('button', { name: 'Como usar?' }).count(), 1, 'Como usar? mantém o rótulo visível como nome acessível');
     assert.deepEqual(errors, [], errors.join('\n'));
 
     await checkContrast(publicPage);

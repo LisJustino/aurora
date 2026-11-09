@@ -1,10 +1,17 @@
-import { phaseDurationSeconds, phaseElapsedSeconds } from '../features/pomodoro/pomodoro.js';
-import { POMODORO_PUSH_API_URL } from './pomodoro-push-config.js';
+import { Capacitor } from '@capacitor/core';
+import { isNativeApp } from '../utils/platform.js';
+import { PUSH_NOTIFICATIONS_API_URL } from './push-notifications-config.js';
 
 const LEGACY_STORAGE_KEY = 'aurora.push.pomodoro';
 let mutationQueue = Promise.resolve();
 let credentialStore = null;
 let activeCredentials = null;
+let nativePushPlugin = null;
+let nativePushListenersReady = false;
+let nativePushListenersPromise = null;
+let nativePushConfigured = false;
+let nativePushPermission = 'prompt';
+let nativeRegistrationWaiter = null;
 
 function serializeMutation(operation) {
   const pending = mutationQueue.catch(() => {}).then(operation);
@@ -46,14 +53,19 @@ function removeLegacyCredentials() {
   }
 }
 
-export function configurePomodoroPushStore(store) {
+export function configurePushNotificationStore(store) {
   credentialStore = store;
   activeCredentials = null;
+  nativePushConfigured = false;
 }
 
-export async function initializePomodoroPush() {
+export async function initializePushNotifications() {
   activeCredentials = null;
   if (!credentialStore) return;
+  if (isNativeApp()) {
+    await initializeNativePush();
+    return;
+  }
   const legacyCredentials = readLegacyCredentials();
   const registration = 'serviceWorker' in navigator
     ? await navigator.serviceWorker.getRegistration()
@@ -89,16 +101,169 @@ export async function initializePomodoroPush() {
   }
 }
 
-export function clearPomodoroPushState() {
+export function clearPushNotificationState() {
   activeCredentials = null;
   credentialStore = null;
 }
 
+async function loadNativePushPlugin() {
+  if (!nativePushPlugin) {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    nativePushPlugin = PushNotifications;
+  }
+  return nativePushPlugin;
+}
+
+async function ensureNativePushListeners() {
+  if (nativePushListenersReady) return nativePushPlugin;
+  if (nativePushListenersPromise) return nativePushListenersPromise;
+  nativePushListenersPromise = (async () => {
+    const plugin = await loadNativePushPlugin();
+    await plugin.addListener('registration', ({ value }) => {
+      if (Capacitor.getPlatform() !== 'android') return;
+      void saveNativePushToken(value).then((credentials) => {
+        const waiter = nativeRegistrationWaiter;
+        if (!waiter) return;
+        clearTimeout(waiter.timeout);
+        nativeRegistrationWaiter = null;
+        waiter.resolve(credentials);
+      }).catch(nativePushError);
+    });
+    await plugin.addListener('registrationError', nativePushError);
+    await plugin.addListener('pushNotificationReceived', (notification) => {
+      const kind = notification.data?.kind;
+      if (kind === 'habit-reminder') {
+        window.dispatchEvent(new CustomEvent('aurora:push-notification', { detail: { kind } }));
+      }
+    });
+    await plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
+      if (notification.data?.kind === 'habit-reminder') window.location.assign('/habitos');
+    });
+    if (Capacitor.getPlatform() === 'ios') {
+      const { FCM } = await import('@capacitor-community/fcm');
+      await FCM.addListener('tokenReceived', ({ token }) => {
+        void saveNativePushToken(token).then((credentials) => {
+          const waiter = nativeRegistrationWaiter;
+          if (!waiter) return;
+          clearTimeout(waiter.timeout);
+          nativeRegistrationWaiter = null;
+          waiter.resolve(credentials);
+        }).catch(nativePushError);
+      });
+    }
+    nativePushListenersReady = true;
+    return plugin;
+  })();
+  try {
+    return await nativePushListenersPromise;
+  } catch (error) {
+    nativePushListenersPromise = null;
+    throw error;
+  }
+}
+
+function nativePushError(error) {
+  const waiter = nativeRegistrationWaiter;
+  if (!waiter) {
+    console.error('Aurora: o registro nativo de Push falhou.', error);
+    return;
+  }
+  clearTimeout(waiter.timeout);
+  nativeRegistrationWaiter = null;
+  waiter.reject(new Error('native-registration'));
+}
+
+async function saveNativePushToken(token) {
+  return serializeMutation(async () => {
+    if (!credentialStore || typeof token !== 'string' || !/^[A-Za-z0-9:_-]{20,4096}$/.test(token)) {
+      throw new Error('native-registration');
+    }
+    const subscription = { provider: 'fcm', token };
+    const previousCredentials = activeCredentials;
+    let credentials = await credentialStore.findPushSubscription(token);
+    if (!credentials?.clientId || !credentials?.capability) {
+      const created = await request('/api/clients', { method: 'POST', body: {} });
+      credentials = { clientId: created.clientId, capability: created.capability, enabled: false };
+    }
+    await request('/api/subscription', {
+      method: 'POST',
+      credentials,
+      body: { subscription },
+    });
+    let savedCredentials;
+    try {
+      savedCredentials = await credentialStore.savePushSubscription(credentials, subscription);
+    } catch (error) {
+      try {
+        await request('/api/subscription', { method: 'DELETE', credentials });
+      } catch (cleanupError) {
+        console.error('Aurora: a inscrição nativa não pôde ser revertida no serviço após falha do banco.', cleanupError);
+      }
+      throw error;
+    }
+    activeCredentials = savedCredentials;
+    if (
+      previousCredentials?.subscription?.provider === 'fcm'
+      && previousCredentials.clientId !== savedCredentials.clientId
+    ) {
+      await request('/api/subscription', { method: 'DELETE', credentials: previousCredentials });
+      await credentialStore.deletePushSubscription(previousCredentials.clientId);
+    }
+    return savedCredentials;
+  });
+}
+
+async function registerNativePush(beforeRegister) {
+  const plugin = await ensureNativePushListeners();
+  if (nativeRegistrationWaiter) return nativeRegistrationWaiter.promise;
+  const promise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => nativePushError(new Error('registration-timeout')), 20_000);
+    nativeRegistrationWaiter = { resolve, reject, timeout, promise: null };
+  });
+  nativeRegistrationWaiter.promise = promise;
+  try {
+    await beforeRegister?.();
+    await plugin.register();
+  } catch (error) {
+    nativePushError(error);
+  }
+  return promise;
+}
+
+async function initializeNativePush() {
+  const config = await request('/api/config');
+  nativePushConfigured = config.nativePushEnabled === true;
+  if (!nativePushConfigured) return;
+  const plugin = await loadNativePushPlugin();
+  nativePushPermission = (await plugin.checkPermissions()).receive;
+  if (nativePushPermission !== 'granted' || !await credentialStore.hasPushSubscriptionProvider('fcm')) return;
+  const { FCM } = await import('@capacitor-community/fcm');
+  await registerNativePush(() => FCM.setAutoInit({ enabled: true }));
+}
+
+async function enableNativePush() {
+  const config = await request('/api/config');
+  nativePushConfigured = config.nativePushEnabled === true;
+  if (!nativePushConfigured) throw new Error('native-not-configured');
+  const plugin = await loadNativePushPlugin();
+  let permission = await plugin.checkPermissions();
+  nativePushPermission = permission.receive;
+  if (nativePushPermission !== 'granted') {
+    permission = await plugin.requestPermissions();
+    nativePushPermission = permission.receive;
+  }
+  if (nativePushPermission !== 'granted') {
+    throw new Error(nativePushPermission === 'denied' ? 'permission-denied' : 'permission-dismissed');
+  }
+  const { FCM } = await import('@capacitor-community/fcm');
+  await registerNativePush(() => FCM.setAutoInit({ enabled: true }));
+}
+
 function apiUrl(path) {
-  if (!POMODORO_PUSH_API_URL) throw new Error('not-configured');
+  if (!PUSH_NOTIFICATIONS_API_URL) throw new Error('not-configured');
   let base;
   try {
-    base = new URL(POMODORO_PUSH_API_URL);
+    base = new URL(PUSH_NOTIFICATIONS_API_URL);
   } catch {
     throw new Error('not-configured');
   }
@@ -157,21 +322,29 @@ function assertPushSupport() {
   ) throw new Error('unsupported');
 }
 
-export function getPomodoroPushStatus() {
-  const supported = typeof window !== 'undefined'
+export function getPushNotificationStatus() {
+  const native = typeof window !== 'undefined' && isNativeApp();
+  const supported = native || (typeof window !== 'undefined'
     && window.isSecureContext
     && 'serviceWorker' in navigator
     && 'PushManager' in window
-    && 'Notification' in window;
+    && 'Notification' in window);
   const enabled = activeCredentials?.enabled === true;
-  const permission = supported ? Notification.permission : 'unsupported';
+  const permission = native
+    ? nativePushPermission
+    : supported ? Notification.permission : 'unsupported';
+  const configured = Boolean(PUSH_NOTIFICATIONS_API_URL && (!native || nativePushConfigured));
   let message = '';
-  if (!POMODORO_PUSH_API_URL) {
+  if (!PUSH_NOTIFICATIONS_API_URL) {
     message = 'O endereço do serviço de avisos ainda precisa ser configurado.';
+  } else if (native && !nativePushConfigured) {
+    message = 'O serviço de notificações nativas ainda precisa ser configurado.';
   } else if (!supported) {
     message = 'Avisos Push exigem um navegador compatível e uma origem HTTPS.';
   } else if (permission === 'denied') {
-    message = 'As notificações estão bloqueadas nas permissões do navegador.';
+    message = native
+      ? 'As notificações estão bloqueadas nas permissões do dispositivo.'
+      : 'As notificações estão bloqueadas nas permissões do navegador.';
   } else if (!credentialStore) {
     message = 'Entre na sua conta para configurar avisos neste dispositivo.';
   } else if (enabled) {
@@ -179,25 +352,12 @@ export function getPomodoroPushStatus() {
   } else {
     message = 'Os avisos só serão ativados depois da sua autorização.';
   }
-  return { configured: Boolean(POMODORO_PUSH_API_URL), supported, enabled, permission, message };
+  return { configured, supported, enabled, permission, native, message };
 }
 
-export function createPomodoroSchedule(timer, pomodoro, now = Date.now()) {
-  if (!timer || timer.startedAt === null) return null;
-  const durationSeconds = phaseDurationSeconds(pomodoro, timer.phase);
-  const remainingSeconds = Math.max(0, durationSeconds - phaseElapsedSeconds(timer, now));
-  return {
-    phase: timer.phase,
-    phaseEndsAt: now + remainingSeconds * 1000,
-    focusMin: pomodoro.focusMin,
-    breakMin: pomodoro.breakMin,
-    longBreakMin: pomodoro.longBreakMin,
-    completedPomodoros: timer.completedPomodoros,
-  };
-}
-
-export async function enablePomodoroPush() {
+export async function enablePushNotifications() {
   if (!credentialStore) throw new Error('account-storage');
+  if (isNativeApp()) return enableNativePush();
   assertPushSupport();
   const permissionRequest = Notification.permission === 'default'
     ? Notification.requestPermission()
@@ -252,8 +412,21 @@ export async function enablePomodoroPush() {
   });
 }
 
-export async function disablePomodoroPush() {
+export async function disablePushNotifications() {
   const credentials = activeCredentials;
+  if (isNativeApp()) {
+    const plugin = await loadNativePushPlugin();
+    const { FCM } = await import('@capacitor-community/fcm');
+    await serializeMutation(async () => {
+      if (credentials) await request('/api/subscription', { method: 'DELETE', credentials });
+      if (credentials) await credentialStore.deletePushSubscription(credentials.clientId);
+      await FCM.setAutoInit({ enabled: false });
+      await FCM.deleteInstance();
+      await plugin.unregister();
+      activeCredentials = null;
+    });
+    return;
+  }
   const registration = 'serviceWorker' in navigator
     ? await navigator.serviceWorker.getRegistration()
     : null;
@@ -265,29 +438,6 @@ export async function disablePomodoroPush() {
     if (subscription && !(await subscription.unsubscribe())) throw new Error('unsubscribe-failed');
     if (credentials) await credentialStore.deletePushSubscription(credentials.clientId);
     activeCredentials = null;
-  });
-}
-
-export async function schedulePomodoroPush(timer, pomodoro) {
-  return serializeMutation(async () => {
-    const credentials = activeCredentials;
-    if (!credentials?.enabled) return false;
-    const schedule = createPomodoroSchedule(timer, pomodoro);
-    if (!schedule) {
-      await request('/api/schedule', { method: 'DELETE', credentials });
-      return false;
-    }
-    await request('/api/schedule', { method: 'POST', credentials, body: schedule });
-    return true;
-  });
-}
-
-export async function cancelPomodoroPushSchedule() {
-  return serializeMutation(async () => {
-    const credentials = activeCredentials;
-    if (!credentials?.enabled) return false;
-    await request('/api/schedule', { method: 'DELETE', credentials });
-    return true;
   });
 }
 
@@ -313,7 +463,7 @@ export async function cancelHabitPushReminders() {
   });
 }
 
-export function pomodoroPushErrorMessage(error) {
+export function pushNotificationErrorMessage(error) {
   const messages = {
     'not-configured': 'O serviço de avisos não está configurado para esta instalação.',
     'account-storage': 'Entre na sua conta para guardar a inscrição Push com segurança.',
@@ -321,6 +471,8 @@ export function pomodoroPushErrorMessage(error) {
     'legacy-invalid': 'A inscrição Push antiga está inválida e foi preservada. Desative-a manualmente no navegador antes de configurar outra.',
     'legacy-cleanup': 'A inscrição foi salva na conta, mas não foi possível remover a autorização antiga deste navegador.',
     unsupported: 'Este navegador ou contexto não permite notificações Push. Use HTTPS e um navegador compatível.',
+    'native-not-configured': 'O serviço Firebase de notificações nativas ainda não está configurado.',
+    'native-registration': 'Não foi possível registrar este dispositivo no serviço de notificações nativas.',
     network: 'Não foi possível conectar ao serviço de avisos. Confira a conexão e tente novamente.',
     'invalid-response': 'O serviço de avisos respondeu em um formato inválido.',
     'invalid-config': 'A chave pública de Push do serviço está inválida.',
@@ -330,14 +482,19 @@ export function pomodoroPushErrorMessage(error) {
     'unsubscribe-failed': 'O navegador não conseguiu remover a inscrição local.',
     'rate-limited': 'Muitas solicitações em pouco tempo. Aguarde um minuto e tente novamente.',
     'server-unavailable': 'O serviço de avisos está indisponível no momento.',
-    'schedule-horizon': 'A próxima fase está fora do limite de agendamento permitido.',
     'invalid-habit-reminders': 'Os dias, horários ou o fuso dos lembretes foram rejeitados pelo serviço.',
     'invalid-request': 'A solicitação enviada ao serviço de avisos foi rejeitada.',
     'invalid-subscription': 'A inscrição Push deste navegador foi rejeitada pelo serviço.',
-    'subscription-required': 'Ative os avisos antes de agendar as mudanças de fase.',
+    'subscription-required': 'Ative os avisos antes de configurar os lembretes.',
     unauthorized: 'A autorização deste dispositivo expirou. Desative e ative novamente os avisos.',
     cors: 'A origem desta página não está autorizada pelo serviço de avisos.',
     storage: 'Não foi possível atualizar a autorização local deste dispositivo.',
   };
-  return messages[error?.message] || 'Não foi possível atualizar os avisos Push. O estado do timer não foi revertido.';
+  return messages[error?.message] || 'Não foi possível atualizar os avisos Push.';
+}
+
+if (typeof window !== 'undefined' && isNativeApp()) {
+  void ensureNativePushListeners().catch((error) => {
+    console.error('Aurora: não foi possível preparar os avisos nativos.', error);
+  });
 }

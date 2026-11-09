@@ -18,10 +18,34 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#habitos`);
   await page.locator('.habit-today').waitFor({ state: 'visible' });
-  check(await page.locator('.habit-empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
-  check(await page.locator('.habit-today-head [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
+  check(await page.locator('.habit-today .empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
+  check(await page.locator('.habit-today [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
+  await page.locator('.habit-today .empty [data-action="habit-new"]').click();
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [data-dlg="name"]').getAttribute('aria-invalid') === 'true', 'nome vazio do hábito recebe erro inline');
+  await page.locator('#dlg [data-dlg="name"]').fill('Leitura de teste');
+  for (const day of await page.locator('#dlg [name="days"]').all()) await day.uncheck();
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [name="days"]').first().getAttribute('aria-invalid') === 'true'
+    && await page.locator('#dlg .habit-schedule [role="alert"]').count() === 1, 'dias vazios recebem erro inline');
+  await page.locator('#dlg [name="days"]').last().check();
+  check(await page.locator('#dlg .habit-schedule [role="alert"]').count() === 0, 'selecionar outro dia remove o erro');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  if (await page.locator('#dlg [data-action="dlg-discard"]').count()) await page.locator('#dlg [data-action="dlg-discard"]').click();
+  await page.locator('[data-action="habit-idea"][data-id="water"]').click();
+  await page.locator('#dlg [data-dlg="waterGoalMl"]').fill('');
+  await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  check(await page.locator('#dlg [data-dlg="waterGoalMl"]').getAttribute('aria-invalid') === 'true',
+    'meta de água vazia continua inválida');
+  await page.locator('#dlg [data-action="dlg-close"]').first().click();
+  if (await page.locator('#dlg [data-action="dlg-discard"]').count()) await page.locator('#dlg [data-action="dlg-discard"]').click();
   check(await page.locator('.habit-week-overview').count() === 0, 'sem hábitos, a revisão semanal não ocupa espaço');
   check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4, 'prévia mostra quatro ideias');
+  check(await page.locator('.habit-ideas summary b').textContent() === 'Escolha seus primeiros hábitos'
+    && await page.locator('.habit-idea-tools').isHidden()
+    && await page.locator('.habit-idea-categories').evaluate((catalog) => catalog.classList.contains('is-preview'))
+    && await page.locator('.habit-idea-section h3:visible, .habit-idea-tags:visible').count() === 0,
+  'primeira escolha destaca as ideias sem expor filtros e categorias');
   const featured = await page.locator('[data-habit-idea][data-preview="false"]').evaluateAll((ideas) => ideas.map((idea) => ({
     id: idea.dataset.id,
     category: idea.closest('.habit-idea-section').querySelector('h3').textContent,
@@ -34,6 +58,11 @@ const check = (passed, name, detail = '') => {
   const showAll = page.locator('[data-action="habit-ideas-expand"]');
   const totalIdeas = await page.locator('[data-habit-idea]').count();
   check(totalIdeas === 100, 'catálogo completo mostra exatamente 100 ideias');
+  await showAll.click();
+  check(await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas
+    && await page.locator('.habit-idea-tools').isVisible()
+    && await showAll.getAttribute('aria-expanded') === 'true',
+  'explorar o catálogo revela todas as ideias, a busca e os filtros');
   check(await page.locator('.habit-idea-search input').count() === 1,
     'catálogo oferece busca por nome e descrição');
   const ideaSearch = page.locator('.habit-idea-search input');
@@ -41,13 +70,14 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('[data-habit-idea]:not([hidden])').count() > 0
     && await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => (
       ideas.every((idea) => `${idea.querySelector('b').textContent} ${idea.querySelector('small').textContent}`.toLocaleLowerCase().includes('idioma'))
-    )), 'busca filtra ideias pelo texto mesmo com a lista recolhida');
+    )), 'busca filtra ideias pelo texto no catálogo');
   await ideaSearch.fill('');
   await showAll.click();
-  check(await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas
-    && await showAll.getAttribute('aria-expanded') === 'true', 'ação expande todas as ideias e atualiza o estado acessível');
+  check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4
+    && await page.locator('.habit-idea-tools').isHidden(),
+  'lista de ideias pode ser recolhida e os filtros voltam a ocultar');
   await showAll.click();
-  check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4, 'lista de ideias pode ser recolhida');
+  await page.locator('.habit-idea-tools').waitFor({ state: 'visible' });
   const contextFilter = page.getByRole('combobox', { name: 'Contexto das ideias' });
   await contextFilter.focus();
   await page.keyboard.press('Enter');
@@ -92,8 +122,11 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('select[data-change="habit-idea-category"]').inputValue() === 'all'
     && await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'all'
     && await page.locator('[data-action="habit-ideas-clear"]').isHidden()
-    && await page.locator('[data-habit-idea]:not([hidden])').count() === 4,
-  'ação limpar filtros restaura os seletores e a prévia');
+    && await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas,
+  'ação limpar filtros restaura os seletores e o catálogo');
+  await showAll.click();
+  check(await page.locator('[data-habit-idea]:not([hidden])').count() === 4,
+    'prévia inicial continua disponível após recolher o catálogo');
   const featuredIdea = page.locator('[data-habit-idea][data-id="reading"]');
   const readingDescription = await featuredIdea.locator('.habit-idea-copy > small').textContent();
   await featuredIdea.click();
@@ -102,14 +135,20 @@ const check = (passed, name, detail = '') => {
   await page.locator('[data-action="dlg-close"]').last().click();
   check(await page.locator('.habit-row[data-habit-id]').count() === 0,
     'abrir personalização não grava a ideia');
-  await page.locator('.habit-today-head [data-action="habit-new"]').click();
+  await page.locator('.habit-today [data-action="habit-new"]').click();
   await page.locator('#dlgform [data-dlg="name"]').fill('Alongar por cinco minutos');
+  await page.locator('#dlgform [data-dlg="remind"]').fill('09:00');
   await page.locator('button[form="dlgform"][type="submit"]').click();
   const row = page.locator('.habit-row[data-habit-id]').first();
   await row.waitFor({ state: 'visible' });
   check(await row.locator('.habit-week').isVisible()
     && await row.locator('.habit-dot').count() === 7, 'semana fica visível no cartão sem abrir detalhes');
   check(await row.locator('.habit-more').evaluate((details) => !details.open), 'detalhes do hábito começam recolhidos');
+  const reminderNote = page.locator('.habit-reminder-note');
+  await reminderNote.locator('summary').click();
+  check((await reminderNote.textContent()).includes('Este interruptor controla os avisos de Hábitos neste dispositivo')
+    && await reminderNote.getByRole('button', { name: 'Ativar avisos' }).count() === 1,
+  'controle de notificações informa que os avisos de Hábitos são deste dispositivo');
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
   check(await page.locator('#toast').getByText('Hábito marcado como concluído.').count() === 1, 'marcação de hábito oferece desfazer');
@@ -151,8 +190,10 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 390, height: 844 });
   const lightSurface = await page.locator('[data-habit-idea]:not([hidden])').first()
     .evaluate((idea) => getComputedStyle(idea).backgroundColor);
-  await page.locator('#accessibility-trigger').click();
-  await page.locator('#accessibility-mode-dark').click();
+  await page.evaluate(() => { location.hash = 'config?section=personalization'; });
+  await page.locator('#personalization-mode-dark').click();
+  await page.evaluate(() => { location.hash = 'habitos'; });
+  await page.locator('[data-habit-idea]:not([hidden])').first().waitFor();
   const darkLayout = await page.evaluate(() => ({
     theme: document.documentElement.dataset.theme,
     overflow: document.documentElement.scrollWidth > innerWidth,

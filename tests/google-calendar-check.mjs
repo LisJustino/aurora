@@ -67,6 +67,7 @@ await service.authorize();
 assert.equal(service.isConnected(), true);
 assert.equal(tokenOptions.scope, GOOGLE_CALENDAR_SCOPE);
 assert.equal(tokenOptions.client_id, 'calendar-test.apps.googleusercontent.com');
+assert.equal(tokenOptions.prompt, 'select_account');
 
 const calendars = await service.getCalendars();
 assert.deepEqual(calendars, [

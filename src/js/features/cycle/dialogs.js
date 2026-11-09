@@ -54,7 +54,7 @@ function log() {
       ` : ''}
       ${dlgField('Orgasmos neste dia (opcional)', h`<input type="number" data-dlg="log.orgasmCount" min="0" max="99" step="1" value="${log.orgasmCount ?? ''}" inputmode="numeric" aria-describedby="cycle-orgasm-help">`, 'full')}
       <p class="fine" id="cycle-orgasm-help">Deixe em branco se preferir não registrar. Use 0 se não houve orgasmo (até 99 por dia).</p>
-      <p class="fine">Os registros ficam na conta Aurora. Backups JSON sem criptografia podem incluir esses dados; guarde o arquivo com cuidado.</p>
+      <p class="fine">Os registros ficam na conta Aurora. O arquivo de backup não tem proteção própria por senha e pode incluir essas informações; guarde-o em um local privado.</p>
     </section>`}
   </form>`,
   h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit" class="btn primary" form="dlgform">${quickFlow ? 'Salvar fluxo' : 'Salvar registro'}</button>`);
