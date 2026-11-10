@@ -22,13 +22,14 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         ring: document.querySelector('.home-head .ringw').getBoundingClientRect().width,
       };
     });
-    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Hábitos', 'Mais']);
+    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Hábitos', 'Mais']);
     assert(home.targets.every(([width, height, font]) => width >= 44 && height >= 44 && font >= 12));
     assert.equal(home.card, false);
     assert.equal(home.radius, '0px');
     assert.equal(home.ring, 64);
     await page.locator('.nav-more-trigger').click();
-    assert.equal(await page.locator('#nav-more-menu a[href="/config"]').isVisible(), true);
+    assert.equal(await page.locator('#nav-more-menu a[href="/config"]').count(), 0);
+    assert.equal(await page.locator('.profile-link[href="/config"]').isVisible(), true);
     await page.locator('.nav-more-trigger').click();
     await page.locator('.nav > a[href="/planejar"]').click();
     assert.equal(await page.locator('[data-change="plan-view"]').inputValue(), 'lista');

@@ -24,11 +24,34 @@ export function renderLanding(root) {
   root.innerHTML = landingMarkup();
   initializeLandingTaskMock(root);
   initializeAreaSelector(root);
+  initializeSpotlight(root);
   if (prerendered) {
     // Evita repetir a animação de entrada sobre o conteúdo já exibido.
     root.querySelector('.public-main')?.classList.add('is-hydrated');
   }
   initializeFaqDisclosure(root);
+}
+
+function marqueeItems() {
+  return ['Tarefas', 'Hábitos', 'Finanças', 'Ciclo', 'Revisão semanal', 'Instalável no celular', 'Grátis']
+    .map((label) => `<span>${label}</span><i></i>`).join('');
+}
+
+function initializeSpotlight(root) {
+  if (typeof root.addEventListener !== 'function') return;
+  const onMove = (event) => {
+    const card = event.target instanceof Element ? event.target.closest('.public-value') : null;
+    if (!card) return;
+    const box = card.getBoundingClientRect();
+    card.style.setProperty('--mx', `${event.clientX - box.left}px`);
+    card.style.setProperty('--my', `${event.clientY - box.top}px`);
+  };
+  root.addEventListener('pointermove', onMove);
+  const previousCleanup = landingControllers.get(root);
+  landingControllers.set(root, () => {
+    previousCleanup?.();
+    root.removeEventListener?.('pointermove', onMove);
+  });
 }
 
 function initializeAreaSelector(root) {
@@ -183,6 +206,9 @@ export function landingMarkup() {
             </ul>
           </div>
         </section>
+        <div class="public-marquee" aria-hidden="true">
+          <div class="public-marquee-track">${marqueeItems()}${marqueeItems()}</div>
+        </div>
         <section class="public-features" id="public-features" aria-labelledby="public-features-title">
           <div class="public-section-heading"><p class="public-eyebrow">Da cabeça cheia a um próximo passo possível</p><h2 id="public-features-title">Quatro áreas, no seu ritmo</h2><p class="public-section-lead">Veja como Planejar, Hábitos, Finanças e Ciclo se encaixam na sua rotina. Comece por uma área e explore as outras quando quiser.</p></div>
           <h3 class="public-journey-title">Como levar isso para a semana</h3>

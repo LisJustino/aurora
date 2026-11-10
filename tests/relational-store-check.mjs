@@ -154,7 +154,7 @@ const client = {
 const state = {
   settings: {
     profile: { name: 'Pessoa', preferredName: 'Pessoa' },
-    areas: { finances: true },
+    areas: { finances: true, gym: true },
     lists: [],
     cats: { out: [], in: [] },
     prefs: {
@@ -189,7 +189,7 @@ const state = {
     introSeen: true,
   },
   tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
-  pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
+  pomodoro: { elapsedSeconds: 120, startedAt: null, phase: 'focus', phaseElapsedSeconds: 120, completedPomodoros: 3, dailyCompletedPomodoros: 2, dailyCompletedOn: '2026-10-29', history: { '2026-10-29': 2 } },
   habits: [{
     id: 'water-habit',
     name: 'Beber água',
@@ -201,7 +201,10 @@ const state = {
   }],
   water: [{ id: 'water-log-1', ml: 250, at: '2026-10-29T12:00:00.000Z' }],
   checkins: [{ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'] }],
-  gym: { templates: [], logs: [] },
+  gym: {
+    templates: [{ id: 'legacy-template', name: 'Treino antigo', exercises: ['Alongamento'] }],
+    logs: [{ id: 'legacy-workout', date: '2026-10-29', name: 'Treino antigo', minutes: 25, notes: 'Registro preservado' }],
+  },
   finance: {
     accounts: [
       { id: 'account-1', name: 'Conta', type: 'checking', initialCents: 0 },
@@ -312,12 +315,16 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.foc
   layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
   shortcuts: ['task', 'pomodoro'],
 });
-assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
+assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true, gym: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
 assert.equal(changeByTable.has('study_sessions'), false);
 assert.equal(changeByTable.get('timer_state')[0].timer_kind, 'pomodoro');
 assert.equal(Object.hasOwn(changeByTable.get('timer_state')[0], 'subject_id'), false);
+assert.equal(changeByTable.get('pomodoro_daily_stats')[0].completed_count, 2);
+assert.equal(changeByTable.get('gym_templates')[0].name, 'Treino antigo');
+assert.equal(changeByTable.get('gym_template_exercises')[0].name, 'Alongamento');
+assert.equal(changeByTable.get('gym_logs')[0].notes, 'Registro preservado');
 assert.equal(writes[0].args.p_changes[0].replace_missing, true);
 assert.ok(changeByTable.get('tasks').every((row) => row.expected_updated_at === null));
 
@@ -361,6 +368,14 @@ const loadClient = {
   },
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
+assert.equal(loadedState.settings.areas.gym, true);
+assert.equal(loadedState.pomodoro.elapsedSeconds, 120);
+assert.equal(loadedState.pomodoro.completedPomodoros, 3);
+assert.deepEqual(loadedState.pomodoro.history, { '2026-10-29': 2 });
+assert.deepEqual(loadedState.gym.templates[0].exercises, ['Alongamento']);
+assert.equal(loadedState.gym.templates[0].id, 'legacy-template');
+assert.equal(loadedState.gym.logs[0].id, 'legacy-workout');
+assert.equal(loadedState.gym.logs[0].notes, 'Registro preservado');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);

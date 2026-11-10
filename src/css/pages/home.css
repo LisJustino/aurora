@@ -36,7 +36,7 @@
   text-transform: uppercase;
 }
 .home-head h1 { max-width: 18ch; font-size: var(--text-hero); line-height: 1.05; }
-.home-personal-message { max-width: 54ch; margin: 8px 0 0; color: var(--area-tone, var(--accent)); font-size: var(--text-lg); font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.home-personal-message { max-width: 54ch; margin: 8px 0 0; color: var(--on-hero-home); font-size: var(--text-lg); font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
 .home-profile-avatar {
   display: inline-grid;
   width: 36px;
@@ -856,7 +856,7 @@
 @media (max-width: 760px) {
   .main[data-route="inicio"] > .home-head {
     padding: var(--space-4);
-    border-radius: var(--r-group);
+    border-radius: var(--r);
   }
 }
 
@@ -1034,7 +1034,7 @@
 @media (max-width: 480px) {
   .main[data-route="inicio"] > .home-head {
     padding: var(--space-4);
-    border-radius: var(--r-group);
+    border-radius: var(--r);
   }
 
   .main[data-route="inicio"] > .home-head h1 {

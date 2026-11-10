@@ -141,6 +141,70 @@ const check = (passed, name, detail = '') => {
     return (values[0] + .05) / (values[1] + .05);
   });
   check(guideContrast >= 4.5, 'botão Como usar? mantém contraste legível sobre a cor do cabeçalho', guideContrast.toFixed(2));
+  const personalMessageUsesHeroColor = await page.evaluate(async () => {
+    const { PALETTES } = await import('/src/js/features/appearance/palettes.js');
+    const root = document.documentElement;
+    const header = document.querySelector('.home-head');
+    const message = document.createElement('p');
+    const original = {
+      theme: root.getAttribute('data-theme'),
+      contrast: root.getAttribute('data-contrast'),
+      primary: root.style.getPropertyValue('--p'),
+      accent: root.style.getPropertyValue('--pd'),
+    };
+    message.className = 'home-personal-message';
+    message.textContent = 'Mensagem de teste';
+    header.querySelector(':scope > div').append(message);
+    let matchesHeroColor = true;
+    let minimumContrast = Infinity;
+    const luminance = ([red, green, blue]) => [red, green, blue]
+      .map((channel) => (channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4))
+      .reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+    const srgbColors = (value) => [...value.matchAll(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)\)/g)]
+      .map(([, red, green, blue]) => [Number(red), Number(green), Number(blue)]);
+    try {
+      for (const [, [, primary, accent]] of Object.entries(PALETTES)) {
+        root.style.setProperty('--p', primary);
+        root.style.setProperty('--pd', accent);
+        for (const theme of ['light', 'dark']) {
+          root.setAttribute('data-theme', theme);
+          for (const contrast of ['normal', 'high']) {
+            root.setAttribute('data-contrast', contrast);
+            const messageColor = getComputedStyle(message).color;
+            if (messageColor !== getComputedStyle(header.querySelector('h1')).color) matchesHeroColor = false;
+            const foreground = messageColor.match(/[\d.]+/g).slice(0, 3).map((channel) => Number(channel) / 255);
+            const gradient = getComputedStyle(header).backgroundImage;
+            const stops = srgbColors(gradient.slice(gradient.lastIndexOf('linear-gradient')));
+            if (stops.length < 2) {
+              minimumContrast = 0;
+              continue;
+            }
+            const foregroundLuminance = luminance(foreground);
+            for (const background of [stops[0], stops[stops.length - 1]]) {
+              const backgroundLuminance = luminance(background);
+              const ratio = (Math.max(foregroundLuminance, backgroundLuminance) + .05)
+                / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
+              minimumContrast = Math.min(minimumContrast, ratio);
+            }
+          }
+        }
+      }
+    } finally {
+      message.remove();
+      if (original.theme === null) root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', original.theme);
+      if (original.contrast === null) root.removeAttribute('data-contrast');
+      else root.setAttribute('data-contrast', original.contrast);
+      if (original.primary) root.style.setProperty('--p', original.primary);
+      else root.style.removeProperty('--p');
+      if (original.accent) root.style.setProperty('--pd', original.accent);
+      else root.style.removeProperty('--pd');
+    }
+    return { matchesHeroColor, minimumContrast };
+  });
+  check(personalMessageUsesHeroColor.matchesHeroColor && personalMessageUsesHeroColor.minimumContrast >= 4.5,
+    'mensagem pessoal mantém contraste mínimo de 4,5:1 em todas as paletas, temas e modos de contraste',
+    personalMessageUsesHeroColor.minimumContrast.toFixed(2));
   const taskNextStep = page.locator('.home-today-card .home-next-task .home-next-step-label');
   const habitNextStep = page.locator('.home-habit-checkins .home-habit-row.is-next .home-next-step-label');
   const nextStepCount = await taskNextStep.count() + await habitNextStep.count();
@@ -335,15 +399,51 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#config?section=areas-navigation`);
   const cycleAreaToggle = page.locator('[data-change="area"][data-area="cycle"]');
   const cycleMenuToggle = page.locator('#menu-visible-ciclo');
+  const financeAreaToggle = page.locator('[data-change="area"][data-area="finances"]');
+  const financeMenuToggle = page.locator('#menu-visible-financas');
+  const habitsAreaToggle = page.locator('[data-change="area"][data-area="habits"]');
+  const habitsMenuToggle = page.locator('#menu-visible-habitos');
   const cycleWasEnabled = await cycleAreaToggle.isChecked();
   const cycleWasVisible = await cycleMenuToggle.isChecked();
+  let menuSettingsChanged = false;
   await cycleAreaToggle.check();
   await cycleMenuToggle.check();
-  if (!cycleWasEnabled || !cycleWasVisible) await page.locator('[data-settings-save-button]').click();
+  for (const toggle of [financeAreaToggle, financeMenuToggle, habitsAreaToggle, habitsMenuToggle]) {
+    if (!await toggle.isChecked()) {
+      await toggle.check();
+      menuSettingsChanged = true;
+    }
+  }
+  if (!cycleWasEnabled || !cycleWasVisible || menuSettingsChanged) await page.locator('[data-settings-save-button]').click();
   await page.setViewportSize({ width: 1440, height: 900 });
   const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="/ciclo"]');
   await cycleSidebarLink.waitFor({ state: 'visible' });
   check(await cycleSidebarLink.isVisible(), 'Ciclo ativo aparece como link direto na barra lateral desktop');
+  for (let moves = 0; moves < 5; moves++) {
+    const moveUp = page.locator('#menu-move-up-habitos');
+    if (!await moveUp.count()) break;
+    await moveUp.click();
+  }
+  await page.locator('[data-settings-save-button]').click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobilePrimaryLinks = await page.locator('.topbar .nav > .nav-primary').evaluateAll((links) => (
+    links.map((link) => link.getAttribute('href'))
+  ));
+  check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas',
+    'dock móvel reserva quatro destinos a Início, Planejar, Hábitos e Finanças na ordem escolhida');
+  await page.locator('.nav-more-trigger').click();
+  check(await page.locator('#nav-more-menu a[href="/config"]').count() === 0,
+    'Ajustes não aparece no menu Mais');
+  check(await page.locator('.profile-link[href="/config"]').isVisible(),
+    'Ajustes permanece acessível pelo atalho de perfil no cabeçalho móvel');
+  await page.locator('.nav-more-trigger').click();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (let moves = 0; moves < 5; moves++) {
+    const moveDown = page.locator('#menu-move-down-habitos');
+    if (!await moveDown.count()) break;
+    await moveDown.click();
+  }
+  await page.locator('[data-settings-save-button]').click();
   const sidebarToggle = page.getByRole('button', { name: 'Recolher menu lateral' });
   check(await sidebarToggle.isVisible(), 'controle para recolher o menu aparece na barra lateral web');
   await sidebarToggle.click();

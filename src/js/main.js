@@ -91,10 +91,6 @@ function loadGoogleCalendarServiceFactory() {
         googleCalendarServicePromise = null;
         throw error;
       });
-      window.addEventListener('aurora:push-notification', (event) => {
-        const kind = event.detail?.kind;
-        if (kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
-      });
   }
   return googleCalendarServicePromise;
 }
@@ -299,6 +295,10 @@ const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
+const DEFAULT_CATEGORY_STYLES = Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
+  kind,
+  new Map(categories.map(([name, color, iconName]) => [norm(name), { color, icon: iconName }])),
+]));
 const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
 const categoryLeafName = (category) => {
   if (typeof category === 'string') return category.trim();
@@ -312,25 +312,35 @@ const categoryPathParts = (value) => {
   if (parts.length === 1) return { parent: '', child: parts[0] };
   return { parent: parts[0], child: parts.slice(1).join(' > ') };
 };
-const normalizeCategoryEntry = (category) => {
+const normalizeCategoryEntry = (category, kind, inherited = {}) => {
   if (typeof category === 'string') {
     const name = category.trim();
-    return name ? { name: name.slice(0, 30), color: '#8b8b95', icon: 'tag', subcategories: [] } : null;
+    if (!name) return null;
+    const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
+    return {
+      name: name.slice(0, 30),
+      color: inherited.color || defaults?.color || '#8b8b95',
+      icon: inherited.icon || defaults?.icon || 'tag',
+      subcategories: [],
+    };
   }
   if (!isPlainObject(category) || typeof category.name !== 'string') return null;
   const name = category.name.trim();
   if (!name) return null;
+  const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
+  const color = hexOk(category.color) ? category.color : inherited.color || defaults?.color || '#8b8b95';
+  const iconName = CAT_ICONS.includes(category.icon) ? category.icon : defaults?.icon || inherited.icon || 'tag';
   const subcategories = Array.isArray(category.subcategories)
-    ? category.subcategories.map((item) => normalizeCategoryEntry(item)).filter(Boolean)
+    ? category.subcategories.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName })).filter(Boolean)
     : [];
   return {
     name: name.slice(0, 30),
-    color: hexOk(category.color) ? category.color : '#8b8b95',
-    icon: CAT_ICONS.includes(category.icon) ? category.icon : 'tag',
+    color,
+    icon: iconName,
     subcategories: subcategories.slice(0, 20),
   };
 };
-const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean);
+const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean);
 const topCategoryNames = (kind) => categoryEntries(kind).map((category) => category.name);
 const categoryMatch = (kind, value) => {
   const target = String(value ?? '').trim();
@@ -504,17 +514,30 @@ function refreshSettingsSaveControls() {
 }
 function refreshUnsavedSettingsBanner() {
   const banner = document.querySelector('.settings-unsaved-bar');
-  if (!banner) return;
   const dirty = Boolean(ui.profileDraft || settingsDraftDirty());
   const saving = ui.profileSaving || ui.settingsSaving;
-  banner.hidden = !dirty;
-  const discardButton = banner.querySelector('[data-action="profile-discard"]');
-  if (discardButton) discardButton.disabled = !dirty || saving;
-  const saveButton = banner.querySelector('[data-action="profile-save"]');
+  if (banner) {
+    banner.hidden = !dirty;
+    const discardButton = banner.querySelector('[data-action="profile-discard"]');
+    if (discardButton) discardButton.disabled = !dirty || saving;
+  }
+  const saveButton = banner?.querySelector('[data-action="profile-save"]');
   if (saveButton) {
     saveButton.disabled = !dirty || saving;
     saveButton.textContent = saving ? 'Salvando...' : 'Salvar alterações';
     saveButton.setAttribute('aria-busy', String(saving));
+  }
+  const profileActions = document.querySelector('.profile-settings-actions');
+  if (profileActions) {
+    const profileDirty = Boolean(ui.profileDraft);
+    const discardProfile = profileActions.querySelector('[data-action="profile-discard"]');
+    const saveProfile = profileActions.querySelector('[data-action="profile-save"]');
+    if (discardProfile) discardProfile.disabled = !profileDirty || saving;
+    if (saveProfile) {
+      saveProfile.disabled = !profileDirty || saving;
+      saveProfile.textContent = saving ? 'Salvando...' : 'Salvar alterações';
+      saveProfile.setAttribute('aria-busy', String(saving));
+    }
   }
 }
 function updateSettingsDraft(update, shouldRender = true) {
@@ -688,9 +711,9 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
-  const cleanCategoryGroup = (a) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean).slice(0, 60);
+  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean).slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
-  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out), in: cleanCategoryGroup(s?.cats?.in) };
+  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out, 'out'), in: cleanCategoryGroup(s?.cats?.in, 'in') };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
   if (!PALETTES[o.theme] && o.theme !== 'custom') o.theme = 'rose';
   delete o.accountTypes;
@@ -1551,12 +1574,20 @@ function shell(body) {
             : '';
   const menuAreas = { ...S.settings.areas, cycle: areaOn('cycle') };
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
-  const compactItems = ['inicio', 'planejar', 'habitos'].map((id) => menuItems.find((item) => item.id === id)).filter(Boolean);
+  const mobileAreaPriority = new Set(['financas', 'habitos']);
+  const mobileAreaItems = [
+    ...menuItems.filter((item) => item.area && mobileAreaPriority.has(item.id)),
+    ...menuItems.filter((item) => item.area && !mobileAreaPriority.has(item.id)),
+  ].slice(0, 2);
+  const compactItems = [
+    ...['inicio', 'planejar'].map((id) => menuItems.find((item) => item.id === id)).filter(Boolean),
+    ...mobileAreaItems,
+  ];
   const secondaryItems = menuItems.filter((item) => !compactItems.includes(item));
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
   const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" data-tip="${label}" title="${ui.sidebarCollapsed ? '' : label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
-  const currentInMore = ui.route === 'config' || secondaryItems.some(({ id }) => isCurrent(id));
+  const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
   const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
     ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
@@ -1579,7 +1610,7 @@ function shell(body) {
     <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${menuItems.map((item) => navLink(item, compactItems.includes(item) ? 'nav-primary' : 'nav-secondary'))}<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}${navLink({ id: 'config', label: 'Ajustes', icon: 'user' }, 'nav-more-link')}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${menuItems.map((item) => navLink(item, compactItems.includes(item) ? 'nav-primary' : 'nav-secondary'))}<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
     <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
     ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar"><div class="sidebar-brand-row">${brandLink}<button type="button" class="sidebar-toggle" data-action="sidebar-toggle" aria-label="${ui.sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}" aria-expanded="${String(!ui.sidebarCollapsed)}" aria-controls="primary-navigation" title="${ui.sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}">${icon(ui.sidebarCollapsed ? 'chevRight' : 'chevLeft', 18)}</button></div><nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
@@ -2148,6 +2179,19 @@ function onRoute() {
       : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.');
   }
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
+  if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
+    const destination = `${location.pathname}${location.search}${location.hash}`;
+    history.replaceState(history.state, '', `${routePathFor('config')}?section=${encodeURIComponent(ui.settingsTab)}`);
+    void confirmLeavingSettingsRoute(destination).then((confirmed) => {
+      if (!confirmed) return;
+      ui.profileDraft = null;
+      ui.settingsDraft = null;
+      ui.settingsDraftBase = null;
+      history.replaceState(history.state, '', destination);
+      onRoute();
+    });
+    return;
+  }
   const routeLocationKey = `${resolved.route}?${resolved.query}`;
   if (wasBooted && routeLocationKey === activeRouteLocationKey) return;
   activeRouteLocationKey = routeLocationKey;
@@ -3182,7 +3226,6 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.filter(({ id }) => id !== 'cycle' || canAccessCycle(s.profile, ui.preview)).map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
     ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de lembretes e hábitos do Aurora.', h`<div class="routine-settings-links">
       <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
     </div>`) }
@@ -3234,13 +3277,17 @@ function profileSettings(s) {
         <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
+    <div class="row settings-save-actions profile-settings-actions">
+      <button class="btn back" type="button" data-action="profile-discard" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>Descartar alterações</button>
+      <button class="btn primary" type="button" data-action="profile-save" aria-busy="${String(ui.profileSaving)}" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+    </div>
   </form>
   </div>`;
 }
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Conta e ajuda<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
     </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
@@ -3691,7 +3738,7 @@ function dataSettings(p) {
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
     <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros e de saúde. Guarde-o em um local privado.</span></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="settings-data-actions">
@@ -3776,7 +3823,8 @@ function unsavedSettingsBanner() {
 function viewConfig() {
   const s = S.settings, p = s.prefs;
   const requestedTab = settingsTabId(ui.settingsTab);
-  const selected = SETTINGS_SECTIONS.some(([id]) => id === requestedTab) ? requestedTab : 'profile';
+  const selectedSection = SETTINGS_SECTIONS.find(([id]) => id === requestedTab) || SETTINGS_SECTIONS[0];
+  const selected = selectedSection[0];
   const content = settingsSectionContent(s, p, selected);
   const menuGroups = SETTINGS_SECTION_GROUPS.map((group) => h`<div class="settings-menu-group"><span class="settings-menu-heading">${group.label}</span>${group.items.map((id) => {
     const section = SETTINGS_SECTIONS.find(([item]) => item === id);
@@ -3787,7 +3835,7 @@ function viewConfig() {
   return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}${unsavedSettingsBanner()}
     <div class="settings-layout">
       <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
-      <div class="settings-content" id="settings-content">${content}</div>
+      <div class="settings-content" id="settings-content" role="region" aria-label="Seção de ajustes: ${selectedSection[1]}">${content}</div>
     </div>`;
 }
 
@@ -3899,6 +3947,17 @@ const dlgDiscardChanges = () => {
 }
 const dlgClose = () => {
   if (ui.dlg?.type === 'account-delete' && ui.dlg.d.pending) return;
+  if (ui.dlg?.type === 'category-new' && ui.dlg.d.fromTransaction) {
+    const returnToTransaction = () => {
+      const previous = ui.categoryReturnDialog;
+      ui.categoryReturnDialog = null;
+      ui.dlg = previous?.type === 'tx' ? previous : null;
+      render();
+    };
+    if (ui.dlg.dirty) { askDiscardDialog(null, returnToTransaction); return; }
+    returnToTransaction();
+    return;
+  }
   if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   if (ui.dlg?.type === 'onboard') {
     finishOnboard(true);
@@ -4306,7 +4365,12 @@ window.addEventListener('popstate', (event) => {
   const scrollPosition = dialogHistoryScrollPosition;
   dialogHistoryScrollPosition = null;
   if (ui.dlg) {
-    ui.dlg = null;
+    if (ui.dlg.type === 'category-new' && ui.dlg.d.fromTransaction) {
+      ui.dlg = ui.categoryReturnDialog;
+      ui.categoryReturnDialog = null;
+    } else {
+      ui.dlg = null;
+    }
     render();
   }
   restoreDialogHistoryScroll(scrollPosition);
@@ -5118,7 +5182,7 @@ const ACTIONS = {
     url.pathname = '/config';
     url.hash = '';
     url.searchParams.set('section', tab);
-    history.replaceState(null, '', `${url.pathname}${url.search}`);
+    history.pushState(null, '', `${url.pathname}${url.search}`);
     activeRouteLocationKey = `config?${url.search.slice(1)}`;
     render();
     const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
@@ -5918,14 +5982,6 @@ const CHANGES = {
       saveActiveHomeMode(settings);
     });
   },
-  'home-area-color': (el) => {
-    const id = el.dataset.homeAreaColor;
-    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
-    updateSettingsDraft((settings) => {
-      if (el.value) settings.prefs.areaColors[id] = el.value;
-      else delete settings.prefs.areaColors[id];
-    });
-  },
   'home-message': (el) => {
     updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
   },
@@ -6095,7 +6151,8 @@ document.addEventListener('input', (e) => {
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
+  if (ui.dlg && ui.dlg.type !== 'search' && !opensCategoryDialog && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const preferredInput = $('#ppreferred');
     if (el.dataset.profileField === 'name' && preferredInput && !preferredInput.value.trim()) {
@@ -6116,6 +6173,19 @@ document.addEventListener('input', (e) => {
     if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
+    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'category' && el.value === '__new') {
+      const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      ui.categoryReturnDialog = ui.dlg;
+      ui.dlg = createDialog('category-new', {
+        kind,
+        name: '',
+        icon: 'tag',
+        color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
+        fromTransaction: true,
+      });
+      render();
+      return;
+    }
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
       ui.dlg.d.waterGoalEdited = true;
     }
@@ -6141,6 +6211,8 @@ document.addEventListener('input', (e) => {
       if (results) results.innerHTML = globalSearchResults(el.value).s;
     } else if (ui.dlg.type === 'cycle-log' && el.dataset.dlg === 'log.sexualActivity') {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
+      render();
+    } else if (ui.dlg.type === 'category-new' && el.dataset.dlg === 'parent') {
       render();
     } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
@@ -6660,8 +6732,8 @@ function recentTransactionDefaults(kind, preferCredit = false) {
 }
 const financeDialogViews = createFinanceDialogViews({
   ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
-  accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
-  categoryMatch, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
+  accountOptionLabel, accById, isCredit, expenseTitle,
+  categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
   anticipationCandidates,
 });
 function dlgTx() { return financeDialogViews.transaction(); }
@@ -6689,14 +6761,23 @@ function dlgCategoryNew() {
   const d = ui.dlg.d, kind = d.kind, editing = !!d.editName;
   const label = kind === 'in' ? 'receita' : 'despesa';
   const parents = topCategoryNames(kind);
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">${editing ? 'Personalizar categoria' : `Nova categoria de ${label}`}<i>.</i></h2><p class="small muted">${editing ? 'A cor e o ícone também aparecem nos lançamentos.' : 'Ela ficará disponível nos próximos lançamentos.'}</p></div>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-category">
-      ${!editing && parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
-      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
-      ${dlgField('Ícone', h`<select data-dlg="icon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.icon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
-      ${dlgField('Cor', h`<input type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
+  const parentName = parents.find((name) => name === d.parent);
+  const title = editing ? 'Personalizar categoria' : parentName ? 'Nova subcategoria' : `Nova categoria de ${label}`;
+  const description = editing
+    ? 'A cor e o ícone também aparecem nos lançamentos.'
+    : parentName
+      ? `Ela ficará dentro de ${kind === 'out' ? expenseTitle(parentName) : parentName}.`
+      : 'Escolha um nome, ícone e cor para identificar esta categoria nos lançamentos.';
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">${title}<i>.</i></h2><p class="small muted">${description}</p></div>${closeBtn}</div>
+    <form id="dlgform" class="form category-form" data-form="dlg-category">
+      ${!editing && parents.length ? h`<div class="category-parent-field f full"><label class="lbl" for="category-parent">Categoria principal</label><select id="category-parent" data-dlg="parent"><option value="">Nova categoria principal</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select><span class="category-form-help">Escolha uma categoria para criar uma subcategoria; deixe a opção inicial para criar uma categoria principal.</span></div>` : ''}
+      ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      <fieldset class="category-icon-field full"><legend>Ícone</legend><div class="category-icon-picker">
+        ${CAT_ICONS.map((name) => h`<label title="${CATEGORY_ICON_LABELS[name]}"><input type="radio" name="category-icon" data-dlg="icon" value="${name}" aria-label="${CATEGORY_ICON_LABELS[name]}" ${name === (d.icon || 'tag') ? raw('checked') : ''}><span aria-hidden="true">${icon(name, 19)}</span><i class="sr">${CATEGORY_ICON_LABELS[name]}</i></label>`)}
+      </div></fieldset>
+      ${dlgField('Cor', h`<input class="category-color-input" type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
     </form>`,
-    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
+    h`${d.fromTransaction ? h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button>` : h`<button type="button" class="btn back" data-action="category-manager">Voltar</button>`}<button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
 }
 function dlgAccount() {
   const d = ui.dlg.d, edit = !!d.id, card = d.type === 'credit';
@@ -6940,7 +7021,9 @@ Object.assign(ACTIONS, {
   'category-edit': (el) => {
     const { kind, name, parent = '' } = el.dataset;
     if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.');
-    const category = findCategory(kind, name, parent);
+    const match = categoryMatch(kind, parent ? `${parent} > ${name}` : name);
+    const category = match?.subcategory || match?.category;
+    if (!category) return toast('Não foi possível localizar essa categoria.');
     dlgOpen('category-new', {
       kind,
       editName: name,
@@ -7172,6 +7255,11 @@ Object.assign(FORMS, {
   'dlg-category': () => {
     const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
     if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    const transactionDialog = d.fromTransaction ? ui.categoryReturnDialog : null;
+    if (d.fromTransaction && (transactionDialog?.type !== 'tx'
+      || (transactionDialog.d.kind === 'in' ? 'in' : 'out') !== d.kind)) {
+      return toast('Não foi possível retornar ao lançamento. Feche esta janela e tente novamente.');
+    }
     if (!name) return toast('Informe o nome da categoria.');
     if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.');
     const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
@@ -7183,6 +7271,7 @@ Object.assign(FORMS, {
       && norm(parentEntry ? categoryLeafName(category) : category.name) === norm(name));
     if (duplicate) return toast('Já existe uma categoria com esse nome.');
     const financeChanges = [];
+    let addedPath = '';
     if (existing) {
       const oldName = categoryLeafName(existing);
       const oldPath = parentName ? `${parentName} > ${oldName}` : oldName;
@@ -7207,7 +7296,17 @@ Object.assign(FORMS, {
         else if (changed) financeChanges.push(true);
       });
     } else {
-      addItem(d.kind, name, parentName, d.color, d.icon);
+      addedPath = addItem(d.kind, name, parentName, d.color, d.icon);
+    }
+    if (d.fromTransaction) {
+      if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.');
+      transactionDialog.d.category = addedPath;
+      transactionDialog.dirty = true;
+      ui.categoryReturnDialog = null;
+      ui.dlg = transactionDialog;
+      commit('settings');
+      toast('Categoria adicionada e selecionada no lançamento.');
+      return;
     }
     ui.dlg = createDialog('category-manager', {});
     commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
@@ -7596,6 +7695,10 @@ function showAccountDataLoadError(root, error, user) {
   heading.focus({ preventScroll: true });
 }
 
+function onPushNotification(event) {
+  if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
+}
+
 async function continueAuthenticatedAurora(root, user) {
   try {
     const { purgeRemovedStudyDataFromBrowserStorage } = await import('./features/backup/removed-study-data.js');
@@ -7623,6 +7726,8 @@ async function continueAuthenticatedAurora(root, user) {
   if (!profileSetupComplete()) openProfileSetup();
   else void maybeOpenReleaseNotes();
   setInterval(tick, 1000);
+  window.removeEventListener('aurora:push-notification', onPushNotification);
+  window.addEventListener('aurora:push-notification', onPushNotification);
   const registration = await registerPwaSupport();
   if (registration || isNativeApp()) {
     try {

@@ -27,10 +27,41 @@ const check = (passed, name, detail = '') => {
   await page.waitForFunction(() => !document.querySelector('.offline-banner'));
 
   await page.evaluate(() => {
-    history.pushState(null, '', '/config?section=appearance');
+    history.pushState(null, '', '/config?section=profile');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  const profileName = page.locator('#pname');
+  await profileName.waitFor();
+  const originalProfileName = await profileName.inputValue();
+  await profileName.fill(`${originalProfileName} editado`);
+  const profileSave = page.locator('.profile-settings-actions [data-action="profile-save"]');
+  const profileDiscard = page.locator('.profile-settings-actions [data-action="profile-discard"]');
+  await page.waitForFunction(() => !document.querySelector('.profile-settings-actions [data-action="profile-save"]:disabled'));
+  check(await profileSave.isEnabled(), 'perfil oferece salvar junto aos campos editados');
+  check(await profileDiscard.isEnabled(), 'perfil oferece descartar junto aos campos editados');
+  await profileDiscard.click();
+  check(await profileName.inputValue() === originalProfileName, 'descartar restaura o perfil sem voltar ao topo');
+
+  await profileName.fill(`${originalProfileName} em rascunho`);
+  await page.locator('.settings-link[data-settings-tab="personalization"]').click();
+  await page.waitForFunction(() => location.search === '?section=personalization');
+  await page.locator('#settings-content[role="region"][aria-label="Seção de ajustes: Aparência e leitura"]').waitFor();
+  await page.goBack();
+  await page.waitForFunction(() => location.search === '?section=profile');
+  check(await profileName.inputValue() === `${originalProfileName} em rascunho`, 'voltar entre seções preserva alterações não salvas');
+  await profileDiscard.click();
+  await page.goForward();
+  await page.waitForFunction(() => location.search === '?section=personalization');
+
+  await page.evaluate(() => {
+    history.replaceState(null, '', '/config?section=appearance');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
   await page.waitForFunction(() => location.pathname === '/config' && location.search === '?section=appearance');
+  check(
+    await page.locator('#appearance-area-colors-title').count() === 0,
+    'personalização não exibe mais a seção de cores por área',
+  );
   await page.setViewportSize({ width: 1024, height: 844 });
   check(
     await page.locator('.appearance-settings .settings-save-actions').evaluate((element) => getComputedStyle(element).position !== 'sticky'),
@@ -44,17 +75,32 @@ const check = (passed, name, detail = '') => {
     await page.locator('.appearance-settings .settings-save-actions').evaluate((element) => getComputedStyle(element).position !== 'sticky'),
     'barra de salvar não cobre os controles enquanto há alterações pendentes',
   );
+  await page.goBack();
+  await page.waitForFunction(() => location.search === '?section=profile');
+  await page.goBack();
+  const leaveSettingsConfirmation = page.locator('#dlg');
+  await leaveSettingsConfirmation.getByText('Sair sem salvar?').waitFor();
+  await leaveSettingsConfirmation.getByRole('button', { name: 'Cancelar' }).click();
+  const unsavedBannerSave = page.locator('.settings-unsaved-bar [data-action="profile-save"]');
+  check(
+    await page.evaluate(() => location.search === '?section=profile') && await unsavedBannerSave.isEnabled(),
+    'cancelar saída pelo histórico preserva a seção e o rascunho',
+  );
   await page.locator('[data-action="reload-app"]').click();
   const reloadConfirmation = page.locator('#dlg');
   await reloadConfirmation.getByText('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?').waitFor();
   await reloadConfirmation.getByRole('button', { name: 'Cancelar' }).click();
-  check(await saveSettings.isEnabled(), 'cancelar recarga preserva o rascunho de ajustes');
+  check(await unsavedBannerSave.isEnabled(), 'cancelar recarga preserva o rascunho de ajustes');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
     history.pushState(null, '', '/config?section=data');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
+  check(
+    (await page.locator('.settings-data-safety').innerText()).includes('de saúde e do ciclo'),
+    'aviso de backup destaca a sensibilidade dos dados do ciclo',
+  );
   await page.getByRole('button', { name: 'Exportar backup' }).click();
   const backupConfirmation = page.locator('#dlg');
   await backupConfirmation.getByText('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
@@ -62,14 +108,28 @@ const check = (passed, name, detail = '') => {
   check(await backupConfirmation.count() === 0, 'cancelar exportação fecha apenas a confirmação');
   const overflows = [];
   const inconsistentSpacing = [];
+  const unlabeledSettingsSections = [];
+  const sectionNames = {
+    profile: 'Seu perfil',
+    personalization: 'Aparência e leitura',
+    home: 'Tela inicial',
+    'areas-navigation': 'Áreas e menu',
+    data: 'Dados e backup',
+    calendars: 'Agendas',
+    account: 'Conta e ajuda',
+  };
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const section of ['profile', 'personalization', 'areas-navigation', 'data', 'account']) {
+    for (const section of ['profile', 'personalization', 'home', 'areas-navigation', 'data', 'calendars', 'account']) {
       await page.evaluate((id) => {
         history.pushState(null, '', `/config?section=${id}`);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }, section);
       await page.locator(`.settings-link[data-settings-tab="${section}"][aria-current="page"]`).waitFor();
+      const regionLabel = await page.locator('#settings-content').getAttribute('aria-label');
+      if (regionLabel !== `Seção de ajustes: ${sectionNames[section]}`) {
+        unlabeledSettingsSections.push(`${section} em ${width}px`);
+      }
       if (width <= 760 && section === 'profile') {
         if (width === 390) {
           check(
@@ -112,6 +172,7 @@ const check = (passed, name, detail = '') => {
     }
   }
   check(inconsistentSpacing.length === 0, 'cards de Ajustes usam espaçamento uniforme em todas as abas e larguras', inconsistentSpacing.join(', '));
+  check(unlabeledSettingsSections.length === 0, 'todas as seções têm rótulo acessível', unlabeledSettingsSections.join(', '));
   check(overflows.length === 0, 'sem overflow horizontal nas seções de Ajustes entre 320 e 1024 px', overflows.join(', '));
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 

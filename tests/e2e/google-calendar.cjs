@@ -90,7 +90,15 @@ const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).
       throw new Error('Planejar tem overflow horizontal em desktop.');
     }
 
-    await page.goto(`${BASE}/?preview#config?section=calendars`);
+    await page.evaluate(() => {
+      const url = new URL(location.href);
+      url.pathname = '/config';
+      url.hash = '';
+      url.searchParams.set('section', 'calendars');
+      history.pushState(null, '', `${url.pathname}${url.search}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await page.locator('.google-calendar-account').first().waitFor();
     await page.setViewportSize({ width: 320, height: 720 });
     if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
       throw new Error('Ajustes → Agendas tem overflow horizontal em 320 px.');

@@ -321,6 +321,39 @@ const check = (passed, name, detail = '') => {
   await page.locator('#dlg [data-dlg="settledDate"]').waitFor();
   const recentAccountOptions = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => options.map((option) => option.value));
   const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,34');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Despesa com categoria rápida');
+  check(await page.locator('#dlg [data-dlg="category"] option[data-icon][data-color]').count() >= recentCategoryOptions.length - 1,
+    'categorias do lançamento incluem metadados visuais de ícone e cor');
+  const categoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="category"]) .ds-select__trigger');
+  await categoryTrigger.click();
+  check(await page.locator('body > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,
+    'lista aberta de categorias exibe os respectivos ícones');
+  await page.keyboard.press('Escape');
+  check(await categoryTrigger.locator('.ds-select__category-icon').count() === 1,
+    'categoria selecionada mantém ícone visível no campo');
+  const selectedBeforeCategoryCancel = await page.locator('#dlg [data-dlg="category"]').inputValue();
+  await categoryTrigger.click();
+  await page.getByRole('option', { name: 'Criar nova categoria…' }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="category"]').inputValue() === selectedBeforeCategoryCancel,
+    'cancelar nova categoria retorna ao lançamento sem alterar a seleção');
+  await categoryTrigger.click();
+  await page.getByRole('option', { name: 'Criar nova categoria…' }).click();
+  check(await page.locator('#dlg h2').textContent().then((text) => text.includes('Nova categoria de despesa')),
+    'criar categoria em lançamento abre um modal dedicado');
+  check(await page.locator('#dlg .dlg').evaluate((dialog) => {
+    const bounds = dialog.getBoundingClientRect();
+    return bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight;
+  }), 'modal de nova categoria cabe na largura móvel');
+  await page.locator('#dlg [data-dlg="name"]').fill('Veterinário rápido');
+  await page.locator('#dlg .category-icon-picker [data-dlg="icon"][value="heart"]').check();
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="category"]').inputValue() === 'Veterinário rápido',
+    'categoria criada no modal volta selecionada no lançamento');
+  check(await page.locator('#dlg [data-dlg="amount"]').inputValue() === '12,34'
+    && await page.locator('#dlg [data-dlg="desc"]').inputValue() === 'Despesa com categoria rápida',
+  'modal preserva o rascunho do lançamento');
   if (recentAccountOptions.length > 1) {
     const selectedAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
     await selectAccount(recentAccountOptions.find((value) => value !== selectedAccount));
@@ -376,9 +409,17 @@ const check = (passed, name, detail = '') => {
 
   await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
+  const categoryIconShapes = await page.locator('.category-manager-item > .ci svg').evaluateAll((icons) => new Set(icons.map((item) => item.innerHTML)).size);
+  check(categoryIconShapes > 1, 'categorias existentes exibem ícones próprios');
   await page.locator('.category-manager-item [data-action="category-edit"]').first().click();
+  check(await page.locator('#dlg .category-icon-picker [data-dlg="icon"]').count() > 1
+    && await page.locator('#dlg .category-icon-picker [data-dlg="icon"]:checked').count() === 1,
+  'editor apresenta ícones em uma seleção visual acessível');
   await page.locator('#dlg [data-dlg="name"]').fill('Alimentação personalizada');
-  await page.locator('#dlg [data-dlg="icon"]').selectOption('car');
+  const transportIcon = page.getByRole('radio', { name: 'Transporte', exact: true });
+  await transportIcon.focus();
+  await page.keyboard.press('Space');
+  check(await transportIcon.isChecked(), 'seletor de ícone pode ser usado pelo teclado');
   await page.locator('#dlg [data-dlg="color"]').fill('#123abc');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   check(await page.locator('.category-manager-item').first().textContent().then((text) => text.includes('Alimentação personalizada')), 'categoria pode ter nome, ícone e cor personalizados');
@@ -387,8 +428,9 @@ const check = (passed, name, detail = '') => {
   const expenseCategories = page.locator('.category-manager-group').first();
   await expenseCategories.getByRole('button', { name: 'Adicionar' }).click();
   await page.locator('#dlg [data-dlg="parent"]').selectOption({ label: 'Moradia' });
+  check(await page.locator('#dlg h2').textContent().then((text) => text.includes('subcategoria')), 'escolher uma categoria principal identifica a criação de subcategoria');
   await page.locator('#dlg [data-dlg="name"]').fill('Condomínio');
-  await page.locator('#dlg [data-dlg="icon"]').selectOption('home');
+  await page.locator('#dlg .category-icon-picker [data-dlg="icon"][value="home"]').check();
   await page.locator('#dlg [data-dlg="color"]').fill('#22aa88');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   const subcategory = page.locator('.category-manager-subcategories li').filter({ hasText: 'Moradia > Condomínio' });

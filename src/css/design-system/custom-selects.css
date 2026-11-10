@@ -135,6 +135,37 @@ select.ds-select__native {
   cursor: pointer;
 }
 
+.ds-select__category-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--select-option-color, var(--accent)) 14%, var(--surface));
+  color: var(--select-option-color, var(--accent));
+}
+
+.ds-select__category-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.ds-select__trigger:has(.ds-select__category-icon) {
+  gap: 9px;
+}
+
+.ds-select__trigger .ds-select__category-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.ds-select__option:has(.ds-select__category-icon) {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-block: 6px;
+}
+
 .ds-select__option:hover,
 .ds-select__option[data-active="true"] {
   background: var(--soft);
