@@ -55,6 +55,16 @@ const types = jsonLd.map((item) => item['@type']);
 assert.ok(types.includes('SoftwareApplication') && types.includes('FAQPage'), 'JSON-LD sem SoftwareApplication/FAQPage.');
 
 const manifest = JSON.parse(await readFile(resolve(dist, 'manifest.webmanifest'), 'utf8'));
+const tokens = await readFile(new URL('../src/css/design-system/tokens.css', import.meta.url), 'utf8');
+const lightBackground = tokens.match(/--bg:\s*(#[\da-f]{6})\s*;/i)?.[1];
+assert.ok(lightBackground, 'O fundo claro deve estar definido nos tokens.');
+assert.equal(manifest.background_color, lightBackground, 'A splash deve acompanhar o fundo claro.');
+assert.equal(manifest.theme_color, lightBackground, 'O manifesto deve acompanhar o fundo claro.');
+for (const page of ['index.html', 'privacy.html', 'terms.html', 'pages/agua.html', 'pages/ajustes.html', 'pages/ciclo.html', 'pages/financas.html', 'pages/habitos.html', 'pages/inicio.html', 'pages/perfil.html', 'pages/planejar.html']) {
+  const html = await readFile(resolve(dist, page), 'utf8');
+  assert.ok(html.includes(`name="theme-color" content="${lightBackground}" media="(prefers-color-scheme: light)"`),
+    `${page}: theme-color claro não corresponde ao fundo.`);
+}
 for (const icon of manifest.icons) {
   const urlPath = `/${icon.src.replace(/^\.\//, '')}`;
   await assertServed(urlPath, 'manifest');

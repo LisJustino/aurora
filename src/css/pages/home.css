@@ -170,7 +170,8 @@
 .home-quick-copy p { margin: 3px 0 0; color: var(--muted); font-size: var(--text-sm); }
 .home-quick-form { display: flex; gap: 8px; }
 .home-quick-form input { min-width: 0; flex: 1; min-height: var(--control-field); padding: 0 15px; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line-strong)); border-radius: var(--r-control); background: var(--surface); color: var(--ink); }
-.home-quick-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); outline: 0; }
+.home-quick-form input:focus { border-color: var(--accent); box-shadow: var(--focus-ring-shadow); }
+.home-quick-form input:focus-visible { outline: 3px solid var(--focus); outline-offset: var(--space-half); }
 .home-quick-form .btn { flex: none; }
 .home-today-card > .head { align-items: flex-end; }
 .section-kicker { margin: 0 0 var(--space-1); color: var(--accent); font-size: var(--text-xs); font-weight: 800; letter-spacing: .08em; }
@@ -887,7 +888,7 @@
 
 .main[data-route="inicio"] > .home-head h1 {
   max-width: 16ch;
-  font-size: clamp(2.4rem, 5vw, 4rem);
+  font-size: var(--text-hero);
   letter-spacing: -.045em;
 }
 
@@ -1022,7 +1023,7 @@
 
   .main[data-route="inicio"] > .home-head h1 {
     max-width: 18ch;
-    font-size: clamp(2rem, 8vw, 3rem);
+    font-size: var(--text-hero);
   }
 
   .main[data-route="inicio"] > .home-head .ringw {
@@ -1038,7 +1039,7 @@
   }
 
   .main[data-route="inicio"] > .home-head h1 {
-    font-size: clamp(1.8rem, 9vw, 2.35rem);
+    font-size: var(--text-hero);
   }
 
   .main[data-route="inicio"] > .home-head .ringw {
@@ -1137,4 +1138,51 @@
   .main[data-route="inicio"] > .home-head .date { margin-bottom: var(--space-1); }
   .main[data-route="inicio"] > .home-head .ringw { width: 64px; height: 64px; }
   .main[data-route="inicio"] > .home-head .home-head-actions { margin-top: var(--space-2); }
+}
+
+.main[data-route="inicio"] > .home-head {
+  border-color: var(--line);
+  background: var(--hero-home);
+  box-shadow: none;
+}
+.main[data-route="inicio"] > .home-head::before { display: none; }
+.main[data-route="inicio"] > .home-head h1,
+.main[data-route="inicio"] > .home-head h1 i,
+.main[data-route="inicio"] > .home-head .home-personal-message { color: var(--ink); }
+.main[data-route="inicio"] > .home-head h1 { font-size: var(--text-hero); }
+.main[data-route="inicio"] > .home-head .date {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+.main[data-route="inicio"] > .home-head .lead { color: var(--muted); }
+.main[data-route="inicio"] > .home-head .ringw {
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+.main[data-route="inicio"] > .home-head .ring-bg { stroke: var(--soft2); }
+.main[data-route="inicio"] > .home-head .ring-fg { stroke: var(--accent); }
+.main[data-route="inicio"] > .home-head .ringw .rt { color: var(--ink); }
+.main[data-route="inicio"] > .home-head .home-action {
+  border-color: var(--btn);
+  background: var(--btn);
+  color: var(--on-btn);
+  box-shadow: none;
+}
+.main[data-route="inicio"] > .home-head .area-guide-button {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
+}
+.main[data-route="inicio"] > .home-head .home-action:focus-visible { outline-color: var(--focus); }
+.main[data-route="inicio"] .home-primary > .home-today-card,
+.main[data-route="inicio"] .home-quick-card,
+.main[data-route="inicio"] .home-next-action {
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: none;
 }

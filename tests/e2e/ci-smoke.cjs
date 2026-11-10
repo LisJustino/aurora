@@ -121,6 +121,7 @@ async function main() {
     waitForServer(previewServer, PREVIEW_URL),
   ]);
 
+  runSuite('design-system.cjs', DEV_URL);
   runSuite('loading-screen.cjs', DEV_URL);
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('mobile-landing-matrix.cjs', DEV_URL);
@@ -136,6 +137,7 @@ async function main() {
   runSuite('accessibility.cjs', DEV_URL);
   runSuite('custom-select.cjs', DEV_URL);
   runSuite('cycle-intimacy.cjs', DEV_URL);
+  runSuite('tutorial-video-media.cjs', DEV_URL);
   runSuite('finance-improvements.cjs', DEV_URL);
   runSuite('weekly-review-flow.cjs', DEV_URL);
   runSuite('modal-scroll-lock.cjs', DEV_URL);

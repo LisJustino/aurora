@@ -45,9 +45,9 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       if (width < 900 && layout.today !== null) assert.equal(layout.today, '-1');
       assert.equal(layout.overflow, false);
     }
-    await page.locator('.planning-overview-stat[data-f="atrasadas"]').click();
-    assert.equal(await page.locator('[data-change="plan-view"]').inputValue(), 'lista');
-    assert.equal(await page.locator('.planning-overview-stat[data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');
+    await page.locator('[data-change="plan-view"]').selectOption('lista');
+    await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').click();
+    assert.equal(await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');
     await page.goto(`${base}/?preview#financas`);
     await page.locator('.fin-section-option[data-t="orcamento"]').click();
     const goal = page.locator('.goal-item').first();

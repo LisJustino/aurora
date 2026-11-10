@@ -379,6 +379,10 @@ assert.equal(loadedState.gym.logs[0].notes, 'Registro preservado');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
+const loadedInvestment = loadedState.finance.accounts.find((account) => account.id === 'investment-1');
+for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {
+  assert.equal(Object.hasOwn(loadedInvestment, field), false, `Campo opcional ${field} deve ficar ausente quando o banco retorna null`);
+}
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
 assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
 assert.deepEqual(loadedState.checkins, [{

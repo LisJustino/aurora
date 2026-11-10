@@ -17,7 +17,7 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#planejar`);
-  await page.locator('.planning-shortcuts [data-action="plan-view"][data-v="revisao"]').click();
+  await page.locator('[data-change="plan-view"]').selectOption('revisao');
   check(await page.locator('.weekly-review').count() === 1
     && await page.locator('#weekly-reflection').count() === 1,
   'revisão semanal combina resumo e reflexão opcional');

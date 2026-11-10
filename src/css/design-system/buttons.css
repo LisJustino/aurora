@@ -31,7 +31,7 @@
 .btn:hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-raised);
-  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--ink) 68%, transparent);
+  box-shadow: none;
   transform: translateY(-1px);
 }
 .btn:active { transform: translateY(1px); }
@@ -44,14 +44,14 @@
 /* Primário */
 .btn.primary {
   border-color: transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn));
+  background: var(--btn);
   color: var(--on-btn);
-  box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 90%, transparent);
+  box-shadow: none;
 }
 .btn.primary:hover {
   filter: brightness(1.06);
   transform: translateY(-2px);
-  box-shadow: 0 16px 26px -15px color-mix(in srgb, var(--btn) 96%, transparent);
+  box-shadow: none;
 }
 
 /* Padrão (secundário) */

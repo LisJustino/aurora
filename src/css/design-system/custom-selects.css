@@ -70,7 +70,8 @@ select.ds-select__native {
   border-color: var(--accent);
   background: var(--surface);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent);
-  outline: 0;
+  outline: 3px solid var(--focus);
+  outline-offset: var(--space-half);
 }
 
 .ds-select__trigger[aria-invalid="true"] {
@@ -78,7 +79,7 @@ select.ds-select__native {
 }
 
 .ds-select__trigger[aria-invalid="true"]:focus-visible {
-  outline-color: var(--bad);
+  outline-color: var(--focus);
 }
 
 .ds-select__trigger[aria-disabled="true"] {

@@ -103,6 +103,10 @@ async function main() {
   let expectedAuthServerErrors = 0;
   let pkceRequests = 0;
   let simulateRelational = false;
+  let manyTasks = false;
+  let manyTransactions = false;
+  let homeFixtures = false;
+  let habitFixtures = false;
   const assertAccountCardDoesNotScrollInternally = async (label) => {
     const dimensions = await page.locator('.account-card').evaluate((card) => ({
       overflowY: getComputedStyle(card).overflowY,
@@ -201,6 +205,61 @@ async function main() {
 
     const endpoint = `${request.method()} ${requestUrl.pathname}`;
     if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
+      if ((homeFixtures || habitFixtures) && requestUrl.pathname === '/rest/v1/user_settings') {
+        return jsonResponse(route, 200, [{ enabled_areas: { habits: true }, preferences: {} }], corsOrigin);
+      }
+      if (homeFixtures && requestUrl.pathname === '/rest/v1/tasks') {
+        const now = new Date();
+        const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000201', title: 'Tarefa concluída',
+          is_completed: true, due_date: day, completed_at: now.toISOString(),
+          priority: 'normal', sort_order: 1, focus_seconds: 0,
+        }], corsOrigin);
+      }
+      if (habitFixtures && requestUrl.pathname === '/rest/v1/habits') {
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000202', name: 'Hábito teste',
+          scheduled_days: [0, 1, 2, 3, 4, 5, 6], status: 'active',
+        }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/user_settings') {
+        return jsonResponse(route, 200, [{ enabled_areas: { finances: true }, preferences: {} }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_accounts') {
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000101', name: 'Conta teste',
+          account_type: 'checking', initial_cents: 0, bank: null,
+          limit_cents: null, closing_day: null, due_day: null,
+        }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_transactions') {
+        const now = new Date();
+        const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const rows = Array.from({ length: 23 }, (_, index) => ({
+          id: `00000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+          transaction_type: 'out',
+          account_id: '00000000-0000-4000-8000-000000000101',
+          amount_cents: 100,
+          transaction_date: day,
+          is_paid: true,
+          description: `Lançamento teste ${String(index + 1).padStart(2, '0')}`,
+        }));
+        return jsonResponse(route, 200, rows, corsOrigin);
+      }
+      if (manyTasks && requestUrl.pathname === '/rest/v1/tasks') {
+        const rows = Array.from({ length: 23 }, (_, index) => ({
+          id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          title: `Tarefa de teste ${String(index + 1).padStart(2, '0')}`,
+          is_completed: false,
+          due_date: '2026-01-01',
+          priority: 'normal',
+          sort_order: index,
+          focus_seconds: 0,
+          task_created_at: '2026-01-01T12:00:00.000Z',
+        }));
+        return jsonResponse(route, 200, rows, corsOrigin);
+      }
       return jsonResponse(route, 200, [], corsOrigin);
     }
     if (endpoint === 'POST /auth/v1/signup') {
@@ -342,11 +401,15 @@ async function main() {
       privacy_policy_version: '1.9',
     };
     simulateRelational = true;
-    for (const destination of ['/inicio', '/planejar']) {
+    for (const destination of ['/inicio', '/planejar', '/financas', '/habitos']) {
+      manyTasks = destination === '/planejar';
+      manyTransactions = destination === '/financas';
+      homeFixtures = destination === '/inicio';
+      habitFixtures = destination === '/habitos';
       await page.evaluate((returnTo) => {
         sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token');
         sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
-        if (returnTo === '/planejar') sessionStorage.setItem('aurora:return-to', returnTo);
+        if (returnTo !== '/inicio') sessionStorage.setItem('aurora:return-to', returnTo);
         else sessionStorage.removeItem('aurora:return-to');
       }, destination);
       await page.goto(`${BASE}/?code=callback-test`);
@@ -355,8 +418,114 @@ async function main() {
       await page.waitForURL(`**${destination}`);
       await page.locator('.main').waitFor({ state: 'visible' });
       assert.equal(await page.locator('.public-site').count(), 0);
+      if (destination === '/inicio') {
+        await page.locator('.main[data-route="inicio"] > .home-head h1').waitFor();
+        const firstSteps = page.locator('.home-first-steps');
+        await firstSteps.locator('summary').evaluate((element) => element.click());
+        await page.waitForTimeout(0);
+        assert.equal(await firstSteps.evaluate((element) => element.open), true);
+        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.evaluate((element) => element.open), true,
+          'Primeiros passos deve permanecer aberto após renderização');
+        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await firstSteps.locator('summary').evaluate((element) => element.click());
+        await page.waitForTimeout(0);
+        assert.equal(await firstSteps.evaluate((element) => element.open), false);
+        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.evaluate((element) => element.open), false,
+          'Primeiros passos deve permanecer fechado após renderização');
+        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        const completed = page.locator('.home-completed');
+        await completed.locator('summary').evaluate((element) => element.click());
+        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        assert.equal(await completed.evaluate((element) => element.open), true,
+          'Tarefas concluídas deve permanecer aberto após renderização');
+        for (const width of [375, 1280]) {
+          await page.setViewportSize({ width, height: 850 });
+          for (const theme of ['light', 'dark']) {
+            const result = await page.evaluate((selectedTheme) => {
+              document.documentElement.dataset.theme = selectedTheme;
+              const hero = document.querySelector('.main[data-route="inicio"] > .home-head');
+              const title = hero.querySelector('h1');
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d', { willReadFrequently: true });
+              const color = (value) => {
+                context.clearRect(0, 0, 1, 1);
+                context.fillStyle = value;
+                context.fillRect(0, 0, 1, 1);
+                return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+              };
+              const luminance = (rgb) => rgb.map((value) => {
+                const channel = value / 255;
+                return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+              }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+              const foreground = luminance(color(getComputedStyle(title).color));
+              const background = luminance(color(getComputedStyle(hero).backgroundColor));
+              return {
+                documentWidth: document.documentElement.scrollWidth,
+                viewportWidth: innerWidth,
+                titleWidth: title.getBoundingClientRect().width,
+                contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+              };
+            }, theme);
+            assert.ok(result.documentWidth <= result.viewportWidth, `Início ${width}px/${theme}: sem overflow`);
+            assert.ok(result.titleWidth > 0, `Início ${width}px/${theme}: saudação visível`);
+            assert.ok(result.contrast >= 4.5, `Início ${width}px/${theme}: contraste ${result.contrast.toFixed(2)}`);
+          }
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+      } else if (destination === '/planejar') {
+        const results = page.locator('#task-results');
+        assert.equal(await results.locator('.task').count(), 10);
+        assert.match(await results.innerText(), /Mostrando 10 de 23 tarefas/);
+        await results.getByRole('button', { name: 'Mostrar mais tarefas' }).evaluate((element) => element.click());
+        assert.equal(await results.locator('.task').count(), 20);
+        await results.getByRole('button', { name: 'Mostrar mais tarefas' }).evaluate((element) => element.click());
+        assert.equal(await results.locator('.task').count(), 23);
+        assert.equal(await results.getByRole('button', { name: 'Mostrar mais tarefas' }).count(), 0);
+        await page.locator('#q').evaluate((input) => {
+          input.value = 'teste 01';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.task').count(), 1);
+        await page.locator('#q').evaluate((input) => {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.task').count(), 10,
+          'Alterar a busca deve reiniciar a paginação');
+      } else if (destination === '/financas') {
+        await page.locator('[data-action="fin-tab"][data-t="lancamentos"]').evaluate((button) => button.click());
+        const results = page.locator('#tx-results');
+        assert.equal(await results.locator('.fr').count(), 10, await page.locator('.main').innerText());
+        assert.match(await results.innerText(), /Mostrando 10 de 23 lançamentos/);
+        assert.match(await results.locator('.gsum').innerText(), /23,00/,
+          'O total diário deve incluir também os lançamentos ainda não exibidos');
+        await results.getByRole('button', { name: 'Mostrar mais lançamentos' }).evaluate((button) => button.click());
+        assert.equal(await results.locator('.fr').count(), 20);
+        await results.getByRole('button', { name: 'Mostrar mais lançamentos' }).evaluate((button) => button.click());
+        assert.equal(await results.locator('.fr').count(), 23);
+        await page.locator('#fq').evaluate((input) => {
+          input.value = 'teste 01';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.fr').count(), 1);
+        await page.locator('#fq').evaluate((input) => {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.fr').count(), 10);
+      } else {
+        const habit = page.locator('.habit-row').filter({ hasText: 'Hábito teste' });
+        await habit.waitFor();
+        await habit.locator('.habit-more > summary').evaluate((element) => element.click());
+        await habit.locator('.habit-month > summary').evaluate((element) => element.click());
+        await habit.locator('.habit-month [data-action="habit-month"][data-n="-1"]').evaluate((button) => button.click());
+        assert.equal(await habit.locator('.habit-month').evaluate((element) => element.open), true,
+          'Histórico mensal deve permanecer aberto ao mudar de mês');
+      }
     }
-    assert.equal(pkceRequests, 3);
+    assert.equal(pkceRequests, 5);
     await page.evaluate(() => sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
     simulateRelational = false;
     user = null;

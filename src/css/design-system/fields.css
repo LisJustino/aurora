@@ -56,7 +56,7 @@ select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--line-strong
 select:disabled { cursor: not-allowed; opacity: .58; }
 select[aria-invalid="true"]:not(:disabled),
 select[aria-invalid="true"]:not(:disabled):hover { border-color: var(--bad); }
-select[aria-invalid="true"]:focus-visible { outline-color: var(--bad); }
+select[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: .82; }
 input[type="checkbox"] {
   display: inline-grid;
@@ -100,7 +100,7 @@ input[type="checkbox"]:hover:not(:disabled) {
 }
 
 input[type="checkbox"]:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: var(--space-half);
 }
 

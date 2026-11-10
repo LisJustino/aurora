@@ -668,10 +668,11 @@ function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
   if (table === 'finance_accounts') return {
     id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
-    bank: row.bank || undefined,
+    ...(row.bank ? { bank: row.bank } : {}),
     ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
-    limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
-    closingDay: row.closing_day ?? undefined, dueDay: row.due_day ?? undefined,
+    ...(row.limit_cents == null ? {} : { limitCents: numeric(row.limit_cents) }),
+    ...(row.closing_day == null ? {} : { closingDay: row.closing_day }),
+    ...(row.due_day == null ? {} : { dueDay: row.due_day }),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_transactions') return {

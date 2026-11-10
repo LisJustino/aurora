@@ -40,9 +40,6 @@ export default defineConfig({
     __AURORA_RELEASE_METADATA__: JSON.stringify(releaseMetadata),
   },
   plugins: [appChunkHint()],
-  server: {
-    allowedHosts: ['.monkeycode-ai.live'],
-  },
   build: {
     rollupOptions: {
       input: ['index.html', ...pageEntries].map((path) => resolve(root, path)),

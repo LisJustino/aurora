@@ -31,11 +31,16 @@ const offenders = (regex, filter = () => true) => outsideTokens.flatMap(({ file,
 
 // Variáveis definidas só por JavaScript (estilos inline) ficam de fora da checagem.
 const SET_BY_SCRIPT = new Set([
-  '--c', '--category-tone', '--cycle-progress',
+  '--c', '--category-tone', '--cycle-progress', '--loading-primary', '--loading-accent',
   '--profile-avatar-color', '--preset-color',
   '--scroll-lock-offset-x', '--scroll-lock-offset-y',
 ]);
 const allText = files.map((item) => strip(item.text)).join('\n');
+const loadingResponse = await fetch('/loading-appearance.js', { cache: 'no-store' });
+if (!loadingResponse.ok) throw new Error(`Não foi possível carregar a aparência inicial: HTTP ${loadingResponse.status}.`);
+const loadingScript = await loadingResponse.text();
+check(['--loading-primary', '--loading-accent'].every((name) => loadingScript.includes(`setProperty('${name}'`)),
+  'Tokens da aparência de carregamento são definidos pelo script inicial');
 const defined = new Set([...allText.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
 const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((match) => match[1]))]
   .filter((name) => !defined.has(name) && !SET_BY_SCRIPT.has(name));
@@ -84,6 +89,54 @@ check(!heightLiterals.length, 'Alturas mínimas de controle usam --control-*', h
 
 const hexLiterals = offenders(/(?:color|background|border-color|fill|stroke):\s*#(?:fff|ffffff|000|000000)(?![\w])/gi);
 check(!hexLiterals.length, 'Cores sólidas em branco/preto usam --on-solid ou tokens de tema (misturas com color-mix são permitidas)', hexLiterals.slice(0, 6).join(' | '));
+
+const spacingBaseline = {
+  'base.css': [0, 2],
+  'components/accessibility.css': [2, 1],
+  'components/controls.css': [1, 0],
+  'components/footer.css': [1, 8],
+  'components/modals.css': [50, 57],
+  'components/navigation-responsive.css': [20, 23],
+  'components/navigation.css': [12, 13],
+  'components/preferences.css': [25, 13],
+  'components/responsive.css': [1, 1],
+  'components/task-actions.css': [2, 2],
+  'components/task-details.css': [4, 3],
+  'components/tasks.css': [20, 7],
+  'design-system/buttons.css': [0, 1],
+  'design-system/custom-selects.css': [2, 8],
+  'design-system/feedback.css': [5, 1],
+  'design-system/fields.css': [3, 6],
+  'design-system/selectors.css': [6, 10],
+  'design-system/touch.css': [2, 9],
+  'layout.css': [3, 8],
+  'pages/account.css': [35, 33],
+  'pages/areas.css': [57, 34],
+  'pages/finance-responsive.css': [6, 4],
+  'pages/finance.css': [58, 38],
+  'pages/habits.css': [59, 39],
+  'pages/home.css': [50, 29],
+  'pages/landing.css': [3, 3],
+  'pages/layouts.css': [24, 25],
+  'pages/legal.css': [0, 1],
+  'pages/settings.css': [7, 6],
+};
+const spacingPatterns = [
+  /(?<![\w-])(?:gap|row-gap|column-gap)\s*:\s*[^;{}]*\b\d*\.?\d+(?:px|rem)\b[^;{}]*(?=[;}])/g,
+  /(?<![\w-])padding(?:-(?:block|inline|top|bottom|left|right|block-start|block-end|inline-start|inline-end))?\s*:\s*[^;{}]*\b\d*\.?\d+(?:px|rem)\b[^;{}]*(?=[;}])/g,
+];
+for (const [index, label] of ['gap', 'padding'].entries()) {
+  const increased = [];
+  let total = 0;
+  for (const { file, text } of outsideTokens) {
+    const count = [...strip(text).matchAll(spacingPatterns[index])].length;
+    total += count;
+    const limit = spacingBaseline[file]?.[index] ?? 0;
+    if (count > limit) increased.push(`${file}: ${count} (limite ${limit})`);
+  }
+  check(!increased.length, `${label}: sem aumento de literais px/rem por arquivo`,
+    `${total} declarações legadas; ${increased.length ? increased.join(' | ') : 'conversão gradual pendente'}`);
+}
 
 const scale = new Set([...allText.matchAll(/--text-(2xs|xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
 check(scale.size === 12, 'A escala de tipografia tem os 12 degraus', [...scale].join(', '));

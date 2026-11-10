@@ -158,10 +158,18 @@ const check = (passed, name, detail = '') => {
     let matchesHeroColor = true;
     let minimumContrast = Infinity;
     const luminance = ([red, green, blue]) => [red, green, blue]
+      .map((channel) => channel / 255)
       .map((channel) => (channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4))
       .reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
-    const srgbColors = (value) => [...value.matchAll(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)\)/g)]
-      .map(([, red, green, blue]) => [Number(red), Number(green), Number(blue)]);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    const rgb = (color) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    };
     try {
       for (const [, [, primary, accent]] of Object.entries(PALETTES)) {
         root.style.setProperty('--p', primary);
@@ -172,20 +180,18 @@ const check = (passed, name, detail = '') => {
             root.setAttribute('data-contrast', contrast);
             const messageColor = getComputedStyle(message).color;
             if (messageColor !== getComputedStyle(header.querySelector('h1')).color) matchesHeroColor = false;
-            const foreground = messageColor.match(/[\d.]+/g).slice(0, 3).map((channel) => Number(channel) / 255);
-            const gradient = getComputedStyle(header).backgroundImage;
-            const stops = srgbColors(gradient.slice(gradient.lastIndexOf('linear-gradient')));
-            if (stops.length < 2) {
+            const foreground = rgb(messageColor);
+            const headerStyle = getComputedStyle(header);
+            const background = rgb(headerStyle.backgroundColor);
+            if (foreground[3] !== 255 || background[3] !== 255 || headerStyle.backgroundImage !== 'none') {
               minimumContrast = 0;
               continue;
             }
             const foregroundLuminance = luminance(foreground);
-            for (const background of [stops[0], stops[stops.length - 1]]) {
-              const backgroundLuminance = luminance(background);
-              const ratio = (Math.max(foregroundLuminance, backgroundLuminance) + .05)
-                / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
-              minimumContrast = Math.min(minimumContrast, ratio);
-            }
+            const backgroundLuminance = luminance(background);
+            const ratio = (Math.max(foregroundLuminance, backgroundLuminance) + .05)
+              / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
+            minimumContrast = Math.min(minimumContrast, ratio);
           }
         }
       }

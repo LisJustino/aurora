@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
-import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
+import { addDays, addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
   accountModeFromLocation,
   accountPathForMode,
@@ -52,6 +52,7 @@ import {
 
 import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
+import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
 import {
   createSuggestedHabits,
   habitColor,
@@ -125,6 +126,8 @@ import {
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
+import { cycleDayNumber, cycleStats, periodDaySet, topSymptoms } from '../src/js/features/cycle/calculations.js';
+import { estimatedCyclePhase } from '../src/js/features/cycle/phases.js';
 import {
   createCyclePeriod,
   cycleLogDays,
@@ -155,6 +158,27 @@ const test = (name, run) => {
     });
   }
 };
+
+test('seleção de tarefas preserva filtros, ordenação e dados originais', () => {
+  const tasks = [
+    { title: 'Revisão', done: false, dueDate: '2026-11-09', time: '10:00', priority: 'normal', tags: ['Trabalho'], createdAt: 1 },
+    { title: 'Próxima', done: false, dueDate: '2026-11-17', priority: 'high', createdAt: 2 },
+    { title: 'Sem data', done: false, dueDate: '', priority: 'low', notes: 'Reunião', createdAt: 3 },
+    { title: 'Feita', done: true, dueDate: '2026-11-09', doneAt: '2026-11-10T12:00:00', priority: 'normal', createdAt: 4 },
+    { title: 'Antiga', done: true, dueDate: '2026-11-09', doneAt: '2026-11-08T12:00:00', priority: 'normal', createdAt: 5 },
+  ];
+  const deps = { normalize: (value) => String(value).toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''), orderOf: (task) => task.order ?? task.createdAt ?? 0 };
+  const select = (f, q = '', sort = 'prazo') => filteredTasks(tasks, { f, q, sort }, '2026-11-10', deps).map((task) => task.title).join(',');
+  if (select('atrasadas') !== 'Revisão' || select('proximas') !== 'Próxima'
+    || select('caixa') !== 'Sem data' || select('etq:Trabalho') !== 'Revisão'
+    || select('todas', 'reuniao') !== 'Sem data'
+    || select('concluidas', '', 'recentes') !== 'Antiga,Feita'
+    || select('pendentes', '', 'prioridade') !== 'Próxima,Revisão,Sem data') {
+    throw new Error('Filtros ou ordenação de tarefas foram alterados.');
+  }
+  if (todayTasks(tasks, '2026-11-10').map((task) => task.title).join(',') !== 'Revisão,Feita'
+    || tasks[0].title !== 'Revisão') throw new Error('Seleção do dia ou ordem original incorreta.');
+});
 
 test('inicia os alertas antes de aguardar o service worker', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
@@ -343,7 +367,8 @@ test('orientações cobrem as telas e esclarecem a privacidade financeira', () =
       ok(step.title);
       ok(step.text);
     });
-    ok(guide.video.endsWith('.webm'));
+    ok(guide.video.endsWith('.mp4'));
+    ok(guide.fallbackVideo.endsWith('.webm'));
   });
   equal(Object.hasOwn(AREA_GUIDES, 'config'), false);
   ok(AREA_GUIDES.financas.steps.some((step) => step.text.includes('manualmente')));
@@ -609,6 +634,73 @@ test('marca até hoje períodos menstruais ainda em andamento', () => {
     '2026-03-01,2026-03-02,2026-03-03',
   );
   equal(cyclePeriodDays('2026-03-13', null, '2026-03-12').length, 0);
+});
+
+test('cálculos do ciclo usam seis intervalos recentes e limitam fases férteis por variação', () => {
+  const starts = ['2025-01-01'];
+  [60, 27, 28, 30, 26, 29, 28].forEach((length) => {
+    starts.push(addDays(starts[starts.length - 1], length));
+  });
+  const periods = starts.map((start) => ({ start, end: start }));
+  const stats = cycleStats({}, periods, addDays(starts.at(-1), 1));
+
+  equal(stats.starts.join(','), starts.join(','));
+  equal(stats.observedIntervals, 6);
+  equal(stats.avg, 28);
+  equal(stats.min, 26);
+  equal(stats.max, 30);
+  equal(stats.variation, 4);
+  equal(stats.canEstimateFertility, true);
+  equal(stats.next, addDays(starts.at(-1), 28));
+  equal(cycleDayNumber(addDays(starts.at(-1), 5), stats.starts), 6);
+
+  const recentStarts = ['2025-01-01'];
+  [25, 26, 27, 28, 29, 30, 90, 28].forEach((length) => {
+    recentStarts.push(addDays(recentStarts[recentStarts.length - 1], length));
+  });
+  const recentStats = cycleStats({}, recentStarts.map((start) => ({ start, end: start })), addDays(recentStarts.at(-1), 1));
+  equal(recentStats.observedIntervals, 5);
+  equal(recentStats.avg, 28);
+  equal(recentStats.min, 27);
+  equal(recentStats.max, 30);
+  equal(recentStats.hasOutOfRangeRecentInterval, true);
+  equal(recentStats.canEstimateFertility, false);
+
+  const variableStarts = ['2026-01-01', '2026-01-27', '2026-03-02'];
+  const variableStats = cycleStats({}, variableStarts.map((start) => ({ start, end: start })), '2026-03-03');
+  equal(variableStats.variation, 8);
+  equal(variableStats.canEstimateFertility, false);
+  equal(estimatedCyclePhase(addDays(variableStarts.at(-1), 8), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), '');
+  equal(estimatedCyclePhase(addDays(variableStarts.at(-1), 13), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), '');
+  equal(estimatedCyclePhase(variableStarts.at(-1), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), 'menstruation');
+});
+
+test('estimação de fases do ciclo e métricas de sintomas validam as janelas esperadas', () => {
+  const starts = ['2026-01-01', '2026-01-29'];
+  equal(estimatedCyclePhase('invalid-date', starts, 28), '');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 8), starts, 28), 'fertile');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 13), starts, 28), 'ovulation');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 8), starts, 28, new Set(), false), '');
+
+  const days = periodDaySet(
+    { '2026-05-02': { flow: 'light' }, '2026-05-03': { flow: 'none' } },
+    [{ start: '2026-05-05', end: '2026-05-06' }],
+    '2026-05-10',
+  );
+  equal([...days].sort().join(','), '2026-05-02,2026-05-05,2026-05-06');
+
+  const symptoms = topSymptoms({
+    '2026-06-01': { pain: ['cramp', 'head'], mood: ['anxious'], energy: 'low', sleep: 'insomnia' },
+    '2026-06-02': { pain: ['cramp'] },
+    '2026-03-01': { pain: ['cramp'] },
+  }, '2026-06-30', (category, value) => `${category}-${value}`);
+  equal(symptoms.length, 5);
+  equal(symptoms[0].category, 'pain');
+  equal(symptoms[0].value, 'cramp');
+  equal(symptoms[0].count, 2);
+  equal(symptoms.some(({ value }) => value === 'head'), true);
+  equal(symptoms.some(({ value }) => value === 'insomnia'), true);
+  equal(symptoms.some(({ value }) => value === 'old'), false);
 });
 
 test('gera intervalo de dias para registro de sintomas sem aceitar datas inválidas', () => {

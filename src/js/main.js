@@ -39,15 +39,16 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from './features/finance/accounts.js';
+import { financePrivacyNotice } from './features/finance/view.js';
 import {
   AREA_GUIDES,
-  FINANCE_PRIVACY_NOTICE,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
 import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
 import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
+import { filteredTasks as selectFilteredTasks, todayTasks as selectTodayTasks } from './features/planning/task-selection.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
@@ -128,11 +129,12 @@ import { prefersReducedMotion } from './utils/motion.js';
 import {
   createCyclePeriod,
   cycleLogDays,
-  cyclePeriodDays,
   mergeCycleLogSymptoms,
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from './features/cycle/period.js';
+import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
+import { estimatedCyclePhase } from './features/cycle/phases.js';
 import {
   createBirthdayReferenceFromParts,
   isValidBirthdayReference,
@@ -231,7 +233,6 @@ import {
   sortTrashEntriesByExpiry,
   trashDaysRemaining,
 } from './features/trash/model.js';
-import { estimatedCyclePhase } from './features/cycle/phases.js';
 import { CYCLE_CONTRACEPTION_METHODS, isValidCycleSexualLog } from './features/cycle/log.js';
 'use strict';
 
@@ -1752,12 +1753,7 @@ function areaGuideButton(route) {
 function areaPageTitle(route, title, action = '') {
   return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
 }
-function financePrivacyNotice() {
-  return h`<aside class="notice finance-privacy-note" role="note"><span><strong>Sem conexão bancária</strong><span>${FINANCE_PRIVACY_NOTICE}</span></span></aside>`;
-}
-
 /* ---------- Tarefas (reuso) ---------- */
-const taskVisible = (t) => !t.done || (t.doneAt && isoDay(t.doneAt) === today());
 function dueBadge(t) {
   if (!t.dueDate) return '';
   const d = dayDiff(t.dueDate, today());
@@ -1905,6 +1901,9 @@ function render() {
   ui.dirty = false;
   applyTheme();
   const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
+  document.querySelectorAll('#app details[id^="d-"]').forEach((details) => {
+    ui.openDetails[details.id.slice(2)] = details.open;
+  });
   const keep = {};
   $$('[data-keep]').forEach((el) => { if (el.id) keep[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
   const active = document.activeElement;
@@ -2232,7 +2231,7 @@ function onRoute() {
 }
 
 /* ========== Páginas: Início, Planejar, Foco ========== */
-const todayTasks = () => S.tasks.filter((t) => t.dueDate && t.dueDate <= today() && taskVisible(t)).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.time || '99:99').localeCompare(b.time || '99:99'));
+const todayTasks = () => selectTodayTasks(S.tasks, today());
 async function syncHabitReminderSchedule() {
   const status = getPushNotificationStatus();
   if (!status.enabled) return false;
@@ -2399,7 +2398,7 @@ function homeFirstSteps() {
   if (steps.every(([, , , complete]) => complete)) return '';
   const completedSteps = steps.filter(([, , , complete]) => complete).length;
   const nextStepIndex = steps.findIndex(([, , , complete]) => !complete);
-  return h`<details class="card home-first-steps" aria-labelledby="home-first-steps-title">
+  return h`<details class="card home-first-steps" id="d-home-first-steps" aria-labelledby="home-first-steps-title" ${ui.openDetails['home-first-steps'] ? raw('open') : ''}>
     <summary class="home-first-steps-summary"><span><span class="section-kicker">Comece com uma ação pequena</span><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2><small class="home-first-steps-progress">${completedSteps} de ${steps.length} ações concluídas</small></span><span class="home-first-steps-toggle" aria-hidden="true">${icon('chevDown', 18)}</span></summary>
     <div class="home-first-steps-content">
       <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete], index) => h`<li class="${complete ? 'is-complete' : ''}${index === nextStepIndex ? ' is-next' : ''}">
@@ -2458,7 +2457,7 @@ function viewInicio() {
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
-            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
+            ${completed.length ? h`<details class="home-completed" id="d-home-completed" ${ui.openDetails['home-completed'] ? raw('open') : ''}><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
           </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="/planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
         </section>` : ''}
         ${homeUpcomingTasks()}
@@ -2484,24 +2483,36 @@ function viewInicio() {
 }
 
 const FILTERS = [['todas', 'Todas'], ['pendentes', 'Pendentes'], ['atrasadas', 'Atrasadas'], ['proximas', 'Próximos 7 dias'], ['caixa', 'Sem data'], ['concluidas', 'Concluídas']];
+const LIST_PAGE_SIZE = 10;
+const listPages = {
+  tasks: { key: '', limit: LIST_PAGE_SIZE },
+  transactions: { key: '', limit: LIST_PAGE_SIZE },
+};
+function listPage(name, key) {
+  const page = listPages[name];
+  if (page.key !== key) {
+    page.key = key;
+    page.limit = LIST_PAGE_SIZE;
+  }
+  return page;
+}
+function showMoreResults(name, selector, renderResults) {
+  const results = document.querySelector(selector);
+  if (!results) return;
+  const previousCount = results.querySelectorAll('li.task, li.fr').length;
+  listPages[name].limit += LIST_PAGE_SIZE;
+  results.innerHTML = renderResults().s;
+  const firstNewRow = results.querySelectorAll('li.task, li.fr')[previousCount];
+  const next = firstNewRow?.querySelector('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  (next || results.querySelector('[data-action$="-show-more"]') || results).focus();
+}
 function filteredTasks() {
-  const { f, q, sort } = ui.filters, tdy = today(), nq = norm(q.trim());
-  const nextWeek = addDays(tdy, 7);
-  let r = S.tasks.filter((t) => {
-    if (f === 'pendentes' && t.done) return false;
-    if (f === 'concluidas' && !t.done) return false;
-    if (f === 'atrasadas' && (t.done || !t.dueDate || t.dueDate >= tdy)) return false;
-    if (f === 'proximas' && (t.done || !t.dueDate || t.dueDate <= tdy || t.dueDate > nextWeek)) return false;
-    if (f === 'caixa' && (t.done || t.dueDate)) return false;
-    if (f.startsWith('etq:') && !(t.tags || []).includes(f.slice(4))) return false;
-    return !nq || norm(t.title).includes(nq) || (t.tags || []).some((g) => norm(g).includes(nq)) || norm(t.notes || '').includes(nq) || norm(t.groupTitle || '').includes(nq);
-  });
-  const pr = { high: 0, normal: 1, low: 2 };
-  r.sort((a, b) => a.done - b.done || (sort === 'manual' ? orderOf(a) - orderOf(b) : sort === 'prioridade' ? pr[a.priority] - pr[b.priority] : sort === 'recentes' ? (b.createdAt || 0) - (a.createdAt || 0) : (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.time || '99:99').localeCompare(b.time || '99:99')));
-  return r;
+  return selectFilteredTasks(S.tasks, ui.filters, today(), { normalize: norm, orderOf });
 }
 function taskListHtml() {
-  const r = filteredTasks(), { f, sort } = ui.filters, tdy = today();
+  const all = filteredTasks(), { f, sort } = ui.filters, tdy = today();
+  const page = listPage('tasks', JSON.stringify([f, ui.filters.q, sort]));
+  const r = all.slice(0, page.limit);
   if (!r.length) {
     const hasTasks = S.tasks.length > 0;
       const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
@@ -2517,9 +2528,12 @@ function taskListHtml() {
       hasTasks ? 'search' : 'calendarCheck',
     );
   }
-  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>`;
+  const more = all.length > r.length
+    ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} tarefas</p><button type="button" class="btn" data-action="tasks-show-more">Mostrar mais tarefas</button>`
+    : '';
+  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>${more}`;
   const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
-  return raw('<div class="task-results-groups">' + G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${it.length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>`.s : ''; }).join('') + '</div>');
+  return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>` : ''; })}</div>${more}`;
 }
 function plansHtml() {
   const g = {};
@@ -2811,7 +2825,6 @@ function viewPlanejar() {
   const todayPending = pendingTasks.filter((task) => task.dueDate === todayKey).length;
   const overdueCount = pendingTasks.filter((task) => task.dueDate && task.dueDate < todayKey).length;
   const upcomingCount = pendingTasks.filter((task) => task.dueDate > todayKey && task.dueDate <= nextWeek).length;
-  const inboxCount = pendingTasks.filter((task) => !task.dueDate).length;
   const todaySummary = todayPending
     ? `${todayPending} ${plural(todayPending, 'tarefa marcada', 'tarefas marcadas')} para hoje`
     : 'Nenhuma tarefa com prazo para hoje';
@@ -2833,20 +2846,13 @@ function viewPlanejar() {
         <p>${planningSummary}</p>
         <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
       </div>
-      <div class="planning-overview-stats" role="group" aria-label="Filtrar tarefas por prazo">
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="pendentes" aria-pressed="${ui.planView === 'lista' && f.f === 'pendentes' && !f.q}"><span>Pendentes</span><b>${pendingTasks.length}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="atrasadas" aria-pressed="${ui.planView === 'lista' && f.f === 'atrasadas' && !f.q}"><span>Atrasadas</span><b>${overdueCount}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="proximas" aria-pressed="${ui.planView === 'lista' && f.f === 'proximas' && !f.q}"><span>Próximos 7 dias</span><b>${upcomingCount}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="caixa" aria-pressed="${ui.planView === 'lista' && f.f === 'caixa' && !f.q}"><span>Sem data</span><b>${inboxCount}</b></button>
-      </div>
     </section>
-    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button></section>
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
       <label class="plan-view-select"><span>Ver como</span><select data-change="plan-view" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<option value="${value}" ${ui.planView === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
       ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
-      <div id="task-results" aria-live="polite">${taskListHtml()}</div>`}</section>
+      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</section>
     ${plansHtml()}`;
 }
 
@@ -2858,7 +2864,7 @@ function habitDaysLabel(habit) {
 function habitMonthlyHistory(habit) {
   const days = habitMonthDays(ui.habitMonth, weekStartDay());
   const stats = habitMonthStats(habit, ui.habitMonth, today(), (day) => habitCompletedFor(habit, day));
-  return h`<details class="habit-month">
+  return h`<details class="habit-month" id="d-month-${habit.id}" ${ui.openDetails[`month-${habit.id}`] ? raw('open') : ''}>
     <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <div class="mnav"><button class="ibtn" type="button" data-action="habit-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 18)}</button><b>${cap(ymLabel(ui.habitMonth))}</b><button class="ibtn" type="button" data-action="habit-month" data-n="1" aria-label="Próximo mês" ${ui.habitMonth >= today().slice(0, 7) ? raw('disabled') : ''}>${icon('chevRight', 18)}</button></div>
     <p class="small muted">${stats.completed} de ${stats.scheduled} dias programados concluídos até hoje neste mês.</p>
@@ -3081,40 +3087,18 @@ function cycleLogSummary(log) {
 }
 const cyclePeriodKey = (period) => `${period.start}|${period.end || ''}`;
 const cyclePeriodEnd = (period) => period.end || period.start;
-function periodDaySet() {
-  const set = new Set();
-  Object.entries(S.cycleLog).forEach(([k, l]) => { if (isBleeding(l)) set.add(k); });
-  S.cycle.forEach((period) => {
-    cyclePeriodDays(period.start, period.end, today()).forEach((day) => set.add(day));
-  });
-  return set;
+function cycleTopSymptoms() {
+  return topSymptoms(S.cycleLog, today(), cycLabel);
 }
-function cycleStats() {
-  const set = periodDaySet(), days = [...set].sort(), starts = [];
-  days.forEach((k) => { if (!set.has(addDays(k, -1))) starts.push(k); });
-  const lens = [];
-  for (let i = 1; i < starts.length; i++) { const d = dayDiff(starts[i], starts[i - 1]); if (d >= 15 && d <= 60) lens.push(d); }
-  const avg = lens.length ? Math.round(lens.reduce((a, b) => a + b, 0) / lens.length) : null;
-  return { set, starts, avg, observedIntervals: lens.length, next: avg && starts.length ? addDays(starts[starts.length - 1], avg) : null };
-}
-function cycleDayNumber(k, st) { const prev = [...st.starts].filter((s) => s <= k).pop(); return prev ? dayDiff(k, prev) + 1 : null; }
 function cycleCalendarPhase(day, stats) {
-  return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set);
-}
-function topSymptoms() {
-  const from = addDays(today(), -90), cnt = {};
-  Object.entries(S.cycleLog).forEach(([k, l]) => { if (k < from) return; ['pain', 'mood', 'digestion', 'skin'].forEach((c) => (l[c] || []).forEach((v) => { const key = c + ':' + v; cnt[key] = (cnt[key] || 0) + 1; })); ['energy', 'sleep'].forEach((c) => { if (l[c]) { const key = c + ':' + l[c]; cnt[key] = (cnt[key] || 0) + 1; } }); });
-  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, count]) => {
-    const [category, value] = key.split(':');
-    return { category, value, label: cycLabel(category, value), count };
-  });
+  return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set, stats.canEstimateFertility);
 }
 function viewCiclo() {
   const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}${g}`;
-  const st = cycleStats(), tdy = today(), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
+  const tdy = today(), st = cycleStats(S.cycleLog, S.cycle, tdy), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
   const ym = ui.calMonth, [y, m] = ym.split('-').map(Number), first = new Date(y, m - 1, 1), nDays = new Date(y, m, 0).getDate();
   const strip = Array.from({ length: 14 }, (_, i) => addDays(tdy, i - 13));
-  const dn = cycleDayNumber(sel, st);
+  const dn = cycleDayNumber(sel, st.starts);
   const hasCycleHistory = st.starts.length > 0;
   const hasCycleRecords = Object.values(S.cycleLog).some(hasAnyLog);
   const selectedPeriodIndex = S.cycle.findIndex((period) => period.start <= sel && cyclePeriodEnd(period) >= sel);
@@ -3137,13 +3121,21 @@ function viewCiclo() {
     const phaseClass = phase ? `phase-${phase}` : '';
     cells.push(`<button type="button" class="${phaseClass} ${st.set.has(k) ? 'm' : st.next === k ? 'p' : ''} ${k === tdy ? 't' : ''} ${k === sel ? 's' : ''} ${hasAnyLog(S.cycleLog[k]) ? 'l' : ''}" ${fut ? 'disabled' : ''} data-action="cyc-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}${phaseLabel ? ', ' + phaseLabel : st.next === k ? ', próximo início estimado' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}">${d}</button>`);
   }
-  const top = topSymptoms();
+  const top = cycleTopSymptoms();
   const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
+  const cycleRange = st.min === st.max ? `${st.min} dias` : `${st.min} a ${st.max} dias`;
+  const cycleEstimateNotice = !st.avg
+    ? 'Ainda não há registros suficientes para estimar fases do ciclo. As previsões não substituem avaliação profissional nem servem como método contraceptivo.'
+    : st.canEstimateFertility
+      ? 'Ovulação e janela fértil são estimativas que podem variar. As previsões não substituem avaliação profissional nem servem como método contraceptivo.'
+      : st.hasOutOfRangeRecentInterval
+        ? 'Há um intervalo recente fora da faixa de 15 a 60 dias usada nos cálculos; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.'
+        : `A variação dos últimos ${st.observedIntervals} intervalos foi de ${st.min} a ${st.max} dias; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.`;
   return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}
     <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
     ${!hasCycleHistory && !hasCycleRecords
       ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
-      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
+      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`      <div class="stat"><b>${st.avg} dias</b><span>Média dos ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo recente', 'intervalos recentes')} · variação de ${cycleRange}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
       <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
@@ -3152,11 +3144,11 @@ function viewCiclo() {
       <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
       <div class="cycle-calendar-legend" role="group" aria-label="Legenda das fases do calendário">
         <span><i class="lg m"></i>Menstruação registrada</span>
-        <span><i class="lg fertile"></i>Janela fértil estimada</span>
-        <span><i class="lg ovulation"></i>Ovulação estimada</span>
-        <span><i class="lg p"></i>Próximo início estimado</span>
+        ${st.canEstimateFertility ? h`<span><i class="lg fertile"></i>Janela fértil estimada</span><span><i class="lg ovulation"></i>Ovulação estimada</span>` : ''}
+        ${st.next ? h`<span><i class="lg p"></i>Próximo início estimado</span>` : ''}
         <span><i class="lg l"></i>Dia com registro</span>
-      </div></section>
+      </div>
+      <div class="notice cycle-estimate-notice" role="note">${icon('info', 18)}<span>${cycleEstimateNotice}</span></div></section>
     ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
     <details class="card cycle-health-card" open>
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Saúde menstrual e sexual</strong><small>Entenda mudanças do ciclo, cuidados nas relações e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
@@ -3185,7 +3177,7 @@ function viewCiclo() {
         </div>
       </div>
     </details>
-    <div class="notice cycle-estimate-notice">${icon('info', 18)}<span>${st.avg ? `As médias e previsões são estimativas baseadas nos inícios registrados; ovulação e janela fértil podem variar e não são confirmadas pelo app. ` : 'Ainda não há registros suficientes para estimar fases do ciclo. '}${'As previsões não substituem avaliação profissional nem servem como método contraceptivo.'}</span></div>`;
+    `;
 }
 
 /* ---------- Ajustes ---------- */
@@ -4035,7 +4027,7 @@ function dlgTask() {
     'task-dialog');
 }
 const cycleDialogViews = createCycleDialogViews({
-  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms, plural,
+  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms: cycleTopSymptoms, plural,
   cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
 });
 function dlgCycleLog() { return cycleDialogViews.log(); }
@@ -4221,8 +4213,8 @@ function dlgAreaTutorial() {
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}<i>.</i></h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
     <video class="area-tutorial-video" controls playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
-      <source src="${guide.video}" type="video/webm">
-      <source src="${guide.fallbackVideo}" type="video/mp4">
+      <source src="${guide.video}" type="video/mp4">
+      <source src="${guide.fallbackVideo}" type="video/webm">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
@@ -4683,6 +4675,8 @@ const ACTIONS = {
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
   'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
+  'tasks-show-more': () => showMoreResults('tasks', '#task-results', taskListHtml),
+  'transactions-show-more': () => showMoreResults('transactions', '#tx-results', txListHtml),
   'sidebar-toggle': () => {
     ui.sidebarCollapsed = !ui.sidebarCollapsed;
     writeSidebarCollapsed(ui.sidebarCollapsed);
@@ -5160,12 +5154,6 @@ const ACTIONS = {
     requestActionConfirmation('del-task', { id }, 'Excluir tarefa?', `A tarefa "${task.title}" irá para a lixeira por 30 dias.`, 'Excluir tarefa');
   },
   'set-filter': (el) => { ui.filters.f = el.dataset.f; render(); },
-  'planning-filter': (el) => {
-    ui.planView = 'lista';
-    ui.filters.f = el.dataset.f;
-    ui.filters.q = '';
-    render();
-  },
   'task-filters-clear': () => {
     ui.filters.f = 'todas';
     ui.filters.q = '';
@@ -6556,7 +6544,9 @@ function filteredTx() {
   }).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
 }
 function txListHtml() {
-  const r = filteredTx();
+  const all = filteredTx();
+  const page = listPage('transactions', JSON.stringify([ui.finMonth, ui.finFilter, ui.finQ, ui.finAcc, ui.finCat]));
+  const r = all.slice(0, page.limit);
   if (!r.length) {
     const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finFilter !== 'todos');
     return empty(
@@ -6569,7 +6559,10 @@ function txListHtml() {
     );
   }
   const days = []; r.forEach((t) => { const l = days[days.length - 1]; if (l && l.d === t.date) l.items.push(t); else days.push({ d: t.date, items: [t] }); });
-  return raw('<div class="finance-results-groups">' + days.map((g) => { const net = g.items.reduce((s, t) => s + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0), 0); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`.s; }).join('') + '</div>');
+  const netByDay = new Map();
+  all.forEach((t) => netByDay.set(t.date, (netByDay.get(t.date) || 0) + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0)));
+  return h`<div class="finance-results-groups">${days.map((g) => { const net = netByDay.get(g.d); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`; })}</div>
+    ${all.length > r.length ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} lançamentos</p><button type="button" class="btn" data-action="transactions-show-more">Mostrar mais lançamentos</button>` : ''}`;
 }
 function finLanc() { return ui.finView === 'cal' ? h`${monthNav()}${finTools()}${finCal()}` : finLancList(); }
 function finLancList() {
@@ -6581,7 +6574,7 @@ function finLancList() {
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
       <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
       <div class="row fin-export-actions"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
-      <div id="tx-results">${txListHtml()}</div></section>`;
+      <div id="tx-results" aria-live="polite" tabindex="-1">${txListHtml()}</div></section>`;
 }
 
 /* ---- Contas e cartões ---- */

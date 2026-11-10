@@ -169,7 +169,7 @@
 }
 
 .account-remember-session input:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: var(--space-half);
 }
 
@@ -214,7 +214,7 @@
 
 .account-terms-consent input:focus-visible,
 .account-terms-copy a:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: var(--space-half);
 }
 
@@ -306,7 +306,7 @@
 }
 
 .account-email-suggestion:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: -3px;
 }
 
@@ -349,7 +349,7 @@
 .account-field input:focus-visible,
 .account-field .ds-select__trigger:focus-visible,
 .account-card button:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: var(--space-half);
 }
 
@@ -616,7 +616,8 @@
 .account-field input:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--focus-ring-shadow);
-  outline: 0;
+  outline: 3px solid var(--focus);
+  outline-offset: var(--space-half);
 }
 .account-field input[aria-invalid="true"]:focus-visible,
 .account-field .ds-select__trigger[aria-invalid="true"]:focus-visible {
@@ -626,7 +627,8 @@
 .account-field .ds-select__trigger:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--focus-ring-shadow);
-  outline: 0;
+  outline: 3px solid var(--focus);
+  outline-offset: var(--space-half);
 }
 .account-field input { text-transform: none; }
 .account-field input:disabled {
@@ -635,7 +637,7 @@
   color: var(--muted);
   cursor: not-allowed;
 }
-.account-card button:focus-visible { outline: 3px solid var(--ring); outline-offset: var(--space-half); }
+.account-card button:focus-visible { outline: 3px solid var(--focus); outline-offset: var(--space-half); }
 .account-input-control,
 .account-password-control { position: relative; display: flex; align-items: center; }
 .account-password-control input { padding-right: calc(var(--control-md) + var(--space-3)); }
@@ -734,7 +736,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   display: flex;
   align-items: center;
   color: var(--loading-text);
-  font-size: clamp(2.25rem, 5vw, 3rem);
+  font-size: var(--text-loading-brand);
   font-weight: var(--weight-bold);
   letter-spacing: -.07em;
   line-height: 1;
@@ -752,7 +754,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   box-shadow: 0 .35rem .8rem rgb(155 72 105 / 16%), inset 0 1px rgb(255 255 255 / 30%);
   color: var(--loading-mark-text);
   content: "A";
-  font-size: 1.9rem;
+  font-size: var(--text-loading-mark);
   font-weight: var(--weight-regular);
   letter-spacing: -.04em;
 }
@@ -762,7 +764,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   left: 2.5rem;
   color: var(--loading-mark-text);
   content: "✦";
-  font-size: .7rem;
+  font-size: var(--text-loading-spark);
   letter-spacing: 0;
 }
 .account-loading-brand-dot {
@@ -788,7 +790,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-loading-message {
   margin: 0;
   color: var(--loading-text);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
 }
@@ -906,12 +908,12 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 @media (max-height: 400px) {
   .account-loading-content { gap: .75rem; padding: 1.25rem; }
-  .account-loading-brand-text { font-size: 1.75rem; }
-  .account-loading-brand-text::before { width: 2.5rem; height: 2.5rem; font-size: 1.5rem; }
-  .account-loading-brand-text::after { top: .35rem; left: 1.95rem; font-size: .6rem; }
+  .account-loading-brand-text { font-size: var(--text-3xl); }
+  .account-loading-brand-text::before { width: 2.5rem; height: 2.5rem; font-size: var(--text-2xl); }
+  .account-loading-brand-text::after { top: .35rem; left: 1.95rem; font-size: var(--text-loading-spark-compact); }
   .account-loading-indicator { width: 2rem; height: 2rem; }
-  .account-loading-message { font-size: .95rem; }
-  .account-loading-message::after { margin-top: .25rem; font-size: .9rem; }
+  .account-loading-message { font-size: var(--text-loading-message-compact); }
+  .account-loading-message::after { margin-top: .25rem; font-size: var(--text-loading-caption-compact); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1632,7 +1634,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 
 .account-legal-document:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: 3px solid var(--focus);
   outline-offset: var(--space-half);
 }
 
@@ -2011,32 +2013,11 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 
 .account-gate.is-public-account > .account-intro::before {
-  top: auto;
-  right: auto;
-  bottom: -13%;
-  left: -13%;
-  width: 76%;
-  height: 39%;
-  aspect-ratio: auto;
-  border: 0;
-  border-radius: 55% 45% 0 0 / 30% 40% 0 0;
-  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--area-cycle) 14%, transparent));
-  box-shadow: none;
-  opacity: 1;
-  transform: rotate(-6deg);
+  display: none;
 }
 
 .account-gate.is-public-account > .account-intro::after {
-  right: -9%;
-  bottom: -16%;
-  left: 18%;
-  width: 105%;
-  height: 30%;
-  border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-  border-radius: 50%;
-  background: transparent;
-  transform: rotate(-9deg);
+  display: none;
 }
 
 .account-gate.is-public-account .account-intro .public-brand-link {
@@ -2054,12 +2035,12 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-gate.is-public-account .public-brand-icon {
   width: clamp(36px, 3vw, 44px);
   height: clamp(36px, 3vw, 44px);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
 }
 
 .account-gate.is-public-account .account-intro .wordmark {
   color: var(--ink);
-  font-size: clamp(20px, 2vw, 26px);
+  font-size: var(--text-account-brand);
   font-weight: var(--weight-bold);
 }
 
@@ -2083,7 +2064,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   max-width: 34ch;
   margin: 0;
   color: var(--muted);
-  font-size: clamp(16px, 1.4vw, 19px);
+  font-size: var(--text-account-intro);
   line-height: 1.55;
 }
 
@@ -2488,7 +2469,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-preview-bars span {
   flex: 1;
   height: var(--h, 40%);
-  border-radius: 4px 4px 2px 2px;
+  border-radius: var(--r-detail) var(--r-detail) var(--r-detail-sm) var(--r-detail-sm);
   background: linear-gradient(180deg, var(--art-rose), var(--art-lilac));
   transform-origin: bottom;
   animation: account-bar-grow .8s .5s var(--ease-standard) both;
@@ -2656,7 +2637,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-gate.is-public-account .account-step.is-current .account-step-number {
   background: var(--btn);
   border-color: transparent;
-  color: #fff;
+  color: var(--on-btn);
   box-shadow: var(--focus-ring-shadow);
 }
 .account-gate.is-public-account .account-step.is-complete .account-step-number { background: var(--ok); border-color: transparent; color: var(--on-solid); }
@@ -2734,8 +2715,8 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   text-decoration: none;
 }
 
-.account-site-header .public-brand-icon { width: 36px; height: 36px; border-radius: 12px; }
-.account-site-header .wordmark { color: var(--ink); font-size: 24px; font-weight: var(--weight-bold); }
+.account-site-header .public-brand-icon { width: 36px; height: 36px; border-radius: var(--r-sm); }
+.account-site-header .wordmark { color: var(--ink); font-size: var(--text-2xl); font-weight: var(--weight-bold); }
 .account-site-header .wordmark span { color: var(--accent); }
 
 .account-site-header .account-home-link {
@@ -2800,7 +2781,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-success-svg { width: 132px; height: auto; overflow: visible; }
 .account-success-svg .ok-halo { fill: color-mix(in srgb, var(--art-ok, var(--ok)) 16%, transparent); animation: account-art-beat 3s ease-in-out infinite; transform-origin: 60px 50px; }
 .account-success-svg .ok-disc { fill: var(--art-ok, var(--ok)); }
-.account-success-svg .ok-check { fill: none; stroke: #fff; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 0; animation: account-check-draw .6s .15s ease-out both; }
+.account-success-svg .ok-check { fill: none; stroke: var(--on-solid); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 0; animation: account-check-draw .6s .15s ease-out both; }
 .account-success-svg .art-sparkle { fill: var(--art-lilac, var(--area-cycle)); animation: account-art-twinkle 3.2s ease-in-out infinite; }
 .account-success-svg .art-sparkle.s2 { fill: var(--art-rose, var(--p)); animation-delay: .8s; }
 .account-success-svg .art-sparkle.s3 { animation-delay: 1.6s; }

@@ -61,6 +61,10 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.public-hero a[data-public-action="login"]').textContent().then((text) => /Google/.test(text)),
     'landing informa que é possível entrar com Google');
   const heroTask = page.locator('.public-hero [data-landing-task]').last();
+  check(await page.locator('.public-hero .preview-phone').count() === 1
+    && await page.locator('.preview-phone [data-landing-task]').count() === 3
+    && await page.locator('.public-hero .preview-float').count() === 0,
+  'hero apresenta um único celular com tarefas interativas, sem cartões flutuantes');
   await heroTask.click();
   check(await heroTask.getAttribute('aria-pressed') === 'true'
     && await heroTask.locator('small').textContent() === 'Concluída'
@@ -70,10 +74,10 @@ const check = (passed, name, detail = '') => {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
   check(
     await page.locator('.public-journey-grid').evaluate((grid) => {
-      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().left));
-      return new Set(positions).size === 3 && grid.scrollWidth > grid.clientWidth;
+      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().top));
+      return new Set(positions).size === 3 && grid.scrollWidth <= grid.clientWidth;
     }),
-    'percurso de valor usa uma faixa horizontal rolável no celular',
+    'percurso de valor organiza os três momentos sem rolagem horizontal no celular',
   );
   await page.setViewportSize({ width: 390, height: 844 });
   const termsTrigger = page.locator('[data-legal-document="terms"]').first();

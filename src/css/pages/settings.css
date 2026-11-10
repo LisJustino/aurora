@@ -313,7 +313,7 @@
     display: grid;
     width: auto;
     min-width: 0;
-    min-height: 48px;
+    min-height: var(--control-field);
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 4px;

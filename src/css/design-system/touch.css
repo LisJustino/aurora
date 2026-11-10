@@ -8,7 +8,6 @@
 .pk::after, button.habit-dot::after { content: ""; position: absolute; inset: -5px; }
 a.inline-link { position: relative; }
 a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
-.planning-shortcuts button, .planning-shortcuts a { min-height: var(--control-md); }
 .ibtn, .iconbtn { min-width: var(--control-sm); min-height: var(--control-sm); }
 
 /* Destaques das rotas compartilham superfície e elevação; a área continua identificada pelos detalhes. */
@@ -56,7 +55,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 /* ---- Erro ao lado do campo ---- */
 .field-err { display: block; margin-top: 2px; }
 .f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
-.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--bad); }
+.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
 
 /* ---- Finanças no celular: seções em uma única fileira rolável (antes quebrava em três linhas) ---- */
 @media (max-width: 700px) {

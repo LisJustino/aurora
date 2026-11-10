@@ -98,13 +98,13 @@
     width: fit-content;
     max-width: 100%;
     padding: 4px;
-    border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+    border: 0;
     border-radius: var(--r-pill);
-    background: color-mix(in srgb, var(--surface) 90%, transparent);
-    box-shadow: 0 8px 18px -18px color-mix(in srgb, var(--ink) 48%, transparent);
+    background: transparent;
+    box-shadow: none;
   }
   .topbar .nav a {
-    min-height: 34px;
+    min-height: var(--control-md);
     flex-direction: row;
     gap: 7px;
     padding: 0 14px 0 10px;
@@ -121,8 +121,8 @@
   }
   .topbar .nav a[aria-current="page"] {
     background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
+    border: 0;
+    box-shadow: none;
   }
 }
 
@@ -130,9 +130,9 @@
   .nav {
     border-color: color-mix(in srgb, var(--line-strong) 55%, transparent);
     background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    backdrop-filter: blur(18px) saturate(1.2);
-    box-shadow: 0 -4px 28px -20px color-mix(in srgb, var(--ink) 45%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
   }
   .nav a[aria-current="page"] .ni {
     background: color-mix(in srgb, var(--accent) 16%, var(--surface));
@@ -191,7 +191,7 @@
   .topbar .nav .nav-secondary { display: none !important; }
   .topbar .nav .nav-more-trigger {
     display: inline-flex !important;
-    min-height: 34px;
+    min-height: var(--control-md);
     align-items: center;
     gap: 7px;
     padding: 0 14px 0 10px;
@@ -583,7 +583,7 @@
   .app > .topbar .nav .nav-secondary,
   .app > .topbar .nav .nav-area {
     display: flex !important;
-    min-height: 44px;
+    min-height: var(--control-md);
     flex: none;
     flex-direction: row;
     align-items: center;
@@ -772,6 +772,7 @@
     background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   }
   .quick-actions-menu {
+    position: absolute;
     right: 0;
     bottom: calc(100% + 10px);
     left: 0;
@@ -843,7 +844,7 @@
   .app > .topbar .header-actions .profile-link {
     width: 40px;
     height: 40px;
-    min-height: 40px;
+    min-height: var(--control-sm);
     border: 0;
     border-radius: var(--r-pill);
     background: transparent;
@@ -944,7 +945,7 @@
   .topbar .nav > .nav-primary, .topbar .nav > .nav-more-trigger { min-width: 44px; min-height: 56px; flex: 1 1 0; }
   .topbar .nav > .nav-enable-areas, .topbar .nav > .nav-quick-control > .nav-quick-trigger { display: none; }
   .topbar .nav > .nav-quick-control { display: contents; }
-  .topbar .nav > .nav-primary .tab-label, .topbar .nav > .nav-more-trigger { font-size: 12px; }
+  .topbar .nav > .nav-primary .tab-label, .topbar .nav > .nav-more-trigger { font-size: var(--text-xs); }
 }
 @media (min-width: 900px) {
   .app > .topbar .nav a[aria-current="page"] { background: var(--soft2); }
@@ -1034,7 +1035,7 @@
     content: "";
   }
   .nav-more-menu .nav-more-link {
-    min-height: 54px;
+    min-height: calc(var(--control-lg) + var(--space-half));
     gap: var(--space-3);
     padding-inline: var(--space-2);
     border: 1px solid transparent;
@@ -1049,7 +1050,7 @@
     border-radius: var(--r-pill);
   }
   .nav-more-menu .nav-more-create {
-    min-height: 54px;
+    min-height: calc(var(--control-lg) + var(--space-half));
     margin-top: var(--space-1);
     padding-inline: var(--space-2);
     border-radius: var(--r-control);

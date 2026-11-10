@@ -11,14 +11,6 @@
   transition: border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .card:hover {
-    border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
-  }
-}
-
 .card.flat {
   background: var(--surface-soft);
   box-shadow: none;
@@ -221,15 +213,6 @@
   border-color: var(--line);
   border-radius: var(--r);
   box-shadow: var(--card-shadow);
-  transition: border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .card:hover {
-    border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -99,7 +99,8 @@ const check = (passed, name, detail = '') => {
   await video.waitFor({ state: 'visible' });
   check(await video.getAttribute('autoplay') === null, 'vídeo só abre pela ação explícita e não usa autoplay');
   const sources = await video.locator('source').evaluateAll((items) => items.map(({ type, src }) => ({ type, src })));
-  check(sources.map(({ type }) => type).join(',') === 'video/webm,video/mp4', 'player oferece WebM e fallback MP4');
+  check(sources.map(({ type }) => type).join(',') === 'video/mp4,video/webm', 'player prioriza MP4 e oferece fallback WebM');
+  check(await video.evaluate((element) => element.currentSrc.endsWith('.mp4')), 'navegador compatível escolhe o MP4');
   check(await Promise.all(sources.map(async ({ src }) => (await page.request.get(src)).ok())).then((results) => results.every(Boolean)), 'arquivos WebM e MP4 respondem pela origem local');
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
