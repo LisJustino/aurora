@@ -40,6 +40,16 @@ assert.match(installmentFinanceMigration, /add column if not exists anticipated_
 assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
 assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
 assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
+const goalAccountMigration = await readFile(
+  new URL('../supabase/migrations/20261110000000_finance_goal_account_link.sql', import.meta.url),
+  'utf8',
+);
+assert.match(goalAccountMigration, /add column if not exists linked_account_id uuid/i);
+assert.match(goalAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
+assert.match(goalAccountMigration, /references public\.finance_accounts \(user_id, id\)/i);
+assert.match(goalAccountMigration, /on delete restrict/i);
+assert.match(goalAccountMigration, /where linked_account_id is not null and deleted_at is null/i);
+assert.doesNotMatch(goalAccountMigration, /update\s+public\.finance_goals/i);
 const taskIconsMigration = await readFile(
   new URL('../supabase/migrations/20261104210000_task_icons.sql', import.meta.url),
   'utf8',
@@ -154,7 +164,7 @@ const client = {
 const state = {
   settings: {
     profile: { name: 'Pessoa', preferredName: 'Pessoa' },
-    areas: { finances: true },
+    areas: { finances: true, gym: true },
     lists: [],
     cats: { out: [], in: [] },
     prefs: {
@@ -174,6 +184,12 @@ const state = {
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
       profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      annualPlans: {
+        2027: {
+          intention: 'Abrir espaço para o que importa.',
+          goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+        },
+      },
       homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
       homeMode: 'focus',
       homeModes: {
@@ -189,7 +205,7 @@ const state = {
     introSeen: true,
   },
   tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
-  pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
+  pomodoro: { elapsedSeconds: 120, startedAt: null, phase: 'focus', phaseElapsedSeconds: 120, completedPomodoros: 3, dailyCompletedPomodoros: 2, dailyCompletedOn: '2026-10-29', history: { '2026-10-29': 2 } },
   habits: [{
     id: 'water-habit',
     name: 'Beber água',
@@ -201,7 +217,10 @@ const state = {
   }],
   water: [{ id: 'water-log-1', ml: 250, at: '2026-10-29T12:00:00.000Z' }],
   checkins: [{ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'] }],
-  gym: { templates: [], logs: [] },
+  gym: {
+    templates: [{ id: 'legacy-template', name: 'Treino antigo', exercises: ['Alongamento'] }],
+    logs: [{ id: 'legacy-workout', date: '2026-10-29', name: 'Treino antigo', minutes: 25, notes: 'Registro preservado' }],
+  },
   finance: {
     accounts: [
       { id: 'account-1', name: 'Conta', type: 'checking', initialCents: 0 },
@@ -217,7 +236,14 @@ const state = {
       { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
     ],
     budgets: { Mercado: { cents: 5000 } },
-    goals: [],
+    goals: [{
+      id: 'goal-1',
+      name: 'Reserva',
+      targetCents: 50000,
+      savedCents: 10000,
+      deadline: null,
+      linkedAccountId: 'investment-1',
+    }],
     recurring: [{
       id: 'rec-rent',
       type: 'out',
@@ -263,6 +289,8 @@ assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment
 assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');
 assert.equal(accountRowsByLegacyId.get('card-1').linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(accountRowsByLegacyId.get('card-stale-link').linked_account_id, null);
+const goalRow = changeByTable.get('finance_goals').find((row) => row.legacy_id === 'goal-1');
+assert.equal(goalRow.linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-cash').account_id, accountRowsByLegacyId.get('cash-legacy').id);
 assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking', 'savings', 'investment']);
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
@@ -297,6 +325,12 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
 });
@@ -312,12 +346,16 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.foc
   layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
   shortcuts: ['task', 'pomodoro'],
 });
-assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
+assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true, gym: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
 assert.equal(changeByTable.has('study_sessions'), false);
 assert.equal(changeByTable.get('timer_state')[0].timer_kind, 'pomodoro');
 assert.equal(Object.hasOwn(changeByTable.get('timer_state')[0], 'subject_id'), false);
+assert.equal(changeByTable.get('pomodoro_daily_stats')[0].completed_count, 2);
+assert.equal(changeByTable.get('gym_templates')[0].name, 'Treino antigo');
+assert.equal(changeByTable.get('gym_template_exercises')[0].name, 'Alongamento');
+assert.equal(changeByTable.get('gym_logs')[0].notes, 'Registro preservado');
 assert.equal(writes[0].args.p_changes[0].replace_missing, true);
 assert.ok(changeByTable.get('tasks').every((row) => row.expected_updated_at === null));
 
@@ -361,9 +399,22 @@ const loadClient = {
   },
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
+assert.equal(loadedState.settings.areas.gym, true);
+assert.equal(loadedState.pomodoro.elapsedSeconds, 120);
+assert.equal(loadedState.pomodoro.completedPomodoros, 3);
+assert.deepEqual(loadedState.pomodoro.history, { '2026-10-29': 2 });
+assert.deepEqual(loadedState.gym.templates[0].exercises, ['Alongamento']);
+assert.equal(loadedState.gym.templates[0].id, 'legacy-template');
+assert.equal(loadedState.gym.logs[0].id, 'legacy-workout');
+assert.equal(loadedState.gym.logs[0].notes, 'Registro preservado');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
+assert.equal(loadedState.finance.goals.find((goal) => goal.id === 'goal-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
+const loadedInvestment = loadedState.finance.accounts.find((account) => account.id === 'investment-1');
+for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {
+  assert.equal(Object.hasOwn(loadedInvestment, field), false, `Campo opcional ${field} deve ficar ausente quando o banco retorna null`);
+}
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
 assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
 assert.deepEqual(loadedState.checkins, [{
@@ -371,6 +422,12 @@ assert.deepEqual(loadedState.checkins, [{
 }]);
 assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
 });
 assert.deepEqual(loadedState.settings.prefs.homeLayout, {
   order: ['today', 'summary', 'quick', 'habits'],

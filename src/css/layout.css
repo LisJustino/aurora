@@ -32,6 +32,11 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+.main { view-transition-name: route-page; }
+::view-transition-old(route-page) { animation: 120ms ease both route-page-out; }
+::view-transition-new(route-page) { animation: 160ms ease both route-page-in; }
+@keyframes route-page-out { to { opacity: 0; transform: translateX(-6px); } }
+@keyframes route-page-in { from { opacity: 0; transform: translateX(6px); } }
 
 .topbar {
   position: sticky;
@@ -146,7 +151,7 @@
 }
 .nav-enable-areas .ni { background: var(--soft2); color: var(--accent); }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .main { padding: clamp(var(--space-6), 3vw, var(--space-7)) clamp(20px, 4vw, 52px) 80px; }
   .app-footer { padding: 12px clamp(20px, 4vw, 52px) 24px; }
   .topbar {
@@ -162,7 +167,7 @@
   }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     right: 0;
     left: 0;
@@ -171,10 +176,10 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .nav { bottom: 0; width: 100%; margin: 0; border-radius: var(--r-large) var(--r-large) 0 0; }
 }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .main { padding-bottom: calc(var(--nav-h) + 64px + env(safe-area-inset-bottom, 0px)); }
 }

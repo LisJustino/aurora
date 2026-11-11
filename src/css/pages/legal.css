@@ -246,7 +246,7 @@
   outline-offset: var(--space-half);
 }
 
-@media (max-width: 520px) {
+@media (width <= 480px) {
   .legal-header {
     align-items: flex-start;
     flex-direction: column;

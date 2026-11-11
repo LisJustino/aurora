@@ -4,9 +4,9 @@ import { icon } from '../../utils/icons.js';
 
 export function createFinanceDialogViews(dependencies) {
   const {
-    ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+    ui, S, catNames,
     accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
-    categoryMatch, recById, today, dlgWrap, dlgField, closeBtn,
+    categoryMatch, categoryInfo, recById, today, dlgWrap, dlgField, closeBtn,
     anticipationCandidates,
   } = dependencies;
   return { transaction };
@@ -28,13 +28,7 @@ function transaction() {
       ${hasInstallmentInterest ? dlgField(h`Juros desta parcela (<span class="money">R$</span>)`, h`<input class="money-input" type="text" inputmode="decimal" data-dlg="interest" value="${formatMoneyInput(d.interest || '')}" placeholder="00,00" autocomplete="off">`, 'full') : ''}
       ${!edit && hasInstallmentInterest ? h`<p class="fine full">Informe zero se não houver juros. O valor é informativo e já está incluído na parcela; as demais podem ser editadas individualmente.</p>` : ''}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => h`<option class="expense-name" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}
-      ${!tr && d.category === '__new' ? h`
-        ${topCategoryNames(d.kind === 'in' ? 'in' : 'out').length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="newParent"><option value="">Nenhuma</option>${topCategoryNames(d.kind === 'in' ? 'in' : 'out').map((name) => h`<option value="${name}" ${d.newParent === name ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select>`, 'full') : ''}
-        ${dlgField('Nome da nova categoria', h`<input type="text" data-dlg="newName" value="${d.newName || ''}" maxlength="30" placeholder="Ex.: Pets" autocomplete="off">`, 'full')}
-        ${dlgField('Ícone', h`<select data-dlg="newIcon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.newIcon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
-        ${dlgField('Cor', h`<input type="color" data-dlg="newColor" value="${d.newColor || (d.newParent ? categoryMatch(d.kind === 'in' ? 'in' : 'out', d.newParent)?.category.color : LIST_COLORS[0]) || LIST_COLORS[0]}" aria-label="Cor da nova categoria">`)}
-      ` : ''}
+      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => { const meta = categoryInfo(d.kind === 'in' ? 'in' : 'out', c); return h`<option class="expense-name" data-icon="${meta.i}" data-color="${meta.c}" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`; })}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}
       ${formSection(tr ? 'Contas da transferência' : 'Conta e período')}
       ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data do lançamento', h`<input type="date" data-dlg="date" value="${d.date}">`)}

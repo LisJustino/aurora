@@ -35,7 +35,7 @@
 .task-sort-field { flex: 0 0 132px; }
 .plan-progress { margin: var(--space-2) 0 var(--space-half); }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .grp { padding-inline: var(--space-3); }
   .card.plain > .list, .card.plain #task-results > .list { padding-inline: var(--space-3); }
 }

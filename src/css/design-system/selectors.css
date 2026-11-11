@@ -64,10 +64,10 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-@media (max-width: 899px) {
+@media (width < 900px) {
   .appearance-settings-controls { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .menu-order-item { align-items: flex-start; padding-left: 10px; }
   .menu-order-label { flex-wrap: wrap; gap: 6px; padding-block: 8px; }
   .menu-order-controls { gap: 0; }

@@ -1,8 +1,9 @@
 import { addDays, dayDiff, isDay } from '../../utils/dates.js';
 
-export function estimatedCyclePhase(day, starts, averageLength, periodDays = new Set()) {
+export function estimatedCyclePhase(day, starts, averageLength, periodDays = new Set(), canEstimateFertility = true) {
   if (!isDay(day)) return '';
   if (periodDays.has(day)) return 'menstruation';
+  if (!canEstimateFertility) return '';
   if (!Number.isInteger(averageLength) || averageLength < 15 || averageLength > 60) return '';
 
   const validStarts = (Array.isArray(starts) ? starts : []).filter(isDay).sort();

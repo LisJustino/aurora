@@ -16,6 +16,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
         await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
         const loader = page.locator('#app > main');
         const spinner = loader.locator('.account-loading-indicator');
+        const skeleton = loader.locator('.account-loading-skeleton');
         await loader.waitFor({ state: 'visible' });
         await page.waitForTimeout(300);
         const state = await loader.evaluate((element) => {
@@ -32,9 +33,15 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
         assert.deepEqual(state.document, [viewport.width, viewport.height]);
         assert.equal(state.bodyOverflow, 'hidden');
         assert.equal(state.role, 'status');
-        assert.ok(state.content.top >= 0 && state.content.bottom <= viewport.height);
+        assert.ok(
+          state.content.top >= 0 && state.content.bottom <= viewport.height,
+          `${viewport.width}x${viewport.height}: ${JSON.stringify(state.content)}`,
+        );
         assert.ok(state.content.left >= 0 && state.content.right <= viewport.width);
         assert.equal(await loader.locator('.account-loading-message').textContent(), 'Preparando seu espaço…');
+        assert.equal(await skeleton.locator('.loading-skeleton-row').count(), 3);
+        assert.equal(await skeleton.getAttribute('aria-hidden'), 'true');
+        assert.equal(await skeleton.locator('.loading-skeleton-heading').evaluate((element) => getComputedStyle(element).animationName), 'account-loading-shimmer');
         const start = await spinner.evaluate((element) => element.getAnimations()[0].currentTime);
         await page.waitForTimeout(200);
         const end = await spinner.evaluate((element) => element.getAnimations()[0].currentTime);
@@ -44,6 +51,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
         assert.equal(await loader.locator('.account-loading-brand-text').evaluate((element) => getComputedStyle(element).color), 'rgb(53, 27, 61)');
         await page.emulateMedia({ reducedMotion: 'reduce' });
         assert.equal(await spinner.evaluate((element) => getComputedStyle(element).animationName), 'none');
+        assert.equal(await skeleton.locator('.loading-skeleton-heading').evaluate((element) => getComputedStyle(element).animationName), 'none');
         await page.emulateMedia({ reducedMotion: 'no-preference' });
 
         await loader.evaluate((element) => element.remove());

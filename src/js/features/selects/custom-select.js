@@ -1,3 +1,5 @@
+import { iconSvg } from '../../utils/icons.js';
+
 const controlsBySelect = new WeakMap();
 const documentObservers = new WeakMap();
 const controls = new Set();
@@ -57,6 +59,23 @@ function setActiveOption(control, index, scroll = true) {
   }
 }
 
+function setOptionContent(element, option) {
+  const label = normalizeText(option.label);
+  if (!option.dataset.icon) {
+    element.textContent = label;
+    return;
+  }
+  const marker = element.ownerDocument.createElement('span');
+  marker.className = 'ds-select__category-icon';
+  marker.setAttribute('aria-hidden', 'true');
+  if (option.dataset.color) marker.style.setProperty('--select-option-color', option.dataset.color);
+  marker.innerHTML = iconSvg(option.dataset.icon, 18);
+  const text = element.ownerDocument.createElement('span');
+  text.className = 'ds-select__category-label';
+  text.textContent = label;
+  element.replaceChildren(marker, text);
+}
+
 function createOption(control, option, index) {
   const element = control.document.createElement('div');
   element.className = 'ds-select__option';
@@ -67,7 +86,7 @@ function createOption(control, option, index) {
   element.setAttribute('aria-disabled', String(disabledOption(option)));
   element.setAttribute('aria-posinset', String(index + 1));
   element.setAttribute('aria-setsize', String(control.select.options.length));
-  element.textContent = normalizeText(option.label);
+  setOptionContent(element, option);
   return element;
 }
 
@@ -216,7 +235,8 @@ function syncControl(control) {
   const { select, trigger } = control;
   if (activeControl === control && select.matches(':disabled')) closeMenu(control);
   const selected = select.options[select.selectedIndex];
-  trigger.textContent = selected ? normalizeText(selected.label) : '';
+  if (selected) setOptionContent(trigger, selected);
+  else trigger.textContent = '';
   trigger.setAttribute('aria-disabled', String(select.matches(':disabled')));
   trigger.tabIndex = select.matches(':disabled') ? -1 : control.tabIndex;
 

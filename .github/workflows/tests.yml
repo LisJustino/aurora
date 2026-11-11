@@ -17,6 +17,8 @@ jobs:
           node-version: 24
       - name: Install application dependencies
         run: npm ci
+      - name: Check JavaScript
+        run: npm run lint
       - name: Run application tests
         run: npm test
       - name: Install Supabase CLI

@@ -79,14 +79,14 @@
   text-underline-offset: .18em;
 }
 
-@media (max-width: 380px) {
+@media (width < 480px) {
   .header-actions { gap: 0; }
   .header-actions .iconbtn { width: 44px; height: 44px; }
   .topbar .brand { gap: 4px; }
   .topbar .wordmark { font-size: var(--text-lg); }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .app > .topbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
