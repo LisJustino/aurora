@@ -12,7 +12,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.goto(`${base}/?preview#inicio`);
     await page.locator('.home-today-card').waitFor();
     const home = await page.evaluate(() => {
-      const nav = [...document.querySelectorAll('.nav > .nav-primary, .nav > .nav-more-trigger')];
+      const nav = [...document.querySelectorAll('.nav > a:not(.nav-enable-areas)')];
       const row = document.querySelector('.home-today-card .task');
       return {
         labels: nav.filter((item) => getComputedStyle(item).display !== 'none').map((item) => (item.querySelector('.tab-label') || item).textContent.trim()),
@@ -22,15 +22,13 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         ring: document.querySelector('.home-head .ringw').getBoundingClientRect().width,
       };
     });
-    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Hábitos', 'Mais']);
+    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Ciclo', 'Hábitos']);
     assert(home.targets.every(([width, height, font]) => width >= 44 && height >= 44 && font >= 12));
     assert.equal(home.card, false);
     assert.equal(home.radius, '0px');
     assert.equal(home.ring, 64);
-    await page.locator('.nav-more-trigger').click();
-    assert.equal(await page.locator('#nav-more-menu a[href="/config"]').count(), 0);
+    assert.equal(await page.locator('.nav-more-trigger').isVisible(), false);
     assert.equal(await page.locator('.profile-link[href="/config"]').isVisible(), true);
-    await page.locator('.nav-more-trigger').click();
     await page.locator('.nav > a[href="/planejar"]').click();
     assert.equal(await page.locator('[data-action="plan-view"][data-v="lista"]').getAttribute('aria-pressed'), 'true');
     await page.locator('[data-action="plan-view"][data-v="semana"]').click();
@@ -48,19 +46,41 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.locator('[data-action="plan-view"][data-v="lista"]').click();
     await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').click();
     assert.equal(await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');
-    await page.locator('[data-action="plan-view"][data-v="anual"]').click();
+    await page.locator('.area-page-actions [data-action="plan-view"][data-v="anual"]').click();
     const annualYear = Number(await page.locator('[data-change="annual-plan-year"]').inputValue());
     assert.equal(annualYear, new Date().getFullYear() + 1);
     await page.locator('#annual-intention').fill('Abrir espaço para o que importa.');
     await page.locator('.annual-intention-form button[type="submit"]').click();
     assert.equal(await page.locator('#annual-intention').inputValue(), 'Abrir espaço para o que importa.');
-    await page.locator('.annual-goal-title-field input').fill('Fazer uma viagem especial');
-    await page.locator('.annual-goal-action-field input').fill('Pesquisar destinos e custos');
+    assert.equal(await page.locator('.annual-quarter').count(), 5);
+    assert.equal(await page.locator('.annual-ideas').getAttribute('open'), null);
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 0);
+    await page.locator('.annual-ideas-summary').click();
+    assert.notEqual(await page.locator('.annual-ideas').getAttribute('open'), null);
+    assert.equal(await page.locator('[data-annual-idea]').count(), 24);
+    assert.equal(await page.locator('.annual-ideas-categories [data-action="annual-idea-category"]').count(), 7);
+    const annualIdeaSearch = page.locator('[data-input="annual-ideas-search"]');
+    await annualIdeaSearch.fill('viagem');
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 1);
+    await page.locator('[data-annual-idea="plan-trip"]').click();
+    assert.equal(await page.locator('.annual-goal-title-field input').inputValue(), 'Fazer uma viagem especial');
+    assert.equal(await page.locator('.annual-goal-action-field input').inputValue(), 'Pesquisar destinos e custos sem pressa.');
+    assert.equal(await page.locator('.annual-goal').count(), 0);
+    assert.notEqual(await page.locator('.annual-ideas').getAttribute('open'), null);
     await page.locator('.annual-goal-quarter-field select').selectOption('q2');
     await page.locator('.annual-goal-form button[type="submit"]').click();
     const annualGoal = page.locator('.annual-goal').filter({ hasText: 'Fazer uma viagem especial' });
     assert.equal(await annualGoal.count(), 1);
-    assert.match(await annualGoal.innerText(), /2º trimestre/);
+    assert.equal(await annualGoal.evaluate((goal) => goal.closest('.annual-quarter').dataset.quarter), 'q2');
+    await annualIdeaSearch.fill('');
+    await page.locator('[data-action="annual-idea-category"][data-category="dinheiro"]').click();
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 4);
+    await page.locator('[data-action="annual-ideas-clear"]').click();
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 24);
+    await page.locator('.annual-ideas-summary').click();
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 0);
+    await page.locator('.annual-ideas-summary').click();
+    assert.equal(await page.locator('[data-annual-idea]:visible').count(), 24);
     await annualGoal.locator('[data-action="annual-goal-edit"]').click();
     await page.locator('.annual-goal-title-field input').fill('Fazer uma viagem marcante');
     await page.locator('.annual-goal-form button[type="submit"]').click();
@@ -70,9 +90,11 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await editedGoal.locator('[data-action="annual-goal-delete"]').click();
     await page.locator('[data-action="action-confirm-accept"]').click();
     assert.equal(await page.locator('.annual-goal').count(), 0);
-    for (const width of [390, 1440]) {
+    for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      const roadmapColumns = await page.locator('.annual-roadmap').evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').length);
+      assert.equal(roadmapColumns, width < 480 ? 1 : width >= 1050 ? 4 : 2);
     }
     await page.goto(`${base}/?preview#financas`);
     await page.locator('.fin-section-option[data-t="orcamento"]').click();
@@ -125,7 +147,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     }
     assert.deepEqual(errors, []);
-    console.log('OK — hierarquia, dock, semana, filtros, plano anual e objetivos financeiros');
+    console.log('OK — hierarquia, dock, semana, filtros, roteiro anual por trimestre e objetivos financeiros');
   } finally {
     await browser.close();
   }

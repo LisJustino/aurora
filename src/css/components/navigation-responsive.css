@@ -372,7 +372,7 @@
     max-width: 88px;
     flex: 1 1 72px;
   }
-  .nav .nav-secondary { display: none !important; }
+  .nav .nav-secondary { display: none; }
   .nav .nav-more-trigger {
     display: flex;
     min-height: 56px;
@@ -1219,4 +1219,28 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-toggle { transition: none; }
+}
+
+@media (width < 900px) {
+  .app > .topbar .header-actions { gap: var(--space-2); }
+  .app > .topbar .nav > .nav-more-trigger { display: none; }
+  .app > .topbar .nav > .nav-secondary {
+    display: flex;
+    min-width: 44px;
+    min-height: 56px;
+    max-width: none;
+    flex: 1 1 0;
+    border: 1px solid transparent;
+    border-radius: var(--r-control);
+  }
+  .app > .topbar .nav > .nav-secondary[aria-current="page"] {
+    border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    font-weight: var(--weight-bold);
+  }
+  .app > .topbar .nav > .nav-secondary .tab-label-group {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

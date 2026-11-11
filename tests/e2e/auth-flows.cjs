@@ -262,6 +262,18 @@ async function main() {
       }
       return jsonResponse(route, 200, [], corsOrigin);
     }
+    if (endpoint === 'POST /rest/v1/rpc/apply_relational_changes') {
+      const { p_changes: changes } = request.postDataJSON();
+      if (!Array.isArray(changes)) {
+        unexpectedAuthRequests.push(endpoint);
+        return jsonResponse(route, 400, { message: 'Missing relational changes' }, corsOrigin);
+      }
+      const savedAt = new Date().toISOString();
+      return jsonResponse(route, 200, changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({ ...row, updated_at: savedAt })),
+      })), corsOrigin);
+    }
     if (endpoint === 'POST /auth/v1/signup') {
       signupRequests += 1;
       const body = request.postDataJSON();
@@ -398,7 +410,7 @@ async function main() {
       birthday_reference_date: '2026-01-01',
       terms_accepted_at: '2026-01-01T00:00:00.000Z',
       terms_version: '1.9',
-      privacy_policy_version: '1.9',
+      privacy_policy_version: '2.0',
     };
     simulateRelational = true;
     for (const destination of ['/inicio', '/planejar', '/financas', '/habitos']) {
@@ -420,6 +432,44 @@ async function main() {
       assert.equal(await page.locator('.public-site').count(), 0);
       if (destination === '/inicio') {
         await page.locator('.main[data-route="inicio"] > .home-head h1').waitFor();
+        const onboarding = page.locator('#dlg[data-dialog-type="onboard"]');
+        await onboarding.waitFor({ state: 'visible' });
+        assert.match(await onboarding.innerText(), /Um espaço para organizar a vida do seu jeito/,
+          'primeiro acesso apresenta o que dá para fazer no Aurora');
+        for (const area of ['Início', 'Planejar', 'Hábitos', 'Finanças']) {
+          assert.ok(await onboarding.getByText(area, { exact: true }).count() > 0,
+            `visão geral apresenta ${area}`);
+        }
+        assert.equal(await onboarding.locator('.steps').getAttribute('aria-label'), 'Passo 1 de 5');
+        for (const width of [320, 390, 1280]) {
+          await page.setViewportSize({ width, height: 850 });
+          const layout = await onboarding.evaluate((dialog) => ({
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+            right: dialog.getBoundingClientRect().right,
+          }));
+          assert.ok(layout.documentWidth <= layout.viewportWidth, `visão geral sem overflow em ${width}px`);
+          assert.ok(layout.right <= layout.viewportWidth, `diálogo cabe em ${width}px`);
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+        await onboarding.locator('[data-action="ob-next"]').click();
+        assert.ok(await onboarding.getByRole('heading', { name: 'O que você quer melhorar no seu dia a dia?' }).count());
+        await onboarding.locator('[data-action="ob-next"]').click();
+        await onboarding.locator('[data-action="ob-next"]').click();
+        await onboarding.locator('[data-action="ob-next"]').click();
+        assert.ok(await onboarding.getByRole('heading', { name: 'Quer ver o Aurora em ação?' }).count(),
+          'depois da personalização o primeiro acesso oferece um tour opcional');
+        assert.ok(await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').count());
+        await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').click();
+        const onboardingGuide = page.locator('#dlg[data-dialog-type="area-tutorial"]');
+        await onboardingGuide.waitFor({ state: 'visible' });
+        assert.equal(await onboardingGuide.locator('.area-tutorial-video').getAttribute('autoplay'), null,
+          'tutorial escolhido não inicia automaticamente');
+        await onboardingGuide.locator('[data-action="dlg-close"]').first().click();
+        await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
+        if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
+          await page.locator('#dlg [data-action="dlg-close"]').click();
+        }
         const firstSteps = page.locator('.home-first-steps');
         await firstSteps.locator('summary').evaluate((element) => element.click());
         await page.waitForTimeout(0);

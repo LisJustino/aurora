@@ -60,7 +60,7 @@ export function renderHabitsView(dependencies) {
   const todaySummary = eligibleToday
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
-  const ideasOpen = ui.openDetails.ideas ?? S.habits.length === 0 ? raw('open') : '';
+  const ideasOpen = ui.openDetails.ideas ? raw('open') : '';
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
     .map((category) => ({
       ...category,

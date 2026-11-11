@@ -54,7 +54,14 @@ import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/temp
 import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
 import { filteredTasks as selectFilteredTasks, todayTasks as selectTodayTasks } from './features/planning/task-selection.js';
-import { ANNUAL_PLAN_LIMITS, isValidAnnualPlans, normalizeAnnualPlans } from './features/planning/annual-plan.js';
+import {
+  ANNUAL_PLAN_IDEA_CATEGORIES,
+  ANNUAL_PLAN_IDEAS,
+  ANNUAL_PLAN_LIMITS,
+  filterAnnualPlanIdeas,
+  isValidAnnualPlans,
+  normalizeAnnualPlans,
+} from './features/planning/annual-plan.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
@@ -242,7 +249,14 @@ import {
   sortTrashEntriesByExpiry,
   trashDaysRemaining,
 } from './features/trash/model.js';
-import { CYCLE_CONTRACEPTION_METHODS, isValidCycleSexualLog } from './features/cycle/log.js';
+import {
+  CYCLE_CONTRACEPTION_METHODS,
+  CYCLE_SOCIAL_OPTIONS,
+  CYCLE_TEST_RESULTS,
+  isValidCycleSexualLog,
+  isValidCycleSocialLog,
+  isValidCycleTrackingLog,
+} from './features/cycle/log.js';
 'use strict';
 
 function setupKeyboardViewportSafety() {
@@ -454,7 +468,7 @@ const writeSidebarCollapsed = (collapsed) => {
     else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
   } catch { /* storage indisponível */ }
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Number(today().slice(0, 4)) + 1), annualEditingGoalId: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Number(today().slice(0, 4)) + 1), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const toastController = createToastController({
   readToast: () => ui.toast,
   writeToast: (toast) => { ui.toast = toast; },
@@ -847,6 +861,8 @@ const isValidRecurring = (record) => isPlainObject(record)
 const isValidCycleLog = (record) => isPlainObject(record)
   && ['flow', 'energy', 'sleep', 'discharge', 'note'].every((key) => optional(record, key, isText))
   && ['pain', 'mood', 'digestion', 'skin'].every((key) => optional(record, key, (value) => Array.isArray(value) && value.every(isText)))
+  && isValidCycleSocialLog(record)
+  && isValidCycleTrackingLog(record)
   && optional(record, 'orgasmCount', (value) => Number.isInteger(value) && value >= 0 && value <= 99)
   && isValidCycleSexualLog(record);
 const isValidCycleEntry = (record) => isPlainObject(record)
@@ -1400,7 +1416,8 @@ function restoreTrashEntry(id) {
     return false;
   }
   const dataSlices = [...new Set(entry.records.map((record) => trashSlice(record.collection)))];
-  const slices = [...new Set([...dataSlices, 'settings'])];
+  const restoresCycleWeight = entry.records.some((record) => record.collection === 'cycleLog' && Number.isFinite(record.value.weightKg));
+  const slices = [...new Set([...dataSlices, 'settings', ...(restoresCycleWeight ? ['habits'] : [])])];
   if (slices.some((slice) => ui.persistBlocked.has(slice))) {
     toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.', 'error');
     return false;
@@ -1468,6 +1485,7 @@ function restoreTrashEntry(id) {
   }
   dataSlices.forEach((slice) => { S[slice] = drafts[slice]; });
   S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
+  if (restoresCycleWeight) syncLatestCycleWeight();
   if (!saveSlicesWithRollback(slices, snapshot)) return false;
   toast(`${entry.label} restaurado.`, 'success');
   requestAnimationFrame(() => {
@@ -1551,6 +1569,7 @@ function notificationsHtml() {
   const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
+    <p class="small muted">Os lembretes de tarefas e hábitos aparecem aqui enquanto o Aurora está aberto. Avisos do sistema são opcionais, somente para hábitos, e dependem da permissão do navegador e da configuração do serviço.</p>
     ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
@@ -2837,7 +2856,7 @@ function disconnectGoogleCalendar(accountId) {
 }
 function viewPlanejar() {
   const f = ui.filters;
-  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
+  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual" aria-pressed="${ui.planView === 'anual'}">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
       <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão'], ['anual', 'Plano anual']].map(([value, label]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${label}</button>`)}</div></div>
       ${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
@@ -2859,37 +2878,93 @@ function annualPlanView() {
   const goals = plan.goals || [];
   const completed = goals.filter((goal) => goal.done).length;
   const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
-  const quarterLabels = { q1: '1º trimestre', q2: '2º trimestre', q3: '3º trimestre', q4: '4º trimestre' };
+  const quarterData = [
+    { id: 'q1', title: '1º trimestre', months: 'jan — mar' },
+    { id: 'q2', title: '2º trimestre', months: 'abr — jun' },
+    { id: 'q3', title: '3º trimestre', months: 'jul — set' },
+    { id: 'q4', title: '4º trimestre', months: 'out — dez' },
+    { id: '', title: 'Ao longo do ano', months: 'sem data definida' },
+  ];
+  const goalCard = (goal) => h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
+    <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
+    <div class="annual-goal-content"><h4>${goal.title}</h4>
+      ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}</div>
+    <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
+    <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
+  </li>`;
+  const ideas = filterAnnualPlanIdeas(ui.annualIdeaCategory, ui.annualIdeaQuery);
+  const visibleIdeaIds = new Set(ideas.map((idea) => idea.id));
+  const goalForm = (quarter) => h`<form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
+    <label class="annual-goal-title-field"><span>Conquista</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ui.annualGoalDraft?.title || ''}"></label>
+    <label class="annual-goal-action-field"><span>Primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ui.annualGoalDraft?.action || ''}"></label>
+    <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${quarterData.slice(0, 4).map(({ id, title }) => h`<option value="${id}" ${quarter === id ? raw('selected') : ''}>${title}</option>`)}</select></label>
+    <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button><button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button></div>
+  </form>`;
+  const activeIdeaFilters = ui.annualIdeaCategory !== 'all' || Boolean(String(ui.annualIdeaQuery || '').trim());
   return h`<section class="annual-planner" aria-labelledby="annual-plan-title">
-    <header class="annual-plan-heading">
-      <div><p class="section-kicker">Um ano de cada vez</p><h2 id="annual-plan-title">O que você quer conquistar em ${year}?</h2>
-        <p class="small muted">Escolha uma direção e transforme suas ideias em passos possíveis.</p></div>
-      <label class="annual-year-select"><span>Ano do plano</span><select data-change="annual-plan-year" aria-label="Ano do plano">${years.map((option) => h`<option value="${option}" ${option === year ? raw('selected') : ''}>${option}</option>`)}</select></label>
+    <header class="annual-plan-hero">
+      <div class="annual-plan-hero-copy"><p class="section-kicker">Seu próximo capítulo</p><h2 id="annual-plan-title">Um ano com intenção.</h2><p>Escolha o que importa e distribua suas conquistas ao longo de ${year}.</p>
+        <label class="annual-year-select"><span>Planejando o ano de</span><select data-change="annual-plan-year" aria-label="Ano do plano">${years.map((option) => h`<option value="${option}" ${option === year ? raw('selected') : ''}>${option}</option>`)}</select></label>
+      </div>
+      <div class="annual-plan-progress-card" aria-label="Resumo das conquistas do ano">
+        <span class="annual-plan-progress-ring" style="--annual-progress:${goals.length ? Math.round(completed / goals.length * 100) : 0}%"><b>${goals.length ? `${Math.round(completed / goals.length * 100)}%` : '—'}</b></span>
+        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${completed} concluída(s) · ${goals.length - completed} em andamento</small></span>
+      </div>
     </header>
     <form class="annual-intention-form" data-form="annual-intention">
-      <label for="annual-intention">Minha intenção para ${year}</label>
-      <textarea id="annual-intention" name="intention" rows="3" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: cuidar melhor do meu tempo e abrir espaço para o que importa.">${plan.intention}</textarea>
-      <div class="annual-intention-footer"><p class="fine">Uma frase para orientar suas escolhas ao longo do ano.</p><button type="submit" class="btn">Salvar intenção</button></div>
+      <label for="annual-intention"><span class="annual-intention-label">Sua intenção para ${year}</span><span class="annual-intention-hint">O que você quer sentir, mudar ou priorizar neste ano?</span></label>
+      <textarea id="annual-intention" name="intention" rows="2" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: ter mais tempo para mim e para quem amo.">${plan.intention}</textarea>
+      <button type="submit" class="btn sm">${plan.intention ? 'Atualizar intenção' : 'Salvar intenção'}</button>
     </form>
-    <section class="annual-goals" aria-labelledby="annual-goals-title">
-      <div class="annual-goals-heading"><div><p class="section-kicker">Do desejo à prática</p><h3 id="annual-goals-title">Conquistas do ano</h3></div>
-        <span class="badge">${completed} de ${goals.length} concluídas</span></div>
-      ${goals.length ? h`<div class="annual-progress" role="progressbar" aria-label="Progresso das conquistas de ${year}" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${goals.length}"><span style="width:${Math.round(completed / goals.length * 100)}%"></span></div>` : ''}
-      ${goals.length ? h`<ul class="annual-goal-list">${goals.map((goal) => h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
-        <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
-        <div class="annual-goal-content"><div class="annual-goal-title-row"><h4>${goal.title}</h4>${goal.quarter ? h`<span class="badge">${quarterLabels[goal.quarter]}</span>` : ''}</div>
-          ${goal.action ? h`<p class="small muted">Primeiro passo: ${goal.action}</p>` : ''}</div>
-        <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
-        <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
-      </li>`)}</ul>` : h`<p class="annual-empty">Suas conquistas para ${year} aparecem aqui. Comece pela que mais importa para você.</p>`}
-      <form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
-        <label class="annual-goal-title-field"><span>${editing ? 'Conquista' : 'O que você quer conquistar?'}</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ''}"></label>
-        <label class="annual-goal-action-field"><span>Um primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ''}"></label>
-        <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${Object.entries(quarterLabels).map(([value, label]) => h`<option value="${value}" ${editing?.quarter === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
-        <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button>${editing ? h`<button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button>` : ''}</div>
-      </form>
-    </section>
+    <details class="annual-ideas" id="d-annual-ideas" aria-labelledby="annual-ideas-title" ${ui.openDetails['annual-ideas'] ? raw('open') : ''}>
+      <summary class="annual-ideas-summary"><span><b id="annual-ideas-title">Ideias para o seu ano</b><small>Inspirações para escolher no seu ritmo.</small></span><span class="annual-ideas-count">${ANNUAL_PLAN_IDEAS.length}</span>${icon('chevDown', 18, 'annual-ideas-chevron')}</summary>
+      <div class="annual-ideas-content">
+        <div class="annual-ideas-heading"><p>Escolha uma inspiração para preencher a conquista e o primeiro passo. Você revisa tudo antes de adicionar.</p></div>
+        <div class="annual-ideas-controls">
+          <label class="annual-ideas-search"><span>Buscar ideias</span><input type="search" data-input="annual-ideas-search" value="${ui.annualIdeaQuery}" placeholder="Ex.: viagem, estudos, descanso"></label>
+          <div class="annual-ideas-filter-status"><span class="annual-ideas-result-count" data-annual-ideas-count role="status" aria-live="polite">${ideas.length} ${plural(ideas.length, 'ideia encontrada', 'ideias encontradas')}</span><button type="button" class="btn ghost sm" data-action="annual-ideas-clear" ${activeIdeaFilters ? '' : raw('hidden')}>Limpar busca e filtros</button></div>
+        </div>
+        <div class="annual-ideas-categories" role="group" aria-label="Filtrar ideias por categoria">
+          ${[['all', 'Todas'], ...ANNUAL_PLAN_IDEA_CATEGORIES.map(({ id, label }) => [id, label])].map(([id, label]) => h`<button type="button" class="chip" data-action="annual-idea-category" data-category="${id}" aria-pressed="${String(ui.annualIdeaCategory === id)}">${label}</button>`)}
+        </div>
+        <div class="annual-ideas-grid">
+          ${ANNUAL_PLAN_IDEAS.map((idea) => h`<button type="button" class="annual-idea" data-annual-idea="${idea.id}" data-action="annual-idea-use" data-id="${idea.id}" ${visibleIdeaIds.has(idea.id) ? '' : raw('hidden')}>
+            <span class="annual-idea-category">${ANNUAL_PLAN_IDEA_CATEGORIES.find(({ id }) => id === idea.category)?.label || ''}</span>
+            <b>${idea.title}</b><span class="annual-idea-first-step"><b>Primeiro passo</b>${idea.action}</span>
+            <span class="annual-idea-use">${icon('plus', 15)} Usar esta ideia</span>
+          </button>`)}
+          <p class="annual-ideas-empty" ${ideas.length ? raw('hidden') : ''}>Nenhuma ideia encontrada. Tente outra busca ou limpe os filtros.</p>
+        </div>
+      </div>
+    </details>
+    <div class="annual-roadmap-heading"><div><p class="section-kicker">Seu roteiro</p><h3>O ano, passo a passo</h3></div><p class="small muted">Metas flexíveis: você pode mudar o trimestre quando quiser.</p></div>
+    <div class="annual-roadmap">${quarterData.map(({ id, title, months }) => {
+      const quarterGoals = goals.filter((goal) => goal.quarter === id);
+      const quarterCompleted = quarterGoals.filter((goal) => goal.done).length;
+      const isEditingHere = ui.annualGoalFormOpen && ui.annualGoalQuarter === id;
+      return h`<section class="annual-quarter${isEditingHere ? ' is-editing' : ''}" data-quarter="${id}" aria-labelledby="annual-${id || 'year'}-title">
+        <header class="annual-quarter-heading"><div><span class="annual-quarter-marker">${id ? id.toUpperCase() : icon('calendar', 16)}</span><div><h4 id="annual-${id || 'year'}-title">${title}</h4><small>${months}</small></div></div><span class="annual-quarter-count">${quarterCompleted}/${quarterGoals.length}</span></header>
+        ${quarterGoals.length ? h`<ul class="annual-goal-list">${quarterGoals.map(goalCard)}</ul>` : h`<p class="annual-quarter-empty">${id ? 'Ainda sem conquistas para este período.' : 'Conquistas sem uma data específica ficam aqui.'}</p>`}
+        ${isEditingHere ? goalForm(id) : h`<button type="button" class="annual-add-goal" data-action="annual-goal-add" data-quarter="${id}" aria-label="Adicionar conquista: ${title}">${icon('plus', 16)}Adicionar conquista</button>`}
+      </section>`;
+    })}</div>
   </section>`;
+}
+
+function updateAnnualIdeaFilters() {
+  const visibleIds = new Set(filterAnnualPlanIdeas(ui.annualIdeaCategory, ui.annualIdeaQuery).map((idea) => idea.id));
+  document.querySelectorAll('[data-annual-idea]').forEach((card) => {
+    card.hidden = !visibleIds.has(card.dataset.annualIdea);
+  });
+  document.querySelectorAll('[data-action="annual-idea-category"]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.category === ui.annualIdeaCategory));
+  });
+  const count = document.querySelector('[data-annual-ideas-count]');
+  if (count) count.textContent = `${visibleIds.size} ${plural(visibleIds.size, 'ideia', 'ideias')}`;
+  const empty = document.querySelector('.annual-ideas-empty');
+  if (empty) empty.hidden = visibleIds.size > 0;
+  const clear = document.querySelector('[data-action="annual-ideas-clear"]');
+  if (clear) clear.hidden = ui.annualIdeaCategory === 'all' && !String(ui.annualIdeaQuery || '').trim();
 }
 
 function habitDaysLabel(habit) {
@@ -3074,18 +3149,19 @@ function areaTiles() {
 const CYC = [
   { id: 'flow', title: 'Fluxo', single: true, opts: [['spot', 'Escape'], ['light', 'Leve'], ['medium', 'Médio'], ['heavy', 'Intenso']] },
   { id: 'pain', title: 'Dor', opts: [['cramp', 'Cólica'], ['head', 'Dor de cabeça'], ['back', 'Dor nas costas'], ['breast', 'Seios sensíveis'], ['joint', 'Dor nas articulações'], ['ovary', 'Dor no ovário']] },
-  { id: 'mood', title: 'Humor', opts: [['happy', 'Feliz'], ['calm', 'Em paz'], ['energized', 'Com energia'], ['sensitive', 'Sensível'], ['irritated', 'Irritação'], ['anxious', 'Ansiedade'], ['sad', 'Triste'], ['stressed', 'Estresse']] },
+  { id: 'mood', title: 'Mente e sentimentos', opts: [['happy', 'Feliz'], ['calm', 'Tranquila'], ['energized', 'Com energia'], ['sensitive', 'Sensível'], ['irritated', 'Irritada'], ['anxious', 'Ansiosa'], ['sad', 'Triste'], ['stressed', 'Sobrecarregada'], ['concentration', 'Dificuldade de concentração'], ['memory', 'Esquecimentos ou lapsos de memória']] },
+  { id: 'social', title: 'Vida social', opts: CYCLE_SOCIAL_OPTIONS },
   { id: 'energy', title: 'Energia', single: true, opts: [['exhausted', 'Exausta'], ['low', 'Baixa'], ['normal', 'Normal'], ['high', 'Alta']] },
   { id: 'digestion', title: 'Digestão e apetite', opts: [['bloat', 'Inchaço'], ['nausea', 'Enjoo'], ['constip', 'Prisão de ventre'], ['diarrhea', 'Diarreia'], ['sweet', 'Vontade de doce'], ['salt', 'Vontade de salgado'], ['hungry', 'Muito apetite']] },
   { id: 'sleep', title: 'Sono', single: true, opts: [['great', 'Dormiu bem'], ['restless', 'Sono agitado'], ['insomnia', 'Insônia'], ['sleepy', 'Muito sono']] },
   { id: 'skin', title: 'Pele e cabelo', opts: [['acne', 'Acne'], ['oilyskin', 'Pele oleosa'], ['dryskin', 'Pele seca'], ['oilyhair', 'Cabelo oleoso']] },
   { id: 'discharge', title: 'Corrimento', single: true, opts: [['none', 'Nenhum'], ['sticky', 'Pegajoso'], ['creamy', 'Cremoso'], ['watery', 'Aquoso'], ['eggwhite', 'Clara de ovo']] },
 ];
-const CYC_ICON = { flow: 'droplet', pain: 'alert', mood: 'heart', energy: 'sparkles', digestion: 'stomach', sleep: 'moon', skin: 'user', discharge: 'flower' };
+const CYC_ICON = { flow: 'droplet', pain: 'alert', mood: 'heart', social: 'user', energy: 'sparkles', digestion: 'stomach', sleep: 'moon', skin: 'user', discharge: 'flower' };
 const CYC_OPTION_ICON = {
   flow: { spot: 'spot', light: 'droplet', medium: 'water', heavy: 'blood' },
   pain: { cramp: 'activity', head: 'sun', back: 'spine', breast: 'heart', joint: 'bone', ovary: 'ovaries' },
-  mood: { happy: 'smile', calm: 'meditate', energized: 'sparkles', sensitive: 'heart', irritated: 'alert', anxious: 'activity', sad: 'moon', stressed: 'target' },
+  mood: { happy: 'smile', calm: 'meditate', energized: 'sparkles', sensitive: 'heart', irritated: 'alert', anxious: 'activity', sad: 'moon', stressed: 'target', concentration: 'target', memory: 'clock' },
   energy: { exhausted: 'moon', low: 'coffee', normal: 'activity', high: 'arrowUp' },
   digestion: { bloat: 'wind', nausea: 'activity', constip: 'inbox', diarrhea: 'droplet', sweet: 'candy', salt: 'utensils', hungry: 'apple' },
   sleep: { great: 'bed', restless: 'activity', insomnia: 'clock', sleepy: 'coffee' },
@@ -3099,27 +3175,58 @@ const CYC_SHORT_LABEL = {
   skin: { oilyskin: 'Oleosa', dryskin: 'Ressecada', oilyhair: 'Cabelo oleoso' },
 };
 const cycLabel = (cat, v) => (CYC.find((c) => c.id === cat)?.opts.find((o) => o[0] === v) || [, v])[1];
+const cycleTestResultLabel = (value) => CYCLE_TEST_RESULTS.find(([id]) => id === value)?.[1] || '';
 const dayLog = (k) => S.cycleLog[k] || {};
 const isBleeding = (l) => ['light', 'medium', 'heavy'].includes(l.flow);
-const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || l.sexualActivity || l.masturbationActivity || Number.isInteger(l.orgasmCount) || ['pain', 'mood', 'digestion', 'skin'].some((c) => (l[c] || []).length));
+const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || Number.isFinite(l.weightKg)
+  || Object.hasOwn(l, 'sexualActivity') || l.masturbationActivity || l.sexToysUsed || l.libido
+  || Object.hasOwn(l, 'orgasmOccurred') || Object.hasOwn(l, 'ovulationTestResult')
+  || Object.hasOwn(l, 'pregnancyTestResult') || Object.hasOwn(l, 'medicationTaken')
+  || Number.isInteger(l.orgasmCount)
+  || ['pain', 'mood', 'digestion', 'skin', 'social'].some((c) => (l[c] || []).length));
 function cycleLogDraft(log = {}) {
   return Object.fromEntries(Object.entries(log).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
 }
 function cycleLogSummary(log) {
   if (!hasAnyLog(log)) return 'Nenhum registro para este dia.';
-  const symptomCount = CYC.filter(({ id }) => id !== 'flow').reduce((count, { id, single }) => {
+  const orgasmOccurred = Object.hasOwn(log, 'orgasmOccurred')
+    ? log.orgasmOccurred
+    : Number.isInteger(log.orgasmCount) ? log.orgasmCount > 0 : null;
+  const symptomCount = CYC.filter(({ id }) => !['flow', 'mood', 'social'].includes(id)).reduce((count, { id, single }) => {
     const value = log[id];
     return count + (single ? Number(Boolean(value)) : Array.isArray(value) ? value.length : 0);
   }, 0);
   return [
     log.flow ? `Fluxo: ${cycLabel('flow', log.flow)}` : '',
-    log.sexualActivity ? 'Relação sexual registrada' : '',
+    Number.isFinite(log.weightKg) ? `Peso: ${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg` : '',
+    log.mood?.length ? `Mente e sentimentos: ${log.mood.map((value) => cycLabel('mood', value)).join(', ')}` : '',
+    log.social?.length ? `Vida social: ${log.social.map((value) => cycLabel('social', value)).join(', ')}` : '',
+    log.ovulationTestResult ? `Teste de ovulação: ${cycleTestResultLabel(log.ovulationTestResult)}` : '',
+    log.pregnancyTestResult ? `Teste de gravidez: ${cycleTestResultLabel(log.pregnancyTestResult)}` : '',
+    log.medicationTaken === true ? 'Tomou medicação' : log.medicationTaken === false ? 'Não tomou medicação' : '',
+    log.sexualActivity === true ? 'Relação com outra pessoa' : log.sexualActivity === false ? 'Sem relação com outra pessoa' : '',
     log.masturbationActivity ? 'Masturbação registrada' : '',
-    log.contraceptionMethods?.length ? 'método contraceptivo registrado' : '',
-    Number.isInteger(log.orgasmCount) ? `${log.orgasmCount} ${plural(log.orgasmCount, 'orgasmo', 'orgasmos')}` : '',
+    log.sexToysUsed ? 'Brinquedos registrados' : '',
+    log.contraceptionMethods?.includes('none') ? 'Sem método contraceptivo' : log.contraceptionMethods?.some((method) => !['undisclosed'].includes(method)) ? 'Método contraceptivo registrado' : log.contraceptionMethods?.includes('undisclosed') ? 'Método contraceptivo não informado' : '',
+    log.libido === 'high' ? 'Libido alta' : log.libido === 'low' ? 'Libido baixa' : '',
+    orgasmOccurred === true ? 'Orgasmo' : orgasmOccurred === false ? 'Sem orgasmo' : '',
     symptomCount ? `${symptomCount} ${plural(symptomCount, 'sintoma', 'sintomas')}` : '',
     log.note ? 'com anotação' : '',
   ].filter(Boolean).join(' · ');
+}
+function syncLatestCycleWeight() {
+  const latest = Object.entries(S.cycleLog)
+    .filter(([, log]) => Number.isFinite(log?.weightKg))
+    .sort(([dayA], [dayB]) => dayB.localeCompare(dayA))[0];
+  if (!latest) return false;
+  const [, log] = latest;
+  const estimate = estimateWaterGoal({ weightKg: log.weightKg, age: S.settings.profile.age });
+  if (!estimate) return false;
+  S.settings.profile.weightKg = log.weightKg;
+  S.habits.forEach((habit) => {
+    if (isWaterHabit(habit)) habit.waterGoalMl = estimate.ml;
+  });
+  return true;
 }
 const cyclePeriodKey = (period) => `${period.start}|${period.end || ''}`;
 const cyclePeriodEnd = (period) => period.end || period.start;
@@ -3139,12 +3246,17 @@ function viewCiclo() {
   const hasCycleRecords = Object.values(S.cycleLog).some(hasAnyLog);
   const selectedPeriodIndex = S.cycle.findIndex((period) => period.start <= sel && cyclePeriodEnd(period) >= sel);
   const selectedPeriod = selectedPeriodIndex >= 0 ? S.cycle[selectedPeriodIndex] : null;
+  const selectedPhase = cycleCalendarPhase(sel, st);
   const cycleMoment = st.set.has(sel)
     ? ['Período registrado', 'Este dia faz parte de um período que você registrou.']
     : st.next === sel
       ? ['Início estimado', 'Esta é uma estimativa baseada nos seus registros anteriores.']
+      : selectedPhase === 'ovulation'
+        ? ['Ovulação estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
+        : selectedPhase === 'fertile'
+          ? ['Janela fértil estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
       : dn
-        ? [`Dia ${dn} do ciclo`, sel === tdy ? 'Acompanhe como você se sente hoje.' : `Registro de ${shortDate(sel)}.`]
+        ? [`Dia ${dn} do ciclo`, 'Fase não estimada para esta data. As previsões dependem dos registros e podem variar.']
         : hasCycleHistory
           ? ['Sem ciclo iniciado nesta data', 'Selecione uma data a partir do início registrado para ver o dia do ciclo.']
           : ['Comece pelo primeiro registro', 'Marque o primeiro dia do fluxo menstrual. Com dois inícios registrados, você poderá ver médias e estimativas.'];
@@ -3186,16 +3298,17 @@ function viewCiclo() {
       </div>
       <div class="notice cycle-estimate-notice" role="note">${icon('info', 18)}<span>${cycleEstimateNotice}</span></div></section>
     ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
-    <details class="card cycle-health-card" open>
-      <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Saúde menstrual e sexual</strong><small>Entenda mudanças do ciclo, cuidados nas relações e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
+    <details class="card cycle-health-card">
+      <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Ciclo, sexualidade e prevenção</strong><small>Orientações gerais sobre mudanças do ciclo, contracepção, ISTs e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">
         <article class="cycle-health-topic">
           <h3>${icon('activity', 17)}O que pode explicar as mudanças?</h3>
           <p>Os níveis hormonais mudam ao longo do ciclo e podem acompanhar cólicas, sensibilidade nas mamas e variações de humor. A cólica costuma ocorrer porque o útero se contrai para eliminar seu revestimento. Estresse, mudanças de peso ou de exercício, gravidez e alguns métodos contraceptivos também podem alterar o padrão. Uma mudança isolada não confirma uma causa: registre quando acontece e converse com uma profissional de saúde se persistir ou preocupar.</p>
         </article>
         <article class="cycle-health-topic">
-          <h3>${icon('heart', 17)}Sexo, menstruação e proteção</h3>
-          <p>Ter relações durante a menstruação é uma escolha; conforto e consentimento importam. Menstruar não impede gravidez: a ovulação pode variar e espermatozoides podem permanecer viáveis por alguns dias. Se não deseja uma gravidez, use um método contraceptivo. ISTs podem ser transmitidas em qualquer fase do ciclo, e algumas não dão sinais; preservativos reduzem o risco. Procure uma UBS para orientação e testagem após exposição ou se houver sintomas.</p>
+          <h3>${icon('heart', 17)}Relações, contracepção e ISTs</h3>
+          <p>Ter relações durante a menstruação é uma escolha; conforto e consentimento importam. Menstruar não impede uma gravidez: a ovulação pode variar e espermatozoides podem permanecer viáveis por alguns dias. As previsões deste calendário não servem como método contraceptivo.</p>
+          <p>Contracepção e prevenção de ISTs são cuidados distintos. Preservativos ajudam a reduzir o risco de ISTs, que podem ser transmitidas em qualquer fase do ciclo e nem sempre causam sinais. Para orientação, testagem ou atendimento após uma possível exposição, procure uma UBS.</p>
           <p>Sangramento entre menstruações ou depois da relação pode ter diferentes causas, inclusive contraceptivos, ressecamento ou infecções. Se for novo, recorrente ou vier com dor, procure avaliação — não dá para descobrir a causa apenas pelo aplicativo.</p>
         </article>
         <article class="cycle-health-topic">
@@ -3763,7 +3876,7 @@ function dataSettings(p) {
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
+    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
     <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
@@ -3778,7 +3891,7 @@ function dataSettings(p) {
       <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
         <h3 id="settings-restore-title">Usar uma cópia salva</h3>
-        <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
+        <p>A restauração substitui todos os dados atuais da conta; ela não mescla registros. Exporte uma cópia atual antes de continuar.</p>
         <p class="small muted">Escolha um arquivo de backup exportado pelo Aurora.</p>
         <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
         <p class="err" id="imperr" role="alert"></p>
@@ -3795,13 +3908,8 @@ function dataSettings(p) {
         : h`<div class="settings-trash-empty"><span aria-hidden="true">${icon('trash', 20)}</span><p><b>A lixeira está vazia</b><small>Quando você excluir itens, eles aparecerão aqui por até 30 dias.</small></p></div>`}
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
-      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Gerencie dados de demonstração ou remova os dados relacionais desta conta.</p></div>
+      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Remova os dados relacionais desta conta.</p></div>
       <div class="settings-data-care-actions">
-        <section class="settings-data-action" aria-labelledby="settings-sample-title">
-          <h3 id="settings-sample-title">Explorar com exemplos</h3>
-          <p>Adicione registros fictícios para conhecer as áreas do Aurora. Eles são identificados como exemplos e não substituem seus dados pessoais.</p>
-          <button type="button" class="btn" data-action="load-sample">Carregar exemplos</button>
-        </section>
         <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
           <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
           <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
@@ -3991,9 +4099,11 @@ const dlgClose = () => {
     return;
   }
   if (ui.dlg?.type === 'area-tutorial') {
+    const afterOnboarding = ui.dlg.d.afterOnboarding === true;
     ui.dlg = null;
     ui.dlgPending = null;
     render();
+    if (afterOnboarding) void maybeOpenReleaseNotes();
     return;
   }
   if (ui.dlg?.type === 'confirmation') {
@@ -4063,6 +4173,7 @@ function dlgTask() {
 }
 const cycleDialogViews = createCycleDialogViews({
   ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms: cycleTopSymptoms, plural,
+  CYCLE_TEST_RESULTS,
   cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
 });
 function dlgCycleLog() { return cycleDialogViews.log(); }
@@ -4212,6 +4323,20 @@ const ONBOARDING_AREAS = [
   { id: 'finances', icon: 'wallet', title: 'Finanças', description: 'Organize contas, gastos, receitas e objetivos.' },
   { id: 'cycle', icon: 'heart', title: 'Ciclo', description: 'Registre sinais e acompanhe estimativas do ciclo.' },
 ];
+const ONBOARDING_TOUR_AREAS = [
+  { id: 'inicio', icon: 'calendarCheck' },
+  { id: 'planejar', icon: 'calendarCheck' },
+  { id: 'habitos', icon: 'check' },
+  { id: 'financas', icon: 'wallet' },
+  { id: 'ciclo', icon: 'heart' },
+];
+function onboardingTourAreas(draft) {
+  return ONBOARDING_TOUR_AREAS.filter(({ id }) => {
+    if (!AREA_GUIDES[id]) return false;
+    if (id === 'inicio' || id === 'planejar') return true;
+    return draft.areas[id] && (id !== 'ciclo' || canAccessCycle(S.settings.profile, ui.preview));
+  });
+}
 function refreshOnboardingRecommendations(draft) {
   const recommended = new Set(ONBOARDING_NEEDS
     .filter((need) => draft.needs.includes(need.id))
@@ -4227,14 +4352,30 @@ function dlgOnboard() {
   const d = ui.dlg.d, st = d.step;
   const onboardingNeeds = ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
   const onboardingAreas = ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
-  const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 3">${[0, 1, 2].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
+  const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 5">${[0, 1, 2, 3, 4].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
   let body, foot;
   if (st === 0) {
+    const overviewAreas = [
+      { id: 'inicio', icon: 'calendarCheck', title: 'Início', description: 'Veja o que importa hoje e encontre atalhos para agir.' },
+      { id: 'planejar', icon: 'calendarCheck', title: 'Planejar', description: 'Organize tarefas com prazos, prioridades e diferentes visualizações.' },
+      { id: 'habitos', icon: 'check', title: 'Hábitos', description: 'Crie rotinas possíveis e acompanhe cada passo no seu ritmo.' },
+      { id: 'financas', icon: 'wallet', title: 'Finanças', description: 'Cadastre contas manualmente e acompanhe receitas, gastos e objetivos.' },
+      ...(canAccessCycle(S.settings.profile, ui.preview)
+        ? [{ id: 'ciclo', icon: 'heart', title: 'Ciclo', description: 'Registre informações e consulte estimativas baseadas no seu histórico.' }]
+        : []),
+    ];
+    body = h`${dots}<div class="onboard-overview">
+      <div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Conheça o Aurora</span><h2 id="dt">Um espaço para organizar a vida do seu jeito<i>.</i></h2><p>Transforme a sensação de sobrecarga em um próximo passo possível. Use só o que fizer sentido para você — sem precisar dar conta de tudo.</p></div></div>
+      <div class="onboard-overview-cards" aria-label="O que você pode fazer no Aurora">${overviewAreas.map((area) => h`<article class="onboard-overview-card"><span class="mk">${icon(area.icon, 20)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span></span></article>`)}</div>
+      ${canAccessCycle(S.settings.profile, ui.preview) ? h`<p class="fine">${icon('info', 15)} Ciclo é opcional e só fica disponível com consentimento específico.</p>` : ''}
+    </div>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Vamos personalizar</button>`;
+  } else if (st === 1) {
     body = h`${dots}<div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Personalização inicial</span><h2 id="dt">O que você quer melhorar no seu dia a dia?</h2><p>Escolha uma ou mais opções; você pode mudar depois.</p></div></div>
       <fieldset class="onboard-fieldset"><legend>Escolha o que faz sentido para você agora.</legend><div class="onboard-options">${onboardingNeeds.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
       <p class="fine">${icon('info', 15)} Suas tarefas e seu planejamento já ficam disponíveis; não é preciso ativar uma área para começar a se organizar.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Ver sugestões</button>`;
-  } else if (st === 1) {
+  } else if (st === 2) {
     const solutionIds = onboardingAreas.filter((area) => d.areas[area.id] || d.recommendedAreas.includes(area.id));
     const hasOrganizationNeed = d.needs.includes('organization');
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
@@ -4242,10 +4383,19 @@ function dlgOnboard() {
       ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
       <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e navegação.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
-  } else {
+  } else if (st === 3) {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
       <div class="onboard-theme"><span class="f-label">Cor do app</span><div class="swatches">${Object.entries(PALETTES).map(([key, [name, color]]) => h`<button type="button" class="swatch" aria-pressed="${d.theme === key}" data-action="ob-theme" data-v="${key}"><i style="background:${color}"></i>${name}</button>`)}</div></div>`;
-    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-finish">Concluir</button>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
+  } else {
+    const tourAreas = onboardingTourAreas(d);
+    body = h`${dots}<div class="wiz-h"><span class="eyebrow">Um tour opcional</span><h2 id="dt">Quer ver o Aurora em ação?</h2><p>Escolha um guia rápido para assistir ao concluir. Você também pode explorar agora e abrir os tutoriais quando quiser pelo botão “Como usar?” de cada área.</p></div>
+      <div class="onboard-tour-cards" aria-label="Tutoriais disponíveis">${tourAreas.map((area) => {
+        const guide = AREA_GUIDES[area.id];
+        return h`<button type="button" class="opt onboard-tour-card" data-action="ob-finish-guide" data-route="${area.id}"><span class="mk">${icon(area.icon, 20)}</span><span class="tx"><b>${guide.title}</b><span>${guide.summary}</span><small>Concluir e assistir</small></span>${icon('play', 16, 'onboard-tour-play')}</button>`;
+      })}</div>
+      <p class="fine">${icon('info', 15)} Os vídeos não iniciam sozinhos e também têm um roteiro em texto.</p>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-finish">Concluir sem tour</button>`;
   }
   return dlgWrap(body, foot, st === 0 ? 'onboard-needs-dialog' : '');
 }
@@ -4261,14 +4411,19 @@ function dlgExport() {
 }
 function dlgImport() {
   const p = ui.dlg.d.parsed;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Importar este backup?</h2><p class="small muted">Prévia do conteúdo validado deste arquivo:</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Importar este backup?</h2><p class="small muted">Revise o conteúdo validado antes de substituir os dados atuais. Configurações e perfil também serão restaurados.</p></div>${closeBtn}</div>
     <ul class="backup-preview">
       <li><span>Tarefas</span><b>${p.tasks.length}</b></li>
-      <li><span>Hábitos e contas financeiras</span><b>${p.habits.length} · ${p.finance.accounts.length}</b></li>
+      <li><span>Hábitos</span><b>${p.habits.length}</b></li>
+      <li><span>Contas financeiras</span><b>${p.finance.accounts.length}</b></li>
       <li><span>Lançamentos financeiros</span><b>${p.finance.tx.length}</b></li>
-      <li><span>Registros de hidratação e dias de ciclo</span><b>${p.water.length} · ${Object.keys(p.cycleLog).length}</b></li>
+      <li><span>Orçamentos, objetivos e contas fixas</span><b>${Object.keys(p.finance.budgets).length} · ${p.finance.goals.length} · ${p.finance.recurring.length}</b></li>
+      <li><span>Registros de hidratação</span><b>${p.water.length}</b></li>
+      <li><span>Períodos e dias de ciclo</span><b>${p.cycle.length} · ${Object.keys(p.cycleLog).length}</b></li>
+      <li><span>Registros de peso</span><b>${p.weight.length}</b></li>
+      <li><span>Itens na lixeira</span><b>${p.settings.prefs.trash.length}</b></li>
     </ul>
-    <div class="notice warn" role="alert">${icon('alert', 18)}<span>Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter os dados atuais, exporte um backup antes.</span></div>`,
+    <div class="notice warn" role="alert">${icon('alert', 18)}<span>Esta opção não mescla os dados. Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter uma cópia dos dados atuais, cancele e exporte um backup antes.</span></div>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="import-apply">Substituir meus dados</button>`);
 }
 function dlgAreaTutorial() {
@@ -4759,7 +4914,7 @@ const ACTIONS = {
     const returnTarget = el.matches('.finance-fab')
       ? '.finance-fab'
       : window.matchMedia('(max-width: 899px)').matches
-        ? '.nav-more-trigger'
+        ? '.finance-fab'
         : '.nav-quick-trigger';
     ui.navigationOpen = false;
     ui.quickActionsOpen = opening;
@@ -4985,6 +5140,8 @@ const ACTIONS = {
     if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
     ui.planView = el.dataset.v;
     ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
     render();
     if (ui.planView === 'calendario') {
       const staleAccounts = connectedGoogleCalendarAccounts()
@@ -4995,12 +5152,55 @@ const ACTIONS = {
   },
   'annual-goal-edit': (el) => {
     const goals = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals || [];
-    if (!goals.some((goal) => goal.id === el.dataset.id)) return;
+    const goal = goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
     ui.annualEditingGoalId = el.dataset.id;
+    ui.annualGoalQuarter = goal.quarter;
+    ui.annualGoalFormOpen = true;
+    ui.annualGoalDraft = null;
     render();
+  },
+  'annual-goal-add': (el) => {
+    const quarter = el.dataset.quarter || '';
+    if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) return;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalQuarter = quarter;
+    ui.annualGoalFormOpen = true;
+    ui.annualGoalDraft = null;
+    render();
+    requestAnimationFrame(() => document.querySelector('.annual-goal-form [name="title"]')?.focus());
+  },
+  'annual-idea-use': (el) => {
+    const idea = ANNUAL_PLAN_IDEAS.find((item) => item.id === el.dataset.id);
+    if (!idea) return;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalQuarter = '';
+    ui.annualGoalDraft = { title: idea.title, action: idea.action };
+    ui.annualGoalFormOpen = true;
+    render();
+    requestAnimationFrame(() => {
+      const title = document.querySelector('.annual-goal-form [name="title"]');
+      title?.scrollIntoView({ block: 'center' });
+      title?.focus();
+    });
+  },
+  'annual-idea-category': (el) => {
+    const category = el.dataset.category || 'all';
+    if (category !== 'all' && !ANNUAL_PLAN_IDEA_CATEGORIES.some((item) => item.id === category)) return;
+    ui.annualIdeaCategory = category;
+    updateAnnualIdeaFilters();
+  },
+  'annual-ideas-clear': () => {
+    ui.annualIdeaCategory = 'all';
+    ui.annualIdeaQuery = '';
+    const search = document.querySelector('[data-input="annual-ideas-search"]');
+    if (search) search.value = '';
+    updateAnnualIdeaFilters();
   },
   'annual-goal-edit-cancel': () => {
     ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
     render();
   },
   'annual-goal-toggle': (el) => {
@@ -5427,7 +5627,6 @@ const ACTIONS = {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
     clearSample();
   },
-  'load-sample': () => { loadSample(); toast('Dados de exemplo adicionados.', 'success'); },
   'undo': () => { const u = ui.toast && ui.toast.undo; ui.toast = null; if (u) u(); renderToast(); },
   'action-confirm-cancel': () => dlgClose(),
   'confirmation-cancel': () => settleDialogConfirmation(false),
@@ -5539,6 +5738,87 @@ const ACTIONS = {
     ui.dlg.dirty = true;
     render();
   },
+  'cyc-sex': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.sexualActivity === value) {
+      delete log.sexualActivity;
+      delete log.contraceptionMethods;
+    } else {
+      log.sexualActivity = value;
+      if (!value) delete log.contraceptionMethods;
+    }
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-libido': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['high', 'low'].includes(el.dataset.v)) return;
+    if (log.libido === el.dataset.v) delete log.libido;
+    else log.libido = el.dataset.v;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-intimacy-toggle': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['masturbationActivity', 'sexToysUsed'].includes(key)) return;
+    if (log[key]) delete log[key];
+    else log[key] = true;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-orgasm': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.orgasmOccurred === value) delete log.orgasmOccurred;
+    else log.orgasmOccurred = value;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-test-toggle': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['ovulationTestResult', 'pregnancyTestResult'].includes(key)) return;
+    if (log[key]) delete log[key];
+    else log[key] = 'undisclosed';
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'tests'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'tests');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-test-result': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['ovulationTestResult', 'pregnancyTestResult'].includes(key)
+      || !CYCLE_TEST_RESULTS.some(([value]) => value === el.dataset.v)) return;
+    log[key] = el.dataset.v;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'tests'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'tests');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-medication': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.medicationTaken === value) delete log.medicationTaken;
+    else log.medicationTaken = value;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'medication'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'medication');
+    ui.dlg.d.dirty = true;
+    render();
+  },
   'cyc-clear': (el) => {
     const k = ui.confirmedAction === 'cyc-clear'
       ? el.dataset.day
@@ -5547,9 +5827,13 @@ const ACTIONS = {
     const previous = S.cycleLog[k];
     if (!previous) return;
     if (ui.confirmedAction !== 'cyc-clear') return requestActionConfirmation('cyc-clear', { day: k }, 'Remover registro do ciclo?', `O registro de ${longDate(k)} irá para a lixeira por 30 dias.`, 'Remover registro');
+    const affectedSlices = Number.isFinite(previous.weightKg) ? ['cycleLog', 'habits'] : ['cycleLog'];
     const entry = moveRecordsToTrash(`Ciclo: ${longDate(k)}`, [
       createTrashRecord('cycleLog', k, 0, previous),
-    ], ['cycleLog'], () => { delete S.cycleLog[k]; });
+    ], affectedSlices, () => {
+      delete S.cycleLog[k];
+      if (Number.isFinite(previous.weightKg)) syncLatestCycleWeight();
+    });
     if (entry) toast('Registro movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
@@ -5749,7 +6033,7 @@ const ACTIONS = {
   'wipe-home': () => { ui.dlg = null; render(); },
   'ob-theme': (el) => { ui.dlg.d.theme = el.dataset.v; render(); },
   'ob-next': () => {
-    if (ui.dlg.d.step === 0) refreshOnboardingRecommendations(ui.dlg.d);
+    if (ui.dlg.d.step === 1) refreshOnboardingRecommendations(ui.dlg.d);
     ui.dlg.d.step++;
     render();
   },
@@ -5773,9 +6057,23 @@ const ACTIONS = {
   },
   'ob-skip': () => finishOnboard(true),
   'ob-finish': () => finishOnboard(),
+  'ob-finish-guide': (el) => {
+    const route = el.dataset.route;
+    if (!onboardingTourAreas(ui.dlg.d).some((area) => area.id === route)) {
+      console.error('Aurora: tutorial de primeiro acesso solicitado para uma área indisponível.', route);
+      toast('Não foi possível abrir esse tutorial. Escolha um dos guias disponíveis.', 'info');
+      return;
+    }
+    finishOnboard(false, route);
+  },
 };
-function finishOnboard(skip = false) {
+function finishOnboard(skip = false, tutorialRoute = '') {
   const d = ui.dlg.d;
+  if (tutorialRoute && !onboardingTourAreas(d).some((area) => area.id === tutorialRoute)) {
+    console.error('Aurora: tutorial de primeiro acesso solicitado para uma área indisponível.', tutorialRoute);
+    toast('Não foi possível abrir esse tutorial. Escolha um dos guias disponíveis.', 'info');
+    return false;
+  }
   const snapshot = snapshotSlices(['settings']);
   Object.assign(S.settings, { onboardingComplete: true, introSeen: true });
   if (!skip) {
@@ -5789,11 +6087,13 @@ function finishOnboard(skip = false) {
     render();
     return false;
   }
-  ui.dlg = ui.returnDialog;
+  ui.dlg = tutorialRoute
+    ? createDialog('area-tutorial', { route: tutorialRoute, afterOnboarding: true })
+    : ui.returnDialog;
   ui.returnDialog = null;
   render();
   toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.', 'info');
-  void maybeOpenReleaseNotes();
+  if (!tutorialRoute) void maybeOpenReleaseNotes();
   return true;
 }
 
@@ -6032,25 +6332,41 @@ const FORMS = {
       if (!log.orgasmCount.trim()) delete log.orgasmCount;
       else if (/^\d{1,2}$/.test(log.orgasmCount)) log.orgasmCount = Number(log.orgasmCount);
     }
+    if (typeof log.weightKg === 'string') {
+      const value = log.weightKg.trim();
+      if (!value) delete log.weightKg;
+      else {
+        const weightKg = parseWaterWeightKg(value);
+        if (weightKg === null) return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="log.weightKg"]');
+        log.weightKg = weightKg;
+      }
+    }
     if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.', 'info');
     if (typeof log.note === 'string') {
       log.note = log.note.trim().slice(0, 500);
       if (!log.note) delete log.note;
     }
-    if (!log.sexualActivity) {
-      delete log.sexualActivity;
+    if (log.sexualActivity !== true) {
       delete log.contraceptionMethods;
     } else if (!log.contraceptionMethods?.length) {
       delete log.contraceptionMethods;
     }
     if (!log.masturbationActivity) delete log.masturbationActivity;
+    if (!log.sexToysUsed) delete log.sexToysUsed;
+    const previousWeight = dayLog(day).weightKg;
+    const weightChanged = previousWeight !== log.weightKg;
+    const slices = weightChanged ? ['cycleLog', 'settings', 'habits'] : ['cycleLog'];
+    const snapshot = snapshotSlices(slices);
     if (hasAnyLog(log)) S.cycleLog[day] = log;
     else delete S.cycleLog[day];
+    if (weightChanged && Object.values(S.cycleLog).some((entry) => Number.isFinite(entry?.weightKg))) {
+      syncLatestCycleWeight();
+    }
+    if (!saveSlicesWithRollback(slices, snapshot, false, 'registro do ciclo')) return;
     ui.cycDay = day;
     ui.dlg = null;
-    const saved = saveSlices('cycleLog');
     render();
-    if (saved) toast('Registro do dia atualizado.', 'success');
+    toast('Registro do dia atualizado.', 'success');
   },
   'cycle-period': (f, d) => {
     const period = createCyclePeriod(String(d.get('start') || ''), String(d.get('end') || ''), today());
@@ -6098,6 +6414,8 @@ const CHANGES = {
     if (!/^\d{4}$/.test(el.value)) return;
     ui.annualYear = el.value;
     ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
     render();
   },
   'habit-idea-category': (el) => {
@@ -6406,6 +6724,18 @@ document.addEventListener('input', (e) => {
       }
     }
   }
+  if (el.matches('[data-dlg="log.weightKg"]')) {
+    const value = el.value;
+    const cursor = el.selectionStart;
+    const filteredValue = filterWeightInput(value);
+    if (filteredValue !== value) {
+      el.value = filteredValue;
+      if (cursor !== null) {
+        const filteredCursor = filterWeightInput(value.slice(0, cursor)).length;
+        el.setSelectionRange(filteredCursor, filteredCursor);
+      }
+    }
+  }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
   const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
@@ -6498,6 +6828,10 @@ document.addEventListener('input', (e) => {
     ui.habitIdeaQuery = el.value;
     updateHabitIdeaFilters();
   }
+  if (el.dataset.input === 'annual-ideas-search') {
+    ui.annualIdeaQuery = el.value;
+    updateAnnualIdeaFilters();
+  }
 });
 document.addEventListener('focusin', (e) => {
   const el = e.target;
@@ -6544,7 +6878,7 @@ document.addEventListener('keydown', (e) => {
     render();
     requestAnimationFrame(() => {
       const returnTarget = window.matchMedia('(max-width: 899px)').matches
-        ? '.nav-more-trigger'
+        ? '.finance-fab'
         : '.nav-quick-trigger';
       document.querySelector(returnTarget)?.focus();
     });
@@ -7576,6 +7910,8 @@ Object.assign(FORMS, {
     plans[ui.annualYear] = plan;
     if (saveSlicesWithRollback(['settings'], snapshot)) {
       ui.annualEditingGoalId = '';
+      ui.annualGoalFormOpen = false;
+      ui.annualGoalDraft = null;
       render();
       toast(goal ? 'Conquista atualizada.' : 'Conquista adicionada ao plano.', 'success');
     }

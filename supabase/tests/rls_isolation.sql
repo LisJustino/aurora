@@ -400,11 +400,14 @@ begin
   );
 
   insert into public.cycle_days (
-    user_id, log_date, sexual_activity, masturbation_activity, orgasm_count
+    user_id, log_date, mood, social, weight_kg, ovulation_test_result,
+    pregnancy_test_result, medication_taken, sexual_activity,
+    masturbation_activity, sex_toys_used, libido_level, orgasm_occurred, orgasm_count
   )
   values (
     'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
-    '2026-03-01', true, true, 2
+    '2026-03-01', array['concentration', 'memory'], array['interaction', 'interaction-helped'],
+    65.5, 'positive', 'negative', true, true, true, true, 'high', true, 2
   );
 
   select count(*) into visible_count
@@ -413,20 +416,84 @@ begin
     and log_date = '2026-03-01'
     and sexual_activity is true
     and masturbation_activity is true
+    and sex_toys_used is true
+    and mood = array['concentration', 'memory']
+    and social = array['interaction', 'interaction-helped']
+    and weight_kg = 65.5
+    and ovulation_test_result = 'positive'
+    and pregnancy_test_result = 'negative'
+    and medication_taken is true
+    and libido_level = 'high'
+    and orgasm_occurred is true
     and orgasm_count = 2;
   if visible_count <> 1 then
     raise exception 'User A could not insert cycle intimacy fields';
   end if;
 
   begin
+    insert into public.cycle_days (user_id, log_date, pregnancy_test_result)
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+      '2026-03-06', 'maybe'
+    );
+    raise exception 'The pregnancy test result constraint accepted an unknown value';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    insert into public.cycle_days (user_id, log_date, social)
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+      '2026-03-05', array['unknown-option']
+    );
+    raise exception 'The social options constraint accepted an unknown value';
+  exception
+    when check_violation then null;
+  end;
+
+  insert into public.cycle_days (
+    user_id, log_date, sexual_activity, libido_level, orgasm_occurred
+  )
+  values (
+    'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+    '2026-03-03', false, 'low', false
+  );
+
+  select count(*) into visible_count
+  from public.cycle_days
+  where user_id = 'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101'
+    and log_date = '2026-03-03'
+    and sexual_activity is false
+    and libido_level = 'low'
+    and orgasm_occurred is false;
+  if visible_count <> 1 then
+    raise exception 'User A could not save explicit no-activity cycle fields';
+  end if;
+
+  begin
     insert into public.cycle_days (
-      user_id, log_date, sexual_activity, masturbation_activity, orgasm_count
+      user_id, log_date, sexual_activity, masturbation_activity, sex_toys_used,
+      libido_level, orgasm_occurred, orgasm_count
     )
     values (
       'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
-      '2026-03-02', true, true, 100
+      '2026-03-02', true, true, true, 'high', true, 100
     );
     raise exception 'The orgasm count constraint accepted 100';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    insert into public.cycle_days (
+      user_id, log_date, libido_level
+    )
+    values (
+      'd7c0d0e7-fb7a-4a3f-9f72-151d6768a101',
+      '2026-03-04', 'medium'
+    );
+    raise exception 'The libido level constraint accepted an unknown value';
   exception
     when check_violation then null;
   end;
