@@ -1,5 +1,5 @@
 // Verifica se o CSS usa os tokens do design system em vez de valores soltos.
-// Regras em docs/design-system.md. Abra por HTTP no Vite ou em servidor estático.
+// Abra por HTTP no Vite ou em servidor estático.
 const results = [];
 const check = (passed, name, detail = '') => results.push({ passed: Boolean(passed), name, detail });
 

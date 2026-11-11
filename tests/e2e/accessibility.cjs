@@ -5,7 +5,7 @@ const { completeProfile } = require('./setup.cjs');
 const BASE = process.argv[2] || 'http://127.0.0.1:5173';
 
 async function checkContrast(page) {
-  await page.goto(new URL('/docs/design-system.html', BASE).toString());
+  await page.goto(new URL('/tests/component-fixture.html', BASE).toString());
   const failures = await page.evaluate(async () => {
     const { PALETTES } = await import('/src/js/features/appearance/palettes.js');
     const transitionOverride = document.createElement('style');

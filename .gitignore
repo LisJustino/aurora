@@ -38,3 +38,8 @@ Desktop.ini
 .vite/
 worker/.wrangler/
 supabase/.temp/
+
+# Documentação mantida fora do repositório público
+docs/
+*.md
+*.mdx
