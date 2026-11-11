@@ -1,0 +1,32 @@
+{
+  "src/js/data/relational-account-store.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/js/features/appearance/public-controls.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/js/features/finance/dialogs.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/js/features/habits/view.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/js/main.js": {
+    "no-unused-vars": {
+      "count": 20
+    }
+  },
+  "src/js/services/account-auth.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  }
+}

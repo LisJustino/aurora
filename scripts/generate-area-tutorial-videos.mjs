@@ -1,25 +1,20 @@
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { AREA_GUIDES } from '../src/js/features/area-guides.js';
 
 const rootDirectory = fileURLToPath(new URL('../', import.meta.url));
-const outputDirectory = join(rootDirectory, 'src', 'assets', 'tutorials');
+const outputDirectory = process.env.AURORA_TUTORIAL_OUTPUT_DIR
+  ? resolve(process.env.AURORA_TUTORIAL_OUTPUT_DIR)
+  : join(rootDirectory, 'src', 'assets', 'tutorials');
 const VIDEO_FRAME_RATE = 30;
 const VIDEO_BITRATE = 2_800_000;
 const VIDEO_WIDTH = 1280;
 const VIDEO_HEIGHT = 720;
-const accents = {
-  inicio: '#b5527a',
-  planejar: '#6474c0',
-  financas: '#2f796e',
-  habitos: '#7b8d46',
-  ciclo: '#a84f88',
-};
 const FOCUS_SAFE_MARGIN = 32;
 const FOCUS_HORIZONTAL_MARGIN = 16;
 const CAPTION_HEIGHT = 176;
@@ -27,8 +22,8 @@ const focusSteps = {
   inicio: ['.home-today-card > .head', '.home-head-actions', '.profile-link'],
   planejar: [
     '.planning-overview',
-    { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },
-    { open: '[data-action="plan-view"][data-v="lista"]', target: '.grp .gh' },
+    { select: '[data-change="plan-view"]', value: 'semana', target: '[data-change="plan-view"]' },
+    { select: '[data-change="plan-view"]', value: 'lista', target: '.grp .gh' },
     '.task',
   ],
   financas: [
@@ -191,6 +186,14 @@ try {
     await appPage.goto(`${baseUrl}/?preview#${id}`);
     await appPage.locator('.area-guide-button').waitFor({ state: 'visible', timeout: 45_000 });
     await appPage.evaluate(() => document.fonts.ready);
+    const accent = await appPage.evaluate(() => {
+      const sample = document.createElement('span');
+      sample.style.color = 'var(--accent)';
+      document.documentElement.append(sample);
+      const color = getComputedStyle(sample).color;
+      sample.remove();
+      return color;
+    });
     const capture = async (selector) => {
       const locator = selector ? appPage.locator(selector).first() : appPage.locator('.main');
       if (!await locator.count()) throw new Error(`Tutorial ${id} could not find screen target: ${selector}`);
@@ -218,7 +221,7 @@ try {
       if (selector !== '.main' && (
         focus.x < FOCUS_HORIZONTAL_MARGIN
         || focus.x + focus.width > VIDEO_WIDTH - FOCUS_HORIZONTAL_MARGIN
-        || focus.y < FOCUS_SAFE_MARGIN
+        || focus.y < 8
         || focus.y + focus.height > VIDEO_HEIGHT - FOCUS_SAFE_MARGIN
       )) {
         throw new Error(`Tutorial ${id} target ${selector} does not fit inside the video frame: ${JSON.stringify(focus)}.`);
@@ -233,7 +236,8 @@ try {
     const stepScreens = [];
     for (const step of steps) {
       if (typeof step === 'object') {
-        await appPage.locator(step.open).first().click();
+        if (step.select) await appPage.locator(step.select).selectOption(step.value);
+        else await appPage.locator(step.open).first().click();
         await appPage.waitForTimeout(180);
       }
       const selector = typeof step === 'string' ? step : step.target;
@@ -241,6 +245,11 @@ try {
       await locator.waitFor({ state: 'visible', timeout: 10_000 })
         .catch((error) => { throw new Error(`Tutorial ${id} target ${selector} is not visible: ${error.message}`); });
       stepScreens.push(await capture(selector));
+    }
+    if (pageErrors.length) throw new AggregateError(pageErrors.splice(0), `Failed to render ${id}.`);
+    if (process.env.AURORA_TUTORIAL_VALIDATE_ONLY === '1') {
+      console.log(`Validated tutorial targets for ${id}`);
+      continue;
     }
     const slideDuration = 5_000;
     const slides = [
@@ -343,14 +352,16 @@ try {
             const right = Math.min(width - 8, focus.x + focus.width + 7);
             const bottom = Math.min(height - 8, focus.y + focus.height + 7);
             context.save();
-            context.fillStyle = `${accent}18`;
+            context.fillStyle = accent;
             context.strokeStyle = accent;
             context.lineWidth = 4;
             context.shadowColor = accent;
             context.shadowBlur = 18;
             context.beginPath();
             context.roundRect(x, y, Math.max(0, right - x), Math.max(0, bottom - y), 14);
+            context.globalAlpha = 0.1;
             context.fill();
+            context.globalAlpha = 1;
             context.stroke();
             context.restore();
           }
@@ -404,7 +415,7 @@ try {
       return { files };
     }, {
       id,
-      accent: accents[id],
+      accent,
       videoSlides: slides,
       frameRate: VIDEO_FRAME_RATE,
       videoBitrate: VIDEO_BITRATE,
@@ -428,11 +439,11 @@ try {
       }
       generatedFiles.push({ format, output, tempOutput, result });
     }
+    if (pageErrors.length) throw new AggregateError(pageErrors.splice(0), `Failed to render ${id}.`);
     for (const { format, output, tempOutput, result } of generatedFiles) {
       await copyTutorialOutput(tempOutput, output);
       console.log(`Created ${output} (${result.size} bytes)`);
     }
-    if (pageErrors.length) throw new AggregateError(pageErrors.splice(0), `Failed to render ${id}.`);
   }
 } finally {
   await context?.close();

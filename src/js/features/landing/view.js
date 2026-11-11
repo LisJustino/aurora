@@ -140,7 +140,7 @@ export function landingMarkup() {
             <p class="public-eyebrow"><span aria-hidden="true"></span> Planner pessoal para quem vive com a cabeça cheia</p>
             <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
             <p class="public-subtitle">Planner de tarefas, hábitos, ciclo e finanças em um só lugar.</p>
-            <p class="public-lead">Para quem abre a agenda e trava: veja o que importa hoje e dê o próximo passo, sem lista infinita e sem culpa.</p>
+            <p class="public-lead">Veja o que importa hoje e dê o próximo passo, sem lista infinita e sem culpa.</p>
             <div class="public-actions">
               <a class="btn primary large" href="/criar-conta" data-public-action="signup">Começar grátis</a>
               <a class="btn large" href="/demonstracao" data-public-action="demo">Ver demo em 1 minuto</a>
@@ -149,30 +149,19 @@ export function landingMarkup() {
             <p class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a> ou sua senha.</p>
           </div>
           <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
-            <div class="preview-phone" aria-hidden="true">
+            <div class="preview-phone">
               <span class="preview-phone-brand">aurora<span>.</span></span>
               <span class="preview-phone-title">Seu dia, com calma.</span>
-              <div class="preview-phone-nav">
+              <div class="preview-tasks" role="group" data-landing-task-group aria-label="2 de 3 tarefas de exemplo concluídas">
+                <span class="preview-task-heading">Para hoje <b data-preview-task-count>3</b><small data-preview-task-summary aria-live="polite">2 de 3 feitas</small></span>
+                <span class="preview-task-progress"><i></i></span>
+                <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Organizar a semana"><i aria-hidden="true">✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></button>
+                <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Responder uma mensagem"><i aria-hidden="true">✓</i><span><b>Responder uma mensagem</b><small>Concluída</small></span></button>
+                <button type="button" class="preview-task-row is-current" data-landing-task aria-pressed="false" aria-label="Marcar como concluída: Ler por alguns minutos"><i aria-hidden="true"></i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></button>
+              </div>
+              <div class="preview-phone-nav" aria-hidden="true">
                 <span>${demoIcon('home', 16)}Início</span><span>${demoIcon('calendarCheck', 16)}Planejar</span><span>${demoIcon('leaf', 16)}Hábitos</span><span>${demoIcon('wallet', 16)}Finanças</span>
               </div>
-            </div>
-            <div class="preview-float preview-tasks" role="group" data-landing-task-group aria-label="2 de 3 tarefas de exemplo concluídas">
-              <span class="preview-task-heading">Para hoje <b data-preview-task-count>3</b><small data-preview-task-summary aria-live="polite">2 de 3 feitas</small></span>
-              <span class="preview-task-progress"><i></i></span>
-              <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Organizar a semana"><i aria-hidden="true">✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></button>
-              <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Responder uma mensagem"><i aria-hidden="true">✓</i><span><b>Responder uma mensagem</b><small>Concluída</small></span></button>
-              <button type="button" class="preview-task-row is-current" data-landing-task aria-pressed="false" aria-label="Marcar como concluída: Ler por alguns minutos"><i aria-hidden="true"></i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></button>
-            </div>
-            <div class="preview-float preview-habits" aria-hidden="true">
-              <span class="preview-float-label">${demoIcon('leaf', 15)} Hábitos <b>5/7</b></span>
-              <span class="preview-habit-caption">Beber água</span>
-              <span class="preview-habit-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-            </div>
-            <div class="preview-float preview-finance" aria-hidden="true">
-              <span class="preview-float-label">${demoIcon('wallet', 15)} Finanças</span>
-              <span class="preview-float-note">Saldo do mês</span>
-              <strong>R$ 1.240</strong>
-              <span class="preview-finance-bars"><i></i><i></i><i></i><i></i><i></i></span>
             </div>
           </figure>
           <div class="public-hero-support">

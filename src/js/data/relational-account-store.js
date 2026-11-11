@@ -555,6 +555,9 @@ function buildRows(userId, state, idMap) {
       target_cents: record.targetCents,
       saved_cents: record.savedCents,
       deadline: record.deadline || null,
+      linked_account_id: record.linkedAccountId
+        ? databaseId(idMap, 'finance_accounts', record.linkedAccountId)
+        : null,
       is_test_data: record.sample === true,
       deleted_at: deletedAtFor(settings, 'finance.goals', record.id),
     }));
@@ -668,10 +671,11 @@ function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
   if (table === 'finance_accounts') return {
     id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
-    bank: row.bank || undefined,
+    ...(row.bank ? { bank: row.bank } : {}),
     ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
-    limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
-    closingDay: row.closing_day ?? undefined, dueDay: row.due_day ?? undefined,
+    ...(row.limit_cents == null ? {} : { limitCents: numeric(row.limit_cents) }),
+    ...(row.closing_day == null ? {} : { closingDay: row.closing_day }),
+    ...(row.due_day == null ? {} : { dueDay: row.due_day }),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_transactions') return {
@@ -694,6 +698,9 @@ function financeRecordFromRow(row, table, idMap) {
   if (table === 'finance_goals') return {
     id, name: row.name, targetCents: numeric(row.target_cents),
     savedCents: numeric(row.saved_cents), deadline: row.deadline,
+    ...(row.linked_account_id
+      ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) }
+      : {}),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_recurrences') return {

@@ -70,7 +70,8 @@ select.ds-select__native {
   border-color: var(--accent);
   background: var(--surface);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent);
-  outline: 0;
+  outline: 3px solid var(--focus);
+  outline-offset: var(--space-half);
 }
 
 .ds-select__trigger[aria-invalid="true"] {
@@ -78,7 +79,7 @@ select.ds-select__native {
 }
 
 .ds-select__trigger[aria-invalid="true"]:focus-visible {
-  outline-color: var(--bad);
+  outline-color: var(--focus);
 }
 
 .ds-select__trigger[aria-disabled="true"] {
@@ -133,6 +134,37 @@ select.ds-select__native {
   color: var(--ink);
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.ds-select__category-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--select-option-color, var(--accent)) 14%, var(--surface));
+  color: var(--select-option-color, var(--accent));
+}
+
+.ds-select__category-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.ds-select__trigger:has(.ds-select__category-icon) {
+  gap: 9px;
+}
+
+.ds-select__trigger .ds-select__category-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.ds-select__option:has(.ds-select__category-icon) {
+  justify-content: flex-start;
+  gap: 10px;
+  padding-block: 6px;
 }
 
 .ds-select__option:hover,

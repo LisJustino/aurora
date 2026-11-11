@@ -18,25 +18,26 @@ const check = (passed, name, detail = '') => {
   });
   await page.goto(`${BASE}/?preview#planejar`);
 
-  await page.locator('.planning-overview').waitFor({ state: 'visible' });
-  const upcomingFilter = page.locator('.planning-overview-stat[data-f="proximas"]');
-  const planningStatCount = await page.locator('.planning-overview-stat').count();
-  check(planningStatCount === 4,
-    'resumo do Planejar oferece atalhos para pendentes, atrasadas, próximas e sem data', String(planningStatCount));
+  await page.locator('.plan-view-control').waitFor({ state: 'visible' });
+  check(await page.locator('.planning-overview, .planning-overview-stat, .planning-shortcuts').count() === 0,
+    'Planejar não duplica filtros nem ocupa espaço com um cartão introdutório');
+  check(await page.locator('.plan-view-control [data-action="plan-view"]').count() === 4,
+    'Planejar oferece quatro modos no controle segmentado');
+  const upcomingFilter = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
   await upcomingFilter.click();
   const upcomingChip = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
   check(await upcomingChip.getAttribute('aria-pressed') === 'true',
-    'atalho dos próximos sete dias ativa o filtro correspondente na lista');
+    'filtro dos próximos sete dias ativa a lista correspondente');
   const upcomingResults = await page.locator('#task-results .task').allInnerTexts();
   check(upcomingResults.some((text) => text.includes('Organizar documentos'))
     && upcomingResults.every((text) => !text.includes('Marcar consulta de rotina')),
   'filtro de próximos dias mantém tarefas futuras e exclui as atrasadas');
-  await page.locator('.planning-overview-stat[data-f="caixa"]').click();
+  await page.locator('[aria-label="Filtrar tarefas"] [data-f="caixa"]').click();
   check(await page.locator('[aria-label="Filtrar tarefas"] [data-f="caixa"]').getAttribute('aria-pressed') === 'true',
-    'atalho de tarefas sem data troca o filtro sem preservar uma busca antiga');
-  await page.locator('.planning-overview-stat[data-f="pendentes"]').click();
+    'filtro de tarefas sem data permanece disponível na lista');
+  await page.locator('[aria-label="Filtrar tarefas"] [data-f="pendentes"]').click();
   check(await page.locator('[aria-label="Filtrar tarefas"] [data-f="pendentes"]').getAttribute('aria-pressed') === 'true',
-    'atalho de pendentes retorna à lista de tarefas abertas');
+    'filtro de pendentes retorna à lista de tarefas abertas');
   check(await page.locator('.planning-quick-entry').count() === 0, 'Planejar não oferece tarefa rápida');
   check(await page.getByText('Plano por etapas', { exact: true }).count() === 0, 'Planejar não oferece o fluxo por etapas');
   await page.getByRole('button', { name: 'Nova tarefa' }).first().click();
@@ -73,7 +74,7 @@ const check = (passed, name, detail = '') => {
   await createdTask.locator('.tt[data-action="edit-task"]').click();
   check(await page.locator('#dlg [data-dlg="icon"][value="book"]').isChecked(), 'ícone permanece selecionado ao editar');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
-  await page.locator('[data-change="plan-view"]').selectOption('calendario');
+  await page.locator('[data-action="plan-view"][data-v="calendario"]').click();
   await page.locator('[data-action="tcal-month"][data-n="1"]').click();
   const calendarDay = page.locator('[data-action="tcal-day"]').first();
   const calendarDate = await calendarDay.getAttribute('data-d');
@@ -82,7 +83,7 @@ const check = (passed, name, detail = '') => {
   await calendarEmpty.getByRole('button', { name: 'Adicionar tarefa neste dia' }).click();
   check(await page.locator('#dlg [data-dlg="due"]').inputValue() === calendarDate, 'ação do calendário pré-seleciona o dia vazio');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
-  await page.locator('[data-change="plan-view"]').selectOption('semana');
+  await page.locator('[data-action="plan-view"][data-v="semana"]').click();
   const weekAction = page.locator('.week-day .empty[role="status"] [data-action="week-add"]').first();
   const weekDate = await weekAction.getAttribute('data-d');
   await weekAction.click();

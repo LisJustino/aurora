@@ -26,6 +26,11 @@ const check = (passed, name, detail = '') => {
     await page.getByRole('combobox', { name: 'Conta', exact: true }).click();
     await page.getByRole('option', { name: optionName, exact: true }).click();
   };
+  const editInstallment = async (row, installmentLabel) => {
+    await row.locator('[data-action="installment-open"]').click();
+    await page.locator('#dlg .installment-summary-row')
+      .filter({ hasText: installmentLabel }).click();
+  };
 
   await page.goto(`${BASE}/?preview#financas`);
   await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
@@ -40,6 +45,17 @@ const check = (passed, name, detail = '') => {
   }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');
   const recent = await page.locator('.finance-recent').textContent();
   const selectedMonth = await page.locator('.mnav .mlabel').textContent();
+  await page.locator('.mnav [data-n="-1"]').click();
+  const returnToCurrentMonth = page.getByRole('button', { name: 'Voltar para o mês atual', exact: true });
+  check(await returnToCurrentMonth.isVisible() && await returnToCurrentMonth.textContent() === 'Hoje',
+    'atalho visível para retornar ao mês atual');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.locator('.mnav').evaluate((nav) => nav.scrollWidth <= nav.clientWidth),
+    'atalho do mês atual cabe na navegação em largura de 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await returnToCurrentMonth.click();
+  check(await page.locator('.mnav .mlabel').textContent() === selectedMonth
+    && await returnToCurrentMonth.count() === 0, 'atalho retorna ao mês atual e some quando não é necessário');
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
   check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');
   check(await page.locator('.finance-month-snapshot').count() === 1
@@ -48,6 +64,8 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.finance-month-close').count() === 1
     && await page.locator('.finance-close-stats > div').count() === 6,
   'fechamento mensal resume recebidos, pagos, pendências, fixas e cartões');
+  check((await page.locator('.fin-hero-trend').textContent()).includes('transferências e faturas com vencimento neste período'),
+    'projeção informa que considera transferências pendentes e faturas vencendo no mês');
   check((await page.locator('.finance-month-close').textContent()).includes('Maior categoria de despesa')
     && (await page.locator('.finance-month-close').textContent()).includes('pagamento da fatura é uma transferência'),
   'fechamento identifica atenção por categoria e explica o tratamento do cartão');
@@ -82,6 +100,7 @@ const check = (passed, name, detail = '') => {
   )), 'fundo do documento permanece aplicado enquanto a modal está aberta');
   await page.locator('#dlg [data-dlg="amount"]').fill('1,00');
   await page.locator('#dlg [data-dlg="desc"]').fill('Despesa futura de teste');
+  const futureExpenseAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
   const futureMonthDate = new Date();
   futureMonthDate.setDate(1);
   futureMonthDate.setMonth(futureMonthDate.getMonth() + 1);
@@ -89,6 +108,30 @@ const check = (passed, name, detail = '') => {
   await page.locator('#dlg [data-dlg="date"]').fill(`${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')}`);
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   check(await page.locator('.finance-trend-empty').count() === 1, 'compromissos futuros não viram evolução de despesas realizadas');
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  await page.locator('input[data-change="fin-import"]').setInputFiles({
+    name: 'revisao-duplicados.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from([
+      'Data;Descrição;Valor',
+      `${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')};Despesa futura de teste;-1,00`,
+      `${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')};Compra diferente;-1,00`,
+    ].join('\n')),
+  });
+  await page.locator('#dlg [data-dlg="accountId"]').selectOption(futureExpenseAccount);
+  const duplicateRows = page.locator('#dlg input[data-dlg^="rows."]');
+  check(await duplicateRows.count() === 2
+    && !await duplicateRows.nth(0).isChecked()
+    && await duplicateRows.nth(1).isChecked(),
+  'importação desmarca provável duplicata com descrição equivalente e preserva compra diferente com mesmo valor');
+  check((await page.locator('#dlg').textContent()).includes('descrições diferentes')
+    && (await page.locator('#dlg').textContent()).includes('permanecem marcados'),
+  'importação explica os casos semelhantes que exigem conferência');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  if (await page.getByRole('button', { name: 'Descartar alterações', exact: true }).count()) {
+    await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();
+  }
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.locator('.mnav [data-n="0"]').click();
   await page.locator('.finance-trend-chart').waitFor();
 
@@ -121,6 +164,21 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros maiores que o valor individual da parcela são rejeitados');
   await page.locator('#dlg [data-dlg="interest"]').fill('0,10');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const installmentPlan = page.locator('.finance-installment-plan').filter({
+    hasText: 'Série parcelada de teste',
+  });
+  check(await installmentPlan.count() === 1,
+    'resumo financeiro mostra a compra parcelada mesmo fora da lista do mês');
+  check(await installmentPlan.textContent()
+    .then((text) => text.includes('Série parcelada de teste')
+      && text.includes('8 parcelas restantes')
+      && text.includes('8,00')),
+  'atalho financeiro mostra quantidade, valor restante e término da série');
+  await installmentPlan.click();
+  check(await page.locator('#dlg').textContent()
+    .then((text) => text.includes('Última parcela') && text.includes('Valor restante')),
+  'atalho no resumo abre os detalhes das parcelas');
+  await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
   await page.locator('.fin-section-option[data-t="lancamentos"]').click();
   await page.locator('.mnav [data-n="-1"]').click();
   await page.locator('.mnav [data-n="-1"]').click();
@@ -143,7 +201,37 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (10/10)' }).locator('.meta2').textContent()
     .then((text) => text.includes('Sem juros')), 'parcelas seguintes podem ser explicitamente sem juros');
   for (let month = 0; month < 6; month++) await page.locator('.mnav [data-n="-1"]').click();
-  await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }).locator('[data-action="edit-tx"]').click();
+  await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }).locator('[data-action="installment-open"]').click();
+  const installmentSummary = await page.locator('#dlg').textContent();
+  check(installmentSummary.includes('Compra parcelada')
+    && installmentSummary.includes('Última parcela')
+    && installmentSummary.includes('Valor restante')
+    && installmentSummary.includes('10 de 10'),
+  'resumo da compra mostra o fim da série e o valor das parcelas ainda pendentes',
+  installmentSummary);
+  check(await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Parcelas restantes' })
+    .locator('dd').textContent().then((count) => count.trim() === '8'),
+  'resumo calcula a quantidade de parcelas ainda não pagas',
+  await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Parcelas restantes' })
+    .locator('dd').textContent());
+  check(await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Valor restante' })
+    .locator('dd').textContent().then((amount) => amount.includes('8,00')),
+  'valor restante é exibido em reais com base nas parcelas pendentes');
+  check(await page.locator('#dlg .installment-summary-row').count() === 8,
+    'resumo lista as parcelas existentes e permite editar cada uma');
+  check(await page.locator('#dlg .installment-summary-row[aria-current="step"]')
+    .textContent().then((text) => text.includes('Parcela 4 de 10')),
+  'modal destaca a parcela que foi selecionada');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
+    && document.querySelector('#dlg').scrollWidth <= document.querySelector('#dlg').clientWidth),
+  'modal parcelado não cria overflow horizontal em 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
+  await editInstallment(
+    page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }),
+    '4 de 10',
+  );
   await page.locator('#dlg [data-dlg="interest"]').fill('999,00');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros acima do valor da parcela são rejeitados');
@@ -154,7 +242,7 @@ const check = (passed, name, detail = '') => {
   const hasEditedInterest = editedInstallmentMeta.includes('0,25');
   check(hasEditedInterest, 'juros podem ser ajustados em cada parcela', hasEditedInterest ? '' : editedInstallmentMeta);
   await page.locator('.scroll-x button[data-action="fin-filter"][data-f="todos"]').evaluate((button) => button.click());
-  await editedInstallment.locator('[data-action="edit-tx"]').click();
+  await editInstallment(editedInstallment, '4 de 10');
   await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
   check(await page.locator('#dlg input[data-advance-id]').count() > 0, 'antecipação permite selecionar parcelas futuras');
   await page.locator('#dlg input[data-advance-id]').first().check();
@@ -191,7 +279,12 @@ const check = (passed, name, detail = '') => {
     const originalCardMonth = await page.locator('.mnav .mlabel').textContent();
     const originalCardDateHeader = await cardInstallment.evaluate((row) => row.closest('.grp')?.querySelector('.gh')?.textContent);
     check(await cardInstallment.locator('.meta2').textContent().then((text) => text.includes('0,50')), 'juros da parcela de cartão aparecem sem alterar o valor da parcela');
-    await cardInstallment.locator('[data-action="edit-tx"]').click();
+    await cardInstallment.locator('[data-action="installment-open"]').click();
+    check(await page.locator('#dlg').textContent()
+      .then((text) => text.includes('O pagamento da fatura é separado.')),
+    'resumo do cartão esclarece que as parcelas não quitam a fatura');
+    await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
+    await editInstallment(cardInstallment, '1 de 3');
     await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
     const cardAnticipationDialog = page.locator('#dlg');
     check(await cardAnticipationDialog.locator('input[data-advance-id]').count() === 3
@@ -321,6 +414,39 @@ const check = (passed, name, detail = '') => {
   await page.locator('#dlg [data-dlg="settledDate"]').waitFor();
   const recentAccountOptions = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => options.map((option) => option.value));
   const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,34');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Despesa com categoria rápida');
+  check(await page.locator('#dlg [data-dlg="category"] option[data-icon][data-color]').count() >= recentCategoryOptions.length - 1,
+    'categorias do lançamento incluem metadados visuais de ícone e cor');
+  const categoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="category"]) .ds-select__trigger');
+  await categoryTrigger.click();
+  check(await page.locator('body > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,
+    'lista aberta de categorias exibe os respectivos ícones');
+  await page.keyboard.press('Escape');
+  check(await categoryTrigger.locator('.ds-select__category-icon').count() === 1,
+    'categoria selecionada mantém ícone visível no campo');
+  const selectedBeforeCategoryCancel = await page.locator('#dlg [data-dlg="category"]').inputValue();
+  await categoryTrigger.click();
+  await page.getByRole('option', { name: 'Criar nova categoria…' }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="category"]').inputValue() === selectedBeforeCategoryCancel,
+    'cancelar nova categoria retorna ao lançamento sem alterar a seleção');
+  await categoryTrigger.click();
+  await page.getByRole('option', { name: 'Criar nova categoria…' }).click();
+  check(await page.locator('#dlg h2').textContent().then((text) => text.includes('Nova categoria de despesa')),
+    'criar categoria em lançamento abre um modal dedicado');
+  check(await page.locator('#dlg .dlg').evaluate((dialog) => {
+    const bounds = dialog.getBoundingClientRect();
+    return bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight;
+  }), 'modal de nova categoria cabe na largura móvel');
+  await page.locator('#dlg [data-dlg="name"]').fill('Veterinário rápido');
+  await page.locator('#dlg .category-icon-picker [data-dlg="icon"][value="heart"]').check();
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('#dlg [data-dlg="category"]').inputValue() === 'Veterinário rápido',
+    'categoria criada no modal volta selecionada no lançamento');
+  check(await page.locator('#dlg [data-dlg="amount"]').inputValue() === '12,34'
+    && await page.locator('#dlg [data-dlg="desc"]').inputValue() === 'Despesa com categoria rápida',
+  'modal preserva o rascunho do lançamento');
   if (recentAccountOptions.length > 1) {
     const selectedAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
     await selectAccount(recentAccountOptions.find((value) => value !== selectedAccount));
@@ -376,9 +502,17 @@ const check = (passed, name, detail = '') => {
 
   await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
+  const categoryIconShapes = await page.locator('.category-manager-item > .ci svg').evaluateAll((icons) => new Set(icons.map((item) => item.innerHTML)).size);
+  check(categoryIconShapes > 1, 'categorias existentes exibem ícones próprios');
   await page.locator('.category-manager-item [data-action="category-edit"]').first().click();
+  check(await page.locator('#dlg .category-icon-picker [data-dlg="icon"]').count() > 1
+    && await page.locator('#dlg .category-icon-picker [data-dlg="icon"]:checked').count() === 1,
+  'editor apresenta ícones em uma seleção visual acessível');
   await page.locator('#dlg [data-dlg="name"]').fill('Alimentação personalizada');
-  await page.locator('#dlg [data-dlg="icon"]').selectOption('car');
+  const transportIcon = page.getByRole('radio', { name: 'Transporte', exact: true });
+  await transportIcon.focus();
+  await page.keyboard.press('Space');
+  check(await transportIcon.isChecked(), 'seletor de ícone pode ser usado pelo teclado');
   await page.locator('#dlg [data-dlg="color"]').fill('#123abc');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   check(await page.locator('.category-manager-item').first().textContent().then((text) => text.includes('Alimentação personalizada')), 'categoria pode ter nome, ícone e cor personalizados');
@@ -387,8 +521,9 @@ const check = (passed, name, detail = '') => {
   const expenseCategories = page.locator('.category-manager-group').first();
   await expenseCategories.getByRole('button', { name: 'Adicionar' }).click();
   await page.locator('#dlg [data-dlg="parent"]').selectOption({ label: 'Moradia' });
+  check(await page.locator('#dlg h2').textContent().then((text) => text.includes('subcategoria')), 'escolher uma categoria principal identifica a criação de subcategoria');
   await page.locator('#dlg [data-dlg="name"]').fill('Condomínio');
-  await page.locator('#dlg [data-dlg="icon"]').selectOption('home');
+  await page.locator('#dlg .category-icon-picker [data-dlg="icon"][value="home"]').check();
   await page.locator('#dlg [data-dlg="color"]').fill('#22aa88');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   const subcategory = page.locator('.category-manager-subcategories li').filter({ hasText: 'Moradia > Condomínio' });
@@ -401,6 +536,48 @@ const check = (passed, name, detail = '') => {
   check(await renamedTransaction.locator('.meta2').textContent().then((text) => text.includes('Alimentação personalizada')), 'renomear categoria atualiza lançamentos existentes');
   check(await renamedTransaction.locator('.ci').getAttribute('style').then((style) => style.includes('#123abc')), 'ícone do lançamento usa a cor personalizada');
 
+  await page.locator('.fin-section-option[data-t="orcamento"]').click();
+  await page.locator('[data-action="goal-new"]').first().click();
+  await page.locator('#dlg [data-dlg="name"]').fill('Meta vinculada de teste');
+  await page.locator('#dlg [data-dlg="target"]').fill('1,00');
+  const goalAccountId = await page.locator('#dlg [data-dlg="linkedAccountId"] option').evaluateAll((options) => (
+    options.find((option) => option.value && !option.disabled)?.value
+  ));
+  check(Boolean(goalAccountId), 'objetivo oferece conta não creditícia para acompanhar o saldo');
+  await page.locator('#dlg [data-dlg="linkedAccountId"]').selectOption(goalAccountId);
+  check(await page.locator('#dlg [data-dlg="saved"]').isDisabled()
+    && (await page.locator('#dlg').textContent()).includes('saldo total'),
+  'vínculo de objetivo informa que o saldo integral da conta representa o progresso');
+  await page.getByRole('button', { name: 'Criar objetivo', exact: true }).click();
+  const linkedGoal = page.locator('.goal-item').filter({ hasText: 'Meta vinculada de teste' });
+  check(await linkedGoal.count() === 1
+    && (await linkedGoal.textContent()).includes('Saldo sincronizado com a conta')
+    && await linkedGoal.getByRole('button', { name: 'Guardar' }).count() === 0,
+  'objetivo vinculado acompanha a conta sem oferecer registro manual de contribuição');
+  await page.locator('[data-action="goal-new"]').first().click();
+  const reusedGoalAccountStatus = await page.locator('#dlg [data-dlg="linkedAccountId"] option').evaluateAll((options, id) => {
+    const option = options.find((item) => item.value === id);
+    return { disabled: option?.disabled, markup: option?.outerHTML };
+  }, goalAccountId);
+  check(reusedGoalAccountStatus.disabled,
+    'uma conta não pode ser compartilhada entre objetivos');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+  const editLinkedGoal = linkedGoal.getByRole('button', { name: 'Editar' });
+  await editLinkedGoal.evaluate((button) => button.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await editLinkedGoal.click();
+  const linkedGoalSavedValue = await page.locator('#dlg [data-dlg="saved"]').inputValue();
+  await page.locator('#dlg [data-dlg="linkedAccountId"]').selectOption('');
+  check(!await page.locator('#dlg [data-dlg="saved"]').isDisabled()
+    && await page.locator('#dlg [data-dlg="saved"]').inputValue() === linkedGoalSavedValue,
+  'desvincular preserva o saldo atual como valor manual');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+  check((await linkedGoal.textContent()).includes('acompanhamento manual')
+    && await linkedGoal.getByRole('button', { name: 'Guardar' }).count() === 1,
+  'objetivo pode voltar ao modo manual sem perder o progresso');
+
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.getByRole('button', { name: 'Despesa', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Receita', exact: true }).click();
   const date = new Date();
@@ -443,8 +620,14 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Resumo', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
+  check(await page.locator('.finance-fab').isVisible()
+    && !await page.locator('.finance-page-action').isVisible(),
+  'celular mostra apenas a ação flutuante de lançamento');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
+  check(!await page.locator('.finance-fab').isVisible()
+    && await page.locator('.finance-page-action').isVisible(),
+  'desktop mostra apenas a ação de lançamento no cabeçalho');
   const overviewDesktopLayout = await page.evaluate(() => {
     const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
     const recent = document.querySelector('.finance-recent').getBoundingClientRect();
