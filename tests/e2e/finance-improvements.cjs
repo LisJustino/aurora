@@ -394,6 +394,10 @@ const check = (passed, name, detail = '') => {
   await page.locator('.finance-fab').click();
   const quickMenu = page.locator('#quick-actions-menu');
   await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.activeElement?.classList.contains('finance-fab'));
+  check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas e devolve o foco ao botão de Finanças');
+  await page.locator('.finance-fab').click();
   check(await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).count() === 1, 'ações rápidas oferecem transferência');
   check(await quickMenu.getByRole('button', { name: 'Receita', exact: true }).count() === 1, 'ações rápidas oferecem receita');
   check(await quickMenu.getByRole('button', { name: 'Despesa', exact: true }).count() === 1, 'ações rápidas oferecem despesa');

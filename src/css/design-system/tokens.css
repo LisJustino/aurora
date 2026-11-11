@@ -54,6 +54,8 @@
   --priority-low: #3f7f93;
   --hero: var(--surface-strong);
   --hero-home: color-mix(in srgb, var(--p) 2%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 4%, var(--surface));
+  --brand-surface-strong: color-mix(in srgb, var(--p) 17%, var(--surface));
   --on-hero-home: var(--ink);
   --on-hero: var(--ink);
   --shadow: 0 20px 48px -24px rgb(44 38 33 / 22%);
@@ -133,6 +135,7 @@
   --text-display: clamp(2.5rem, 5vw, 4rem);
   --text-hero: clamp(2.1rem, 4vw, 3.3rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
+  --text-annual-plan-title: clamp(1.6rem, 3vw, 2.25rem);
   --text-metric: clamp(2.1rem, 5vw, 3rem);
   --text-water-total: clamp(2.75rem, 8vw, 4rem);
   --text-loading-brand: clamp(2.25rem, 5vw, 3rem);

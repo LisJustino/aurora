@@ -20,6 +20,10 @@ const check = (passed, name, detail = '') => {
   await page.locator('.habit-today').waitFor({ state: 'visible' });
   check(await page.locator('.habit-today .empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
   check(await page.locator('.habit-today [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
+  check(await page.locator('.habit-ideas').getAttribute('open') === null
+    && await page.locator('[data-habit-idea]:visible').count() === 0,
+  'ideias de hábitos começam recolhidas');
+  await page.locator('.habit-ideas > summary').click();
   await page.locator('.habit-today .empty [data-action="habit-new"]').click();
   await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
   check(await page.locator('#dlg [data-dlg="name"]').getAttribute('aria-invalid') === 'true', 'nome vazio do hábito recebe erro inline');

@@ -61,7 +61,13 @@ import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
 import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
-import { isValidAnnualPlans, normalizeAnnualPlans } from '../src/js/features/planning/annual-plan.js';
+import {
+  ANNUAL_PLAN_IDEA_CATEGORIES,
+  ANNUAL_PLAN_IDEAS,
+  filterAnnualPlanIdeas,
+  isValidAnnualPlans,
+  normalizeAnnualPlans,
+} from '../src/js/features/planning/annual-plan.js';
 import {
   createSuggestedHabits,
   habitColor,
@@ -209,6 +215,21 @@ test('planos anuais validam formato, limites e preservam campos desconhecidos', 
     || normalized[2027].goals[0].customField !== true
     || normalizeAnnualPlans({ invalid: plans[2027] })[2027] !== undefined) {
     throw new Error('A normalização não preservou os campos futuros ou aceitou o ano inválido.');
+  }
+});
+
+test('catálogo do Plano anual tem ideias por categoria e busca sem acentos', () => {
+  const ids = new Set(ANNUAL_PLAN_IDEAS.map((idea) => idea.id));
+  if (ANNUAL_PLAN_IDEAS.length < 20 || ids.size !== ANNUAL_PLAN_IDEAS.length
+    || ANNUAL_PLAN_IDEA_CATEGORIES.length < 5
+    || ANNUAL_PLAN_IDEAS.some((idea) => !ANNUAL_PLAN_IDEA_CATEGORIES.some((category) => category.id === idea.category)
+      || !idea.title || !idea.action)) {
+    throw new Error('O catálogo precisa conter ao menos 20 ideias únicas com categoria, título e primeiro passo.');
+  }
+  if (filterAnnualPlanIdeas('dinheiro').length !== 4
+    || filterAnnualPlanIdeas('all', 'saude').map((idea) => idea.id).join(',') !== 'preventive-care'
+    || filterAnnualPlanIdeas('relacoes', 'viagem').length !== 0) {
+    throw new Error('A busca e o filtro por categoria não correspondem às ideias disponíveis.');
   }
 });
 
@@ -361,12 +382,14 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const previousSetTimeout = globalThis.setTimeout;
   const previousClearTimeout = globalThis.clearTimeout;
+  const previousNow = Date.now;
   const written = [];
+  const timer = { hidden: false, style: {} };
   const element = {
     className: '',
     innerHTML: '',
     setAttribute(name, value) { this[name] = value; },
-    querySelector() { return null; },
+    querySelector(selector) { return selector === '.toast-timer' ? timer : null; },
   };
   let override = null;
   Object.defineProperty(globalThis, 'document', {
@@ -376,6 +399,8 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
   });
   globalThis.setTimeout = () => 1;
   globalThis.clearTimeout = () => {};
+  let now = 10000;
+  Date.now = () => now;
   try {
     const controller = createToastController({
       readToast: () => written.at(-1) || null,
@@ -389,6 +414,12 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
     equal(element.role, 'alert');
     controller.show('Salvo.', 'success');
     equal(written.at(-1).tone, 'success');
+    equal(timer.style.animationDuration, '5000ms');
+    now += 2500;
+    controller.render();
+    equal(timer.style.animationDelay, '-2500ms');
+    controller.show('Alterado.', 'success', () => {});
+    equal(timer.style.animationDuration, '9000ms');
     override = { message: 'Falha ao carregar.', details: 'Conexão indisponível.' };
     controller.show('Salvo.', 'success');
     equal(written.at(-1).tone, 'error');
@@ -398,6 +429,7 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
     else delete globalThis.document;
     globalThis.setTimeout = previousSetTimeout;
     globalThis.clearTimeout = previousClearTimeout;
+    Date.now = previousNow;
   }
 });
 

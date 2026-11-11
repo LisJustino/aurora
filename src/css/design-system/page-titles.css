@@ -1,3 +1,7 @@
+.main[data-route] {
+  --area-heading-surface: color-mix(in srgb, var(--area-tone, var(--accent)) 2%, var(--surface));
+}
+
 .main > .page-title {
   position: relative;
   display: flex;
@@ -7,7 +11,7 @@
   padding: var(--space-5) var(--space-5);
   border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 20%, var(--line));
   border-radius: var(--r-large);
-  background: var(--hero);
+  background: var(--area-heading-surface);
   box-shadow: var(--card-shadow);
 }
 
@@ -62,7 +66,11 @@
   justify-content: space-between;
   gap: var(--space-4);
 }
-.main > .page-title:has(.area-page-actions)::after { display: none; }
+.main > .page-title:has(.area-page-actions)::after {
+  right: 40%;
+  opacity: .5;
+  pointer-events: none;
+}
 .main > .page-title:has(.area-page-actions) .page-title-copy {
   min-width: 0;
   max-width: min(70ch, 100%);
@@ -91,6 +99,7 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+  .main > .page-title:has(.area-page-actions)::after { display: none; }
   .main > .page-title .page-title-copy { max-width: calc(100% - 68px); }
   .main > .page-title:has(.area-page-actions) .page-title-copy { max-width: 100%; }
   .main > .page-title p { display: none; }

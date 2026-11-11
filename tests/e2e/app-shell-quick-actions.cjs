@@ -18,8 +18,8 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#inicio`);
+  await page.locator('.preview-shell .main').waitFor();
   const moreTrigger = page.getByRole('button', { name: /Mais áreas/ });
-  await moreTrigger.waitFor({ state: 'visible' });
   const moreMenu = page.locator('#nav-more-menu');
   const quickTrigger = moreMenu.locator('.nav-more-create');
   const quickMenu = page.locator('#quick-actions-menu');
@@ -66,13 +66,15 @@ const check = (passed, name, detail = '') => {
             return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
           });
       })(),
-      labelsFit: [...document.querySelectorAll('.topbar .nav > .nav-primary .tab-label-group')]
+      labelsFit: [...document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas) .tab-label-group')]
         .every((label) => label.scrollWidth <= label.clientWidth + 1),
-      createInMore: (() => {
+      directNavigation: (() => {
         const nav = document.querySelector('.topbar .nav');
-        return getComputedStyle(nav.querySelector(':scope > .nav-quick-control > .nav-quick-trigger')).display === 'none'
-          && Boolean(nav.querySelector('.nav-more-menu .nav-more-create'));
+        const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
+        return getComputedStyle(nav.querySelector('.nav-more-trigger')).display === 'none'
+          && links.length === 5 && links.every((link) => getComputedStyle(link).display !== 'none');
       })(),
+      headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
     })));
   }
   check(mobileNavLabels.every(({ dockedAsFloatingCapsule }) => dockedAsFloatingCapsule),
@@ -80,39 +82,13 @@ const check = (passed, name, detail = '') => {
   check(mobileNavLabels.every(({ actionsInsideBackground }) => actionsInsideBackground),
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
-  check(mobileNavLabels.every(({ createInMore }) => createInMore),
-    'ação Criar fica dentro de Mais e não ocupa uma coluna do dock', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ directNavigation, headerGap }) => directNavigation && headerGap >= 8),
+    'dock mostra cinco destinos sem Mais e cabeçalho espaça os controles', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ brandHidden }) => brandHidden),
     'marca usa apenas o símbolo no cabeçalho móvel para preservar espaço', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ collapseToggleHidden }) => collapseToggleHidden),
     'controle da barra lateral não aparece no dock móvel', JSON.stringify(mobileNavLabels));
   await page.setViewportSize({ width: 320, height: 700 });
-  await moreTrigger.click();
-  const moreMenuLabelsFit = await page.evaluate(() => {
-    const menu = document.querySelector('.nav-more-menu');
-    const bounds = menu.getBoundingClientRect();
-    const dock = document.querySelector('.topbar .nav').getBoundingClientRect();
-    const create = menu.querySelector('.nav-more-create');
-    const createBounds = create.getBoundingClientRect();
-    return bounds.left >= 0
-      && bounds.right <= innerWidth
-      && bounds.left >= dock.left - 1
-      && bounds.right <= dock.right + 1
-      && bounds.bottom <= dock.top
-      && [...menu.querySelectorAll('.nav-more-link, .nav-more-create')].every((item) => item.scrollWidth <= item.clientWidth + 1)
-      && createBounds.width >= 44
-      && createBounds.height >= 44
-      && createBounds.left >= bounds.left
-      && createBounds.right <= bounds.right;
-  });
-  check(moreMenuLabelsFit, 'menu Mais encaixa no dock e inclui Criar com rótulos inteiros');
-  await quickTrigger.click();
-  await quickMenu.waitFor({ state: 'visible' });
-  check(await quickMenu.isVisible(), 'Criar abre as ações rápidas a partir de Mais');
-  await page.keyboard.press('Escape');
-  check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas abertas por Mais');
-  check(await moreTrigger.evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador Mais');
-  await moreTrigger.click();
   const homeOrder = await page.evaluate(() => ({
     plan: document.querySelector('.home-today-card')?.getBoundingClientRect().top,
     primaryBottom: document.querySelector('.home-primary')?.getBoundingClientRect().bottom,
@@ -233,13 +209,6 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.home-next-action:not(.home-weekly-review)').count() === await page.locator('.home-bill-reminder').count(),
     'lembretes financeiros permanecem secundários fora do plano do dia');
   check(homeOrder.sampleNotice < homeOrder.plan, 'aviso de demonstração permanece antes das ações');
-  const sampleNoticeLayout = await page.evaluate(() => {
-    const notice = document.querySelector('.sample-banner');
-    const copy = notice.querySelector('.grow').getBoundingClientRect();
-    const action = notice.querySelector('.btn').getBoundingClientRect();
-    return action.top >= copy.bottom && action.left >= copy.left;
-  });
-  check(sampleNoticeLayout, 'aviso de demonstração mantém texto legível no celular');
   await page.locator('.nav a[href="/planejar"]').click();
   const upcomingTasks = [
     ['Agenda amanhã', 1],
@@ -300,22 +269,17 @@ const check = (passed, name, detail = '') => {
     return finalAction.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top;
   });
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
+  await page.setViewportSize({ width: 1024, height: 900 });
   await openQuickActions();
-  check(await page.evaluate(() => {
-    const menu = document.querySelector('#quick-actions-menu').getBoundingClientRect();
-    const dock = document.querySelector('.topbar .nav').getBoundingClientRect();
-    return menu.left >= dock.left - 1
-      && menu.right <= dock.right + 1
-      && menu.bottom <= dock.top;
-  }), 'menu Criar encaixa no dock sem desencontro horizontal');
+  check(await quickMenu.isVisible(), 'ações rápidas continuam disponíveis no tablet');
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).count() === 1, 'ações rápidas oferecem criação de tarefa');
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).evaluate((button) => button === document.activeElement), 'abrir ações rápidas posiciona o foco no primeiro item');
   await page.keyboard.press('Escape');
   check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas');
-  check(await moreTrigger.evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador Mais');
+  check(await page.locator('.nav-quick-trigger').evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador de ações rápidas');
 
   await openQuickActions();
-  await page.locator('.nav-scrim').click();
+  await page.locator('.main').click({ position: { x: 10, y: 10 } });
   check(await quickMenu.isHidden(), 'clique fora fecha as ações rápidas');
   await openQuickActions();
   await quickMenu.getByRole('button', { name: 'Nova tarefa' }).click();
@@ -448,17 +412,20 @@ const check = (passed, name, detail = '') => {
   }
   if (orderChanged) await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobilePrimaryLinks = await page.locator('.topbar .nav > .nav-primary').evaluateAll((links) => (
+  const mobilePrimaryLinks = await page.locator('.topbar .nav > a:not(.nav-enable-areas)').evaluateAll((links) => (
     links.map((link) => link.getAttribute('href'))
   ));
-  check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas',
-    'dock móvel reserva quatro destinos a Início, Planejar, Hábitos e Finanças na ordem escolhida');
-  await page.locator('.nav-more-trigger').click();
-  check(await page.locator('#nav-more-menu a[href="/config"]').count() === 0,
-    'Ajustes não aparece no menu Mais');
+  check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas,/ciclo',
+    'dock móvel mostra todas as áreas na ordem escolhida');
+  check(!(await page.locator('.nav-more-trigger').isVisible()), 'dock móvel não mostra Mais');
   check(await page.locator('.profile-link[href="/config"]').isVisible(),
     'Ajustes permanece acessível pelo atalho de perfil no cabeçalho móvel');
-  await page.locator('.nav-more-trigger').click();
+  await cycleMenuToggle.uncheck();
+  await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 4);
+  check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 4,
+    'dock mostra quatro destinos quando Ciclo não está no menu');
+  await cycleMenuToggle.check();
+  await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 5);
   await page.setViewportSize({ width: 1440, height: 900 });
   orderChanged = false;
   for (let moves = 0; moves < 5; moves++) {

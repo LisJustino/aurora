@@ -24,8 +24,9 @@ import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.9';
-export const CYCLE_DATA_CONSENT_VERSION = '1.9';
+export const TERMS_DOCUMENT_VERSION = '1.9';
+export const PRIVACY_POLICY_VERSION = '2.0';
+export const CYCLE_DATA_CONSENT_VERSION = '2.0';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -34,16 +35,16 @@ export function createLegalConsentMetadata(acceptedAt = new Date()) {
   }
   return {
     terms_accepted_at: acceptedAt.toISOString(),
-    terms_version: LEGAL_DOCUMENT_VERSION,
-    privacy_policy_version: LEGAL_DOCUMENT_VERSION,
+    terms_version: TERMS_DOCUMENT_VERSION,
+    privacy_policy_version: PRIVACY_POLICY_VERSION,
   };
 }
 
 export function hasCurrentLegalConsent(user) {
   const metadata = user?.user_metadata;
   return Boolean(metadata
-    && metadata.terms_version === LEGAL_DOCUMENT_VERSION
-    && metadata.privacy_policy_version === LEGAL_DOCUMENT_VERSION
+    && metadata.terms_version === TERMS_DOCUMENT_VERSION
+    && metadata.privacy_policy_version === PRIVACY_POLICY_VERSION
     && typeof metadata.terms_accepted_at === 'string'
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
 }
