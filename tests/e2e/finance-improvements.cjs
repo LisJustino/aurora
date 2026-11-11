@@ -26,6 +26,11 @@ const check = (passed, name, detail = '') => {
     await page.getByRole('combobox', { name: 'Conta', exact: true }).click();
     await page.getByRole('option', { name: optionName, exact: true }).click();
   };
+  const editInstallment = async (row, installmentLabel) => {
+    await row.locator('[data-action="installment-open"]').click();
+    await page.locator('#dlg .installment-summary-row')
+      .filter({ hasText: installmentLabel }).click();
+  };
 
   await page.goto(`${BASE}/?preview#financas`);
   await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
@@ -159,6 +164,21 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros maiores que o valor individual da parcela são rejeitados');
   await page.locator('#dlg [data-dlg="interest"]').fill('0,10');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const installmentPlan = page.locator('.finance-installment-plan').filter({
+    hasText: 'Série parcelada de teste',
+  });
+  check(await installmentPlan.count() === 1,
+    'resumo financeiro mostra a compra parcelada mesmo fora da lista do mês');
+  check(await installmentPlan.textContent()
+    .then((text) => text.includes('Série parcelada de teste')
+      && text.includes('8 parcelas restantes')
+      && text.includes('8,00')),
+  'atalho financeiro mostra quantidade, valor restante e término da série');
+  await installmentPlan.click();
+  check(await page.locator('#dlg').textContent()
+    .then((text) => text.includes('Última parcela') && text.includes('Valor restante')),
+  'atalho no resumo abre os detalhes das parcelas');
+  await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
   await page.locator('.fin-section-option[data-t="lancamentos"]').click();
   await page.locator('.mnav [data-n="-1"]').click();
   await page.locator('.mnav [data-n="-1"]').click();
@@ -181,7 +201,37 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (10/10)' }).locator('.meta2').textContent()
     .then((text) => text.includes('Sem juros')), 'parcelas seguintes podem ser explicitamente sem juros');
   for (let month = 0; month < 6; month++) await page.locator('.mnav [data-n="-1"]').click();
-  await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }).locator('[data-action="edit-tx"]').click();
+  await page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }).locator('[data-action="installment-open"]').click();
+  const installmentSummary = await page.locator('#dlg').textContent();
+  check(installmentSummary.includes('Compra parcelada')
+    && installmentSummary.includes('Última parcela')
+    && installmentSummary.includes('Valor restante')
+    && installmentSummary.includes('10 de 10'),
+  'resumo da compra mostra o fim da série e o valor das parcelas ainda pendentes',
+  installmentSummary);
+  check(await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Parcelas restantes' })
+    .locator('dd').textContent().then((count) => count.trim() === '8'),
+  'resumo calcula a quantidade de parcelas ainda não pagas',
+  await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Parcelas restantes' })
+    .locator('dd').textContent());
+  check(await page.locator('#dlg .installment-summary-stats > div').filter({ hasText: 'Valor restante' })
+    .locator('dd').textContent().then((amount) => amount.includes('8,00')),
+  'valor restante é exibido em reais com base nas parcelas pendentes');
+  check(await page.locator('#dlg .installment-summary-row').count() === 8,
+    'resumo lista as parcelas existentes e permite editar cada uma');
+  check(await page.locator('#dlg .installment-summary-row[aria-current="step"]')
+    .textContent().then((text) => text.includes('Parcela 4 de 10')),
+  'modal destaca a parcela que foi selecionada');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
+    && document.querySelector('#dlg').scrollWidth <= document.querySelector('#dlg').clientWidth),
+  'modal parcelado não cria overflow horizontal em 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
+  await editInstallment(
+    page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }),
+    '4 de 10',
+  );
   await page.locator('#dlg [data-dlg="interest"]').fill('999,00');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="interest"]').count() === 1, 'juros acima do valor da parcela são rejeitados');
@@ -192,7 +242,7 @@ const check = (passed, name, detail = '') => {
   const hasEditedInterest = editedInstallmentMeta.includes('0,25');
   check(hasEditedInterest, 'juros podem ser ajustados em cada parcela', hasEditedInterest ? '' : editedInstallmentMeta);
   await page.locator('.scroll-x button[data-action="fin-filter"][data-f="todos"]').evaluate((button) => button.click());
-  await editedInstallment.locator('[data-action="edit-tx"]').click();
+  await editInstallment(editedInstallment, '4 de 10');
   await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
   check(await page.locator('#dlg input[data-advance-id]').count() > 0, 'antecipação permite selecionar parcelas futuras');
   await page.locator('#dlg input[data-advance-id]').first().check();
@@ -229,7 +279,12 @@ const check = (passed, name, detail = '') => {
     const originalCardMonth = await page.locator('.mnav .mlabel').textContent();
     const originalCardDateHeader = await cardInstallment.evaluate((row) => row.closest('.grp')?.querySelector('.gh')?.textContent);
     check(await cardInstallment.locator('.meta2').textContent().then((text) => text.includes('0,50')), 'juros da parcela de cartão aparecem sem alterar o valor da parcela');
-    await cardInstallment.locator('[data-action="edit-tx"]').click();
+    await cardInstallment.locator('[data-action="installment-open"]').click();
+    check(await page.locator('#dlg').textContent()
+      .then((text) => text.includes('O pagamento da fatura é separado.')),
+    'resumo do cartão esclarece que as parcelas não quitam a fatura');
+    await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
+    await editInstallment(cardInstallment, '1 de 3');
     await page.getByRole('button', { name: 'Antecipar parcelas' }).click();
     const cardAnticipationDialog = page.locator('#dlg');
     check(await cardAnticipationDialog.locator('input[data-advance-id]').count() === 3

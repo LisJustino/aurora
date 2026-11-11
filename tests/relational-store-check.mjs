@@ -184,6 +184,12 @@ const state = {
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
       profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      annualPlans: {
+        2027: {
+          intention: 'Abrir espaço para o que importa.',
+          goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+        },
+      },
       homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
       homeMode: 'focus',
       homeModes: {
@@ -319,6 +325,12 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
 });
@@ -410,6 +422,12 @@ assert.deepEqual(loadedState.checkins, [{
 }]);
 assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
 });
 assert.deepEqual(loadedState.settings.prefs.homeLayout, {
   order: ['today', 'summary', 'quick', 'habits'],

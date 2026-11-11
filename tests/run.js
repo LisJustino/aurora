@@ -35,6 +35,7 @@ import {
   netAccountBalance,
   netAccountBalanceOn,
   projectedNetAccountBalance,
+  installmentSummary,
   reportMonthStats,
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
@@ -60,6 +61,7 @@ import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
 import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
+import { isValidAnnualPlans, normalizeAnnualPlans } from '../src/js/features/planning/annual-plan.js';
 import {
   createSuggestedHabits,
   habitColor,
@@ -186,6 +188,28 @@ test('seleção de tarefas preserva filtros, ordenação e dados originais', () 
   }
   if (todayTasks(tasks, '2026-11-10').map((task) => task.title).join(',') !== 'Revisão,Feita'
     || tasks[0].title !== 'Revisão') throw new Error('Seleção do dia ou ordem original incorreta.');
+});
+
+test('planos anuais validam formato, limites e preservam campos desconhecidos', () => {
+  const plans = {
+    2027: {
+      intention: 'Abrir espaço para o que importa.',
+      customField: 'preservado',
+      goals: [{ id: 'goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, customField: true }],
+    },
+  };
+  if (!isValidAnnualPlans(plans)
+    || isValidAnnualPlans({ ...plans, 2028: { intention: '', goals: [{ ...plans[2027].goals[0], done: 'sim' }] } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], goals: [{ ...plans[2027].goals[0], id: '' }] } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], intention: 'a'.repeat(301) } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], goals: [{ ...plans[2027].goals[0], quarter: 'q5' }] } })
+    || isValidAnnualPlans({ invalid: plans[2027] })) throw new Error('O formato do plano anual aceitou registros inválidos.');
+  const normalized = normalizeAnnualPlans(plans);
+  if (normalized[2027].customField !== 'preservado'
+    || normalized[2027].goals[0].customField !== true
+    || normalizeAnnualPlans({ invalid: plans[2027] })[2027] !== undefined) {
+    throw new Error('A normalização não preservou os campos futuros ou aceitou o ano inválido.');
+  }
 });
 
 test('inicia os alertas antes de aguardar o service worker', () => {
@@ -966,6 +990,33 @@ test('ignora lançamentos pendentes no saldo das contas', () => {
   ];
 
   equal(accountBalance(account, transactions), 9000);
+});
+
+test('resumo de parcelas calcula vencimento final e valores ainda restantes', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking' },
+    { id: 'card', type: 'credit' },
+  ];
+  const transactions = [
+    { id: 'first', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 100, date: '2026-09-10', paid: true },
+    { id: 'second', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 101, date: '2026-10-10', paid: false },
+    { id: 'third', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 100, date: '2026-11-10', paid: false },
+    { id: 'card-past', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-09-10', paid: true },
+    { id: 'card-now', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-10-10', paid: true },
+    { id: 'card-next', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-11-10', paid: true },
+  ];
+  const accountForId = (id) => accounts.find((account) => account.id === id);
+  const purchase = installmentSummary(transactions, 'second', accountForId, '2026-10');
+  const cardPurchase = installmentSummary(transactions, 'card-past', accountForId, '2026-10');
+
+  equal(purchase.endDate, '2026-11-10');
+  equal(purchase.remainingCents, 201);
+  equal(purchase.remainingCount, 2);
+  equal(purchase.selectedIndex, 1);
+  equal(cardPurchase.endDate, '2026-11-10');
+  equal(cardPurchase.remainingCents, 1000);
+  equal(cardPurchase.remainingCount, 2);
+  equal(cardPurchase.cardPurchase, true);
 });
 
 test('saldo histórico considera transferências e data de liquidação sem incluir cartão', () => {

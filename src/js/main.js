@@ -36,6 +36,7 @@ import {
   linkedGoalProgressCents,
   projectedNetAccountBalance,
   signedAmount,
+  installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
   ACCOUNT_TYPES,
@@ -53,6 +54,7 @@ import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/temp
 import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
 import { filteredTasks as selectFilteredTasks, todayTasks as selectTodayTasks } from './features/planning/task-selection.js';
+import { ANNUAL_PLAN_LIMITS, isValidAnnualPlans, normalizeAnnualPlans } from './features/planning/annual-plan.js';
 import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { createFinanceDialogViews } from './features/finance/dialogs.js';
@@ -427,7 +429,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -452,7 +454,7 @@ const writeSidebarCollapsed = (collapsed) => {
     else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
   } catch { /* storage indisponível */ }
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Number(today().slice(0, 4)) + 1), annualEditingGoalId: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const toastController = createToastController({
   readToast: () => ui.toast,
   writeToast: (toast) => { ui.toast = toast; },
@@ -694,6 +696,7 @@ function normalizeSettings(s) {
   o.profile.heightCm = Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250 ? profile.heightCm : null;
   o.areas = Object.fromEntries(Object.keys(d.areas).map((key) => [key, typeof areas[key] === 'boolean' ? areas[key] : d.areas[key]]));
   o.prefs = { ...d.prefs, ...prefs };
+  o.prefs.annualPlans = normalizeAnnualPlans(prefs.annualPlans);
   delete o.prefs.studyGoalMin;
   o.prefs.trash = withoutRemovedStudyTrash(o.prefs.trash);
   o.prefs.menuOrder = normalizeMenuOrder(prefs.menuOrder);
@@ -903,6 +906,7 @@ function settingsIssueCount(value) {
   }
   if (isPlainObject(value.prefs)) {
     const prefs = value.prefs;
+    if (Object.hasOwn(prefs, 'annualPlans') && !isValidAnnualPlans(prefs.annualPlans)) issues++;
     if (Object.hasOwn(prefs, 'birthday') && prefs.birthday !== null
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
@@ -2834,13 +2838,58 @@ function disconnectGoogleCalendar(accountId) {
 function viewPlanejar() {
   const f = ui.filters;
   return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
-    <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
-      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${label}</button>`)}</div></div>
-      ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
+    <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
+      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão'], ['anual', 'Plano anual']].map(([value, label]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${label}</button>`)}</div></div>
+      ${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
       <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</section>
-    ${plansHtml()}`;
+    ${ui.planView === 'anual' ? '' : plansHtml()}`;
+}
+
+function annualPlanView() {
+  const currentYear = Number(today().slice(0, 4));
+  const plans = S.settings.prefs.annualPlans || {};
+  const years = [...new Set([
+    ...Array.from({ length: 5 }, (_, index) => String(currentYear - 1 + index)),
+    ...Object.keys(plans),
+  ])].filter((year) => /^\d{4}$/.test(year)).sort();
+  const year = ui.annualYear;
+  const plan = plans[year] || { intention: '', goals: [] };
+  const goals = plan.goals || [];
+  const completed = goals.filter((goal) => goal.done).length;
+  const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
+  const quarterLabels = { q1: '1º trimestre', q2: '2º trimestre', q3: '3º trimestre', q4: '4º trimestre' };
+  return h`<section class="annual-planner" aria-labelledby="annual-plan-title">
+    <header class="annual-plan-heading">
+      <div><p class="section-kicker">Um ano de cada vez</p><h2 id="annual-plan-title">O que você quer conquistar em ${year}?</h2>
+        <p class="small muted">Escolha uma direção e transforme suas ideias em passos possíveis.</p></div>
+      <label class="annual-year-select"><span>Ano do plano</span><select data-change="annual-plan-year" aria-label="Ano do plano">${years.map((option) => h`<option value="${option}" ${option === year ? raw('selected') : ''}>${option}</option>`)}</select></label>
+    </header>
+    <form class="annual-intention-form" data-form="annual-intention">
+      <label for="annual-intention">Minha intenção para ${year}</label>
+      <textarea id="annual-intention" name="intention" rows="3" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: cuidar melhor do meu tempo e abrir espaço para o que importa.">${plan.intention}</textarea>
+      <div class="annual-intention-footer"><p class="fine">Uma frase para orientar suas escolhas ao longo do ano.</p><button type="submit" class="btn">Salvar intenção</button></div>
+    </form>
+    <section class="annual-goals" aria-labelledby="annual-goals-title">
+      <div class="annual-goals-heading"><div><p class="section-kicker">Do desejo à prática</p><h3 id="annual-goals-title">Conquistas do ano</h3></div>
+        <span class="badge">${completed} de ${goals.length} concluídas</span></div>
+      ${goals.length ? h`<div class="annual-progress" role="progressbar" aria-label="Progresso das conquistas de ${year}" aria-valuenow="${completed}" aria-valuemin="0" aria-valuemax="${goals.length}"><span style="width:${Math.round(completed / goals.length * 100)}%"></span></div>` : ''}
+      ${goals.length ? h`<ul class="annual-goal-list">${goals.map((goal) => h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
+        <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
+        <div class="annual-goal-content"><div class="annual-goal-title-row"><h4>${goal.title}</h4>${goal.quarter ? h`<span class="badge">${quarterLabels[goal.quarter]}</span>` : ''}</div>
+          ${goal.action ? h`<p class="small muted">Primeiro passo: ${goal.action}</p>` : ''}</div>
+        <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
+        <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
+      </li>`)}</ul>` : h`<p class="annual-empty">Suas conquistas para ${year} aparecem aqui. Comece pela que mais importa para você.</p>`}
+      <form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
+        <label class="annual-goal-title-field"><span>${editing ? 'Conquista' : 'O que você quer conquistar?'}</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ''}"></label>
+        <label class="annual-goal-action-field"><span>Um primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ''}"></label>
+        <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${Object.entries(quarterLabels).map(([value, label]) => h`<option value="${value}" ${editing?.quarter === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
+        <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button>${editing ? h`<button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button>` : ''}</div>
+      </form>
+    </section>
+  </section>`;
 }
 
 function habitDaysLabel(habit) {
@@ -3888,6 +3937,7 @@ function settleDialogConfirmation(confirmed) {
   resolve(confirmed);
 }
 const CONFIRMABLE_ACTIONS = new Set([
+  'annual-goal-delete',
   'appearance-reset',
   'clear-sample',
   'del-plan',
@@ -4932,8 +4982,9 @@ const ACTIONS = {
     nav('financas');
   },
   'plan-view': (el) => {
-    if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
+    if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
     ui.planView = el.dataset.v;
+    ui.annualEditingGoalId = '';
     render();
     if (ui.planView === 'calendario') {
       const staleAccounts = connectedGoogleCalendarAccounts()
@@ -4941,6 +4992,42 @@ const ACTIONS = {
         .map((account) => account.id);
       if (staleAccounts.length) void loadGoogleCalendarEvents(staleAccounts);
     }
+  },
+  'annual-goal-edit': (el) => {
+    const goals = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals || [];
+    if (!goals.some((goal) => goal.id === el.dataset.id)) return;
+    ui.annualEditingGoalId = el.dataset.id;
+    render();
+  },
+  'annual-goal-edit-cancel': () => {
+    ui.annualEditingGoalId = '';
+    render();
+  },
+  'annual-goal-toggle': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    const snapshot = snapshotSlices(['settings']);
+    goal.done = !goal.done;
+    saveSlicesWithRollback(['settings'], snapshot);
+  },
+  'annual-goal-delete': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    if (ui.confirmedAction !== 'annual-goal-delete') {
+      return requestActionConfirmation(
+        'annual-goal-delete',
+        { id: goal.id },
+        'Excluir conquista?',
+        `“${goal.title}” será removida do plano anual.`,
+        'Excluir conquista',
+      );
+    }
+    const snapshot = snapshotSlices(['settings']);
+    plan.goals = plan.goals.filter((item) => item.id !== goal.id);
+    if (ui.annualEditingGoalId === goal.id) ui.annualEditingGoalId = '';
+    saveSlicesWithRollback(['settings'], snapshot);
   },
   'google-calendar-prepare': () => prepareGoogleCalendar(),
   'google-calendar-authorize': () => authorizeGoogleCalendar(),
@@ -6007,6 +6094,12 @@ const FORMS = {
 };
 const CHANGES = {
   'plan-view': (el) => ACTIONS['plan-view']({ dataset: { v: el.value } }),
+  'annual-plan-year': (el) => {
+    if (!/^\d{4}$/.test(el.value)) return;
+    ui.annualYear = el.value;
+    ui.annualEditingGoalId = '';
+    render();
+  },
   'habit-idea-category': (el) => {
     ui.habitIdeaCategory = el.value || 'all';
     updateHabitIdeaFilters();
@@ -6566,6 +6659,7 @@ function accountChip(account) {
 }
 function finRow(t, { showDate = false } = {}) {
   const meta = catMeta(t), acc = accById(t.accountId), paid = isPaid(t), tr = t.type === 'tr';
+  const installment = !!t.groupId && !t.recId;
   const sub = tr
     ? h`<span class="user-value">${accName(t.accountId)} → ${accName(t.toAccountId)}</span>`
     : h`<span class="expense-name">${expenseTitle(t.category)}</span> · <span class="user-value">${accName(t.accountId)}</span>`;
@@ -6575,11 +6669,49 @@ function finRow(t, { showDate = false } = {}) {
     ? (paid ? 'Voltar parcela da fatura para pendente' : 'Marcar parcela da fatura como paga')
     : (t.type === 'in' ? 'Marcar como recebido' : 'Marcar como pago');
   return h`<li class="fr ${paid ? '' : 'pend'}" data-k="${t.id}">
-    <button class="fr-main" data-action="edit-tx" data-id="${t.id}" aria-label="Editar ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
+    <button class="fr-main" data-action="${installment ? 'installment-open' : 'edit-tx'}" data-id="${t.id}" aria-label="${installment ? 'Ver resumo da parcela' : 'Editar lançamento'} ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
       <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}</span><span class="meta2">${showDate ? h`<span class="tx-date">${t.date === today() ? 'Hoje' : shortDate(t.date)}</span> · ` : ''}${sub}${paid && t.settledDate && t.settledDate !== t.date ? h` · ${t.type === 'in' ? 'recebido' : 'pago'} em ${shortDate(t.settledDate)}` : ''}${t.type === 'out' || t.invoiceInstallment ? t.interestCents != null ? h` · ${t.interestCents === 0 ? 'Sem juros' : h`Juros ${money(t.interestCents)}`}` : '' : ''}${t.type === 'out' && t.anticipatedDate ? h` · Antecipada em ${shortDate(t.anticipatedDate)}` : ''}${!paid ? h` · <span class="m-warn">${t.type === 'in' ? 'A receber' : 'A pagar'}${t.date < today() ? ' · atrasado' : ''}</span>` : ''}</span></span>
       <span class="amt ${t.type}">${t.type === 'in' ? '+' : t.type === 'out' ? '−' : ''}${money(t.cents)}</span></button>
     ${canToggle ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}" data-action="tx-paid" data-id="${t.id}" aria-label="${paymentAction}: ${title}" title="${paymentAction}">${icon('check', 16)}</button>` : h`<span class="pk-sp"></span>`}
   </li>`;
+}
+function financeInstallmentPlans() {
+  const month = today().slice(0, 7), plans = new Map();
+  S.finance.tx.forEach((transaction) => {
+    if (!transaction.groupId || transaction.recId) return;
+    const summary = summarizeInstallments(S.finance.tx, transaction.id, accById, month);
+    if (!summary?.remainingCount) return;
+    const key = JSON.stringify([
+      transaction.groupId,
+      transaction.type,
+      transaction.accountId,
+      transaction.toAccountId || '',
+    ]);
+    if (plans.has(key)) return;
+    const next = summary.installments.find((item) => summary.cardPurchase
+      ? item.date.slice(0, 7) >= month
+      : !isPaid(item));
+    if (next) plans.set(key, { transaction: next, summary });
+  });
+  return [...plans.values()].sort((a, b) => a.summary.endDate.localeCompare(b.summary.endDate));
+}
+function finInstallments() {
+  const plans = financeInstallmentPlans();
+  return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
+    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento<i>.</i></h2>
+      <p class="small muted">${plans.length
+        ? 'Veja quanto falta e quando termina cada série.'
+        : 'Quando você registrar um lançamento parcelado, o resumo da série aparecerá aqui.'}</p></div></div>
+    ${plans.length ? h`<ul class="list">${plans.map(({ transaction, summary }) => {
+      const title = (transaction.desc || transaction.category || 'Série parcelada')
+        .replace(/\s+\(\d+\/\d+\)$/, '');
+      return h`<li><button type="button" class="finance-installment-plan" data-action="installment-open" data-id="${transaction.id}" aria-label="Ver parcelas de ${title}">
+        <span class="finance-installment-mark" aria-hidden="true">${icon('repeat', 18)}</span>
+        <span class="grow"><b>${title}</b><small>${summary.remainingCount} ${plural(summary.remainingCount, 'parcela restante', 'parcelas restantes')} · termina ${shortDate(summary.endDate)}</small></span>
+        <span class="finance-installment-value">${money(summary.remainingCents)}</span>${icon('chevRight', 16)}
+      </button></li>`;
+    })}</ul>` : h`<p class="finance-installments-empty">Nenhuma série parcelada em andamento.</p>`}
+  </section>`;
 }
 const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><span class="mlabel" aria-live="polite">${cap(ymLabel(ui.finMonth))}</span>${ui.finMonth !== today().slice(0, 7) ? h`<button class="btn sm" type="button" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual" title="Voltar para o mês atual">Hoje</button>` : ''}<button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
 const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
@@ -6681,6 +6813,7 @@ function finResumo() {
         <button type="button" class="finance-summary-stat is-open" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters aria-label="Ver lançamentos pendentes do mês"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></button>
       </div>
     </section>
+    ${finInstallments()}
     <section class="card finance-month-close" aria-labelledby="finance-month-close-title">
       <div class="head"><div><p class="section-kicker">Revisão por competência</p><h2 id="finance-month-close-title">Fechamento do mês<i>.</i></h2><p class="small muted">${cap(ymLabel(ym))} · compras no cartão entram no mês da compra; pagamento da fatura é uma transferência.</p></div></div>
       <dl class="finance-close-stats">
@@ -7099,6 +7232,55 @@ function dlgTxDel() {
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
     <div class="more">${opt('one', 'Só este', '1 lançamento')}${opt('next', 'Este e os próximos', after.length + ' lançamentos')}${opt('all', 'Toda a série', g.length + ' lançamentos')}</div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
 }
+function dlgInstallmentSummary() {
+  const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
+  const summary = summarizeInstallments(
+    S.finance.tx,
+    ui.dlg.d.id,
+    accById,
+    today().slice(0, 7),
+  );
+  if (!transaction || !summary) {
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Parcelas indisponíveis<i>.</i></h2>${closeBtn}</div>
+      <p class="small muted">Esta série não está mais disponível. Feche e atualize a lista de lançamentos.</p>`,
+      h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+  }
+
+  const title = (transaction.desc || transaction.category || 'Série parcelada')
+    .replace(/\s+\(\d+\/\d+\)$/, '');
+  const dialogTitle = transaction.type === 'out'
+    ? 'Compra parcelada'
+    : transaction.type === 'in'
+      ? 'Recebimento parcelado'
+      : 'Fatura parcelada';
+  const rowLabel = (installment, index) => {
+    const number = installment.desc?.match(/\((\d+)\/(\d+)\)$/);
+    return number ? `${number[1]} de ${number[2]}` : `${index + 1} de ${summary.installments.length}`;
+  };
+  const installmentStatus = (installment) => summary.cardPurchase
+    ? installment.date.slice(0, 7) < today().slice(0, 7) ? 'Mês anterior' : 'Prevista'
+    : isPaid(installment) ? 'Paga' : 'Pendente';
+
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${dialogTitle}<i>.</i></h2><p class="small muted">${title}</p></div>${closeBtn}</div>
+    <dl class="installment-summary-stats">
+      <div><dt>Última parcela</dt><dd>${longDate(summary.endDate)} de ${summary.endDate.slice(0, 4)}</dd></div>
+      <div><dt>Valor restante</dt><dd>${money(summary.remainingCents)}</dd></div>
+      <div><dt>Parcelas restantes</dt><dd>${summary.remainingCount}</dd></div>
+    </dl>
+    <p class="fine">${summary.cardPurchase
+      ? 'No cartão, o valor inclui as parcelas deste mês e dos próximos. O pagamento da fatura é separado.'
+      : 'O valor restante soma as parcelas que ainda não foram marcadas como pagas.'}</p>
+    <section class="installment-summary-schedule" aria-label="Parcelas da série">
+      <h3>Parcelas</h3>
+      <ul class="list">${summary.installments.map((installment, index) => h`<li>
+        <button type="button" class="installment-summary-row" data-action="edit-tx" data-id="${installment.id}" aria-current="${index === summary.selectedIndex ? 'step' : 'false'}" aria-label="Editar parcela ${rowLabel(installment, index)}">
+          <span class="grow"><b>Parcela ${rowLabel(installment, index)}</b><small>${shortDate(installment.date)} · ${installmentStatus(installment)}${index === summary.selectedIndex ? ' · Selecionada' : ''}</small></span>
+          <span class="amt ${installment.type}">${money(installment.cents)}</span>
+        </button>
+      </li>`)}</ul>
+    </section>`,
+    h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+}
 function dlgTxAnticipate() {
   const d = ui.dlg.d, transaction = S.finance.tx.find((item) => item.id === d.id);
   const installments = anticipationCandidates(d.groupId, d.fromDate), card = isCredit(accById(transaction?.accountId));
@@ -7112,7 +7294,7 @@ function dlgTxAnticipate() {
     </form>` : h`<p class="fine">Não há parcelas futuras disponíveis para antecipar.</p>`}`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button>${installments.length ? h`<button class="btn primary" type="submit" form="dlgform">Confirmar antecipação</button>` : ''}`);
 }
-Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
+Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
 const F_ = () => S.finance;
@@ -7176,6 +7358,12 @@ Object.assign(ACTIONS, {
     render();
   },
   'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), interest: t.interestCents == null ? '' : moneyIn(t.interestCents) || '0,00', desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', groupId: t.groupId || '', recId: t.recId || '' }); },
+  'installment-open': (el) => {
+    if (!summarizeInstallments(S.finance.tx, el.dataset.id, accById, today().slice(0, 7))) {
+      return toast('Esta série parcelada não está mais disponível.', 'info');
+    }
+    dlgOpen('installment-summary', { id: el.dataset.id });
+  },
   'tx-anticipate-open': () => {
     const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
     if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.', 'info');
@@ -7348,6 +7536,50 @@ Object.assign(ACTIONS, {
   },
 });
 Object.assign(FORMS, {
+  'annual-intention': (form, data) => {
+    const intention = String(data.get('intention') || '').trim();
+    if (intention.length > ANNUAL_PLAN_LIMITS.intention) {
+      return fieldError('A intenção precisa ter até 300 caracteres.', '#annual-intention');
+    }
+    const plans = S.settings.prefs.annualPlans;
+    const snapshot = snapshotSlices(['settings']);
+    const plan = plans[ui.annualYear] || { intention: '', goals: [] };
+    plan.intention = intention;
+    plans[ui.annualYear] = plan;
+    if (saveSlicesWithRollback(['settings'], snapshot)) toast('Intenção salva para o ano.', 'success');
+  },
+  'annual-goal-save': (form, data) => {
+    const title = String(data.get('title') || '').trim();
+    const action = String(data.get('action') || '').trim();
+    const quarter = String(data.get('quarter') || '');
+    if (!title || title.length > ANNUAL_PLAN_LIMITS.goalTitle) {
+      return fieldError('Informe uma conquista com até 120 caracteres.', '[name="title"]');
+    }
+    if (action.length > ANNUAL_PLAN_LIMITS.goalAction) {
+      return fieldError('O primeiro passo precisa ter até 280 caracteres.', '[name="action"]');
+    }
+    if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) {
+      return fieldError('Escolha um período válido.', '[name="quarter"]');
+    }
+    const snapshot = snapshotSlices(['settings']);
+    const plans = S.settings.prefs.annualPlans;
+    const plan = plans[ui.annualYear] || { intention: '', goals: [] };
+    const goal = form.dataset.id
+      ? plan.goals.find((item) => item.id === form.dataset.id)
+      : null;
+    if (form.dataset.id && !goal) return toast('Esta conquista não está mais disponível.', 'info');
+    if (!goal && plan.goals.length >= ANNUAL_PLAN_LIMITS.goals) {
+      return toast('Este ano já tem o limite de conquistas. Remova uma antes de adicionar outra.', 'warning');
+    }
+    if (goal) Object.assign(goal, { title, action, quarter });
+    else plan.goals.push({ id: newId(), title, action, quarter, done: false });
+    plans[ui.annualYear] = plan;
+    if (saveSlicesWithRollback(['settings'], snapshot)) {
+      ui.annualEditingGoalId = '';
+      render();
+      toast(goal ? 'Conquista atualizada.' : 'Conquista adicionada ao plano.', 'success');
+    }
+  },
   'dlg-txanticipate': () => {
     const d = ui.dlg.d, eligible = anticipationCandidates(d.groupId, d.fromDate);
     const selectedIds = new Set(Array.from(document.querySelectorAll('#dlg [data-advance-id]:checked'))

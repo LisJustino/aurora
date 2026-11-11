@@ -353,6 +353,101 @@
   text-align: left;
   cursor: pointer;
 }
+.installment-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+.installment-summary-stats > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--soft);
+}
+.installment-summary-stats dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.installment-summary-stats dd {
+  margin: 0;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.installment-summary-schedule h3 { margin: 0 0 var(--space-2); }
+.installment-summary-schedule .list { margin: 0; }
+.installment-summary-row {
+  display: flex;
+  width: 100%;
+  min-height: var(--target-size);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.installment-summary-row > span:first-child { display: grid; gap: var(--space-1); }
+.installment-summary-row small { color: var(--muted); }
+.installment-summary-row[aria-current="step"] {
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--area-finances) 10%, var(--surface));
+}
+.finance-installments {
+  border-color: color-mix(in srgb, var(--area-finances) 25%, var(--line));
+}
+.finance-installments .head { margin-bottom: var(--space-3); }
+.finance-installments .head h2 { margin: 0; }
+.finance-installments .head p { margin-block: var(--space-1) 0; }
+.finance-installments .list { margin: 0; }
+.finance-installment-plan {
+  display: flex;
+  width: 100%;
+  min-height: var(--target-size);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.finance-installment-plan:hover,
+.finance-installment-plan:focus-visible {
+  background: color-mix(in srgb, var(--area-finances) 9%, var(--surface));
+}
+.finance-installment-plan > .grow {
+  display: grid;
+  gap: var(--space-1);
+}
+.finance-installment-plan small { color: var(--muted); }
+.finance-installment-mark {
+  display: grid;
+  width: var(--control-md);
+  height: var(--control-md);
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--area-finances) 12%, var(--surface));
+  color: var(--area-finances);
+}
+.finance-installment-value {
+  color: var(--area-finances);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.finance-installments-empty {
+  margin: 0;
+  color: var(--muted);
+}
 .ci {
   display: grid;
   width: 40px;

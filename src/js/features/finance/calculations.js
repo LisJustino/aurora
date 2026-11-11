@@ -1,6 +1,38 @@
 export const isPaid = (transaction) => transaction.paid !== false;
 export const isCreditAccount = (account) => account && account.type === 'credit';
 
+export function installmentSummary(transactions, transactionId, accountForId, currentMonth) {
+  const selected = transactions.find((transaction) => transaction.id === transactionId);
+  if (!selected?.groupId || selected.recId) return null;
+
+  const installments = transactions
+    .filter((transaction) => transaction.groupId === selected.groupId
+      && transaction.type === selected.type
+      && transaction.accountId === selected.accountId
+      && transaction.toAccountId === selected.toAccountId)
+    .sort((a, b) => a.date.localeCompare(b.date)
+      || (a.createdAt || 0) - (b.createdAt || 0)
+      || a.id.localeCompare(b.id));
+  if (!installments.length) return null;
+
+  const cardPurchase = selected.type === 'out'
+    && isCreditAccount(accountForId(selected.accountId));
+  const remaining = installments.filter((transaction) => (
+    cardPurchase
+      ? transaction.date.slice(0, 7) >= currentMonth
+      : !isPaid(transaction)
+  ));
+
+  return {
+    installments,
+    selectedIndex: installments.findIndex((transaction) => transaction.id === selected.id),
+    endDate: installments[installments.length - 1].date,
+    remainingCents: remaining.reduce((total, transaction) => total + transaction.cents, 0),
+    remainingCount: remaining.length,
+    cardPurchase,
+  };
+}
+
 export function recurringBillsDueOn(transactions, day) {
   return transactions
     .filter((transaction) => transaction.recId
