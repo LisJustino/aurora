@@ -146,7 +146,7 @@ import {
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from './features/cycle/period.js';
-import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
+import { cycleDayNumber, cycleStats } from './features/cycle/calculations.js';
 import { estimatedCyclePhase } from './features/cycle/phases.js';
 import {
   createBirthdayReferenceFromParts,
@@ -269,7 +269,7 @@ function setupKeyboardViewportSafety() {
     document.documentElement.style.setProperty('--keyboard-offset', `${keyboardInset}px`);
 
     const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return;
+    if (!(active instanceof HTMLElement) || active.closest('#dlg')) return;
     if (!active.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (keyboardInset > 100) {
       active.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -280,7 +280,7 @@ function setupKeyboardViewportSafety() {
   window.visualViewport.addEventListener('scroll', updateKeyboardInset);
   document.addEventListener('focusin', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
     if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -468,7 +468,7 @@ const writeSidebarCollapsed = (collapsed) => {
     else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
   } catch { /* storage indisponível */ }
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Number(today().slice(0, 4)) + 1), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 const toastController = createToastController({
   readToast: () => ui.toast,
   writeToast: (toast) => { ui.toast = toast; },
@@ -2858,7 +2858,7 @@ function viewPlanejar() {
   const f = ui.filters;
   return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual" aria-pressed="${ui.planView === 'anual'}">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
-      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão'], ['anual', 'Plano anual']].map(([value, label]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${label}</button>`)}</div></div>
+      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']].map(([value, label, ic]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${icon(ic, 16)}<span>${label}</span></button>`)}</div></div>
       ${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
@@ -2870,9 +2870,9 @@ function annualPlanView() {
   const currentYear = Number(today().slice(0, 4));
   const plans = S.settings.prefs.annualPlans || {};
   const years = [...new Set([
-    ...Array.from({ length: 5 }, (_, index) => String(currentYear - 1 + index)),
+    ...Array.from({ length: Math.max(1, currentYear + 4 - 2026) }, (_, index) => String(2026 + index)),
     ...Object.keys(plans),
-  ])].filter((year) => /^\d{4}$/.test(year)).sort();
+  ])].filter((year) => /^\d{4}$/.test(year) && Number(year) >= 2026).sort();
   const year = ui.annualYear;
   const plan = plans[year] || { intention: '', goals: [] };
   const goals = plan.goals || [];
@@ -3230,9 +3230,6 @@ function syncLatestCycleWeight() {
 }
 const cyclePeriodKey = (period) => `${period.start}|${period.end || ''}`;
 const cyclePeriodEnd = (period) => period.end || period.start;
-function cycleTopSymptoms() {
-  return topSymptoms(S.cycleLog, today(), cycLabel);
-}
 function cycleCalendarPhase(day, stats) {
   return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set, stats.canEstimateFertility);
 }
@@ -3269,7 +3266,6 @@ function viewCiclo() {
     const phaseClass = phase ? `phase-${phase}` : '';
     cells.push(`<button type="button" class="${phaseClass} ${st.set.has(k) ? 'm' : st.next === k ? 'p' : ''} ${k === tdy ? 't' : ''} ${k === sel ? 's' : ''} ${hasAnyLog(S.cycleLog[k]) ? 'l' : ''}" ${fut ? 'disabled' : ''} data-action="cyc-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}${phaseLabel ? ', ' + phaseLabel : st.next === k ? ', próximo início estimado' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}">${d}</button>`);
   }
-  const top = cycleTopSymptoms();
   const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
   const cycleRange = st.min === st.max ? `${st.min} dias` : `${st.min} a ${st.max} dias`;
   const cycleEstimateNotice = !st.avg
@@ -3297,7 +3293,6 @@ function viewCiclo() {
         <span><i class="lg l"></i>Dia com registro</span>
       </div>
       <div class="notice cycle-estimate-notice" role="note">${icon('info', 18)}<span>${cycleEstimateNotice}</span></div></section>
-    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
     <details class="card cycle-health-card">
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Ciclo, sexualidade e prevenção</strong><small>Orientações gerais sobre mudanças do ciclo, contracepção, ISTs e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">
@@ -3456,6 +3451,7 @@ const SETTINGS_SECTIONS = [
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
+  ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
   ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
@@ -3463,7 +3459,7 @@ const SETTINGS_SECTION_GROUPS = [
   { label: 'Aplicativo', items: ['personalization', 'home', 'areas-navigation'] },
   { label: 'Dados', items: ['data'] },
   { label: 'Conexões', items: ['calendars'] },
-  { label: 'Conta', items: ['account'] },
+  { label: 'Conta', items: ['mental-health', 'account'] },
 ];
 function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
@@ -3937,6 +3933,18 @@ function settingsSectionContent(s, p, selectedTab) {
     case 'areas-navigation': return areasNavigationSettings(s);
     case 'data': return dataSettings(p);
     case 'calendars': return googleCalendarSettingsPanel();
+    case 'mental-health': return h`<section class="card" aria-labelledby="mental-health-title">
+      <div class="head"><div><h2 id="mental-health-title">${icon('heart', 20)} Apoio psicológico<i>.</i></h2><p>Você não precisa enfrentar momentos difíceis sem apoio. Estes recursos são voltados a pessoas no Brasil.</p></div></div>
+      <h3>Onde buscar cuidado</h3>
+      <p>Uma Unidade Básica de Saúde (UBS) pode acolher e orientar sobre atendimento psicológico pelo SUS. Os Centros de Atenção Psicossocial (CAPS) também oferecem cuidado em saúde mental.</p>
+      <p><a class="inline-link" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps" target="_blank" rel="noopener noreferrer">Conheça a rede de atenção psicossocial do SUS</a></p>
+      <h3>Acolhimento emocional</h3>
+      <p>O CVV oferece escuta gratuita e sigilosa pelo telefone <a class="inline-link" href="tel:188">188</a>, 24 horas por dia, além de atendimento online.</p>
+      <p><a class="inline-link" href="https://cvv.org.br/" target="_blank" rel="noopener noreferrer">Acessar o CVV</a></p>
+      <h3>Em uma emergência</h3>
+      <p>Se houver risco imediato, procure um serviço de emergência ou ligue para o SAMU pelo <a class="inline-link" href="tel:192">192</a>.</p>
+      <p class="small muted">O Aurora não oferece atendimento psicológico e estas informações não substituem o acompanhamento profissional.</p>
+    </section>`;
     case 'account': return accountSettings(s);
     default: return profileSettings(s);
   }
@@ -4172,7 +4180,7 @@ function dlgTask() {
     'task-dialog');
 }
 const cycleDialogViews = createCycleDialogViews({
-  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms: cycleTopSymptoms, plural,
+  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS,
   CYCLE_TEST_RESULTS,
   cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
 });
@@ -4541,7 +4549,7 @@ function applyFitDlg() {
   el.style.setProperty('--dialog-available-height', `${height}px`);
 }
 function fitDlg() { applyFitDlg(); }
-function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(applyFitDlg, 90); }
+function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(() => { applyFitDlg(); keepKeyboardControlVisible(); }, 90); }
 if (window.visualViewport) visualViewport.addEventListener('resize', fitDlgSoon);
 window.addEventListener('resize', fitDlgSoon);
 let keyboardFocusTarget = null;
@@ -4551,12 +4559,14 @@ function keepKeyboardControlVisible() {
   if (!viewport || !target?.isConnected || window.innerHeight - viewport.height <= 120) return;
   requestAnimationFrame(() => {
     if (!target.isConnected) return;
+    const body = target.closest('#dlg .dlg-body');
+    if (!body) return;
     const bounds = target.getBoundingClientRect();
-    const top = viewport.offsetTop + 12;
-    const bottom = viewport.offsetTop + viewport.height - 16;
-    if (bounds.top < top || bounds.bottom > bottom) {
-      target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-    }
+    const bodyBounds = body.getBoundingClientRect();
+    const top = Math.max(bodyBounds.top, viewport.offsetTop) + 12;
+    const bottom = Math.min(bodyBounds.bottom, viewport.offsetTop + viewport.height) - 16;
+    if (bounds.top < top) body.scrollTop += bounds.top - top;
+    else if (bounds.bottom > bottom) body.scrollTop += bounds.bottom - bottom;
   });
 }
 document.addEventListener('focusin', (event) => {
@@ -6411,7 +6421,7 @@ const FORMS = {
 const CHANGES = {
   'plan-view': (el) => ACTIONS['plan-view']({ dataset: { v: el.value } }),
   'annual-plan-year': (el) => {
-    if (!/^\d{4}$/.test(el.value)) return;
+    if (!/^\d{4}$/.test(el.value) || Number(el.value) < 2026) return;
     ui.annualYear = el.value;
     ui.annualEditingGoalId = '';
     ui.annualGoalFormOpen = false;
@@ -6554,20 +6564,10 @@ document.addEventListener('visibilitychange', async () => {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
   }
 });
-let dialogDragState = null;
 let taskSwipeState = null;
 let suppressTaskClickUntil = 0;
 document.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary || event.pointerType !== 'touch' || !(event.target instanceof Element)) return;
-  const handle = event.target.closest('.dlg-handle');
-  const dialog = handle?.closest('.dlg:not(.intro-dialog)');
-  if (handle && dialog) {
-    dialogDragState = { pointerId: event.pointerId, startY: event.clientY, deltaY: 0, dialog, handle };
-    dialog.classList.add('is-dragging');
-    handle.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-    return;
-  }
   const title = event.target.closest('.task .tt');
   const row = title?.closest('.task');
   if (row && !row.classList.contains('done')) {
@@ -6575,13 +6575,6 @@ document.addEventListener('pointerdown', (event) => {
   }
 });
 document.addEventListener('pointermove', (event) => {
-  if (dialogDragState?.pointerId === event.pointerId) {
-    const deltaY = Math.max(0, event.clientY - dialogDragState.startY);
-    dialogDragState.deltaY = deltaY;
-    dialogDragState.dialog.style.transform = `translateY(${deltaY}px)`;
-    if (deltaY > 4) event.preventDefault();
-    return;
-  }
   if (taskSwipeState?.pointerId !== event.pointerId) return;
   const deltaX = event.clientX - taskSwipeState.startX;
   const deltaY = event.clientY - taskSwipeState.startY;
@@ -6605,17 +6598,6 @@ const resetTaskSwipe = (state) => {
   state.row.style.removeProperty('--task-swipe-x');
 };
 document.addEventListener('pointerup', (event) => {
-  if (dialogDragState?.pointerId === event.pointerId) {
-    const { dialog, deltaY } = dialogDragState;
-    dialogDragState = null;
-    dialog.classList.remove('is-dragging');
-    if (deltaY > 96) {
-      ACTIONS['dlg-close']();
-    } else {
-      dialog.style.removeProperty('transform');
-    }
-    return;
-  }
   if (taskSwipeState?.pointerId !== event.pointerId) return;
   const state = taskSwipeState;
   taskSwipeState = null;
@@ -6632,11 +6614,6 @@ document.addEventListener('pointerup', (event) => {
   }, 170);
 });
 document.addEventListener('pointercancel', (event) => {
-  if (dialogDragState?.pointerId === event.pointerId) {
-    dialogDragState.dialog.classList.remove('is-dragging');
-    dialogDragState.dialog.style.removeProperty('transform');
-    dialogDragState = null;
-  }
   if (taskSwipeState?.pointerId === event.pointerId) {
     resetTaskSwipe(taskSwipeState);
     taskSwipeState = null;

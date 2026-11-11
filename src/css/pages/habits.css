@@ -503,6 +503,15 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 }
 .habit-today .empty { border-color: var(--area-tone, var(--accent)); background: var(--soft); }
 .habit-today .empty .eic { color: var(--area-tone, var(--accent)); }
+.main[data-route="habitos"] .habit-today .empty {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--area-tone) 20%, var(--line));
+  background: color-mix(in srgb, var(--area-tone) 7%, var(--surface));
+}
+.main[data-route="habitos"] .habit-today .empty .eic {
+  background: color-mix(in srgb, var(--area-tone) 14%, var(--surface));
+  box-shadow: none;
+}
 .habit-today .habit-circle { width: 44px; height: 44px; }
 .habit-today .habit-week { max-width: 320px; gap: 0; }
 .habit-today .habit-dot,

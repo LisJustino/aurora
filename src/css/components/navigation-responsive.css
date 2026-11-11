@@ -165,7 +165,7 @@
 @media (width < 480px) {
   .topbar { gap: 0; }
   .topbar .brand { gap: 2px; }
-  .topbar .brand > svg { width: 20px; height: 20px; flex: none; }
+  .topbar .brand > svg { width: 28px; height: 28px; flex: none; }
   .topbar .wordmark { font-size: var(--text-base); }
   .topbar .header-actions { gap: 0; }
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
@@ -1242,5 +1242,18 @@
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+@media (width >= 900px) {
+  .app > .topbar .nav a[aria-current="page"] {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+    background: color-mix(in srgb, var(--p) 20%, var(--surface));
+  }
+}
+@media (width < 900px) {
+  .nav > .nav-primary[aria-current="page"] {
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+    background: color-mix(in srgb, var(--p) 18%, var(--surface));
   }
 }

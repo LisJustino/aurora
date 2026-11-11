@@ -11,6 +11,7 @@ const check = (passed, name, detail = '') => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -97,11 +98,12 @@ const check = (passed, name, detail = '') => {
     'areas-navigation': 'Áreas e menu',
     data: 'Dados e backup',
     calendars: 'Agendas',
+    'mental-health': 'Apoio psicológico',
     account: 'Conta e ajuda',
   };
   for (const width of [320, 390, 768, 1024]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const section of ['profile', 'personalization', 'home', 'areas-navigation', 'data', 'calendars', 'account']) {
+    for (const section of Object.keys(sectionNames)) {
       await page.evaluate((id) => {
         history.pushState(null, '', `/config?section=${id}`);
         window.dispatchEvent(new PopStateEvent('popstate'));
@@ -120,23 +122,20 @@ const check = (passed, name, detail = '') => {
         }
         const menuLayout = await page.evaluate(() => {
           const menu = document.querySelector('.settings-menu');
-          const menuRect = menu.getBoundingClientRect();
           const links = [...menu.querySelectorAll('.settings-link')];
           return {
-            columns: getComputedStyle(menu).gridTemplateColumns.split(' ').length,
-            expectedColumns: innerWidth <= 380 ? 2 : 3,
-            fits: menu.scrollWidth === menu.clientWidth
-              &&               links.length === 7
-              && links.every((link) => {
-                const rect = link.getBoundingClientRect();
-                return rect.width > 0 && rect.left >= menuRect.left && rect.right <= menuRect.right;
-              }),
+            scrollable: getComputedStyle(menu).overflowX === 'auto' && menu.scrollWidth > menu.clientWidth,
+            count: links.length,
           };
         });
         check(
-          menuLayout.fits && menuLayout.columns === menuLayout.expectedColumns,
-          'menu móvel exibe todas as abas em grade responsiva',
+          menuLayout.scrollable && menuLayout.count === Object.keys(sectionNames).length,
+          'menu móvel permite rolar por todas as abas',
         );
+        await page.locator('.settings-link[data-settings-tab="account"]').click();
+        await page.locator('.settings-link[data-settings-tab="account"][aria-current="page"]').waitFor();
+        await page.locator('.settings-link[data-settings-tab="profile"]').click();
+        await page.locator('.settings-link[data-settings-tab="profile"][aria-current="page"]').waitFor();
       }
       const cardSpacing = await page.locator(
         '.settings-content > .card, .settings-content > .profile-settings-container > .card, .settings-content > .settings-account-list > .card',

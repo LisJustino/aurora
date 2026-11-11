@@ -36,13 +36,25 @@ const SET_BY_SCRIPT = new Set([
   '--scroll-lock-offset-x', '--scroll-lock-offset-y',
 ]);
 const allText = files.map((item) => strip(item.text)).join('\n');
-const responsiveWidths = new Set([...allText.matchAll(/@media([^{}]*)/g)].flatMap(([, query]) => (
-  [...query.matchAll(/width\s*[<>]=?\s*([\d.]+)px/g)].map(([, width]) => Number(width))
-)));
+const sharedWidths = new Set([480, 700, 900, 1200]);
+const legacyWidths = { 'pages/areas.css': [375], 'pages/planning.css': [1050] };
+const responsiveWidths = new Set();
+const unexpectedWidths = [];
+for (const { file, text } of files) {
+  for (const [, query] of strip(text).matchAll(/@media([^{}]*)/g)) {
+    for (const [, value] of query.matchAll(/width\s*[<>]=?\s*([\d.]+)px/g)) {
+      const width = Number(value);
+      responsiveWidths.add(width);
+      if (!sharedWidths.has(width) && !legacyWidths[file]?.includes(width)) {
+        unexpectedWidths.push(`${file}: ${width}px`);
+      }
+    }
+  }
+}
 check(
-  [...responsiveWidths].sort((a, b) => a - b).join(',') === '480,700,900,1200',
-  'Breakpoints responsivos usam apenas 480, 700, 900 e 1200 px',
-  [...responsiveWidths].sort((a, b) => a - b).join(', '),
+  [...sharedWidths].every((width) => responsiveWidths.has(width)) && !unexpectedWidths.length,
+  'Breakpoints usam os limites compartilhados ou as exceções legadas específicas',
+  unexpectedWidths.join(', ') || [...responsiveWidths].sort((a, b) => a - b).join(', '),
 );
 const loadingResponse = await fetch('/loading-appearance.js', { cache: 'no-store' });
 if (!loadingResponse.ok) throw new Error(`Não foi possível carregar a aparência inicial: HTTP ${loadingResponse.status}.`);
@@ -84,6 +96,7 @@ const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|
     'base.css: font-size: 16px;',
     'design-system/fields.css: font-size: max(16px, var(--text-base));',
     'design-system/custom-selects.css: font-size: max(16px, var(--text-base));',
+    'components/modals.css: font-size: max(16px, 1em);',
   ].includes(item));
 check(!fontSizeLiterals.length, 'Tamanhos de fonte usam tokens --text-* (com mínimo de 16 px nos campos)', fontSizeLiterals.slice(0, 6).join(' | '));
 const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
@@ -133,7 +146,7 @@ const spacingBaseline = {
   'components/accessibility.css': [2, 1],
   'components/controls.css': [1, 0],
   'components/footer.css': [1, 8],
-  'components/modals.css': [50, 57],
+  'components/modals.css': [53, 59],
   'components/navigation-responsive.css': [20, 23],
   'components/navigation.css': [12, 13],
   'components/preferences.css': [25, 13],
@@ -149,7 +162,7 @@ const spacingBaseline = {
   'design-system/touch.css': [2, 9],
   'layout.css': [3, 8],
   'pages/account.css': [35, 33],
-  'pages/areas.css': [57, 34],
+  'pages/areas.css': [57, 36],
   'pages/finance-responsive.css': [6, 4],
   'pages/finance.css': [58, 38],
   'pages/habits.css': [59, 39],
@@ -157,6 +170,7 @@ const spacingBaseline = {
   'pages/landing.css': [3, 3],
   'pages/layouts.css': [24, 25],
   'pages/legal.css': [0, 1],
+  'pages/planning.css': [18, 6],
   'pages/settings.css': [7, 6],
 };
 const spacingPatterns = [

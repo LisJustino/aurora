@@ -21,8 +21,10 @@ const check = (passed, name, detail = '') => {
   await page.locator('.plan-view-control').waitFor({ state: 'visible' });
   check(await page.locator('.planning-overview, .planning-overview-stat, .planning-shortcuts').count() === 0,
     'Planejar não duplica filtros nem ocupa espaço com um cartão introdutório');
-  check(await page.locator('.plan-view-control [data-action="plan-view"]').count() === 4,
-    'Planejar oferece quatro modos no controle segmentado');
+  check(await page.locator('.plan-view-control [data-action="plan-view"]').count() === 5,
+    'Planejar oferece cinco modos no controle segmentado');
+  check(await page.locator('.plan-view-control [data-action="plan-view"] svg').count() === 5,
+    'cada modo de Planejar apresenta um ícone');
   const upcomingFilter = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
   await upcomingFilter.click();
   const upcomingChip = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
@@ -43,6 +45,9 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Nova tarefa' }).first().click();
   const dialog = page.locator('#dlg [role="dialog"]');
   await dialog.waitFor({ state: 'visible' });
+  check(await page.locator('#dlg .dlg-handle:visible').count() === 0, 'modal não apresenta alça de arraste');
+  check(await page.locator('#dlg [data-dlg="title"]').evaluate((input) => parseFloat(getComputedStyle(input).fontSize)) >= 16,
+    'campo do modal no celular evita zoom automático');
   check(await page.locator('#dlg input[type="time"]').count() === 1, 'formulário completo inclui o campo de horário');
   check(await page.evaluate(() => {
     const active = document.activeElement;

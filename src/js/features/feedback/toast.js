@@ -5,6 +5,8 @@ const TONES = new Set(['action', 'error', 'info', 'success', 'warning']);
 
 export function createToastController({ readToast, writeToast, getContext, getOverride, normalizeMessage }) {
   let timeoutId = null;
+  let expiresAt = 0;
+  let duration = 0;
 
   function render() {
     let element = document.getElementById('toast');
@@ -25,8 +27,16 @@ export function createToastController({ readToast, writeToast, getContext, getOv
     element.setAttribute('role', toast.tone === 'error' ? 'alert' : 'status');
     const message = typeof toast.msg === 'string' ? normalizeMessage(toast.msg) : toast.msg;
     element.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[toast.tone], 18)}</span><span class="toast-content"><span class="toast-message">${message}</span>${toast.details ? h`<details><summary>Ver detalhes</summary><span>${toast.details}</span></details>` : ''}</span>${toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
+    const timer = element.querySelector('.toast-timer');
+    timer.hidden = !expiresAt;
+    timer.style.animationDuration = `${duration}ms`;
+    timer.style.animationDelay = `${Math.min(0, expiresAt - Date.now() - duration)}ms`;
     element.querySelector('details')?.addEventListener('toggle', (event) => {
-      if (event.currentTarget.open) clearTimeout(timeoutId);
+      if (event.currentTarget.open) {
+        clearTimeout(timeoutId);
+        expiresAt = 0;
+        timer.hidden = true;
+      }
     });
   }
 
@@ -41,11 +51,13 @@ export function createToastController({ readToast, writeToast, getContext, getOv
       undo = null;
     }
     clearTimeout(timeoutId);
+    duration = undo ? 9000 : 5000;
+    expiresAt = Date.now() + duration;
     writeToast({ msg, undo, tone, details });
     timeoutId = setTimeout(() => {
       writeToast(null);
       render();
-    }, undo ? 9000 : 5000);
+    }, duration);
     render();
   }
 

@@ -4,7 +4,7 @@ import { icon } from '../../utils/icons.js';
 
 export function createCycleDialogViews(dependencies) {
   const {
-    ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, CYCLE_TEST_RESULTS, topSymptoms, plural,
+    ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, CYCLE_TEST_RESULTS,
     cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
   } = dependencies;
   return { log, period };
@@ -15,7 +15,6 @@ function log() {
   const groups = CYC.filter(({ id }) => id !== 'flow');
   const discharge = groups.find(({ id }) => id === 'discharge');
   const symptomGroups = groups.filter(({ id }) => id !== 'discharge');
-  const frequentSymptoms = topSymptoms();
   const orgasmOccurred = Object.hasOwn(log, 'orgasmOccurred')
     ? log.orgasmOccurred
     : Number.isInteger(log.orgasmCount) ? log.orgasmCount > 0 : null;
@@ -27,9 +26,8 @@ function log() {
   const choiceStatus = (count, single) => count
     ? `${count} selecionado${count === 1 ? '' : 's'}`
     : `Opcional · ${single ? 'Escolha 1' : 'várias opções'}`;
-  const choiceButton = (category, value, label, selected, id = '', count = 0) => {
-    const accessibleLabel = count ? `${label}, registrado ${count} ${plural(count, 'dia', 'dias')} nos últimos 90 dias` : label;
-    return h`<button type="button" ${id ? raw(`id="${id}"`) : ''} class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${accessibleLabel}" title="${accessibleLabel}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}" data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol" aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? ({ spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18) : 18)}</span><span class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}${count ? h`<small class="cycle-choice-frequency">${count} ${plural(count, 'dia', 'dias')}</small>` : ''}</span><span class="cycle-choice-mark" aria-hidden="true">${icon('check', 14)}</span></button>`;
+  const choiceButton = (category, value, label, selected, id = '') => {
+    return h`<button type="button" ${id ? raw(`id="${id}"`) : ''} class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${label}" title="${label}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}" data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol" aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? ({ spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18) : 18)}</span><span class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}</span><span class="cycle-choice-mark" aria-hidden="true">${icon('check', 14)}</span></button>`;
   };
   const symptomGroupView = (group) => {
     const current = group.single ? (log[group.id] ? [log[group.id]] : []) : (log[group.id] || []);
@@ -50,11 +48,6 @@ function log() {
       <div class="chips" role="group" aria-label="Intensidade do fluxo">${flow.opts.map(([value, label], index) => choiceButton('flow', value, label, log.flow === value, index === 0 ? 'f0' : ''))}</div>
     </section>
     ${quickFlow ? '' : h`<div class="cycle-symptoms-heading"><h3 id="cycle-symptoms-title">Sinais e bem-estar</h3><p>Múltipla escolha, exceto em energia, sono e corrimento.</p></div>
-    ${frequentSymptoms.length ? h`<section class="cycle-frequent" aria-label="Atalhos para sintomas frequentes"><div><h3>Seus mais frequentes</h3><p>Nos últimos 90 dias · toque para marcar ou desmarcar</p></div><div class="cycle-frequent-options">${frequentSymptoms.map(({ category, value, label, count }) => {
-      const definition = CYC.find((item) => item.id === category);
-      const selected = definition?.single ? log[category] === value : (log[category] || []).includes(value);
-      return choiceButton(category, value, label, selected, '', count);
-    })}</div></section>` : ''}
     <div class="cycle-symptom-grid" role="group" aria-labelledby="cycle-symptoms-title">${symptomGroups.map(symptomGroupView)}</div>
     <div class="cycle-intimacy-grid">
       ${symptomGroupView(discharge)}

@@ -21,6 +21,11 @@
   color: var(--ink);
 }
 .dlg * { min-width: 0; }
+@media (width < 900px) {
+  .dlg input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+  .dlg textarea,
+  .dlg select { font-size: max(16px, 1em); }
+}
 .dlg .head {
   display: flex;
   align-items: flex-start;
@@ -666,7 +671,7 @@
 .toast button:hover { background: color-mix(in srgb, var(--bg) 26%, transparent); transform: none; }
 .toast button:focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }
 .toast-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: color-mix(in srgb, var(--toast-tone) 60%, var(--surface)); opacity: .8; transform-origin: left; animation: toast-life 5s linear both; }
-.toast-action .toast-timer { animation-duration: 9s; }
+.toast-timer[hidden] { display: none; }
 .toast-success { --toast-tone: var(--ok); }
 .toast-warning { --toast-tone: var(--warn); }
 .toast-error { --toast-tone: var(--bad); }
@@ -855,5 +860,5 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 :root[data-theme="dark"] .dlg-back { background: color-mix(in srgb, var(--bg) 62%, transparent); }
 @media (prefers-reduced-motion: no-preference) {
   .dlg-back.is-opening .dlg { animation: dialog-enter var(--duration-base) var(--ease-standard) both; }
-  @keyframes dialog-enter { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes dialog-enter { from { opacity: 0; } to { opacity: 1; } }
 }

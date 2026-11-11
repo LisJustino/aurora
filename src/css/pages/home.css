@@ -116,6 +116,13 @@
   border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
   background: var(--soft);
 }
+.home-tool:focus-visible { border-color: var(--accent); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .home-tool-go { transition: transform var(--duration-fast) var(--ease-standard); }
+  .home-tool:hover .home-tool-go { transform: translateX(3px); }
+}
+:root[data-motion="reduce"] .home-tool-go { transition: none; }
+:root[data-motion="reduce"] .home-tool:hover .home-tool-go { transform: none; }
 .home-tool-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: var(--r-control); background: var(--soft2); color: var(--accent); }
 .home-tool > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .home-tool small { color: var(--muted); font-size: var(--text-meta); line-height: 1.4; }
@@ -1151,4 +1158,39 @@
   border-color: var(--line);
   background: var(--surface);
   box-shadow: none;
+}
+
+.main[data-route="inicio"] > .home-head {
+  padding: clamp(var(--space-5), 3vw, var(--space-6));
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+  background: var(--brand-surface);
+}
+.main[data-route="inicio"] > .home-head h1 i { color: var(--accent); }
+.main[data-route="inicio"] > .home-head .ringw {
+  width: 88px;
+  height: 88px;
+}
+.main[data-route="inicio"] .home-today-card > .head {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.main[data-route="inicio"] .home-today-card > .head h2 {
+  font-size: var(--text-section);
+  letter-spacing: -.035em;
+}
+.main[data-route="inicio"] .home-today-card .list > .task.home-next-task {
+  border-inline-start: var(--space-1) solid var(--accent);
+  background: var(--soft);
+}
+.main[data-route="inicio"] .home-dashboard .strip > * {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  background: color-mix(in srgb, var(--p) 8%, var(--surface));
+}
+.main[data-route="inicio"] .home-quick-card {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
+  background: color-mix(in srgb, var(--p) 6%, var(--surface));
+}
+@media (width <= 700px) {
+  .main[data-route="inicio"] > .home-head { padding: var(--space-4); }
+  .main[data-route="inicio"] > .home-head .ringw { width: 64px; height: 64px; }
 }

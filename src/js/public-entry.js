@@ -36,7 +36,7 @@ function setupKeyboardViewportSafety() {
     document.documentElement.style.setProperty('--keyboard-offset', `${keyboardInset}px`);
 
     const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return;
+    if (!(active instanceof HTMLElement) || active.closest('#dlg')) return;
     if (!active.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (keyboardInset > 100) {
       active.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -47,7 +47,7 @@ function setupKeyboardViewportSafety() {
   window.visualViewport.addEventListener('scroll', updateKeyboardInset);
   document.addEventListener('focusin', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
     if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
     target.scrollIntoView({ block: 'center', inline: 'nearest' });

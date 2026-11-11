@@ -3,6 +3,7 @@
   --settings-edge: color-mix(in srgb, var(--accent) 16%, var(--line));
   --settings-card-gap: var(--space-4);
   --settings-card-padding: clamp(var(--space-4), 3vw, var(--space-6));
+  --settings-link-height: 54px;
 }
 
 .main[data-route="config"] .settings-layout {
@@ -14,83 +15,70 @@
 .main[data-route="config"] .settings-menu {
   top: 84px;
   max-height: none;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px;
   overflow: visible;
-  border-color: var(--settings-edge);
+  border-color: var(--line);
   border-radius: var(--r-large);
-  background:
-    linear-gradient(155deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--settings-surface) 55%);
+  background: var(--surface);
   box-shadow: none;
 }
 
 .main[data-route="config"] .settings-menu-heading {
-  margin: 0 4px 2px;
-  padding: 5px 8px 10px;
-  border-bottom-color: var(--line);
+  margin: 0 2px 2px;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--text-2xs);
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: .02em;
 }
 
 .main[data-route="config"] .settings-menu-group { gap: 5px; }
 .main[data-route="config"] .settings-menu-group + .settings-menu-group {
-  margin-top: 0;
-  padding-top: 9px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .main[data-route="config"] .settings-link {
-  position: relative;
-  min-height: 62px;
-  grid-template-columns: 38px minmax(0, 1fr) 14px;
-  gap: 10px;
-  padding: 8px;
-  border-radius: var(--r-control);
-}
-
-.main[data-route="config"] .settings-link::before {
-  position: absolute;
-  top: 12px;
-  bottom: 12px;
-  left: -1px;
-  width: 3px;
-  border-radius: var(--r-pill);
-  background: transparent;
-  content: "";
+  min-height: var(--settings-link-height);
+  grid-template-columns: 34px minmax(0, 1fr) 14px;
+  gap: 9px;
+  padding: 7px;
+  border-radius: var(--r-group);
 }
 
 .main[data-route="config"] .settings-link:hover {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: var(--line);
+  background: var(--surface-soft);
 }
 
 .main[data-route="config"] .settings-link[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
+  background: var(--soft2);
+  color: var(--accent);
   box-shadow: none;
 }
 
-.main[data-route="config"] .settings-link[aria-current="page"]::before { background: var(--accent); }
 .main[data-route="config"] .settings-link-icon {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-color: transparent;
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  color: var(--accent);
+  border-radius: var(--r-control);
+  background: var(--surface-soft);
+  color: var(--muted);
 }
 
 .main[data-route="config"] .settings-link[aria-current="page"] .settings-link-icon {
-  background: var(--btn);
-  color: var(--on-btn);
+  background: var(--soft);
+  color: var(--accent);
 }
 
 .main[data-route="config"] .settings-link-copy { gap: 3px; }
 .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .main[data-route="config"] .settings-link-copy small { font-size: var(--text-2xs); line-height: 1.35; }
-.main[data-route="config"] .settings-link-arrow { width: 14px; }
+.main[data-route="config"] .settings-link-arrow { width: 14px; color: var(--muted); }
 
 .main[data-route="config"] .settings-content {
   gap: var(--space-4);
@@ -288,73 +276,72 @@
   .main[data-route="config"] .settings-menu {
     position: relative;
     top: auto;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
+    gap: 4px;
     max-height: none;
-    margin-inline: 0;
-    padding: 8px;
-    overflow: visible;
+    margin-inline: calc(-1 * var(--gut-l)) calc(-1 * var(--gut-r));
+    padding: 4px var(--gut-r) 8px var(--gut-l);
+    overflow-x: auto;
     border: 0;
-    border-radius: var(--r-large);
-    background: var(--settings-surface);
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--bg);
     box-shadow: none;
+    scrollbar-width: thin;
+    overscroll-behavior-inline: contain;
   }
 
-  .main[data-route="config"] .settings-menu::after { display: none; }
   .main[data-route="config"] .settings-menu-group {
     display: contents;
   }
 
   .main[data-route="config"] .settings-menu-heading { display: none; }
-  .main[data-route="config"] .settings-menu-group + .settings-menu-group { padding: 0; border: 0; }
+  .main[data-route="config"] .settings-menu-group + .settings-menu-group { margin: 0; padding: 0; border: 0; }
   .main[data-route="config"] .settings-link {
     display: grid;
     width: auto;
-    min-width: 0;
+    min-width: max-content;
     min-height: var(--control-field);
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    gap: 4px;
-    padding: 8px 4px;
-    border: 0;
+    grid-template-columns: 24px minmax(0, 1fr);
+    justify-items: start;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
     border-radius: var(--r-control);
-    background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+    background: transparent;
     color: var(--muted);
-    text-align: center;
+    text-align: left;
     white-space: normal;
   }
 
   .main[data-route="config"] .settings-link:hover {
-    border-color: transparent;
-    background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+    border-color: var(--line);
+    background: var(--surface);
   }
 
   .main[data-route="config"] .settings-link[aria-current="page"] {
-    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
+    background: var(--soft2);
     color: var(--accent);
     box-shadow: none;
   }
 
-  .main[data-route="config"] .settings-link::before,
   .main[data-route="config"] .settings-link-arrow { display: none; }
   .main[data-route="config"] .settings-link-icon {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: 0;
+    background: transparent;
+    color: currentcolor;
   }
-  .main[data-route="config"] .settings-link-copy { width: 100%; align-items: center; }
-  .main[data-route="config"] .settings-link-copy b { font-size: var(--text-xs); }
+  .main[data-route="config"] .settings-link-copy { width: auto; align-items: flex-start; }
+  .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); }
   .main[data-route="config"] .settings-link-copy small { display: none; }
   .main[data-route="config"] .settings-content > .card,
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {
     --settings-card-padding: var(--space-4);
   }
-}
-
-@media (width < 480px) {
-  .main[data-route="config"] .settings-menu { grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr)); }
 }
 
 @media (width <= 480px) {

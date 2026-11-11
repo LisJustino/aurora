@@ -1297,10 +1297,6 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   outline-offset: 2px;
 }
 .settings-unsaved-bar {
-  position: sticky;
-  right: 0;
-  bottom: 12px;
-  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1547,11 +1543,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   }
   .main[data-route="config"] .settings-link-icon { width: 32px; height: 32px; }
   .main[data-route="config"] .profile-settings-actions {
-    position: sticky;
-    z-index: 1;
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
     padding-block: 12px;
-    background: var(--surface);
   }
   .main[data-route="config"] .profile-settings-actions > .btn {
     flex: 1 1 auto;

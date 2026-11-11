@@ -299,14 +299,6 @@
 .cycle-flow-hint { margin-top: 10px; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
 .cycle-symptoms-heading h3 { color: var(--ink); font: var(--weight-bold) var(--text-lg) var(--font-h); }
 .cycle-symptoms-heading p { margin-top: 4px; color: var(--muted); font-size: var(--text-meta); line-height: 1.5; }
-.cycle-frequent { display: grid; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--area-cycle) 24%, var(--line)); border-radius: var(--r-group); background: color-mix(in srgb, var(--area-cycle) 5%, var(--surface)); }
-.cycle-frequent h3 { margin: 0; color: var(--ink); font: 700 var(--text-base)/1.3 var(--font-h); }
-.cycle-frequent p { margin: 3px 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
-.cycle-frequent-options { display: flex; flex-wrap: wrap; gap: 7px; }
-.cycle-frequent-options .cycle-choice { display: inline-flex; min-height: var(--control-field); align-items: center; justify-content: flex-start; gap: 7px; padding: 6px 9px; }
-.cycle-frequent-options .cycle-choice-symbol { width: 24px; height: 24px; }
-.cycle-frequent-options .cycle-choice-label { display: grid; gap: 2px; }
-.cycle-choice-frequency { color: var(--muted); font-size: var(--text-2xs); font-weight: 600; line-height: 1.2; }
 .cycle-symptom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .cycle-symptom-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .cycle-log-dialog .cycle-symptom-group { padding: 14px; border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface); }

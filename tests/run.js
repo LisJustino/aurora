@@ -382,12 +382,14 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const previousSetTimeout = globalThis.setTimeout;
   const previousClearTimeout = globalThis.clearTimeout;
+  const previousNow = Date.now;
   const written = [];
+  const timer = { hidden: false, style: {} };
   const element = {
     className: '',
     innerHTML: '',
     setAttribute(name, value) { this[name] = value; },
-    querySelector() { return null; },
+    querySelector(selector) { return selector === '.toast-timer' ? timer : null; },
   };
   let override = null;
   Object.defineProperty(globalThis, 'document', {
@@ -397,6 +399,8 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
   });
   globalThis.setTimeout = () => 1;
   globalThis.clearTimeout = () => {};
+  let now = 10000;
+  Date.now = () => now;
   try {
     const controller = createToastController({
       readToast: () => written.at(-1) || null,
@@ -410,6 +414,12 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
     equal(element.role, 'alert');
     controller.show('Salvo.', 'success');
     equal(written.at(-1).tone, 'success');
+    equal(timer.style.animationDuration, '5000ms');
+    now += 2500;
+    controller.render();
+    equal(timer.style.animationDelay, '-2500ms');
+    controller.show('Alterado.', 'success', () => {});
+    equal(timer.style.animationDuration, '9000ms');
     override = { message: 'Falha ao carregar.', details: 'Conexão indisponível.' };
     controller.show('Salvo.', 'success');
     equal(written.at(-1).tone, 'error');
@@ -419,6 +429,7 @@ test('toast usa o tom explícito e destaca falhas de persistência', () => {
     else delete globalThis.document;
     globalThis.setTimeout = previousSetTimeout;
     globalThis.clearTimeout = previousClearTimeout;
+    Date.now = previousNow;
   }
 });
 
