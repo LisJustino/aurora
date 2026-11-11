@@ -32,9 +32,8 @@
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-raised);
   box-shadow: none;
-  transform: translateY(-1px);
 }
-.btn:active { transform: translateY(1px); }
+.btn:active { background: var(--soft); }
 
 /* Tamanhos */
 .btn.sm { min-height: var(--control-sm); padding-inline: var(--button-padding-inline-sm); font-size: var(--text-sm); }
@@ -49,8 +48,7 @@
   box-shadow: none;
 }
 .btn.primary:hover {
-  filter: brightness(1.06);
-  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--btn) 92%, var(--ink));
   box-shadow: none;
 }
 
@@ -62,7 +60,6 @@
 .btn:not(.primary):not(.danger):not(.ghost):hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-strong);
-  transform: translateY(-1px);
 }
 .btn.back {
   border-color: color-mix(in srgb, var(--line-strong) 62%, transparent);
@@ -90,7 +87,6 @@
 .btn.danger:hover {
   border-color: var(--bad);
   background: var(--bad-soft);
-  transform: translateY(-1px);
 }
 
 /* Desabilitado */
@@ -127,7 +123,7 @@
   cursor: pointer;
   transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-.ibtn:hover, .iconbtn:hover { background: var(--soft2); color: var(--accent); transform: translateY(-1px); }
+.ibtn:hover, .iconbtn:hover { background: var(--soft2); color: var(--accent); }
 .iconbtn { border-radius: var(--r-pill); background: var(--soft); color: var(--accent); }
 
 /* Fechar (diálogos e painéis): um único botão em todo o app.
@@ -149,24 +145,6 @@
 .ibtn.dlg-close::after { content: ""; position: absolute; inset: -2px; }
 .ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
 .ibtn.dlg-close:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-
-/* Garantia global: qualquer botão permanece responsivo, mesmo quando usa uma
-   classe própria específica de uma página ou um estilo não baseado em .btn. */
-@media (hover: hover) and (pointer: fine) {
-  button:not(:disabled):not([aria-disabled="true"]) {
-    transition:
-      filter var(--duration-fast) var(--ease-standard),
-      transform var(--duration-fast) var(--ease-standard),
-      color var(--duration-fast) var(--ease-standard),
-      background-color var(--duration-fast) var(--ease-standard),
-      border-color var(--duration-fast) var(--ease-standard);
-  }
-
-  button:not(:disabled):not([aria-disabled="true"]):hover {
-    filter: brightness(.96);
-    transform: translateY(-1px);
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }

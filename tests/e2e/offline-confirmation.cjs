@@ -63,34 +63,15 @@ const check = (passed, name, detail = '') => {
     'personalização não exibe mais a seção de cores por área',
   );
   await page.setViewportSize({ width: 1024, height: 844 });
-  check(
-    await page.locator('.appearance-settings .settings-save-actions').evaluate((element) => getComputedStyle(element).position !== 'sticky'),
-    'barra de salvar não flutua sem alterações pendentes',
-  );
   await page.locator('[data-action="set-theme"][aria-pressed="false"]').first().click();
-  const saveSettings = page.locator('[data-settings-save-button]').last();
-  await saveSettings.waitFor({ state: 'visible' });
-  await page.waitForFunction(() => !document.querySelector('[data-settings-save-button]:disabled'));
-  check(
-    await page.locator('.appearance-settings .settings-save-actions').evaluate((element) => getComputedStyle(element).position !== 'sticky'),
-    'barra de salvar não cobre os controles enquanto há alterações pendentes',
-  );
+  await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
+  check(await page.locator('.appearance-settings .settings-save-actions').count() === 0,
+    'aparência salva automaticamente sem barra de alterações pendentes');
   await page.goBack();
   await page.waitForFunction(() => location.search === '?section=profile');
   await page.goBack();
-  const leaveSettingsConfirmation = page.locator('#dlg');
-  await leaveSettingsConfirmation.getByText('Sair sem salvar?').waitFor();
-  await leaveSettingsConfirmation.getByRole('button', { name: 'Cancelar' }).click();
-  const unsavedBannerSave = page.locator('.settings-unsaved-bar [data-action="profile-save"]');
-  check(
-    await page.evaluate(() => location.search === '?section=profile') && await unsavedBannerSave.isEnabled(),
-    'cancelar saída pelo histórico preserva a seção e o rascunho',
-  );
-  await page.locator('[data-action="reload-app"]').click();
-  const reloadConfirmation = page.locator('#dlg');
-  await reloadConfirmation.getByText('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?').waitFor();
-  await reloadConfirmation.getByRole('button', { name: 'Cancelar' }).click();
-  check(await unsavedBannerSave.isEnabled(), 'cancelar recarga preserva o rascunho de ajustes');
+  await page.waitForFunction(() => location.pathname === '/inicio');
+  check(await page.locator('#dlg').count() === 0, 'ajustes salvos não bloqueiam a navegação com aviso de rascunho');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {

@@ -32,8 +32,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     assert.equal(await page.locator('.profile-link[href="/config"]').isVisible(), true);
     await page.locator('.nav-more-trigger').click();
     await page.locator('.nav > a[href="/planejar"]').click();
-    assert.equal(await page.locator('[data-change="plan-view"]').inputValue(), 'lista');
-    await page.locator('[data-change="plan-view"]').selectOption('semana');
+    assert.equal(await page.locator('[data-action="plan-view"][data-v="lista"]').getAttribute('aria-pressed'), 'true');
+    await page.locator('[data-action="plan-view"][data-v="semana"]').click();
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const layout = await page.locator('.week-days').evaluate((grid) => ({
@@ -45,7 +45,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       if (width < 900 && layout.today !== null) assert.equal(layout.today, '-1');
       assert.equal(layout.overflow, false);
     }
-    await page.locator('[data-change="plan-view"]').selectOption('lista');
+    await page.locator('[data-action="plan-view"][data-v="lista"]').click();
     await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').click();
     assert.equal(await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');
     await page.goto(`${base}/?preview#financas`);

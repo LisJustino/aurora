@@ -112,7 +112,7 @@
 .areas-navigation-order { display: inline-flex; flex: none; gap: 4px; }
 .areas-navigation-position { min-width: 2.5em; align-self: center; color: var(--muted); font-size: var(--text-xs); text-align: center; }
 .areas-navigation-order .ibtn { width: var(--target-size); height: var(--target-size); }
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .areas-navigation-list.compact-card-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .settings-storage-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -362,7 +362,7 @@
 }
 .legacy-import-confirm input { flex: none; margin-top: 3px; accent-color: var(--accent); }
 .legacy-import-confirm:focus-within { border-color: var(--accent); }
-@media (max-width: 620px) {
+@media (width < 700px) {
   .legacy-import-steps { grid-template-columns: minmax(0, 1fr); }
   .legacy-import-step { align-items: center; }
   .legacy-import-step small { font-size: var(--text-xs); }
@@ -370,7 +370,7 @@
   .legacy-import-preview li span { text-align: left; }
   .settings-data-trash .trash-list > li { align-items: flex-start; }
 }
-@media (max-width: 980px) {
+@media (width <= 900px) {
   .settings-data-actions,
   .settings-data-care-actions { grid-template-columns: minmax(0, 1fr); }
 }
@@ -446,7 +446,7 @@
   border: 1px solid var(--line) !important;
   border-radius: var(--r-pill);
 }
-@media (max-width: 520px) {
+@media (width <= 480px) {
   .appearance-settings .appearance-swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .appearance-settings .appearance-swatches .swatch { min-height: var(--control-field); flex-direction: column; justify-content: center; gap: 4px; padding: 5px 3px; text-align: center; }
   .appearance-settings .appearance-swatches .swatch span { width: 100%; font-size: var(--text-2xs); }

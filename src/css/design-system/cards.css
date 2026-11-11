@@ -7,8 +7,8 @@
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface-strong);
-  box-shadow: var(--card-shadow);
-  transition: border-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+  box-shadow: none;
+  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 
 .card.flat {
@@ -59,7 +59,7 @@
   background: var(--surface);
   color: var(--ink);
   text-decoration: none;
-  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
+  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 
 .shortcut-card-icon {
@@ -107,8 +107,6 @@
   .shortcut-card:hover {
     border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
     background: var(--surface-soft);
-    box-shadow: var(--card-shadow);
-    transform: translateY(-1px);
   }
 }
 
@@ -196,23 +194,15 @@
   font-variant-numeric: tabular-nums;
 }
 .ring-bg { stroke: var(--soft2); }
-.ring-fg { stroke: var(--accent); }
-
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .card { padding: var(--card-padding-compact); }
   .hero { padding: var(--space-5); }
   .strip > * { padding: var(--space-4); }
 }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .compact-card-grid,
   .shortcut-grid { grid-template-columns: minmax(0, 1fr); }
-}
-
-.card {
-  border-color: var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--card-shadow);
 }
 
 @media (prefers-reduced-motion: reduce) {

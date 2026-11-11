@@ -47,6 +47,34 @@ export function netAccountBalanceOn(accounts, transactions, date) {
     .reduce((sum, account) => sum + accountBalanceOn(account, transactions, date), 0);
 }
 
+export function linkedGoalProgressCents(goal, accounts, transactions) {
+  const account = accounts.find((item) => item.id === goal.linkedAccountId);
+  return account && !isCreditAccount(account)
+    ? Math.max(0, accountBalance(account, transactions))
+    : goal.savedCents;
+}
+
+export function projectedNetAccountBalance(accounts, transactions, throughDate, cardInvoices = []) {
+  const accountById = (id) => accounts.find((account) => account.id === id);
+  const netImpact = (transaction) => {
+    if (transaction.type === 'in') {
+      return isCreditAccount(accountById(transaction.accountId)) ? 0 : transaction.cents;
+    }
+    if (transaction.type === 'out') {
+      return isCreditAccount(accountById(transaction.accountId)) ? 0 : -transaction.cents;
+    }
+    return (isCreditAccount(accountById(transaction.toAccountId)) ? 0 : transaction.cents)
+      - (isCreditAccount(accountById(transaction.accountId)) ? 0 : transaction.cents);
+  };
+  const pendingImpact = transactions
+    .filter((transaction) => !isPaid(transaction) && transaction.date <= throughDate)
+    .reduce((sum, transaction) => sum + netImpact(transaction), 0);
+  const invoiceImpact = cardInvoices
+    .filter((invoice) => invoice.dueDate && invoice.dueDate <= throughDate)
+    .reduce((sum, invoice) => sum + Math.max(0, invoice.cents), 0);
+  return netAccountBalance(accounts, transactions) + pendingImpact - invoiceImpact;
+}
+
 export function monthStats(transactions, month, accountForId) {
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(month)
     && transaction.type !== 'tr');

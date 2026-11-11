@@ -67,7 +67,7 @@ const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).
     }
 
     await page.evaluate(() => { location.hash = 'planejar'; });
-    await page.locator('[data-change="plan-view"]').selectOption('calendario');
+    await page.locator('[data-action="plan-view"][data-v="calendario"]').click();
     await page.getByText('Evento da conta 1').waitFor();
     await page.getByText('Evento da conta 2').waitFor();
     if (!await page.locator('.google-event-dot').count()) throw new Error('Os eventos não marcaram o dia correto.');

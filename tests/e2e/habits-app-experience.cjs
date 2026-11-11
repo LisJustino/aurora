@@ -145,10 +145,9 @@ const check = (passed, name, detail = '') => {
     && await row.locator('.habit-dot').count() === 7, 'semana fica visível no cartão sem abrir detalhes');
   check(await row.locator('.habit-more').evaluate((details) => !details.open), 'detalhes do hábito começam recolhidos');
   const reminderNote = page.locator('.habit-reminder-note');
-  await reminderNote.locator('summary').click();
-  check((await reminderNote.textContent()).includes('Este interruptor controla os avisos de Hábitos neste dispositivo')
-    && await reminderNote.getByRole('button', { name: 'Ativar avisos' }).count() === 1,
-  'controle de notificações informa que os avisos de Hábitos são deste dispositivo');
+  check(await reminderNote.getByRole('switch', { name: 'Avisos fora do app' }).count() === 1
+    && await reminderNote.locator('summary').count() === 0,
+  'controle de notificações apresenta o interruptor sem explicações extensas');
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
   check(await page.locator('#toast').getByText('Hábito marcado como concluído.').count() === 1, 'marcação de hábito oferece desfazer');

@@ -4,13 +4,13 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-#app .money, #dlg .money, #toast .money { text-transform: uppercase !important; }
+#app .money, #dlg .money, #toast .money { text-transform: uppercase; }
 #app .proper-name, #dlg .proper-name, #toast .proper-name,
 #app .user-value, #dlg .user-value, #toast .user-value,
 #app .ttl, #dlg .ttl, #toast .ttl,
 #app .tgx, #dlg .tgx, #toast .tgx,
 #app .bank-logo, #dlg .bank-logo, #toast .bank-logo,
-#app .case-preserve, #dlg .case-preserve, #toast .case-preserve { text-transform: none !important; }
+#app .case-preserve, #dlg .case-preserve, #toast .case-preserve { text-transform: none; }
 #app .expense-name, #dlg .expense-name, #toast .expense-name { text-transform: none; }
 #app input, #app textarea, #dlg input, #dlg textarea { text-transform: none; }
 

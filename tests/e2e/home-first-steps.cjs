@@ -33,24 +33,40 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 1366, height: 768 });
   const desktopLayout = await page.evaluate(() => {
     const hero = document.querySelector('.home-head').getBoundingClientRect();
-    const guide = document.querySelector('.home-head-actions .area-guide-button');
+    const guide = document.querySelector('.home-head-side .area-guide-button');
     const steps = document.querySelector('.home-first-steps');
-    const colorProbe = document.createElement('span');
-    colorProbe.style.color = 'var(--btn)';
-    document.body.append(colorProbe);
-    const guideUsesContrastToken = getComputedStyle(guide).color === getComputedStyle(colorProbe).color;
-    colorProbe.remove();
+    const guideStyle = getComputedStyle(guide);
+    const ghostButton = document.createElement('button');
+    ghostButton.className = 'btn ghost';
+    guide.parentElement.append(ghostButton);
+    const ghostStyle = getComputedStyle(ghostButton);
+    const guideMatchesGhostStyle = [
+      'backgroundColor', 'borderTopColor', 'minHeight', 'borderRadius',
+      'paddingLeft', 'paddingRight', 'fontSize', 'fontWeight', 'boxShadow',
+    ]
+      .every((property) => guideStyle[property] === ghostStyle[property]);
+    ghostButton.remove();
+    const heroStyle = getComputedStyle(document.querySelector('.home-head'));
+    const guideRightEdge = guide.getBoundingClientRect().right;
+    const heroRightEdge = hero.right
+      - parseFloat(heroStyle.borderRightWidth)
+      - parseFloat(heroStyle.paddingRight);
+    const guideAlignedRight = Math.abs(
+      guideRightEdge - heroRightEdge,
+    ) < 1;
     return {
       heroWidth: hero.width,
       guideInHeader: Boolean(guide),
-      guideUsesContrastToken,
+      guideAlignedRight,
+      guideMatchesGhostStyle,
       stepsColumn: getComputedStyle(steps).gridColumn,
       stepsWidth: steps.getBoundingClientRect().width,
       actionColumns: getComputedStyle(steps.querySelector('.home-first-steps-list')).gridTemplateColumns.split(' ').length,
     };
   });
   check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1', 'atalho do tutorial fica no cabeçalho e primeiros passos ocupam a largura total no desktop');
-  check(desktopLayout.guideUsesContrastToken, 'atalho do tutorial usa o token de contraste dos botões');
+  check(desktopLayout.guideAlignedRight, 'atalho “Como usar?” fica alinhado à direita no cabeçalho do Início');
+  check(desktopLayout.guideMatchesGhostStyle, 'atalho do Início mantém o estilo compartilhado dos botões “Como usar?”');
   check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 3, 'ações iniciais ficam em três colunas no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -82,7 +98,7 @@ const check = (passed, name, detail = '') => {
   for (const area of activeAreas) {
     await page.locator(`.areas-navigation-toggle input[data-area="${area}"]`).uncheck();
   }
-  await page.locator('.areas-navigation-settings [data-settings-save-button]').click();
+  await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'primeiros passos oculta ações de áreas desativadas e some quando a tarefa restante já está concluída');
 
@@ -92,6 +108,18 @@ const check = (passed, name, detail = '') => {
   await card.locator('summary').click();
   await card.getByRole('button', { name: 'Dispensar' }).click();
   check(await card.count() === 0, 'cartão pode ser dispensado');
+
+  const quickInput = page.locator('#home-quick-title-input');
+  await quickInput.fill('Revisar relatório amanhã 14h #trabalho');
+  check((await page.locator('#home-quick-date-preview').innerText()).includes('14:00'),
+    'captura rápida mostra a prévia do horário antes de salvar');
+  await page.locator('.home-quick-form button[type="submit"]').click();
+  await page.locator('.nav a[href="/planejar"]').click();
+  const createdTask = page.locator('.task').filter({ hasText: 'Revisar relatório' });
+  check(await page.getByText('Revisar relatório', { exact: true }).count() >= 1
+    && await createdTask.filter({ hasText: 'amanhã 14h' }).count() === 0,
+  'captura rápida cria a tarefa sem manter a expressão de data no título');
+  await page.locator('.nav a[href="/inicio"]').click();
 
   await page.getByRole('button', { name: 'Como usar?' }).focus();
   await page.keyboard.press('Enter');

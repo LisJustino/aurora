@@ -67,7 +67,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-large);
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 
 .account-brand {
@@ -114,7 +114,7 @@
 }
 
 .account-config-code {
-  max-width: 100%;
+  max-width: calc(100vw - var(--space-4) * 4 - var(--space-half));
   margin: 0;
   padding: var(--space-3);
   overflow-x: auto;
@@ -471,7 +471,7 @@
   background: var(--warn);
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .account-gate {
     --account-page-gutter: var(--space-4);
     width: 100%;
@@ -509,7 +509,7 @@
   }
 }
 
-@media (min-width: 481px) and (max-width: 760px) {
+@media (width > 480px) and (width <= 700px) {
   .account-gate {
     --account-page-gutter: var(--space-5);
     width: 100%;
@@ -525,7 +525,7 @@
   .account-card { width: min(100%, 520px); justify-self: center; }
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate:has(> .account-public-header) {
     grid-template-columns: minmax(0, 1fr);
     padding-inline: 0;
@@ -676,18 +676,6 @@
 body:has(#app > .account-loading),
 body:has(#app > .app-skeleton) { overflow: hidden; }
 
-:root {
-  --loading-bg: #f8f3f0;
-  --loading-glow: #f3e0e5;
-  --loading-text: #351b3d;
-  --loading-muted: #76617e;
-  --loading-track: #f5dfe6;
-  --loading-mark: #c65a79;
-  --loading-mark-text: #fff;
-  --loading-card: rgb(255 255 255 / 78%);
-  --loading-card-border: rgb(255 255 255 / 88%);
-}
-
 .account-loading,
 .app-skeleton {
   position: fixed;
@@ -703,7 +691,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   margin: 0;
   padding: var(--space-5);
   background:
-    radial-gradient(ellipse at 50% 38%, #fff 0, transparent 38%),
+    radial-gradient(ellipse at 50% 38%, var(--loading-white) 0, transparent 38%),
     radial-gradient(ellipse at 92% 8%, var(--loading-glow), transparent 35%),
     var(--loading-bg);
 }
@@ -725,9 +713,9 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   width: min(100%, 26rem);
   padding: clamp(2rem, 7vw, 3.5rem);
   border: 1px solid var(--loading-card-border);
-  border-radius: 1.75rem;
+  border-radius: var(--r-large);
   background: var(--loading-card);
-  box-shadow: 0 24px 70px -38px rgb(68 43 58 / 34%);
+  box-shadow: none;
   backdrop-filter: blur(18px);
   text-align: center;
 }
@@ -749,7 +737,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   place-items: center;
   margin-right: .75rem;
   border: 1px solid rgb(255 255 255 / 70%);
-  border-radius: 1rem;
+  border-radius: var(--r-control);
   background: var(--loading-mark);
   box-shadow: 0 .35rem .8rem rgb(155 72 105 / 16%), inset 0 1px rgb(255 255 255 / 30%);
   color: var(--loading-mark-text);
@@ -780,11 +768,11 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   border-radius: var(--r-pill);
   animation: account-loading-spin 1s linear infinite;
 }
-@supports (mask: radial-gradient(transparent 50%, #000 51%)) {
+@supports (mask: radial-gradient(transparent 50%, currentColor 51%)) {
   .account-loading-indicator {
     border: 0;
     background: conic-gradient(from 25deg, var(--loading-track) 0deg 150deg, var(--loading-accent, var(--loading-mark)) 150deg, var(--loading-mark) 340deg, var(--loading-track) 340deg);
-    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), currentColor calc(100% - 2px));
   }
 }
 .account-loading-message {
@@ -803,47 +791,71 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   font-weight: var(--weight-regular);
   line-height: var(--leading-body);
 }
+.account-loading-skeleton {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  padding-top: var(--space-2);
+}
+.loading-skeleton-heading,
+.loading-skeleton-check,
+.loading-skeleton-lines i {
+  display: block;
+  background: linear-gradient(90deg, var(--loading-track) 25%, var(--loading-glow) 50%, var(--loading-track) 75%);
+  background-size: 200% 100%;
+  animation: account-loading-shimmer 1.5s ease-in-out infinite;
+}
+.loading-skeleton-heading {
+  width: 42%;
+  height: .65rem;
+  border-radius: var(--r-pill);
+}
+.account-loading-skeleton ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.loading-skeleton-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--loading-card-border);
+}
+.loading-skeleton-check {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--r-pill);
+}
+.loading-skeleton-lines {
+  display: grid;
+  gap: var(--space-1);
+}
+.loading-skeleton-lines i {
+  height: .45rem;
+  border-radius: var(--r-pill);
+}
+.loading-skeleton-lines i:first-child { width: 68%; }
+.loading-skeleton-lines i:last-child { width: 38%; }
+@keyframes account-loading-shimmer {
+  to { background-position: -200% 0; }
+}
+@media (max-height: 480px) {
+  .account-loading-content { gap: var(--space-3); padding: var(--space-3); }
+  .account-loading-skeleton ul { gap: var(--space-1); }
+  .loading-skeleton-row { gap: var(--space-2); padding-bottom: var(--space-1); }
+  .loading-skeleton-lines { gap: var(--space-1); }
+}
 @keyframes account-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-skeleton-heading,
+  .loading-skeleton-check,
+  .loading-skeleton-lines i { animation: none; }
+}
 
-:root[data-loading-palette="customized"],
-:root[data-loading-mode="dark"] {
-  --loading-bg: color-mix(in srgb, var(--loading-primary) 7%, #fffaf5);
-  --loading-glow: color-mix(in srgb, var(--loading-primary) 16%, #fffaf5);
-  --loading-shape: color-mix(in srgb, var(--loading-primary) 38%, #fffaf5);
-  --loading-text: color-mix(in srgb, var(--loading-accent) 30%, #241d25);
-  --loading-muted: color-mix(in srgb, var(--loading-accent) 45%, #514954);
-  --loading-track: color-mix(in srgb, var(--loading-primary) 22%, #fffaf5);
-  --loading-mark: var(--loading-accent);
-  --loading-mark-text: #fff;
-  --loading-card: color-mix(in srgb, var(--loading-primary) 4%, #fff);
-  --loading-card-border: color-mix(in srgb, var(--loading-primary) 16%, #fff);
-}
-:root[data-loading-mode="dark"] {
-  --loading-bg: color-mix(in srgb, var(--loading-primary) 9%, #171619);
-  --loading-glow: color-mix(in srgb, var(--loading-primary) 20%, #171619);
-  --loading-shape: color-mix(in srgb, var(--loading-primary) 35%, #171619);
-  --loading-text: #f7f1f0;
-  --loading-muted: #ddd0d6;
-  --loading-track: color-mix(in srgb, var(--loading-primary) 30%, #171619);
-  --loading-mark: color-mix(in srgb, var(--loading-primary) 75%, #fff);
-  --loading-mark-text: #171619;
-  --loading-card: rgb(36 30 37 / 82%);
-  --loading-card-border: rgb(255 255 255 / 12%);
-}
-@media (prefers-color-scheme: dark) {
-  :root[data-loading-mode="auto"] {
-    --loading-bg: color-mix(in srgb, var(--loading-primary) 9%, #171619);
-    --loading-glow: color-mix(in srgb, var(--loading-primary) 20%, #171619);
-    --loading-shape: color-mix(in srgb, var(--loading-primary) 35%, #171619);
-    --loading-text: #f7f1f0;
-    --loading-muted: #ddd0d6;
-    --loading-track: color-mix(in srgb, var(--loading-primary) 30%, #171619);
-    --loading-mark: color-mix(in srgb, var(--loading-primary) 75%, #fff);
-    --loading-mark-text: #171619;
-    --loading-card: rgb(36 30 37 / 82%);
-    --loading-card-border: rgb(255 255 255 / 12%);
-  }
-}
 :root[data-loading-palette="customized"] :is(.account-loading, .app-skeleton),
 :root[data-loading-mode="dark"] :is(.account-loading, .app-skeleton) {
   background:
@@ -878,7 +890,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   border-top-color: var(--loading-mark);
   border-left-color: var(--loading-accent);
 }
-@supports (mask: radial-gradient(transparent 50%, #000 51%)) {
+@supports (mask: radial-gradient(transparent 50%, currentColor 51%)) {
   :root[data-loading-palette="customized"] .account-loading-indicator,
   :root[data-loading-mode="dark"] .account-loading-indicator {
     background: conic-gradient(from 25deg, var(--loading-track) 0deg 150deg, var(--loading-accent) 150deg, var(--loading-mark) 340deg, var(--loading-track) 340deg);
@@ -900,14 +912,14 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   :root[data-loading-mode="auto"]:not([data-loading-palette="customized"]) .account-loading-brand-text::before { background: var(--loading-mark); color: var(--loading-mark-text); }
   :root[data-loading-mode="auto"]:not([data-loading-palette="customized"]) .account-loading-brand-text::after { color: var(--loading-mark-text); }
   :root[data-loading-mode="auto"]:not([data-loading-palette="customized"]) .account-loading-indicator { border-color: var(--loading-track); border-top-color: var(--loading-mark); border-left-color: var(--loading-accent); }
-  @supports (mask: radial-gradient(transparent 50%, #000 51%)) {
+  @supports (mask: radial-gradient(transparent 50%, currentColor 51%)) {
     :root[data-loading-mode="auto"]:not([data-loading-palette="customized"]) .account-loading-indicator {
       background: conic-gradient(from 25deg, var(--loading-track) 0deg 150deg, var(--loading-accent) 150deg, var(--loading-mark) 340deg, var(--loading-track) 340deg);
     }
   }
 }
 @media (max-height: 400px) {
-  .account-loading-content { gap: .75rem; padding: 1.25rem; }
+  .account-loading-content { gap: var(--space-3); padding: var(--space-3); }
   .account-loading-brand-text { font-size: var(--text-3xl); }
   .account-loading-brand-text::before { width: 2.5rem; height: 2.5rem; font-size: var(--text-2xl); }
   .account-loading-brand-text::after { top: .35rem; left: 1.95rem; font-size: var(--text-loading-spark-compact); }
@@ -1019,7 +1031,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   text-transform: none;
 }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .account-gate { min-height: 100dvh; padding-block: var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
   .account-intro-brand,
 
@@ -1032,7 +1044,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   .account-password-checklist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate > .account-intro .account-intro-brand { display: none; }
 
   .account-gate:has(> .account-public-header) { grid-template-columns: minmax(0, 1fr); }
@@ -1081,7 +1093,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   background: var(--surface-soft);
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .settings-link[aria-current="page"] .settings-link-copy small { white-space: nowrap; }
 }
 
@@ -1171,14 +1183,13 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .routine-settings-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .routine-settings-links .btn { min-height: var(--control-sm); }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .home-layout-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .home-layout-controls { justify-content: flex-end; }
   .home-mode-grid,
   .home-shortcut-options { grid-template-columns: minmax(0, 1fr); }
 }
 .main[data-route="config"] .setting-toggle:hover {
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-soft);
 }
@@ -1228,7 +1239,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .main[data-route="config"] .setting-toggle input:checked::after { opacity: 1; }
 .main[data-route="config"] .setting-toggle input:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .main[data-route="config"] .settings-options { grid-template-columns: minmax(0, 1fr); }
   .main[data-route="config"] .setting-toggle { min-height: 88px; padding: 14px; }
 }
@@ -1368,7 +1379,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 .main[data-route="config"] .profile-settings-group + .profile-settings-group,
 .main[data-route="config"] .appearance-settings-group + .appearance-settings-group { border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent); }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .main[data-route="config"] .appearance-settings-group { padding: var(--space-3); }
 }
 .main[data-route="config"] .profile-settings-actions,
@@ -1484,7 +1495,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   outline-offset: 3px;
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .settings-overview { margin-top: -12px; padding: 0 4px; }
   .settings-menu-heading { display: none; }
   .main[data-route="config"] .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
@@ -1548,7 +1559,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .profile-greeting-preview { padding: 12px; }
   .profile-appearance-heading { grid-template-columns: minmax(0, 1fr); }
 }
@@ -1564,7 +1575,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 :root[data-theme="dark"] .settings-menu { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 :root[data-theme="dark"] .setting-toggle { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate[data-account-stage="1"] > .account-intro { display: none; }
 }
 
@@ -1628,7 +1639,6 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 
 .account-legal-document:hover {
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
   background: var(--surface-soft);
 }
@@ -1658,7 +1668,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .account-gate[data-account-mode="legal-consent"] {
     --account-page-gutter: var(--space-4);
     width: 100%;
@@ -1732,7 +1742,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .main[data-route="config"] .profile-settings-group { grid-template-columns: minmax(0, 1fr); }
   .main[data-route="config"] .profile-settings-fields { grid-template-columns: minmax(0, 1fr); }
 }
@@ -1763,7 +1773,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   background:
     radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 46%),
     linear-gradient(145deg, color-mix(in srgb, var(--soft) 72%, var(--surface)), var(--surface-strong));
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 
 .account-gate:has(> .account-public-header) > .account-intro::before {
@@ -1775,9 +1785,6 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   aspect-ratio: 1;
   border: 1px solid color-mix(in srgb, var(--accent) 17%, transparent);
   border-radius: 50%;
-  box-shadow:
-    0 0 0 18px color-mix(in srgb, var(--accent) 4%, transparent),
-    0 0 0 38px color-mix(in srgb, var(--accent) 3%, transparent);
   content: "";
   pointer-events: none;
 }
@@ -1837,7 +1844,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   border-color: color-mix(in srgb, var(--accent) 16%, var(--line));
   border-radius: var(--r-large);
   background: var(--surface);
-  box-shadow: 0 24px 60px -38px color-mix(in srgb, var(--accent) 30%, var(--ink));
+  box-shadow: none;
 }
 
 .account-gate:has(> .account-public-header) > .account-card h1 {
@@ -1883,7 +1890,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   border-width: 1.5px;
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate:has(> .account-public-header) > .account-intro {
     min-height: 0;
     gap: var(--space-3);
@@ -1908,7 +1915,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   align-self: start;
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate:has(> .account-public-header) > .account-intro {
     display: none;
   }
@@ -2194,9 +2201,9 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   min-height: var(--control-lg);
   border: 1px solid transparent;
   border-radius: var(--button-radius);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn));
+  background: var(--btn);
   color: var(--on-btn);
-  box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 90%, transparent);
+  box-shadow: none;
   font-weight: var(--weight-bold);
 }
 
@@ -2309,7 +2316,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   color: var(--ink);
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-page:has(.account-gate.is-public-account) { padding: 0; }
 
   .account-gate.is-public-account {
@@ -2337,7 +2344,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
     border: 1px solid var(--line);
     border-radius: var(--r-large);
     background: var(--surface);
-    box-shadow: var(--card-shadow);
+    box-shadow: none;
   }
 
   .account-gate.is-public-account > .account-card > .account-brand {
@@ -2418,7 +2425,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   border: 1px solid var(--art-card-line);
   border-radius: var(--r-large);
   background: color-mix(in srgb, var(--art-card) 90%, transparent);
-  box-shadow: 0 16px 34px -24px rgb(91 42 74 / 45%);
+  box-shadow: none;
   color: var(--art-ink);
   font-size: var(--text-xs);
   animation: account-art-rise .7s var(--ease-standard) both;
@@ -2445,7 +2452,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   left: 4px;
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--loading-white);
   border-width: 0 2px 2px 0;
   content: "";
   transform: rotate(45deg);
@@ -2533,14 +2540,12 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-gate.is-public-account .account-actions .btn {
   position: relative;
   overflow: hidden;
-  transition: transform var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), filter var(--duration-base) var(--ease-standard);
+  transition: background-color var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard), color var(--duration-base) var(--ease-standard);
 }
 .account-gate.is-public-account .account-actions .btn:not(:disabled):hover {
-  box-shadow: 0 16px 26px -15px color-mix(in srgb, var(--btn) 96%, transparent);
-  filter: brightness(1.06);
-  transform: translateY(-1px);
+  box-shadow: none;
+  filter: none;
 }
-.account-gate.is-public-account .account-actions .btn:not(:disabled):active { transform: translateY(0); }
 .account-gate.is-public-account .account-actions .btn:disabled { opacity: .55; }
 .account-gate.is-public-account .account-actions .btn[aria-busy="true"]::after {
   position: absolute;
@@ -2557,6 +2562,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   align-items: center;
   gap: var(--space-3);
   width: 100%;
+  max-width: calc(100vw - var(--space-4) * 4 - var(--space-half));
   margin: 0;
   padding: 0;
   color: var(--muted);
@@ -2569,11 +2575,10 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   background: var(--line);
   content: "";
 }
-.account-gate.is-public-account .account-oauth-button { transition: transform var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard); }
+.account-gate.is-public-account .account-oauth-button { transition: background-color var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard); }
 .account-gate.is-public-account .account-oauth-button:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
-  box-shadow: var(--card-shadow);
-  transform: translateY(-1px);
+  background: var(--surface-soft);
 }
 
 /* Força da senha e checklist */
@@ -2670,17 +2675,17 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 @keyframes account-pop { 0% { transform: scale(.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @keyframes account-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
-@media (max-width: 1100px) {
+@media (width < 1200px) {
   .account-gate.is-public-account .account-preview { grid-template-columns: 1fr; }
   .account-preview-card.is-tasks { grid-row: auto; }
   .account-gate.is-public-account .account-intro-art { width: min(100%, 320px); }
 }
 
-@media (max-height: 760px) and (min-width: 761px) {
+@media (max-height: 760px) and (width > 700px) {
   .account-gate.is-public-account .account-intro-art { display: none; }
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-gate.is-public-account .account-password-checklist { grid-template-columns: 1fr; }
 }
 
@@ -2762,7 +2767,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 :root[data-theme="dark"] .account-site-header .account-home-link,
 :root[data-theme="dark"] .account-site-header .public-account-action:not([disabled]) { border-color: var(--line-strong); background: var(--surface); }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .account-site-header { flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-4) 0; }
   .account-site-header .account-home-link { order: 3; flex: 1 1 100%; justify-content: center; }
   .account-site-header .account-auth-header-actions { margin-left: auto; }
@@ -2809,62 +2814,29 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 .account-gate.is-public-account .account-step { flex: 0 0 auto; gap: var(--space-2); }
 .account-gate.is-public-account .account-step-separator { margin-left: var(--space-1); }
 
-/* Autenticação com o visual da landing */
+/* Autenticação com visual de aplicativo */
 .account-gate.is-public-account {
-  --lp-violet: #c96a92;
   border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
-  box-shadow: 0 40px 80px -44px rgb(201 106 146 / 50%);
+  box-shadow: none;
 }
 
 .account-gate.is-public-account > .account-intro {
-  background:
-    radial-gradient(ellipse at 100% 0%, rgb(242 160 191 / 42%), transparent 55%),
-    radial-gradient(ellipse at 0% 100%, color-mix(in srgb, var(--area-finances) 22%, transparent), transparent 50%),
-    linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, #f2a0bf), var(--surface) 75%);
+  background: var(--surface-strong);
 }
 
 .account-gate.is-public-account > .account-intro::before {
-  z-index: -1;
-  top: -120px;
-  right: 6%;
-  bottom: auto;
-  left: auto;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  background: var(--accent);
-  filter: blur(70px);
-  opacity: .3;
-  transform: none;
-  animation: lp-drift 14s ease-in-out infinite alternate;
+  display: none;
 }
 
 .account-gate.is-public-account > .account-intro::after {
-  z-index: -1;
-  top: auto;
-  right: auto;
-  bottom: -140px;
-  left: 20%;
-  width: 300px;
-  height: 300px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--area-finances);
-  filter: blur(70px);
-  opacity: .28;
-  transform: none;
-  animation: lp-drift 18s ease-in-out -6s infinite alternate-reverse;
+  display: none;
 }
 
 .account-gate.is-public-account > .account-intro h2 {
-  background: linear-gradient(100deg, var(--ink) 0%, var(--btn) 45%, var(--lp-violet) 100%);
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  background: none;
+  color: var(--ink);
   font-weight: var(--weight-bold);
-  animation: account-art-rise .55s var(--ease-standard) both, lp-shine 9s ease-in-out infinite alternate;
+  animation: account-art-rise .55s var(--ease-standard) both;
 }
 
 .account-gate.is-public-account .account-field input,
@@ -2873,23 +2845,11 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 .account-gate.is-public-account .account-field input { padding-inline: var(--space-4); }
 .account-gate.is-public-account .account-actions .btn.primary {
-  transition: transform var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
+  transition: background-color var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard);
 }
 .account-gate.is-public-account .account-actions .btn.primary:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--accent) 80%, black);
+  background: color-mix(in srgb, var(--btn) 92%, var(--ink));
 }
-
-:root[data-theme="dark"] .account-gate.is-public-account > .account-intro {
-  background:
-    radial-gradient(ellipse at 100% 0%, rgb(242 160 191 / 22%), transparent 55%),
-    var(--hero);
-}
-:root[data-theme="dark"] .account-gate.is-public-account > .account-intro::before {
-  background: var(--accent);
-  box-shadow: none;
-}
-:root[data-theme="dark"] .account-gate.is-public-account > .account-intro::after { border-top-color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   .account-gate.is-public-account > .account-intro::before,
@@ -2917,7 +2877,7 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 }
 .account-gate.is-public-account .account-terms-group { padding-block: var(--space-1); }
 .account-gate.is-public-account .account-links { gap: var(--space-1); }
-@media (min-width: 761px) {
+@media (width > 700px) {
   .account-gate.is-public-account .account-links { flex-wrap: wrap; justify-content: center; }
   .account-gate.is-public-account .account-links .account-switch { flex-basis: auto; }
 }.account-gate.is-public-account #account-password-help,

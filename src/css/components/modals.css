@@ -309,7 +309,6 @@
 .dlg-body.destructive-dialog + .dlg-foot .btn.danger:hover {
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 88%, var(--ink));
-  transform: translateY(-1px);
 }
 
 /* Depois de apagar, o próximo passo é uma escolha clara — nunca um onboarding inesperado. */
@@ -446,7 +445,7 @@
   background: linear-gradient(180deg, color-mix(in srgb, var(--soft) 32%, var(--surface-strong)), var(--surface-strong));
 }
 .dlg-body.task-dialog + .dlg-foot .btn.primary { min-width: 190px; }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .dlg-back {
     padding: 12px;
   }
@@ -634,12 +633,11 @@
   transform: translateX(-50%);
   animation: toast-in .28s var(--ease-standard) both;
 }
-@media (min-width: 900px) { .toast { bottom: 28px; } }
+@media (width >= 900px) { .toast { bottom: 28px; } }
 .toast.toast-top { top: calc(76px + env(safe-area-inset-top, 0px)); bottom: auto; }
 .toast-icon { display: grid; flex: none; width: 22px; height: 22px; place-items: center; border-radius: var(--r-pill); background: color-mix(in srgb, var(--toast-tone) 55%, var(--surface)); color: var(--bg); }
 .toast-icon .ic { width: 14px; height: 14px; }
 .toast-content { display: block; flex: 1 1 auto; min-width: 0; padding-right: 6px; }
-.toast-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .toast-message { display: block; min-width: 0; overflow-wrap: anywhere; color: var(--bg); font-size: var(--text-sm); font-weight: 600; line-height: 1.45; }
 .toast .user-value, .toast .money { color: inherit; }
 .toast button { flex: none; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: transparent; text-decoration: underline; text-underline-offset: 3px; color: var(--bg); font-size: var(--text-sm); font-weight: 750; cursor: pointer; }
@@ -682,21 +680,21 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 .lg.p { border: 1px dashed var(--accent); background: var(--soft2); }
 .lg.l { width: 7px; height: 7px; background: var(--ink); }
 
-@media (min-width: 640px) { .dlg { max-height: min(88dvh, 820px); } }
-@media (max-width: 1100px) {
+@media (width >= 700px) { .dlg { max-height: min(88dvh, 820px); } }
+@media (width < 1200px) {
   .onboard-options, .onboard-solution-list { gap: 10px; }
 }
-@media (max-width: 600px) {
+@media (width < 700px) {
   .onboard-intro { flex-direction: column; gap: var(--space-3); }
   .onboard-options { grid-template-columns: minmax(0, 1fr); }
   .onboard-solution-list { grid-template-columns: minmax(0, 1fr); }
   .onboard-solution-note { align-items: flex-start; }
   .onboard-always-on { margin-left: auto; }
 }
-@media (min-width: 760px) {
+@media (width > 700px) {
   .onboard-needs-dialog .onboard-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 380px) {
+@media (width < 480px) {
   .trio { grid-template-columns: minmax(0, 1fr); }
   .intro-dialog .dlg-foot { gap: 8px; }
   .intro-dialog .dlg-foot .btn { padding-inline: 10px; font-size: var(--text-meta); }
@@ -754,7 +752,7 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
   border-radius: var(--r-control);
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .dlg:not(.intro-dialog) .dlg-body {
     gap: 16px;
     padding: 20px;
@@ -820,11 +818,11 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 .quick-intro-points small { color: var(--muted); font-size: var(--text-xs); line-height: 1.35; }
 .quick-intro-copy > .fine { padding-left: 2px; font-size: var(--text-xs); }
 .dlg-body.quick-intro-dialog + .dlg-foot { padding: 14px 28px 20px; background: linear-gradient(180deg, color-mix(in srgb, var(--soft) 28%, var(--surface-strong)), var(--surface-strong)); }
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .quick-intro { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .quick-intro-points { padding: 8px; border-radius: var(--r-group); }
 }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .dlg-body.quick-intro-dialog { padding: 22px 20px; }
   .dlg-body.quick-intro-dialog + .dlg-foot { padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px)); }
 }

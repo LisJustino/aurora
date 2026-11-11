@@ -18,11 +18,11 @@ const check = (passed, name, detail = '') => {
   });
   await page.goto(`${BASE}/?preview#planejar`);
 
-  await page.locator('.planning-overview').waitFor({ state: 'visible' });
-  check(await page.locator('.planning-overview-stat, .planning-shortcuts').count() === 0,
-    'Planejar não duplica filtros nem seletores de visualização');
-  check(await page.locator('[data-change="plan-view"]').count() === 1,
-    'Planejar mantém um seletor único para os modos de visualização');
+  await page.locator('.plan-view-control').waitFor({ state: 'visible' });
+  check(await page.locator('.planning-overview, .planning-overview-stat, .planning-shortcuts').count() === 0,
+    'Planejar não duplica filtros nem ocupa espaço com um cartão introdutório');
+  check(await page.locator('.plan-view-control [data-action="plan-view"]').count() === 4,
+    'Planejar oferece quatro modos no controle segmentado');
   const upcomingFilter = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
   await upcomingFilter.click();
   const upcomingChip = page.locator('[aria-label="Filtrar tarefas"] [data-f="proximas"]');
@@ -74,7 +74,7 @@ const check = (passed, name, detail = '') => {
   await createdTask.locator('.tt[data-action="edit-task"]').click();
   check(await page.locator('#dlg [data-dlg="icon"][value="book"]').isChecked(), 'ícone permanece selecionado ao editar');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
-  await page.locator('[data-change="plan-view"]').selectOption('calendario');
+  await page.locator('[data-action="plan-view"][data-v="calendario"]').click();
   await page.locator('[data-action="tcal-month"][data-n="1"]').click();
   const calendarDay = page.locator('[data-action="tcal-day"]').first();
   const calendarDate = await calendarDay.getAttribute('data-d');
@@ -83,7 +83,7 @@ const check = (passed, name, detail = '') => {
   await calendarEmpty.getByRole('button', { name: 'Adicionar tarefa neste dia' }).click();
   check(await page.locator('#dlg [data-dlg="due"]').inputValue() === calendarDate, 'ação do calendário pré-seleciona o dia vazio');
   await page.locator('#dlg [data-action="dlg-close"]').first().click();
-  await page.locator('[data-change="plan-view"]').selectOption('semana');
+  await page.locator('[data-action="plan-view"][data-v="semana"]').click();
   const weekAction = page.locator('.week-day .empty[role="status"] [data-action="week-add"]').first();
   const weekDate = await weekAction.getAttribute('data-d');
   await weekAction.click();

@@ -131,7 +131,13 @@ const check = (passed, name, detail = '') => {
   check(escapeFocus.includes('data-legal-document="privacy"'), 'Escape fecha o modal e devolve o foco ao acionador', escapeFocus);
   await termsTrigger.click();
   await legalDialog.locator('.legal-document').waitFor();
-  await page.mouse.click(1, 1);
+  const backdropPoint = await legalDialog.evaluate((dialog) => {
+    const bounds = dialog.getBoundingClientRect();
+    return bounds.bottom < innerHeight
+      ? { x: Math.min(innerWidth - 1, bounds.left + 1), y: innerHeight - 1 }
+      : { x: 1, y: 1 };
+  });
+  await page.mouse.click(backdropPoint.x, backdropPoint.y);
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
   await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();

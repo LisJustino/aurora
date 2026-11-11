@@ -40,6 +40,17 @@ const check = (passed, name, detail = '') => {
   }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');
   const recent = await page.locator('.finance-recent').textContent();
   const selectedMonth = await page.locator('.mnav .mlabel').textContent();
+  await page.locator('.mnav [data-n="-1"]').click();
+  const returnToCurrentMonth = page.getByRole('button', { name: 'Voltar para o mês atual', exact: true });
+  check(await returnToCurrentMonth.isVisible() && await returnToCurrentMonth.textContent() === 'Hoje',
+    'atalho visível para retornar ao mês atual');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.locator('.mnav').evaluate((nav) => nav.scrollWidth <= nav.clientWidth),
+    'atalho do mês atual cabe na navegação em largura de 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await returnToCurrentMonth.click();
+  check(await page.locator('.mnav .mlabel').textContent() === selectedMonth
+    && await returnToCurrentMonth.count() === 0, 'atalho retorna ao mês atual e some quando não é necessário');
   check(!recent.includes('Mercado do mês'), 'resumo não mistura lançamentos dos meses anteriores');
   check(await page.locator('.fh-row .finance-summary-stat').count() === 4, 'resumo mostra quatro indicadores');
   check(await page.locator('.finance-month-snapshot').count() === 1
@@ -48,6 +59,8 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.finance-month-close').count() === 1
     && await page.locator('.finance-close-stats > div').count() === 6,
   'fechamento mensal resume recebidos, pagos, pendências, fixas e cartões');
+  check((await page.locator('.fin-hero-trend').textContent()).includes('transferências e faturas com vencimento neste período'),
+    'projeção informa que considera transferências pendentes e faturas vencendo no mês');
   check((await page.locator('.finance-month-close').textContent()).includes('Maior categoria de despesa')
     && (await page.locator('.finance-month-close').textContent()).includes('pagamento da fatura é uma transferência'),
   'fechamento identifica atenção por categoria e explica o tratamento do cartão');
@@ -82,6 +95,7 @@ const check = (passed, name, detail = '') => {
   )), 'fundo do documento permanece aplicado enquanto a modal está aberta');
   await page.locator('#dlg [data-dlg="amount"]').fill('1,00');
   await page.locator('#dlg [data-dlg="desc"]').fill('Despesa futura de teste');
+  const futureExpenseAccount = await page.locator('#dlg [data-dlg="accountId"]').inputValue();
   const futureMonthDate = new Date();
   futureMonthDate.setDate(1);
   futureMonthDate.setMonth(futureMonthDate.getMonth() + 1);
@@ -89,6 +103,30 @@ const check = (passed, name, detail = '') => {
   await page.locator('#dlg [data-dlg="date"]').fill(`${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')}`);
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   check(await page.locator('.finance-trend-empty').count() === 1, 'compromissos futuros não viram evolução de despesas realizadas');
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  await page.locator('input[data-change="fin-import"]').setInputFiles({
+    name: 'revisao-duplicados.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from([
+      'Data;Descrição;Valor',
+      `${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')};Despesa futura de teste;-1,00`,
+      `${futureMonthDate.getFullYear()}-${String(futureMonthDate.getMonth() + 1).padStart(2, '0')}-${String(futureMonthDate.getDate()).padStart(2, '0')};Compra diferente;-1,00`,
+    ].join('\n')),
+  });
+  await page.locator('#dlg [data-dlg="accountId"]').selectOption(futureExpenseAccount);
+  const duplicateRows = page.locator('#dlg input[data-dlg^="rows."]');
+  check(await duplicateRows.count() === 2
+    && !await duplicateRows.nth(0).isChecked()
+    && await duplicateRows.nth(1).isChecked(),
+  'importação desmarca provável duplicata com descrição equivalente e preserva compra diferente com mesmo valor');
+  check((await page.locator('#dlg').textContent()).includes('descrições diferentes')
+    && (await page.locator('#dlg').textContent()).includes('permanecem marcados'),
+  'importação explica os casos semelhantes que exigem conferência');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  if (await page.getByRole('button', { name: 'Descartar alterações', exact: true }).count()) {
+    await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();
+  }
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.locator('.mnav [data-n="0"]').click();
   await page.locator('.finance-trend-chart').waitFor();
 
@@ -443,6 +481,48 @@ const check = (passed, name, detail = '') => {
   check(await renamedTransaction.locator('.meta2').textContent().then((text) => text.includes('Alimentação personalizada')), 'renomear categoria atualiza lançamentos existentes');
   check(await renamedTransaction.locator('.ci').getAttribute('style').then((style) => style.includes('#123abc')), 'ícone do lançamento usa a cor personalizada');
 
+  await page.locator('.fin-section-option[data-t="orcamento"]').click();
+  await page.locator('[data-action="goal-new"]').first().click();
+  await page.locator('#dlg [data-dlg="name"]').fill('Meta vinculada de teste');
+  await page.locator('#dlg [data-dlg="target"]').fill('1,00');
+  const goalAccountId = await page.locator('#dlg [data-dlg="linkedAccountId"] option').evaluateAll((options) => (
+    options.find((option) => option.value && !option.disabled)?.value
+  ));
+  check(Boolean(goalAccountId), 'objetivo oferece conta não creditícia para acompanhar o saldo');
+  await page.locator('#dlg [data-dlg="linkedAccountId"]').selectOption(goalAccountId);
+  check(await page.locator('#dlg [data-dlg="saved"]').isDisabled()
+    && (await page.locator('#dlg').textContent()).includes('saldo total'),
+  'vínculo de objetivo informa que o saldo integral da conta representa o progresso');
+  await page.getByRole('button', { name: 'Criar objetivo', exact: true }).click();
+  const linkedGoal = page.locator('.goal-item').filter({ hasText: 'Meta vinculada de teste' });
+  check(await linkedGoal.count() === 1
+    && (await linkedGoal.textContent()).includes('Saldo sincronizado com a conta')
+    && await linkedGoal.getByRole('button', { name: 'Guardar' }).count() === 0,
+  'objetivo vinculado acompanha a conta sem oferecer registro manual de contribuição');
+  await page.locator('[data-action="goal-new"]').first().click();
+  const reusedGoalAccountStatus = await page.locator('#dlg [data-dlg="linkedAccountId"] option').evaluateAll((options, id) => {
+    const option = options.find((item) => item.value === id);
+    return { disabled: option?.disabled, markup: option?.outerHTML };
+  }, goalAccountId);
+  check(reusedGoalAccountStatus.disabled,
+    'uma conta não pode ser compartilhada entre objetivos');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+  const editLinkedGoal = linkedGoal.getByRole('button', { name: 'Editar' });
+  await editLinkedGoal.evaluate((button) => button.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await editLinkedGoal.click();
+  const linkedGoalSavedValue = await page.locator('#dlg [data-dlg="saved"]').inputValue();
+  await page.locator('#dlg [data-dlg="linkedAccountId"]').selectOption('');
+  check(!await page.locator('#dlg [data-dlg="saved"]').isDisabled()
+    && await page.locator('#dlg [data-dlg="saved"]').inputValue() === linkedGoalSavedValue,
+  'desvincular preserva o saldo atual como valor manual');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+  check((await linkedGoal.textContent()).includes('acompanhamento manual')
+    && await linkedGoal.getByRole('button', { name: 'Guardar' }).count() === 1,
+  'objetivo pode voltar ao modo manual sem perder o progresso');
+
+  await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.getByRole('button', { name: 'Despesa', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Receita', exact: true }).click();
   const date = new Date();
@@ -485,8 +565,14 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Resumo', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
+  check(await page.locator('.finance-fab').isVisible()
+    && !await page.locator('.finance-page-action').isVisible(),
+  'celular mostra apenas a ação flutuante de lançamento');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
+  check(!await page.locator('.finance-fab').isVisible()
+    && await page.locator('.finance-page-action').isVisible(),
+  'desktop mostra apenas a ação de lançamento no cabeçalho');
   const overviewDesktopLayout = await page.evaluate(() => {
     const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
     const recent = document.querySelector('.finance-recent').getBoundingClientRect();

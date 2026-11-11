@@ -40,6 +40,16 @@ assert.match(installmentFinanceMigration, /add column if not exists anticipated_
 assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
 assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
 assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
+const goalAccountMigration = await readFile(
+  new URL('../supabase/migrations/20261110000000_finance_goal_account_link.sql', import.meta.url),
+  'utf8',
+);
+assert.match(goalAccountMigration, /add column if not exists linked_account_id uuid/i);
+assert.match(goalAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
+assert.match(goalAccountMigration, /references public\.finance_accounts \(user_id, id\)/i);
+assert.match(goalAccountMigration, /on delete restrict/i);
+assert.match(goalAccountMigration, /where linked_account_id is not null and deleted_at is null/i);
+assert.doesNotMatch(goalAccountMigration, /update\s+public\.finance_goals/i);
 const taskIconsMigration = await readFile(
   new URL('../supabase/migrations/20261104210000_task_icons.sql', import.meta.url),
   'utf8',
@@ -220,7 +230,14 @@ const state = {
       { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
     ],
     budgets: { Mercado: { cents: 5000 } },
-    goals: [],
+    goals: [{
+      id: 'goal-1',
+      name: 'Reserva',
+      targetCents: 50000,
+      savedCents: 10000,
+      deadline: null,
+      linkedAccountId: 'investment-1',
+    }],
     recurring: [{
       id: 'rec-rent',
       type: 'out',
@@ -266,6 +283,8 @@ assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment
 assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');
 assert.equal(accountRowsByLegacyId.get('card-1').linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(accountRowsByLegacyId.get('card-stale-link').linked_account_id, null);
+const goalRow = changeByTable.get('finance_goals').find((row) => row.legacy_id === 'goal-1');
+assert.equal(goalRow.linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-cash').account_id, accountRowsByLegacyId.get('cash-legacy').id);
 assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking', 'savings', 'investment']);
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
@@ -378,6 +397,7 @@ assert.equal(loadedState.gym.logs[0].id, 'legacy-workout');
 assert.equal(loadedState.gym.logs[0].notes, 'Registro preservado');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
+assert.equal(loadedState.finance.goals.find((goal) => goal.id === 'goal-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
 const loadedInvestment = loadedState.finance.accounts.find((account) => account.id === 'investment-1');
 for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {

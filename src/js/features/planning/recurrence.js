@@ -1,5 +1,7 @@
 import { dk, pk } from '../../utils/dates.js';
 
+export const REPEATS = { none: 'Nunca', day: 'Todo dia', weekday: 'Dias úteis', week: 'Toda semana', month: 'Todo mês', year: 'Todo ano' };
+
 export function nextDue(date, repeat) {
   const nextDate = pk(date);
   if (repeat === 'day') nextDate.setDate(nextDate.getDate() + 1);

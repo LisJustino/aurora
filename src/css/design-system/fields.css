@@ -181,7 +181,7 @@ input[type="radio"] {
 .search { position: relative; min-width: 0; flex: 1; }
 .search .ic { position: absolute; top: 50%; left: 12px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .search input { padding-left: 40px; }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .form { grid-template-columns: minmax(0, 1fr); }
   .form > .full { grid-column: auto; }
   .form.inline { flex-direction: column; align-items: stretch; }

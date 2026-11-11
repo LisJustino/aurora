@@ -158,7 +158,7 @@ async function checkContrast(page) {
       assert.equal(await appPage.locator(`#${id}`).count(), 1, `${id} fica disponível em Ajustes`);
     }
     await appPage.locator('#settings-accessibility-motion').click();
-    await appPage.locator('[data-settings-save-button]').click();
+    await appPage.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
     await appPage.waitForFunction(() => document.documentElement.dataset.motion === 'reduce');
     await appPage.evaluate(() => { location.hash = 'inicio'; });
     const homeTaskInput = appPage.locator('.home-quick-form input[name="title"]');

@@ -19,7 +19,7 @@
   background: transparent;
 }
 .aibar input:focus-visible { outline-offset: 0; }
-@media (max-width: 360px) {
+@media (width < 480px) {
   :root {
     --gut-l: max(12px, env(safe-area-inset-left, 0px));
     --gut-r: max(12px, env(safe-area-inset-right, 0px));

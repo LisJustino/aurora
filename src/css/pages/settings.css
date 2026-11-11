@@ -21,7 +21,7 @@
   border-radius: var(--r-large);
   background:
     linear-gradient(155deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--settings-surface) 55%);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .main[data-route="config"] .settings-menu-heading {
@@ -195,10 +195,9 @@
 .main[data-route="config"] .appearance-preset {
   min-height: 76px;
   padding: var(--space-4);
-  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
 
-.main[data-route="config"] .appearance-preset:hover { transform: translateY(-1px); }
 .main[data-route="config"] .appearance-preset[aria-pressed="true"] { border-color: var(--accent); }
 
 .main[data-route="config"] .areas-navigation-item {
@@ -267,7 +266,7 @@
   }
 }
 
-@media (max-width: 900px) and (min-width: 761px) {
+@media (width <= 900px) and (width > 700px) {
   .main[data-route="config"] .settings-layout {
     grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
     gap: var(--space-4);
@@ -281,7 +280,7 @@
   .main[data-route="config"] .settings-link-copy small { display: none; }
 }
 
-@media (max-width: 760px) {
+@media (width <= 700px) {
   .main[data-route="config"] .settings-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
@@ -299,7 +298,7 @@
     border: 0;
     border-radius: var(--r-large);
     background: var(--settings-surface);
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
   }
 
   .main[data-route="config"] .settings-menu::after { display: none; }
@@ -354,11 +353,11 @@
   }
 }
 
-@media (max-width: 380px) {
-  .main[data-route="config"] .settings-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (width < 480px) {
+  .main[data-route="config"] .settings-menu { grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr)); }
 }
 
-@media (max-width: 520px) {
+@media (width <= 480px) {
   .main[data-route="config"] .settings-content > .card,
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {
@@ -388,5 +387,4 @@
 
 @media (prefers-reduced-motion: reduce) {
   .main[data-route="config"] .appearance-preset { transition: none; }
-  .main[data-route="config"] .appearance-preset:hover { transform: none; }
 }

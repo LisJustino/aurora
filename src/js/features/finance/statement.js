@@ -2,6 +2,27 @@ import { parseMoney } from '../../utils/currency.js';
 
 const MAX_STATEMENT_ROWS = 500;
 
+const normalizeDescription = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+export function statementDuplicateStatus(candidate, transactions) {
+  const description = normalizeDescription(candidate.desc);
+  const matches = transactions.filter((transaction) => transaction.accountId === candidate.accountId
+    && transaction.date === candidate.date
+    && transaction.cents === candidate.cents
+    && transaction.type === candidate.type);
+  const duplicate = description
+    && matches.some((transaction) => normalizeDescription(transaction.desc) === description);
+  return {
+    duplicate: Boolean(duplicate),
+    possible: matches.length > 0 && !duplicate,
+  };
+}
+
 const normDate = (year, month, day) => {
   const date = new Date(Number(year), Number(month) - 1, Number(day));
   return date.getFullYear() === Number(year)

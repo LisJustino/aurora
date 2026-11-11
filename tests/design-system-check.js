@@ -36,6 +36,14 @@ const SET_BY_SCRIPT = new Set([
   '--scroll-lock-offset-x', '--scroll-lock-offset-y',
 ]);
 const allText = files.map((item) => strip(item.text)).join('\n');
+const responsiveWidths = new Set([...allText.matchAll(/@media([^{}]*)/g)].flatMap(([, query]) => (
+  [...query.matchAll(/width\s*[<>]=?\s*([\d.]+)px/g)].map(([, width]) => Number(width))
+)));
+check(
+  [...responsiveWidths].sort((a, b) => a - b).join(',') === '480,700,900,1200',
+  'Breakpoints responsivos usam apenas 480, 700, 900 e 1200 px',
+  [...responsiveWidths].sort((a, b) => a - b).join(', '),
+);
 const loadingResponse = await fetch('/loading-appearance.js', { cache: 'no-store' });
 if (!loadingResponse.ok) throw new Error(`Não foi possível carregar a aparência inicial: HTTP ${loadingResponse.status}.`);
 const loadingScript = await loadingResponse.text();
@@ -89,6 +97,36 @@ check(!heightLiterals.length, 'Alturas mínimas de controle usam --control-*', h
 
 const hexLiterals = offenders(/(?:color|background|border-color|fill|stroke):\s*#(?:fff|ffffff|000|000000)(?![\w])/gi);
 check(!hexLiterals.length, 'Cores sólidas em branco/preto usam --on-solid ou tokens de tema (misturas com color-mix são permitidas)', hexLiterals.slice(0, 6).join(' | '));
+const directHexColors = offenders(/(?:^|[;{]\s*)(?:--[\w-]+|color|background(?:-color)?|border(?:-color)?|fill|stroke)\s*:[^;{}]*#[\da-f]{3,8}\b/gi);
+check(!directHexColors.length, 'Cores CSS usam tokens, sem valores hex literais fora de tokens.css', directHexColors.slice(0, 6).join(' | '));
+
+const importantBaseline = {
+  'base.css': 9,
+  'components/navigation-responsive.css': 5,
+  'components/preferences.css': 1,
+  'design-system/buttons.css': 1,
+  'pages/account.css': 4,
+  'pages/home.css': 2,
+  'pages/legal.css': 1,
+};
+const addedImportant = outsideTokens.flatMap(({ file, text }) => {
+  const count = [...strip(text).matchAll(/!important\b/g)].length;
+  const baseline = importantBaseline[file] || 0;
+  return count > baseline ? [`${file}: ${count} (limite ${baseline})`] : [];
+});
+check(!addedImportant.length, 'Não foram adicionadas declarações !important',
+  addedImportant.join(', ') || 'inventário legado preservado');
+
+const sizeTokens = files.find((item) => item.file === 'design-system/tokens.css')?.text || '';
+const undersizedTokens = [...sizeTokens.matchAll(/--text-([\w-]+)\s*:\s*([^;]+);/g)].flatMap(([, name, value]) => {
+  if (['loading-spark', 'loading-spark-compact'].includes(name)) return [];
+  const match = /^\s*(\d*\.?\d+)(px|rem|em)\b/.exec(value);
+  if (!match) return [];
+  const pixels = Number(match[1]) * (match[2] === 'px' ? 1 : 16);
+  return pixels < 12 ? [`--text-${name}: ${value.trim()}`] : [];
+});
+check(!undersizedTokens.length, 'Tokens tipográficos funcionais não ficam abaixo de 12 px',
+  undersizedTokens.join(', ') || 'mínimo legível mantido');
 
 const spacingBaseline = {
   'base.css': [0, 2],

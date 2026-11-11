@@ -23,7 +23,7 @@
   margin: 0;
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   }
@@ -37,7 +37,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .fab { right: max(28px, calc((100vw - var(--content-width)) / 2)); bottom: 28px; }
   .topbar { gap: 24px; }
   .topbar .nav .nav-enable-areas { display: none; }
@@ -92,7 +92,7 @@
 }
 
 /* A navega\u00e7\u00e3o ganha peso de produto em desktop, sem perder o dock t\u00e1til no celular. */
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .topbar .nav {
     gap: 2px;
     width: fit-content;
@@ -126,7 +126,7 @@
   }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     border-color: color-mix(in srgb, var(--line-strong) 55%, transparent);
     background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
@@ -140,14 +140,14 @@
   }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .topbar { min-height: 72px; }
   .app > .topbar { padding-inline: var(--gut-l) var(--gut-r); }
   :root[data-scrolled="true"] .topbar { min-height: 58px; }
 }
 
 /* Mantém os alvos de toque do cabeçalho enquanto reduz o espaçamento em telas estreitas. */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .topbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content;
@@ -162,7 +162,7 @@
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
 }
 
-@media (max-width: 360px) {
+@media (width < 480px) {
   .topbar { gap: 0; }
   .topbar .brand { gap: 2px; }
   .topbar .brand > svg { width: 20px; height: 20px; flex: none; }
@@ -187,7 +187,7 @@
 .nav-more-trigger[aria-expanded="true"] { color: var(--accent); }
 .nav-more-menu { z-index: calc(var(--z-nav) + 1); }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .topbar .nav .nav-secondary { display: none !important; }
   .topbar .nav .nav-more-trigger {
     display: inline-flex !important;
@@ -219,7 +219,7 @@
   }
 }
 
-@media (min-width: 900px) and (max-width: 1199px) {
+@media (width >= 900px) and (width < 1200px) {
   .topbar .nav {
     position: relative;
     overflow: visible;
@@ -291,7 +291,7 @@
   .topbar .nav .nav-more-menu .nav-more-create .ni { background: var(--soft2); }
 }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .topbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -311,7 +311,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .topbar .nav {
     grid-column: 2;
     grid-row: 1;
@@ -319,7 +319,7 @@
   }
 }
 
-@media (min-width: 900px) and (max-width: 1199px) {
+@media (width >= 900px) and (width < 1200px) {
   .topbar { gap: 12px; }
   .topbar .nav { gap: 0; }
   .topbar .nav a {
@@ -344,7 +344,7 @@
   }
 }
 
-@media (min-width: 1000px) and (max-width: 1199px) {
+@media (width > 900px) and (width < 1200px) {
   .topbar .nav a .tab-label-group,
   .topbar .nav .nav-quick-trigger .tab-label-group {
     display: inline-flex;
@@ -358,7 +358,7 @@
   .topbar .nav .nav-quick-trigger { width: auto; gap: 5px; padding-inline: 7px; }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     display: flex;
     width: min(520px, calc(100% - 24px));
@@ -453,7 +453,7 @@
 }
 
 /* Em telas móveis, o ícone mantém o nome acessível sem disputar espaço. */
-@media (max-width: 899px) {
+@media (width < 900px) {
   .topbar .wordmark { display: none; }
 }
 
@@ -461,7 +461,7 @@
   .topbar .nav a { transition: none; }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     gap: var(--space-1);
     padding-inline: max(var(--space-2), env(safe-area-inset-left, 0px)) max(var(--space-2), env(safe-area-inset-right, 0px));
@@ -491,7 +491,7 @@
   }
 }
 
-@media (max-width: 400px) {
+@media (width < 480px) {
   .nav {
     display: flex;
     gap: var(--space-1);
@@ -505,11 +505,11 @@
   }
 }
 
-@media (max-width: 375px) {
+@media (width < 480px) {
   .nav { gap: 0; }
 }
 
-@media (min-width: 1200px) {
+@media (width >= 1200px) {
   .app > .topbar .header-actions [data-action="reload-app"] {
     display: none;
   }
@@ -744,7 +744,7 @@
   color: var(--accent);
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav > .nav-quick-control { display: contents; }
   .nav > .nav-quick-control > .nav-quick-trigger { display: none; }
   .nav > .nav-quick-control {
@@ -783,16 +783,11 @@
   .quick-actions-menu > button { min-width: 0; font-size: var(--text-xs); }
 }
 
-@media (min-width: 900px) and (max-width: 1199px) {
+@media (width >= 900px) and (width < 1200px) {
   .quick-actions-menu { top: 76px; right: 16px; }
 }
 
-@media (min-width: 900px) and (max-width: 1099px) {
-  .topbar .nav .nav-quick-trigger { width: 40px; padding: 0; }
-  .topbar .nav .nav-quick-trigger .tab-label-group { display: none; }
-}
-
-@media (min-width: 1200px) {
+@media (width >= 1200px) {
   .app > .topbar .nav .nav-quick-control {
     width: 100%;
     min-width: 0;
@@ -815,9 +810,8 @@
   }
   .app > .topbar .nav .nav-quick-trigger:hover,
   .app > .topbar .nav .nav-quick-trigger[aria-expanded="true"] {
-    background: var(--btn);
+    background: color-mix(in srgb, var(--btn) 92%, var(--ink));
     color: var(--on-btn);
-    filter: brightness(1.08);
   }
   .app > .topbar .nav .nav-quick-trigger .ni { color: inherit; }
   .app > .topbar .header-actions {
@@ -866,7 +860,7 @@
   .quick-actions-menu > button { transition: none; }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .topbar .nav {
     right: max(8px, env(safe-area-inset-right, 0px));
     left: max(8px, env(safe-area-inset-left, 0px));
@@ -882,11 +876,11 @@
   .topbar .nav .tab-period { display: none; }
 }
 
-@media (max-width: 420px) {
+@media (width < 480px) {
   .topbar .nav .nav-quick-trigger .tab-label-group { display: none; }
 }
 
-@media (max-width: 420px) {
+@media (width < 480px) {
   .nav {
     display: grid;
     grid-template-columns:
@@ -940,14 +934,14 @@
     color var(--duration-fast) var(--ease-standard);
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .topbar .nav { display: flex; }
   .topbar .nav > .nav-primary, .topbar .nav > .nav-more-trigger { min-width: 44px; min-height: 56px; flex: 1 1 0; }
   .topbar .nav > .nav-enable-areas, .topbar .nav > .nav-quick-control > .nav-quick-trigger { display: none; }
   .topbar .nav > .nav-quick-control { display: contents; }
-  .topbar .nav > .nav-primary .tab-label, .topbar .nav > .nav-more-trigger { font-size: var(--text-xs); }
+  .topbar .nav > .nav-primary .tab-label, .topbar .nav > .nav-more-trigger { font-size: var(--text-2xs); }
 }
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .app > .topbar .nav a[aria-current="page"] { background: var(--soft2); }
 }
 
@@ -992,7 +986,7 @@
 
 .quick-actions-menu .ni { border-radius: var(--r-control); }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav {
     border-color: var(--line);
     background: color-mix(in srgb, var(--surface-strong) 96%, var(--accent) 4%);
@@ -1010,7 +1004,7 @@
   }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav-more-menu {
     position: absolute;
     right: 0;
@@ -1058,7 +1052,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .topbar .nav a[aria-current="page"],
   .topbar .nav .nav-more-trigger[aria-current="page"] {
     border-color: transparent;
@@ -1067,7 +1061,7 @@
   }
 }
 
-@media (min-width: 900px) and (max-width: 1199px) {
+@media (width >= 900px) and (width < 1200px) {
   .topbar .nav .nav-more-menu {
     grid-template-columns: minmax(0, 1fr);
     width: min(280px, calc(100vw - 32px));
@@ -1081,11 +1075,11 @@
   .quick-actions-menu > button { transition: none; }
 }
 
-@media (min-width: 1200px) {
+@media (width >= 1200px) {
   .app > .topbar .brand .wordmark { display: inline; }
 }
 
-@media (min-width: 1200px) {
+@media (width >= 1200px) {
   .app > .topbar .sidebar-brand-row {
     display: flex;
     min-width: 0;
@@ -1218,7 +1212,7 @@
   }
 }
 
-@media (max-width: 1199px) {
+@media (width < 1200px) {
   .sidebar-toggle { display: none; }
   .sidebar-brand-row { display: contents; }
 }

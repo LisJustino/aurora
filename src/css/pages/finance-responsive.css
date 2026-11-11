@@ -27,7 +27,7 @@
 .lg.finance-upcoming { background: var(--ok); }
 .lg.finance-settled { background: var(--line2); }
 
-@media (min-width: 640px) {
+@media (width >= 700px) {
   .fin-tools { flex-direction: row; align-items: center; justify-content: space-between; }
   .fin-tools .seg { min-width: 240px; }
 }
@@ -41,16 +41,16 @@
 .fin-filter-row .search,
 .fin-filter-row > label { min-width: 0; }
 
-@media (max-width: 640px) {
+@media (width < 700px) {
   .fin-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fin-filter-row .search { grid-column: 1 / -1; }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .fab-clearance { height: calc(160px + env(safe-area-inset-bottom, 0px)); }
 }
 
-@media (max-width: 540px) {
+@media (width <= 480px) {
   .main[data-route="financas"] {
     padding-bottom: calc(var(--nav-h) + 112px + env(safe-area-inset-bottom, 0px));
   }

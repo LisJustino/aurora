@@ -4,6 +4,7 @@ node_modules/
 # Build e cobertura
 dist/
 coverage/
+test-results/
 
 # Variáveis de ambiente e segredos
 .env

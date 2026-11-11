@@ -58,8 +58,29 @@
   --on-hero: var(--ink);
   --shadow: 0 20px 48px -24px rgb(44 38 33 / 22%);
   --shadow-sm: 0 4px 12px -8px rgb(44 38 33 / 18%);
-  --card-shadow: 0 8px 24px -16px rgb(44 38 33 / 14%);
-  --shadow-hover: var(--card-shadow);
+  --card-shadow: none;
+  --shadow-hover: none;
+  --loading-bg: #f8f3f0;
+  --loading-glow: #f3e0e5;
+  --loading-text: #351b3d;
+  --loading-muted: #76617e;
+  --loading-track: #f5dfe6;
+  --loading-mark: #c65a79;
+  --loading-mark-text: #fff;
+  --loading-card: rgb(255 255 255 / 78%);
+  --loading-card-border: rgb(255 255 255 / 88%);
+  --loading-white: #fff;
+  --loading-light-canvas: #fffaf5;
+  --loading-light-ink: #241d25;
+  --loading-light-muted: #514954;
+  --loading-dark-canvas: #171619;
+  --loading-dark-text: #f7f1f0;
+  --loading-dark-muted: #ddd0d6;
+  --loading-dark-bg: color-mix(in srgb, var(--loading-primary) 9%, var(--loading-dark-canvas));
+  --loading-dark-glow: color-mix(in srgb, var(--loading-primary) 20%, var(--loading-dark-canvas));
+  --loading-dark-shape: color-mix(in srgb, var(--loading-primary) 35%, var(--loading-dark-canvas));
+  --loading-dark-track: color-mix(in srgb, var(--loading-primary) 30%, var(--loading-dark-canvas));
+  --loading-dark-mark: color-mix(in srgb, var(--loading-primary) 75%, var(--loading-white));
   --focus-ring-shadow: 0 0 0 4px var(--focus-soft);
   --status-halo-shadow: 0 0 0 4px var(--ok-soft);
   --current-control-shadow: inset 0 0 0 1px var(--accent);
@@ -148,13 +169,13 @@
   --z-toast: 60;
   --z-skip: 100;
   --r-control: 16px;
-  --r-group: 20px;
-  --r: 28px;
-  --r-large: 36px;
+  --r-group: 12px;
+  --r: 8px;
+  --r-large: 16px;
   --r-pill: 999px;
   /* ---- Escalas do design system (use sempre tokens; nunca valores soltos) ---- */
-  /* Tipografia: 2xs 11 · xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
-  --text-2xs: .6875rem;
+  /* Tipografia: 2xs 12 · xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
+  --text-2xs: .75rem;
   --text-md: .9375rem;
   --text-title: 1.375rem;
   --text-2xl: 1.5rem;
@@ -169,11 +190,11 @@
   --control-field: var(--control-height);
   --control-lg: 52px;
   --select-menu-max-height: 288px;
-  /* Raios: xs 8 · sm 12 · control 16 · group 20 · card 28 · large 36 · pill */
+  /* Raios: 8 · 12 · 16 · pill */
   --r-xs: 8px;
   --r-sm: 12px;
-  --r-detail: 4px;
-  --r-detail-sm: 2px;
+  --r-detail: var(--r-xs);
+  --r-detail-sm: var(--r-xs);
   /* Elevação e canvas */
   --canvas-glow: transparent;
   --public-glow: transparent;
@@ -215,45 +236,50 @@
   --hero-home: color-mix(in srgb, var(--p) 2%, var(--surface));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
-  --card-shadow: 0 8px 24px -16px rgb(0 0 0 / 40%);
+}
+
+:root[data-loading-palette="customized"] {
+  --loading-bg: color-mix(in srgb, var(--loading-primary) 7%, var(--loading-light-canvas));
+  --loading-glow: color-mix(in srgb, var(--loading-primary) 16%, var(--loading-light-canvas));
+  --loading-shape: color-mix(in srgb, var(--loading-primary) 38%, var(--loading-light-canvas));
+  --loading-text: color-mix(in srgb, var(--loading-accent) 30%, var(--loading-light-ink));
+  --loading-muted: color-mix(in srgb, var(--loading-accent) 45%, var(--loading-light-muted));
+  --loading-track: color-mix(in srgb, var(--loading-primary) 22%, var(--loading-light-canvas));
+  --loading-mark: var(--loading-accent);
+  --loading-mark-text: var(--loading-white);
+  --loading-card: color-mix(in srgb, var(--loading-primary) 4%, var(--loading-white));
+  --loading-card-border: color-mix(in srgb, var(--loading-primary) 16%, var(--loading-white));
+}
+
+:root[data-loading-mode="dark"] {
+  --loading-bg: var(--loading-dark-bg);
+  --loading-glow: var(--loading-dark-glow);
+  --loading-shape: var(--loading-dark-shape);
+  --loading-text: var(--loading-dark-text);
+  --loading-muted: var(--loading-dark-muted);
+  --loading-track: var(--loading-dark-track);
+  --loading-mark: var(--loading-dark-mark);
+  --loading-mark-text: var(--loading-dark-canvas);
+  --loading-card: rgb(36 30 37 / 82%);
+  --loading-card-border: rgb(255 255 255 / 12%);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    color-scheme: dark;
-    --bg: #1c1b19;
-    --bg-strong: #242320;
-    --surface: #272522;
-    --surface-strong: #272522;
-    --surface-raised: #302c28;
-    --surface-soft: #302c28;
-    --ink: #f2efeb;
-    --muted: #c8c2bb;
-    --line: rgba(205, 196, 186, 0.17);
-    --line-strong: #938b82;
-    --accent: color-mix(in srgb, var(--p) 72%, #fff);
-    --soft: color-mix(in srgb, var(--p) 12%, var(--surface));
-    --soft2: color-mix(in srgb, var(--p) 20%, var(--surface));
-    --ring: color-mix(in srgb, var(--p) 72%, #fff);
-    --focus-soft: color-mix(in srgb, var(--p) 24%, transparent);
-    --focus: #edc6bc;
-    --ok: #8bd0a6;
-    --ok-soft: #203329;
-    --warn: #f0bf76;
-    --warn-soft: #392b19;
-    --bad: #f2959e;
-    --bad-soft: #3a2227;
-    --area-water: #72c7d8;
-    --area-finances: #8fcea0;
-    --area-cycle: #d997bd;
-    --priority-low: #8ccddd;
-    --hero: var(--surface-strong);
-    --hero-home: color-mix(in srgb, var(--p) 2%, var(--surface));
-    --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
-    --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
-    --card-shadow: 0 8px 24px -16px rgb(0 0 0 / 40%);
+  :root[data-loading-mode="auto"] {
+    --loading-bg: var(--loading-dark-bg);
+    --loading-glow: var(--loading-dark-glow);
+    --loading-shape: var(--loading-dark-shape);
+    --loading-text: var(--loading-dark-text);
+    --loading-muted: var(--loading-dark-muted);
+    --loading-track: var(--loading-dark-track);
+    --loading-mark: var(--loading-dark-mark);
+    --loading-mark-text: var(--loading-dark-canvas);
+    --loading-card: rgb(36 30 37 / 82%);
+    --loading-card-border: rgb(255 255 255 / 12%);
   }
 }
+
+
 
 :root[data-contrast="high"] {
   --muted: #403840;

@@ -52,14 +52,7 @@
 .empty-copy > span { max-width: 42ch; font-size: var(--text-sm); line-height: 1.5; }
 .empty-action { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
 .empty-action > .btn { min-width: 188px; }
-.empty-action > .btn:not(.danger) {
-  border-color: transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn)) !important;
-  color: var(--on-btn);
-  box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--btn) 88%, transparent);
-}
-.empty-action > .btn:not(.danger):hover { background: linear-gradient(135deg, color-mix(in srgb, var(--btn) 98%, white), var(--btn)); }
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .empty { min-height: 160px; flex-direction: column; padding: var(--space-4); }
   .empty-copy { width: 100%; min-width: 0; }
   .empty-action { flex-direction: column; }
@@ -149,7 +142,7 @@
 .save-problem-copy { min-width: 0; flex: 1; }
 .save-problem-banner > .btn { flex: none; }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .save-indicator { justify-content: center; }
   .save-problem-banner { align-items: flex-start; flex-wrap: wrap; }
   .save-problem-copy { flex-basis: calc(100% - 32px); }
@@ -158,7 +151,7 @@
   .pwa-update-actions > .btn { flex: 1; }
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .offline-banner { top: 72px; }
   :root[data-scrolled="true"] .offline-banner { top: 58px; }
 }

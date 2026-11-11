@@ -20,7 +20,7 @@ export function renderHabitsView(dependencies) {
     if (!habitsTemplatePromise && !habitsTemplateError) requestHabitsTemplate();
     return habitsTemplateError
       ? h`${areaPageTitle('habitos', 'Hábitos')}<section class="card" role="alert"><p>Não foi possível carregar a área de Hábitos.</p><button class="btn" data-action="retry-habits-template">Tentar novamente</button></section>`
-      : h`${areaPageTitle('habitos', 'Hábitos')}<section class="card" role="status">Carregando Hábitos…</section>`;
+      : h`${areaPageTitle('habitos', 'Hábitos')}<section class="card habit-loading" role="status" aria-label="Carregando Hábitos"><span class="sr">Carregando Hábitos…</span><div aria-hidden="true"><span></span><span></span><span></span></div></section>`;
   }
   const suggestions = remainingHabitSuggestions(S.habits);
   const previewIdeas = new Set(featuredHabitSuggestions(suggestions).map(({ id }) => id));
@@ -86,16 +86,10 @@ export function renderHabitsView(dependencies) {
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
       : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
     'reminder-note': hasReminders
-      ? h`<details class="habit-reminder-note">
-        <summary>${icon('bell', 16)} Avisos fora do app <span>${pushStatus.enabled ? 'Ativos' : 'Opcionais'}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
-        <div class="habit-reminder-content">
-        <p>O horário é uma preferência. Com autorização, você também pode receber avisos do sistema fora do app; a entrega depende da rede, das permissões e do serviço de notificações.</p>
-        <p>Este interruptor controla os avisos de Hábitos neste dispositivo. Os lembretes só são enviados nos horários configurados.</p>
-        <button type="button" class="btn sm" data-action="habit-push-toggle" aria-pressed="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : pushStatus.enabled ? 'Desativar avisos' : 'Ativar avisos'}</button>
+      ? h`<div class="habit-reminder-note">
+        <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
-        <p class="small muted">O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
-        </div>
-      </details>`.s
+      </div>`.s
       : '',
     'week-overview': live.length ? h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
       <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned

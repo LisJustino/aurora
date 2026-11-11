@@ -17,7 +17,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .profile-intro {
   border-radius: var(--r-large);
   background: var(--hero);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 .fin-hero { border-inline-start-width: 1px; }
 
@@ -26,7 +26,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
   box-shadow: none;
 }
-@media (max-width: 640px) {
+@media (width < 700px) {
   .home-quick-copy p { display: none; }
   .home-quick-card { gap: 12px; padding-block: 16px; }
 }
@@ -46,10 +46,10 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 /* ---- Finanças: valores alinhados à direita, tabulares ---- */
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
-/* ---- Tema escuro: cartões se destacam do fundo ---- */
+/* ---- Tema escuro: cartões se destacam pelo contorno ---- */
 :root[data-theme="dark"] .card {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 7%, transparent), var(--card-shadow);
+  box-shadow: none;
 }
 
 /* ---- Erro ao lado do campo ---- */
@@ -58,14 +58,14 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
 
 /* ---- Finanças no celular: seções em uma única fileira rolável (antes quebrava em três linhas) ---- */
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .main[data-route="financas"] .fin-section-menu { flex-wrap: nowrap; border-radius: var(--r-pill); }
   .main[data-route="financas"] .fin-section-option { white-space: nowrap; }
 }
 
 /* ---- Menu "Mais": fundo escurecido e painel opaco (antes dava para ler o conteúdo atrás) ---- */
 .nav-scrim { display: none; }
-@media (max-width: 899px) {
+@media (width < 900px) {
   .nav-scrim {
     position: fixed;
     inset: 0;
@@ -75,21 +75,12 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
   }
-  :root[data-theme="dark"] .nav-scrim { background: color-mix(in srgb, #000 62%, transparent); }
+  :root[data-theme="dark"] .nav-scrim { background: rgb(0 0 0 / 62%); }
   .nav-more-menu {
     background: var(--surface-raised);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow: 0 24px 48px -12px color-mix(in srgb, #000 55%, transparent);
-  }
-}
-
-/* ---- Diálogos com campos no celular: ficam presos ao topo, então o teclado não faz o painel pular ---- */
-.dlg:focus { outline: none; }
-@media (pointer: coarse), (max-width: 640px) {
-  .dlg-back:has(.dlg-body :is(textarea, select, input:not([type="checkbox"], [type="radio"], [type="button"], [type="range"]))) {
-    align-items: start;
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    box-shadow: 0 24px 48px -12px rgb(0 0 0 / 55%);
   }
 }
 
@@ -105,7 +96,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   background: linear-gradient(to top, var(--surface-strong), transparent);
   pointer-events: none;
 }
-@media (max-width: 640px) {
+@media (width < 700px) {
   .dlg-body { padding-inline: 16px; padding-bottom: 24px; }
   .dlg-foot { padding-inline: 16px; }
 }
@@ -124,3 +115,60 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   cursor: pointer;
 }
 .habit-weekday-picker label, .habit-icon-picker label, .habit-color-picker label { position: relative; }
+
+.dlg-handle { display: none; }
+@media (width < 900px) {
+  .nav a { position: relative; font-size: var(--text-xs); }
+  .nav a[aria-current="page"] .ni { background: transparent; transform: none; }
+  .nav a[aria-current="page"]::before {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    width: 18px;
+    height: 3px;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    content: "";
+    transform: translateX(-50%);
+  }
+  .dlg-back {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  .dlg-back:has(.dlg.intro-dialog) { align-items: center; padding: var(--space-3); }
+  .dlg:not(.intro-dialog) {
+    width: 100%;
+    max-height: min(92dvh, 820px);
+    margin: 0;
+    border-radius: var(--r-large) var(--r-large) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    transform: translateY(0);
+    transition: transform var(--duration-base) var(--ease-standard);
+  }
+  .dlg:not(.intro-dialog) .dlg-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    flex: none;
+    align-self: center;
+    margin: 10px auto 0;
+    border-radius: var(--r-pill);
+    background: var(--line-strong);
+    opacity: .7;
+    touch-action: none;
+  }
+  .dlg:not(.intro-dialog).is-dragging { transition: none; }
+  .dlg:not(.intro-dialog) .dlg-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    background: var(--surface-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlg:not(.intro-dialog) { transition: none; }
+}

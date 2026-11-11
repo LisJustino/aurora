@@ -122,6 +122,7 @@ async function main() {
   ]);
 
   runSuite('design-system.cjs', DEV_URL);
+  runSuite('visual-captures.cjs', DEV_URL);
   runSuite('loading-screen.cjs', DEV_URL);
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('mobile-landing-matrix.cjs', DEV_URL);

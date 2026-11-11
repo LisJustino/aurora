@@ -555,6 +555,9 @@ function buildRows(userId, state, idMap) {
       target_cents: record.targetCents,
       saved_cents: record.savedCents,
       deadline: record.deadline || null,
+      linked_account_id: record.linkedAccountId
+        ? databaseId(idMap, 'finance_accounts', record.linkedAccountId)
+        : null,
       is_test_data: record.sample === true,
       deleted_at: deletedAtFor(settings, 'finance.goals', record.id),
     }));
@@ -695,6 +698,9 @@ function financeRecordFromRow(row, table, idMap) {
   if (table === 'finance_goals') return {
     id, name: row.name, targetCents: numeric(row.target_cents),
     savedCents: numeric(row.saved_cents), deadline: row.deadline,
+    ...(row.linked_account_id
+      ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) }
+      : {}),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_recurrences') return {

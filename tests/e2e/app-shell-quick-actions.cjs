@@ -131,16 +131,28 @@ const check = (passed, name, detail = '') => {
     || await page.locator('.home-inbox-reminder a[data-action="filter-inbox"]').count() === 1,
   'tarefas sem data têm uma ação direta para organizá-las');
   const guideContrast = await page.locator('.home-head .area-guide-button').evaluate((button) => {
-    const rgb = (color) => color.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const rgb = (color) => {
+      const channels = color.match(/[\d.]+/g).slice(0, 3).map(Number);
+      return color.startsWith('color(srgb') ? channels.map((channel) => channel * 255) : channels;
+    };
     const luminance = (color) => rgb(color).map((channel) => {
       const value = channel / 255;
       return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
     }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
     const style = getComputedStyle(button);
-    const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
-    return (values[0] + .05) / (values[1] + .05);
+    const header = button.closest('.home-head');
+    const background = style.backgroundColor.endsWith(', 0)')
+      ? getComputedStyle(header).backgroundColor
+      : style.backgroundColor;
+    const values = [luminance(style.color), luminance(background)].sort((a, b) => b - a);
+    return {
+      ratio: (values[0] + .05) / (values[1] + .05),
+      foreground: style.color,
+      background,
+      buttonBackground: style.backgroundColor,
+    };
   });
-  check(guideContrast >= 4.5, 'botão Como usar? mantém contraste legível sobre a cor do cabeçalho', guideContrast.toFixed(2));
+  check(guideContrast.ratio >= 4.5, 'botão Como usar? mantém contraste legível sobre a cor do cabeçalho', JSON.stringify(guideContrast));
   const personalMessageUsesHeroColor = await page.evaluate(async () => {
     const { PALETTES } = await import('/src/js/features/appearance/palettes.js');
     const root = document.documentElement;
@@ -420,17 +432,21 @@ const check = (passed, name, detail = '') => {
       menuSettingsChanged = true;
     }
   }
-  if (!cycleWasEnabled || !cycleWasVisible || menuSettingsChanged) await page.locator('[data-settings-save-button]').click();
+  if (!cycleWasEnabled || !cycleWasVisible || menuSettingsChanged) {
+    await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
+  }
   await page.setViewportSize({ width: 1440, height: 900 });
   const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="/ciclo"]');
   await cycleSidebarLink.waitFor({ state: 'visible' });
   check(await cycleSidebarLink.isVisible(), 'Ciclo ativo aparece como link direto na barra lateral desktop');
+  let orderChanged = false;
   for (let moves = 0; moves < 5; moves++) {
     const moveUp = page.locator('#menu-move-up-habitos');
     if (!await moveUp.count()) break;
     await moveUp.click();
+    orderChanged = true;
   }
-  await page.locator('[data-settings-save-button]').click();
+  if (orderChanged) await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   await page.setViewportSize({ width: 390, height: 844 });
   const mobilePrimaryLinks = await page.locator('.topbar .nav > .nav-primary').evaluateAll((links) => (
     links.map((link) => link.getAttribute('href'))
@@ -444,12 +460,14 @@ const check = (passed, name, detail = '') => {
     'Ajustes permanece acessível pelo atalho de perfil no cabeçalho móvel');
   await page.locator('.nav-more-trigger').click();
   await page.setViewportSize({ width: 1440, height: 900 });
+  orderChanged = false;
   for (let moves = 0; moves < 5; moves++) {
     const moveDown = page.locator('#menu-move-down-habitos');
     if (!await moveDown.count()) break;
     await moveDown.click();
+    orderChanged = true;
   }
-  await page.locator('[data-settings-save-button]').click();
+  if (orderChanged) await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   const sidebarToggle = page.getByRole('button', { name: 'Recolher menu lateral' });
   check(await sidebarToggle.isVisible(), 'controle para recolher o menu aparece na barra lateral web');
   await sidebarToggle.click();

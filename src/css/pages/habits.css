@@ -1,3 +1,9 @@
+.habit-loading > div { display: grid; gap: var(--space-3); }
+.habit-loading span:not(.sr) { display: block; height: 24px; border-radius: var(--r-control); background: var(--soft2); }
+.habit-loading span:nth-child(1) { width: 40%; }
+.habit-loading span:nth-child(2) { width: 90%; }
+.habit-loading span:nth-child(3) { width: 70%; }
+
 .strip-enable {
   min-height: 72px;
   border: 1px solid var(--line);
@@ -73,7 +79,7 @@
 .weekly-review { display: grid; gap: var(--space-3); }
 .weekly-review-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-5); padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--r-large); background: var(--hero); box-shadow: none; }
 .weekly-review-hero > div:first-child { min-width: 0; }
-.weekly-review-hero > div:first-child > span, .review-discovery > span { color: var(--accent); font-size: var(--text-2xs); font-weight: 800; letter-spacing: .1em; }
+.weekly-review-hero > div:first-child > span, .review-discovery > span { color: var(--accent); font-size: var(--text-2xs); font-weight: var(--weight-semibold); letter-spacing: .1em; }
 .weekly-review-hero h2 { margin: 6px 0 0; font-size: var(--text-section); }
 .weekly-review-hero p { max-width: 60ch; margin: 6px 0 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
 .weekly-review-actions { display: flex; flex: none; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
@@ -128,7 +134,7 @@
 .global-search-result small { overflow-wrap: anywhere; }
 .global-search-kind { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: var(--r-control); background: var(--soft2); color: var(--accent); }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .weekly-review-hero { align-items: stretch; flex-direction: column; }
   .weekly-review-actions { justify-content: stretch; }
   .weekly-review-actions .btn { flex: 1; }
@@ -140,7 +146,7 @@
   .week-planner > .mnav { gap: 6px; }
   .week-planner > .mnav > b { font-size: var(--text-sm); }
 }
-@media (max-width: 380px) {
+@media (width < 480px) {
   .habit-weekday-picker { gap: 3px; }
   .habit-weekday-picker span { font-size: var(--text-xs); }
   .review-stats { gap: 6px; }
@@ -300,9 +306,9 @@
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-  transition: border-color .18s ease, transform .18s ease;
+  transition: border-color .18s ease, background-color .18s ease;
 }
-.habit-idea:hover { border-color: var(--hc); transform: translateY(-2px); }
+.habit-idea:hover { border-color: var(--hc); background: var(--surface-soft); }
 .habit-idea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .habit-idea[hidden], .habit-idea-section[hidden], .habit-idea-empty[hidden] { display: none; }
 .habit-ideas-expand[hidden] { display: none; }
@@ -341,7 +347,7 @@
 .habit-color-picker span .ic { opacity: 0; }
 .habit-color-picker input:checked + span { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--c); }
 .habit-color-picker input:checked + span .ic { opacity: 1; }
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .habit-today-head .btn { padding-inline: 12px; }
   .habit-row { grid-template-columns: 44px minmax(0, 1fr); }
   .habit-circle { width: 44px; height: 44px; }
@@ -351,7 +357,7 @@
   .habit-dot { min-width: 32px; min-height: var(--control-md); }
   .habit-reminder-note { padding-inline: 10px; }
 }
-@media (max-width: 520px) {
+@media (width <= 480px) {
   .habit-idea-filter-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -423,7 +429,7 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 }
 .main[data-route="habitos"] .habit-water-inline-progress { --progress-tone: var(--area-water); }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .habit-record-actions .btn,
   .habit-record-actions .ibtn { min-height: var(--control-sm); }
 }
@@ -518,12 +524,11 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .habit-today .habit-dot.is-done i { border-color: var(--hc); background: var(--hc); color: var(--on-solid); }
 .habit-today .habit-dot.is-skipped i, .habit-today .habit-dot.is-off i { border-style: dashed; }
 .habit-today .habit-dot.is-today i { outline: 2px solid var(--accent); outline-offset: 2px; }
-.plan-view-select { display: grid; width: min(100%, 240px); gap: var(--space-1); font-weight: 700; }
 .week-day > .btn { min-height: var(--control-md); }
-@media (max-width: 899px) {
+@media (width < 900px) {
   .week-day.is-today { order: -1; }
 }
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .week-days { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
   .week-day { padding: var(--space-2); }
   .week-day > .head { align-items: flex-start; flex-direction: column; }
@@ -543,6 +548,6 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   background: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
 }
 
-@media (max-width: 700px) {
+@media (width <= 700px) {
   .main[data-route="habitos"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }
 }

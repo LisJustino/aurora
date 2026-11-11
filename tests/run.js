@@ -28,11 +28,13 @@ import {
 import {
   accountBalanceOn,
   accountBalance,
+  linkedGoalProgressCents,
   byCategory as summarizeByCategory,
   monthStats,
   monthlyCloseSummary,
   netAccountBalance,
   netAccountBalanceOn,
+  projectedNetAccountBalance,
   reportMonthStats,
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
@@ -41,7 +43,10 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from '../src/js/features/finance/accounts.js';
-import { parseStatement } from '../src/js/features/finance/statement.js';
+import {
+  parseStatement,
+  statementDuplicateStatus,
+} from '../src/js/features/finance/statement.js';
 import {
   AREA_GUIDES,
   AREA_GUIDE_IDS,
@@ -52,6 +57,8 @@ import {
 
 import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
+import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
+import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
 import {
   createSuggestedHabits,
@@ -142,6 +149,7 @@ import {
   backupReminderStatus,
 } from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
+import { createToastController } from '../src/js/features/feedback/toast.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 
 const results = [];
@@ -324,6 +332,78 @@ const truthy = (value) => {
 const falsy = (value) => {
   if (value) throw new Error('Esperava um valor falso.');
 };
+
+test('toast usa o tom explícito e destaca falhas de persistência', () => {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousSetTimeout = globalThis.setTimeout;
+  const previousClearTimeout = globalThis.clearTimeout;
+  const written = [];
+  const element = {
+    className: '',
+    innerHTML: '',
+    setAttribute(name, value) { this[name] = value; },
+    querySelector() { return null; },
+  };
+  let override = null;
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: { getElementById: () => element },
+  });
+  globalThis.setTimeout = () => 1;
+  globalThis.clearTimeout = () => {};
+  try {
+    const controller = createToastController({
+      readToast: () => written.at(-1) || null,
+      writeToast: (toast) => written.push(toast),
+      getContext: () => ({ top: false }),
+      getOverride: () => override,
+      normalizeMessage: (message) => message,
+    });
+    controller.show('Não foi possível salvar.', 'error');
+    equal(written.at(-1).tone, 'error');
+    equal(element.role, 'alert');
+    controller.show('Salvo.', 'success');
+    equal(written.at(-1).tone, 'success');
+    override = { message: 'Falha ao carregar.', details: 'Conexão indisponível.' };
+    controller.show('Salvo.', 'success');
+    equal(written.at(-1).tone, 'error');
+    equal(written.at(-1).details, 'Conexão indisponível.');
+  } finally {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+    globalThis.setTimeout = previousSetTimeout;
+    globalThis.clearTimeout = previousClearTimeout;
+  }
+});
+
+test('captura rápida reconhece datas civis, horário e preserva etiquetas', () => {
+  const tomorrow = parseQuickDate('Revisar amanhã 14h30 #trabalho', '2026-11-10');
+  equal(tomorrow.title, 'Revisar #trabalho');
+  equal(tomorrow.date, '2026-11-11');
+  equal(tomorrow.time, '14:30');
+  equal(parseQuickDate('Pagar sexta-feira', '2026-11-10').date, '2026-11-13');
+  equal(parseQuickDate('Hoje 9:05 reunião', '2026-11-10').time, '09:05');
+  equal(parseQuickDate('Planejar amanhã', '2026-12-31').date, '2027-01-01');
+  equal(parseQuickDate('Revisar #sexta', '2026-11-10').title, 'Revisar #sexta');
+  equal(parseQuickDate('Revisar tarefa', '2026-11-10').date, '2026-11-10');
+  ok(parseQuickDate('Revisar amanhã 25h', '2026-11-10').error);
+  ok(parseQuickDate('Revisar hoje sexta', '2026-11-10').error);
+});
+
+test('busca local ordena por relevância e inclui ações sem expor registros ausentes', () => {
+  const results = searchRecords({
+    tasks: [
+      { id: 'weak', title: 'Revisar orçamento', notes: 'Acompanhar finanças depois' },
+      { id: 'strong', title: 'Finanças' },
+    ],
+    actions: [{ id: 'finance', action: 'open-finances', area: 'Ações', title: 'Ir para Finanças', aliases: ['financeiro'] }],
+  }, 'finanças');
+  equal(results[0].id, 'strong');
+  equal(results[1].kind, 'action');
+  equal(results[2].id, 'weak');
+  equal(searchRecords({ tasks: [] }, 'x').length, 0);
+});
 
 test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', () => {
   ok(Object.isFrozen(IC));
@@ -909,6 +989,51 @@ test('saldo histórico considera transferências e data de liquidação sem incl
   equal(netAccountBalanceOn(accounts, transactions, '2026-11-04'), 7500);
 });
 
+test('projeção de saldo inclui pendências, transferências e faturas sem duplicar parcelas', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking', initialCents: 10000 },
+    { id: 'savings', type: 'savings', initialCents: 0 },
+    { id: 'card', type: 'credit', initialCents: 0 },
+  ];
+  const transactions = [
+    { type: 'out', accountId: 'checking', cents: 1000, date: '2026-11-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 500, date: '2026-11-20', paid: false },
+    { type: 'in', accountId: 'checking', cents: 1200, date: '2026-11-25', paid: false },
+    { type: 'tr', accountId: 'checking', toAccountId: 'savings', cents: 700, date: '2026-11-26', paid: false },
+    { type: 'tr', accountId: 'checking', toAccountId: 'card', cents: 1000, date: '2026-11-27', paid: false, invoiceInstallment: true, interestCents: 100 },
+    { type: 'tr', accountId: 'card', toAccountId: 'checking', cents: 200, date: '2026-11-28', paid: false },
+    { type: 'out', accountId: 'card', cents: 3000, date: '2026-11-29', paid: false },
+    { type: 'out', accountId: 'checking', cents: 4000, date: '2026-12-01', paid: false },
+  ];
+
+  equal(projectedNetAccountBalance(accounts, transactions, '2026-11-30', [
+    { dueDate: '2026-11-30', cents: 3000 },
+    { dueDate: '2026-12-02', cents: 9000 },
+  ]), 5900);
+});
+
+test('objetivo vinculado acompanha saldo não negativo da conta sem alterar o modo manual', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking', initialCents: 5000 },
+    { id: 'card', type: 'credit', initialCents: 0 },
+  ];
+  const transactions = [
+    { type: 'in', accountId: 'checking', cents: 6000, date: '2026-10-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 3000, date: '2026-10-02', paid: true },
+    { type: 'out', accountId: 'checking', cents: 2000, date: '2026-10-03', paid: false },
+  ];
+
+  equal(linkedGoalProgressCents({
+    linkedAccountId: 'checking',
+    savedCents: 123,
+  }, accounts, transactions), 8000);
+  equal(linkedGoalProgressCents({
+    linkedAccountId: 'card',
+    savedCents: 456,
+  }, accounts, transactions), 456);
+  equal(linkedGoalProgressCents({ savedCents: 789 }, accounts, transactions), 789);
+});
+
 test('relatório de caixa usa data de liquidação e pagamento de fatura sem duplicar compras', () => {
   const accounts = [
     { id: 'checking', type: 'checking' },
@@ -973,6 +1098,41 @@ test('importação OFX lê datas e valores em centavos', () => {
   equal(parsed.transactions.length, 1);
   equal(parsed.transactions[0].date, '2026-10-29');
   equal(parsed.transactions[0].cents, -1050);
+});
+
+test('importação distingue duplicados idênticos de transações apenas semelhantes', () => {
+  const existing = [{
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: 'Café da Praça',
+  }];
+  const exact = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: '  CAFE DA PRACA  ',
+  }, existing);
+  const similar = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: 'Padaria',
+  }, existing);
+  const distinct = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1235,
+    date: '2026-10-29',
+    desc: 'Café da Praça',
+  }, existing);
+
+  equal(`${exact.duplicate}:${exact.possible}`, 'true:false');
+  equal(`${similar.duplicate}:${similar.possible}`, 'false:true');
+  equal(`${distinct.duplicate}:${distinct.possible}`, 'false:false');
 });
 
 test('resume mensal distingue transferência e compra no cartão', () => {

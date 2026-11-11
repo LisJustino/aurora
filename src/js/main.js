@@ -1,6 +1,6 @@
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
-import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
+import { brl as formatBRL, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
   addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
@@ -21,6 +21,7 @@ import {
 } from './core/router.js';
 import {
   accountBalance as balanceForAccount,
+  accountBalanceOn,
   netAccountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
@@ -32,6 +33,8 @@ import {
   netAccountBalance,
   reportMonthStats,
   recurringBillsDueOn,
+  linkedGoalProgressCents,
+  projectedNetAccountBalance,
   signedAmount,
 } from './features/finance/calculations.js';
 import {
@@ -40,6 +43,7 @@ import {
   normalizeAccountType,
 } from './features/finance/accounts.js';
 import { financePrivacyNotice } from './features/finance/view.js';
+import { createToastController } from './features/feedback/toast.js';
 import {
   AREA_GUIDES,
   isValidAreaTutorialsSeen,
@@ -224,8 +228,11 @@ import {
   orderMenuItems,
 } from './features/navigation/menu.js';
 import { tasksForWeek, weekDays, weeklyReview } from './features/planning/week.js';
-import { nextDue } from './features/planning/recurrence.js';
+import { nextDue, REPEATS } from './features/planning/recurrence.js';
+import { renderTaskRow } from './features/planning/task-row.js';
+import { renderHomeView } from './features/home/view.js';
 import { searchRecords } from './features/search/search.js';
+import { parseQuickDate } from './features/planning/quick-date.js';
 import {
   isTrashExpired,
   isValidTrashEntry as isValidTrashEntryModel,
@@ -270,7 +277,6 @@ setupKeyboardViewportSafety();
 
 /* ========== Núcleo: templates, datas, estado e persistência ========== */
 const weekStartDay = () => { try { return settingsView().look.weekStart === 0 ? 0 : 1; } catch (e) { return 1; } };
-const REPEATS = { none: 'Nunca', day: 'Todo dia', weekday: 'Dias úteis', week: 'Toda semana', month: 'Todo mês', year: 'Todo ano' };
 const REMINDS = [['', 'Sem lembrete'], ['0', 'Na hora'], ['10', '10 min antes'], ['30', '30 min antes'], ['60', '1 hora antes'], ['1440', '1 dia antes']];
 const isTime = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 const orderOf = (t) => (t.order != null ? t.order : t.createdAt || 0);
@@ -446,7 +452,23 @@ const writeSidebarCollapsed = (collapsed) => {
     else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
   } catch { /* storage indisponível */ }
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const toastController = createToastController({
+  readToast: () => ui.toast,
+  writeToast: (toast) => { ui.toast = toast; },
+  getContext: () => ({ top: Boolean(ui.dlg || ui.navigationOpen || ui.quickActionsOpen) }),
+  getOverride: () => {
+    if (Object.keys(ui.integrityIssues).length) {
+      const slices = Object.keys(ui.integrityIssues).join(', ');
+      return `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
+    }
+    if (ui.persistFailed.size) {
+      return { message: 'Não foi possível salvar as alterações. Confira sua conexão e tente novamente.', details: ui.persistError };
+    }
+    return null;
+  },
+  normalizeMessage: preserveCopyTerms,
+});
 ui.cycleConsentBusy = false;
 ui.cycleConsentError = '';
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
@@ -515,8 +537,8 @@ function refreshSettingsSaveControls() {
 }
 function refreshUnsavedSettingsBanner() {
   const banner = document.querySelector('.settings-unsaved-bar');
-  const dirty = Boolean(ui.profileDraft || settingsDraftDirty());
-  const saving = ui.profileSaving || ui.settingsSaving;
+  const dirty = Boolean(ui.profileDraft);
+  const saving = ui.profileSaving;
   if (banner) {
     banner.hidden = !dirty;
     const discardButton = banner.querySelector('[data-action="profile-discard"]');
@@ -549,38 +571,57 @@ function updateSettingsDraft(update, shouldRender = true) {
   update(ui.settingsDraft);
   if (shouldRender) render();
   else refreshSettingsSaveControls();
+  scheduleSettingsAutosave();
 }
 function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
+let settingsAutosaveTimer = null;
+function scheduleSettingsAutosave() {
+  clearTimeout(settingsAutosaveTimer);
+  settingsAutosaveTimer = setTimeout(() => {
+    settingsAutosaveTimer = null;
+    void saveSettingsDraft();
+  }, 250);
+}
 async function saveSettingsDraft() {
-  if (!settingsDraftDirty() || ui.settingsSaving || ui.profileSaving) return;
+  if (!settingsDraftDirty()) return true;
+  if (ui.settingsSaving || ui.profileSaving) return false;
   const previousSettings = cloneSettings(S.settings);
   const draft = settingsView();
+  let saveAgain = false;
   ui.settingsSaving = true;
   render();
   try {
     S.settings = normalizeSettings(draft);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
-      return;
+      return false;
     }
     if (!ui.preview && !(await Persist.flush())) {
       S.settings = previousSettings;
-      return;
+      return false;
     }
-    ui.settingsDraft = null;
-    ui.settingsDraftBase = null;
-    toast(ui.preview
-      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
-      : 'Configurações salvas.');
+    const latestDraft = settingsView();
+    if (sameJsonValue(latestDraft, S.settings)) {
+      ui.settingsDraft = null;
+      ui.settingsDraftBase = null;
+    } else {
+      ui.settingsDraftBase = cloneSettings(S.settings);
+      ui.settingsDraft = cloneSettings(latestDraft);
+      saveAgain = true;
+    }
+    if (!saveAgain) toast(ui.preview ? 'Salvo nesta demonstração.' : 'Salvo.', 'success');
+    return !saveAgain;
   } catch (error) {
     console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
     S.settings = previousSettings;
-    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.');
+    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.', 'error');
+    return false;
   } finally {
     ui.settingsSaving = false;
     render();
+    if (saveAgain) scheduleSettingsAutosave();
   }
 }
 async function saveProfileDraft() {
@@ -588,11 +629,11 @@ async function saveProfileDraft() {
   const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
   const ageInput = String(draft.age ?? '').trim();
   const age = ageInput ? Number(ageInput) : null;
-  if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
-  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.'); $('#psex')?.focus(); return; }
+  if (!draft.name.trim()) { toast('Informe seu nome.', 'error'); $('#pname')?.focus(); return; }
+  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).', 'error'); $('#ppreferred')?.focus(); return; }
+  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.', 'error'); $('#psex')?.focus(); return; }
   if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
-    toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
+    toast('A idade deve ser um número inteiro entre 0 e 120 anos.', 'error');
     $('#page')?.focus();
     return;
   }
@@ -609,7 +650,7 @@ async function saveProfileDraft() {
     S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
-      toast('Não foi possível salvar as alterações. Tente novamente.');
+      toast('Não foi possível salvar as alterações. Tente novamente.', 'error');
       return;
     }
     if (!ui.preview && !(await Persist.flush())) {
@@ -619,20 +660,15 @@ async function saveProfileDraft() {
     ui.profileDraft = null;
     toast(ui.preview
       ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
-      : 'Perfil salvo.');
+      : 'Perfil salvo.', 'success');
   } catch (error) {
     S.settings = previousSettings;
     console.error('Aurora: não foi possível salvar o perfil.', error);
-    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.');
+    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.', 'error');
   } finally {
     ui.profileSaving = false;
     render();
   }
-}
-function settingsSaveButton(label = 'Salvar alterações') {
-  const dirty = settingsDraftDirty();
-  const saving = ui.settingsSaving || ui.profileSaving;
-  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty && !saving ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button data-settings-save-label="${label}" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : label}</button></div>`;
 }
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
@@ -793,7 +829,8 @@ const isValidGoal = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && isNonEmptyText(record.name) && record.name.length <= 50
   && isSafeInteger(record.targetCents) && record.targetCents > 0
   && isSafeInteger(record.savedCents) && record.savedCents >= 0
-  && optional(record, 'deadline', (value) => value === '' || value === null || isDay(value));
+  && optional(record, 'deadline', (value) => value === '' || value === null || isDay(value))
+  && optional(record, 'linkedAccountId', isNonEmptyText);
 const isValidRecurring = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && ['in', 'out'].includes(record.type)
   && isNonEmptyText(record.accountId) && isText(record.category)
@@ -1086,7 +1123,7 @@ const Persist = {
     if (this.replacing || !this.store || slices.some((slice) => !SLICES.includes(slice))) return false;
     if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
       slices.forEach((slice) => ui.persistFailed.add(slice));
-      toast('Há dados que precisam de revisão antes de salvar. Nenhuma área foi enviada para a nuvem.');
+      toast('Há dados que precisam de revisão antes de salvar. Nenhuma área foi enviada para a nuvem.', 'error');
       return false;
     }
     if (navigator.onLine === false) {
@@ -1096,7 +1133,7 @@ const Persist = {
         ui.persistFailed.add(slice);
         syncState.failed.add(slice);
       });
-      toast('Sem conexão: a alteração foi desfeita e não foi salva. Conecte-se e tente novamente.');
+      toast('Sem conexão: a alteração foi desfeita e não foi salva. Conecte-se e tente novamente.', 'error');
       return false;
     }
     ui.persistError = '';
@@ -1163,10 +1200,10 @@ const Persist = {
             : '';
           if (isVersionConflict) {
             syncState.conflicts.add('account');
-            toast('Os dados da conta foram alterados em outro dispositivo. Recarregue os dados da conta para continuar.');
+            toast('Os dados da conta foram alterados em outro dispositivo. Recarregue os dados da conta para continuar.', 'info');
           } else {
             console.error('Aurora: a gravação relacional não foi confirmada.', error);
-            toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.');
+            toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.', 'error');
           }
           return false;
         }
@@ -1183,7 +1220,7 @@ const Persist = {
   },
   retryPending() {
     if (navigator.onLine === false) {
-      toast('Ainda sem conexão. As alterações não foram enviadas.');
+      toast('Ainda sem conexão. As alterações não foram enviadas.', 'info');
       return;
     }
     if (this.pendingSnapshot) {
@@ -1281,7 +1318,7 @@ const saveSlices = (...ks) => {
   if (ui.preview) return true;
   const saved = Persist.saveMany([...new Set(ks)]);
   if (!saved && navigator.onLine !== false) {
-    toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.');
+    toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.', 'error');
   }
   if (saved && ks.includes('habits')) syncHabitReminderSchedule();
   return saved;
@@ -1298,13 +1335,13 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
   const blocked = slices.filter((slice) => ui.persistBlocked.has(slice));
   if (blocked.length) {
     restoreSliceSnapshot(snapshot);
-    toast(`Não foi possível salvar ${context} porque os dados de ${blocked.join(', ')} estão bloqueados para gravação.`);
+    toast(`Não foi possível salvar ${context} porque os dados de ${blocked.join(', ')} estão bloqueados para gravação.`, 'error');
     if (shouldRender) render();
     return false;
   }
   if (!ui.preview && !Persist.saveMany(slices)) {
     restoreSliceSnapshot(snapshot);
-    toast(`Não foi possível preparar ${context} para salvar; os dados originais foram mantidos.`);
+    toast(`Não foi possível preparar ${context} para salvar; os dados originais foram mantidos.`, 'error');
     if (shouldRender) render();
     return false;
   }
@@ -1323,7 +1360,7 @@ function moveRecordsToTrash(label, records, sourceSlices, removeRecords) {
   if (!records.length) return null;
   const slices = [...new Set([...sourceSlices, 'settings'])];
   if (slices.some((slice) => ui.persistBlocked.has(slice))) {
-    toast('Não foi possível usar a lixeira porque os dados desta área estão bloqueados para gravação.');
+    toast('Não foi possível usar a lixeira porque os dados desta área estão bloqueados para gravação.', 'error');
     return null;
   }
   const snapshot = snapshotSlices(slices);
@@ -1350,18 +1387,18 @@ function restoreTrashEntry(id) {
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
     saveSlicesWithRollback(['settings'], snapshot);
-    toast('O prazo de 30 dias terminou; o item foi removido da lixeira.');
+    toast('O prazo de 30 dias terminou; o item foi removido da lixeira.', 'success');
     return false;
   }
   if (!isValidTrashEntry(entry)) {
     console.error('Aurora: o item da lixeira não passou pela validação antes da restauração.', id);
-    toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.');
+    toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.', 'error');
     return false;
   }
   const dataSlices = [...new Set(entry.records.map((record) => trashSlice(record.collection)))];
   const slices = [...new Set([...dataSlices, 'settings'])];
   if (slices.some((slice) => ui.persistBlocked.has(slice))) {
-    toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.');
+    toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.', 'error');
     return false;
   }
   const snapshot = snapshotSlices(slices);
@@ -1379,13 +1416,13 @@ function restoreTrashEntry(id) {
         ? target.some((item) => cyclePeriodKey(item) === record.key)
         : target.some((item) => item.id === record.key);
       if (alreadyExists) {
-        toast('Um registro com o mesmo identificador já existe. O item continua na lixeira.');
+        toast('Um registro com o mesmo identificador já existe. O item continua na lixeira.', 'info');
         return false;
       }
       target.splice(Math.min(record.index, target.length), 0, record.value);
     } else if (isPlainObject(target)) {
       if (Object.hasOwn(target, record.key)) {
-        toast('Já existe um registro com a mesma chave. O item continua na lixeira.');
+        toast('Já existe um registro com a mesma chave. O item continua na lixeira.', 'info');
         return false;
       }
       Object.defineProperty(target, record.key, {
@@ -1396,7 +1433,7 @@ function restoreTrashEntry(id) {
       });
     } else {
       console.error('Aurora: destino inválido para restauração da lixeira.', record.collection);
-      toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.');
+      toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.', 'error');
       return false;
     }
   }
@@ -1406,19 +1443,29 @@ function restoreTrashEntry(id) {
       const transaction = record.value;
       if (!accounts.has(transaction.accountId)
         || (transaction.type === 'tr' && !accounts.has(transaction.toAccountId))) {
-        toast('Restaure primeiro a conta vinculada. O item continua na lixeira.');
+        toast('Restaure primeiro a conta vinculada. O item continua na lixeira.', 'info');
         return false;
       }
     }
     if (record.collection === 'finance.recurring' && !accounts.has(record.value.accountId)) {
-      toast('Restaure primeiro a conta vinculada. O item continua na lixeira.');
+      toast('Restaure primeiro a conta vinculada. O item continua na lixeira.', 'info');
       return false;
+    }
+    if (record.collection === 'finance.goals' && record.value.linkedAccountId) {
+      if (!accounts.has(record.value.linkedAccountId)) {
+        toast('Restaure primeiro a conta vinculada. O objetivo continua na lixeira.', 'info');
+        return false;
+      }
+      if (drafts.finance.goals.some((goal) => goal.linkedAccountId === record.value.linkedAccountId)) {
+        toast('A conta já acompanha outro objetivo. Desvincule-a primeiro; o item continua na lixeira.', 'info');
+        return false;
+      }
     }
   }
   dataSlices.forEach((slice) => { S[slice] = drafts[slice]; });
   S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
   if (!saveSlicesWithRollback(slices, snapshot)) return false;
-  toast(`${entry.label} restaurado.`);
+  toast(`${entry.label} restaurado.`, 'success');
   requestAnimationFrame(() => {
     const heading = $('#trash-title');
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
@@ -1442,7 +1489,10 @@ const configLink = () => h`<a class="inline-link" href="/config?weight" aria-lab
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
+const brl = (cents) => ui.route === 'financas' && ui.financeValuesHidden ? '••••' : formatBRL(cents);
+const money = (cents) => ui.route === 'financas' && ui.financeValuesHidden
+  ? h`<span class="money" aria-label="Valor oculto">••••</span>`
+  : h`<span class="money">${formatBRL(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
 const brandLink = h`<a class="brand" href="/inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
@@ -1526,7 +1576,7 @@ function acquireActiveScrollLocks() {
    Só mexe no DOM do diálogo aberto; some quando a pessoa volta a digitar. Cai para o aviso se não achar o campo. */
 function fieldError(message, selector) {
   const field = selector ? document.querySelector(`#dlg ${selector}`) : null;
-  if (!field) return toast(message);
+  if (!field) return toast(message, 'info');
   const label = field.type === 'checkbox' ? field.closest('fieldset') : field.closest('label') || field.parentElement;
   label.querySelector('.field-err')?.remove();
   const note = document.createElement('span');
@@ -1763,20 +1813,7 @@ function dueBadge(t) {
   return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
 }
 function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
-  const isReviewNextWeek = reviewNextWeek === true;
-  const isHomeNextStep = homeNextStep === true;
-  const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
-  const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
-  const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? (isHomeNextStep ? (t.time ? h`<span>${t.time}</span>` : '') : h`<span class="m-warn">Hoje${tm}</span>`) : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
-  const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
-  const taskIcon = taskIconKey(t.icon);
-  return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
-    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
-    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
-      <span class="meta">${due}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
-    <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
-    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
-  </li>`;
+  return renderTaskRow(t, reviewNextWeek, homeNextStep, { route: ui.route, sort: ui.filters.sort });
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
 
@@ -1897,10 +1934,19 @@ function cycleDataConsentGate() {
     </section>`;
 }
 function render() {
+  const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
+  const reducedMotion = document.documentElement.dataset.motion === 'reduce'
+    || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (routeChanged && !reducedMotion && typeof document.startViewTransition === 'function') {
+    document.startViewTransition(() => renderApp(true, true));
+    return;
+  }
+  renderApp(routeChanged, false);
+}
+function renderApp(routeChanged, viewTransition) {
   acquireActiveScrollLocks();
   ui.dirty = false;
   applyTheme();
-  const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
   document.querySelectorAll('#app details[id^="d-"]').forEach((details) => {
     ui.openDetails[details.id.slice(2)] = details.open;
   });
@@ -1917,7 +1963,7 @@ function render() {
   const app = $('#app');
   app.innerHTML = shell(page).s;
   initializeFaqDisclosure(app);
-  if (routeChanged) {
+  if (routeChanged && !viewTransition) {
     const main = app.querySelector('.main');
     if (main) main.classList.add('route-enter');
   }
@@ -2019,7 +2065,7 @@ async function applyPwaUpdate() {
   if (!waiting) {
     ui.pwaUpdateAvailable = false;
     renderPwaUpdateNotice();
-    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.');
+    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.', 'info');
     return;
   }
   const hasUnsavedChanges = settingsDraftDirty()
@@ -2029,7 +2075,7 @@ async function applyPwaUpdate() {
   if (hasUnsavedChanges
     && !await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
   if (Persist.store && !await Persist.flush()) {
-    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.');
+    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.', 'error');
     return;
   }
   if (pwaReloading) return;
@@ -2041,36 +2087,11 @@ async function applyPwaUpdate() {
   }, { once: true });
   waiting.postMessage({ type: 'SKIP_WAITING' });
 }
-function setToast(msg, undo) {
-  clearTimeout(ui.toastT);
-  if (Object.keys(ui.integrityIssues).length) {
-    const slices = Object.keys(ui.integrityIssues).join(', ');
-    msg = `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
-    undo = null;
-  } else if (ui.persistFailed.size) {
-    msg = `Não foi possível salvar as alterações. Confira sua conexão e tente novamente.${ui.persistError ? ` Detalhe técnico: ${ui.persistError}` : ''}`;
-    undo = null;
-  }
-  const text = String(msg?.s || msg).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
-  const tone = undo ? 'action'
-    : /não foi|falha|inválid|não puderam|indisponível|erro|não consegui/.test(text) ? 'error'
-      : /selecione|informe|escolha|revise|dê um nome|pause|conclua ou descarte|máx\.|deve/.test(text) ? 'warning'
-        : /salv|adicion|concluíd|baixad|atualiz|registrad|sincroniz|enviad|importad|copiad|conectad|restaurad/.test(text) ? 'success'
-          : 'info';
-  ui.toast = { msg, undo, tone };
-  ui.toastT = setTimeout(() => { ui.toast = null; renderToast(); }, undo ? 9000 : 5000);
-  renderToast();
+function setToast(msg, tone, undo) {
+  toastController.show(msg, tone, undo);
 }
 function renderToast() {
-  let el = $('#toast');
-  if (!ui.toast) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
-  const icons = { success: 'check', warning: 'alert', error: 'alert', action: 'repeat', info: 'info' };
-  const labels = { success: 'Concluído', warning: 'Atenção', error: 'Não foi possível concluir', action: 'Alteração feita', info: 'Informação' };
-  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen || ui.quickActionsOpen ? ' toast-top' : ''}`;
-  el.setAttribute('role', ui.toast.tone === 'error' ? 'alert' : 'status');
-  const toastMessage = typeof ui.toast.msg === 'string' ? preserveCopyTerms(ui.toast.msg) : ui.toast.msg;
-  el.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[ui.toast.tone], 18)}</span><span class="toast-content"><span class="toast-label">${labels[ui.toast.tone]}</span><span class="toast-message">${toastMessage}</span></span>${ui.toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
+  toastController.render();
 }
 function resetSettingsTabBeforeLeaving() {
   const path = settingsRootPath(location);
@@ -2100,7 +2121,7 @@ function scheduleRouteRender() {
   });
 }
 function hasUnsavedSettingsChanges() {
-  return Boolean(ui.profileDraft || settingsDraftDirty());
+  return Boolean(ui.profileDraft);
 }
 async function confirmLeavingSettingsRoute(route) {
   if (!hasUnsavedSettingsChanges()) return true;
@@ -2175,7 +2196,7 @@ function onRoute() {
     resolved.replacePath = null;
     toast(hasProfileSex
       ? 'Ciclo está disponível apenas para mulheres.'
-      : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.');
+      : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.', 'info');
   }
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
   if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
@@ -2416,7 +2437,6 @@ function viewInicio() {
   const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
   const overdue = pend.filter((t) => t.dueDate < today());
   const dueToday = pend.filter((t) => t.dueDate === today());
-  const todayCount = S.tasks.filter((task) => task.dueDate === today()).length;
   const completed = tt.filter((t) => t.done);
   const inbox = S.tasks.filter((t) => !t.dueDate && !t.done);
   const optionalAreas = areaTiles();
@@ -2438,48 +2458,42 @@ function viewInicio() {
     && !habitIsSkipped(hb, today(), today())).length;
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
   const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
-  return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions">${!showHomeBlock('quick') && !taskShortcutVisible ? h`<button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Nova tarefa${icon('chevRight', 16)}</button>` : ''}${areaGuideButton('inicio')}</div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
-    ${sampleBanner()}
-    ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
-    <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
-      <div class="home-primary">
-        ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
-          <a href="/planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
-          <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
-        </section>` : ''}
-        ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title" ${raw(homeBlockStyle('quick'))}>
-          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
-          <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
-        </section>` : ''}
-        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(!nextTask)}</div>` : ''}
-        ${showHomeBlock('today') ? h`        <section class="home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje</h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
-          ${tt.length ? h`<div class="home-task-groups">
-            ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
-            ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
-            ${completed.length ? h`<details class="home-completed" id="d-home-completed" ${ui.openDetails['home-completed'] ? raw('open') : ''}><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="/planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
-        </section>` : ''}
-        ${homeUpcomingTasks()}
-        ${homeInboxReminder(inbox)}
-        ${homeUpcomingBill()}
-      </div>
-      ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
-    </div>
-    ${homeFirstSteps()}
-    ${backupReminder()}
-    ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
-      <div class="home-tool-grid compact-card-grid">
-        ${homeShortcuts.map((shortcut) => {
-          const action = shortcut.id === 'finance' && !S.finance.accounts.length ? 'quick-action-account' : shortcut.action;
-          const label = shortcut.id === 'finance'
-            ? S.finance.accounts.length ? 'Novo lançamento' : 'Criar conta financeira'
-            : shortcut.label;
-          return h`<button class="home-tool" type="button" data-action="${action}"><span class="home-tool-icon">${icon(shortcut.icon, 20)}</span><span><b>${label}</b><small>${shortcut.description}</small></span>${icon('chevRight', 18, 'home-tool-go')}</button>`;
-        })}
-      </div>
-    </section>` : ''}`;
+  return renderHomeView({
+    name,
+    profileAppearance,
+    greeting,
+    dateLabel: cap(longDate(today())),
+    homeMessage,
+    lead,
+    taskShortcutVisible,
+    tt,
+    doneN,
+    sundayReview,
+    optionalAreas,
+    overdue,
+    dueToday,
+    completed,
+    nextTask,
+    inbox,
+    homeShortcuts,
+    openCompleted: ui.openDetails['home-completed'],
+    financeAccountsCount: S.finance.accounts.length,
+    showHomeBlock,
+    homeBlockStyle,
+  }, {
+    areaGuideButton,
+    backupReminder,
+    empty,
+    homeFirstSteps,
+    homeHabitCheckins,
+    homeInboxReminder,
+    homeUpcomingBill,
+    homeUpcomingTasks,
+    profileAvatarMarkup,
+    ring,
+    sampleBanner,
+    taskRow,
+  });
 }
 
 const FILTERS = [['todas', 'Todas'], ['pendentes', 'Pendentes'], ['atrasadas', 'Atrasadas'], ['proximas', 'Próximos 7 dias'], ['caixa', 'Sem data'], ['concluidas', 'Concluídas']];
@@ -2758,7 +2772,7 @@ async function loadGoogleCalendarList() {
   }
 }
 function prepareGoogleCalendar() {
-  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.');
+  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.', 'info');
   const state = ui.googleCalendar;
   state.status = 'loading-sdk';
   state.error = '';
@@ -2815,40 +2829,13 @@ function disconnectGoogleCalendar(accountId) {
   ui.googleCalendar.requestId += 1;
   render();
   void loadGoogleCalendarEvents();
-  toast('A conta foi desconectada desta aba.');
+  toast('A conta foi desconectada desta aba.', 'success');
 }
 function viewPlanejar() {
   const f = ui.filters;
-  const todayKey = today();
-  const nextWeek = addDays(todayKey, 7);
-  const pendingTasks = S.tasks.filter((task) => !task.done);
-  const todayPending = pendingTasks.filter((task) => task.dueDate === todayKey).length;
-  const overdueCount = pendingTasks.filter((task) => task.dueDate && task.dueDate < todayKey).length;
-  const upcomingCount = pendingTasks.filter((task) => task.dueDate > todayKey && task.dueDate <= nextWeek).length;
-  const todaySummary = todayPending
-    ? `${todayPending} ${plural(todayPending, 'tarefa marcada', 'tarefas marcadas')} para hoje`
-    : 'Nenhuma tarefa com prazo para hoje';
-  const overdueSummary = overdueCount
-    ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
-    : 'Nenhuma tarefa atrasada';
-  const planningSummary = overdueCount
-    ? `${overdueSummary}. Comece pelo que já passou do prazo.`
-    : todayPending
-      ? `${todaySummary}. Veja o que vem depois e ajuste sua semana.`
-      : upcomingCount
-        ? `${upcomingCount} ${plural(upcomingCount, 'tarefa nos próximos dias', 'tarefas nos próximos dias')}. Seu dia está livre para organizar.`
-        : 'Seu plano está em dia. Adicione uma tarefa ou organize os próximos dias.';
-  return h`${areaPageTitle('planejar', 'Planejar')}
-    <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
-      <div class="planning-overview-copy">
-        <span class="section-kicker">Seu próximo passo</span>
-        <h2 id="planning-overview-title">${overdueCount ? 'Vamos reorganizar o que passou.' : 'Seu plano, com clareza.'}<i>.</i></h2>
-        <p>${planningSummary}</p>
-        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
-      </div>
-    </section>
+  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
-      <label class="plan-view-select"><span>Ver como</span><select data-change="plan-view" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<option value="${value}" ${ui.planView === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
+      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${label}</button>`)}</div></div>
       ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
@@ -3220,8 +3207,8 @@ function aparencia(s) {
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
     ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de lembretes e hábitos do Aurora.', h`<div class="routine-settings-links">
       <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+      <p class="small muted">Os avisos de Hábitos fora do app são opcionais e dependem da rede, das permissões e do serviço de notificações. O interruptor em Hábitos controla este dispositivo. O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
     </div>`) }
-    ${settingsSaveButton()}
   </form>`;
 }
 function firstName(value) {
@@ -3370,14 +3357,12 @@ function areasNavigationSettings(s) {
         </span>
       </li>`;
     })}</ol>
-    ${settingsSaveButton()}
   </form>`;
 }
 function homeSettings(s) {
   s = settingsView();
   return h`<form class="card home-settings" data-form="settings-save">
     ${homeLayoutSettings(s)}
-    ${settingsSaveButton()}
   </form>`;
 }
 const LEGACY_IMPORT_LABELS = [
@@ -3600,7 +3585,7 @@ async function applyLegacyImport() {
     migration.completed = true;
     migration.step = 'verified';
     migration.cleanupConfirmed = false;
-    toast('Importação gravada e conferida na conta.');
+    toast('Importação gravada e conferida na conta.', 'info');
   } catch (error) {
     console.error('Aurora: a importação relacional dos dados antigos não foi confirmada.', error);
     migration.error = error instanceof Error
@@ -3882,7 +3867,7 @@ function confirmInDialog(message) {
   }
   if (ui.dlg?.dirty) {
     console.error('Aurora: não é possível abrir uma confirmação durante uma edição pendente.');
-    toast('Salve ou feche a edição antes de confirmar esta ação.');
+    toast('Salve ou feche a edição antes de confirmar esta ação.', 'info');
     return Promise.resolve(false);
   }
   return new Promise((resolve) => {
@@ -3916,7 +3901,7 @@ const CONFIRMABLE_ACTIONS = new Set([
 function requestActionConfirmation(action, data, title, message, confirmLabel = 'Confirmar') {
   if (!CONFIRMABLE_ACTIONS.has(action)) {
     console.error('Aurora: ação sem confirmação configurada.', action);
-    toast('Não foi possível confirmar esta ação.');
+    toast('Não foi possível confirmar esta ação.', 'info');
     return;
   }
   ui.confirmPrevious = ui.dlg && !ui.dlg.dirty ? ui.dlg : null;
@@ -4078,6 +4063,22 @@ function updateWaterSuggestionWeight(weightInput) {
   const goalInput = $('#water-goal-ml');
   if (goalInput && !draft.waterGoalEdited && goal) goalInput.value = String(goal.ml);
 }
+function highlightSearchText(value, query) {
+  const text = String(value || '');
+  const chars = Array.from(text);
+  const positions = [];
+  let folded = '';
+  chars.forEach((character, index) => {
+    const normalized = norm(character);
+    folded += normalized;
+    for (let offset = 0; offset < normalized.length; offset += 1) positions.push(index);
+  });
+  const index = folded.indexOf(norm(query));
+  if (index < 0 || !norm(query)) return h`${text}`;
+  const start = positions[index];
+  const end = positions[index + norm(query).length - 1] + 1;
+  return raw(`${esc(chars.slice(0, start).join(''))}<mark>${esc(chars.slice(start, end).join(''))}</mark>${esc(chars.slice(end).join(''))}`);
+}
 function globalSearchResults(query) {
   const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
     ? 'Planejar, Hábitos, Finanças e Ciclo'
@@ -4100,16 +4101,30 @@ function globalSearchResults(query) {
     habits: areaOn('habits') ? S.habits : [],
     water: [],
     cycleLogs: searchableCycleLogs,
+    actions: [
+      { id: 'new-task', action: 'new-task', area: 'Ações', title: 'Nova tarefa', detail: 'Criar uma tarefa', aliases: ['criar tarefa', 'adicionar tarefa'] },
+      ...(areaOn('habits') && S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active')
+        ? [{ id: 'add-water', action: 'add-water', area: 'Ações', title: 'Registrar água', detail: 'Adicionar um registro de hidratação', aliases: ['água', 'hidratação', 'beber água'] }]
+        : []),
+      ...(areaOn('finances')
+        ? [{ id: 'open-finances', action: 'open-finances', area: 'Ações', title: 'Ir para Finanças', detail: 'Abrir a área financeira', aliases: ['finanças', 'financeiro', 'dinheiro'] }]
+        : []),
+    ],
   }, query);
   if (String(query).trim().length < 2) return h`<p class="small muted">Digite pelo menos duas letras para buscar em ${searchAreas}.</p>`;
   if (!results.length) return empty('Nenhum resultado', 'Tente outro nome, categoria ou descrição.', '', 'search');
-  const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart' };
+  const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart', action: 'plus', water: 'droplet' };
   const groups = [...results.reduce((map, item) => {
     if (!map.has(item.area)) map.set(item.area, []);
     map.get(item.area).push(item);
     return map;
   }, new Map())];
-  return h`<div class="global-search-results">${groups.map(([area, items]) => h`<section class="global-search-group" aria-label="Resultados em ${area}"><h3>${area}<span>${items.length}</span></h3><ul class="list">${items.map((item) => h`<li><button type="button" class="global-search-result" data-action="search-result" data-kind="${item.kind}" data-id="${item.id}"><span class="global-search-kind">${icon(resultIcons[item.kind] || 'search', 16)}</span><span class="grow"><b class="ttl">${item.title}</b><small class="small muted">${item.detail || item.kind}</small></span>${icon('chevRight', 16)}</button></li>`)}</ul></section>`)}</div>`;
+  return h`<div class="global-search-results">${groups.map(([area, items]) => h`<section class="global-search-group" aria-label="Resultados em ${area}"><h3>${area}<span>${items.length}</span></h3><ul class="list">${items.map((item) => {
+    const titleMatches = norm(item.title).includes(norm(query));
+    const detailMatches = norm(item.detail).includes(norm(query));
+    const snippet = !titleMatches && !detailMatches && item.matchText ? highlightSearchText(item.matchText, query) : highlightSearchText(item.detail || item.kind, query);
+    return h`<li><button type="button" class="global-search-result" data-action="search-result" data-kind="${item.kind}" data-id="${item.id}" data-command="${item.action || ''}"><span class="global-search-kind">${icon(resultIcons[item.kind] || 'search', 16)}</span><span class="grow"><b class="ttl">${highlightSearchText(item.title, query)}</b><small class="small muted">${snippet}</small></span>${icon('chevRight', 16)}</button></li>`;
+  })}</ul></section>`)}</div>`;
 }
 function dlgSearch() {
   const query = ui.dlg.d.query || '';
@@ -4285,7 +4300,7 @@ function replaceCategoryReferences(oldPath, newPath) {
 function resolveNew(g, d, key) {
   if (d[key] !== '__new') return true;
   const n = String(d.newName || '').trim().slice(0, 30);
-  if (!n) { toast('Dê um nome para a nova opção.'); return false; }
+  if (!n) { toast('Dê um nome para a nova opção.', 'info'); return false; }
   const parentName = String(d.newParent || '').trim();
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
@@ -4406,7 +4421,7 @@ function renderDialog() {
   if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll(); }
   el.classList.toggle('is-intro', isIntro);
   fitDlg();
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">${DLG[ui.dlg.type]().s}</div>`;
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
@@ -4458,6 +4473,12 @@ const keepNonSample = (a) => a.filter((x) => !x.sample);
 function removeSampleData() {
   S.tasks = keepNonSample(S.tasks); S.water = keepNonSample(S.water);
   S.gym = { templates: keepNonSample(S.gym.templates), logs: keepNonSample(S.gym.logs) };
+  const removedAccountIds = new Set(S.finance.accounts.filter((account) => account.sample).map((account) => account.id));
+  S.finance.goals.forEach((goal) => {
+    if (!removedAccountIds.has(goal.linkedAccountId)) return;
+    goal.savedCents = linkedGoalProgressCents(goal, S.finance.accounts, S.finance.tx);
+    delete goal.linkedAccountId;
+  });
   const accs = keepNonSample(S.finance.accounts);
   S.finance = { accounts: accs, tx: S.finance.tx.filter((x) => !x.sample && accs.some((a) => a.id === x.accountId)), budgets: Object.fromEntries(Object.entries(S.finance.budgets || {}).filter(([, b]) => !b.sample)), goals: keepNonSample(S.finance.goals || []), recurring: (S.finance.recurring || []).filter((r) => accs.some((a) => a.id === r.accountId)) };
   S.cycle = keepNonSample(S.cycle); S.cycleLog = Object.fromEntries(Object.entries(S.cycleLog).filter(([, l]) => !l.sample)); S.weight = keepNonSample(S.weight);
@@ -4465,7 +4486,7 @@ function removeSampleData() {
 }
 function clearSample() {
   removeSampleData();
-  commit(...SLICES); toast('Exemplos removidos.');
+  commit(...SLICES); toast('Exemplos removidos.', 'success');
 }
 
 /* ---- Backup ---- */
@@ -4484,13 +4505,13 @@ function buildBackup() {
 }
 async function doExport() {
   if (Object.keys(ui.integrityIssues).length) {
-    toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.');
+    toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.', 'warning');
     return;
   }
   if (!await confirmInDialog('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
   const json = buildBackup(), name = `aurora-backup-${today()}.json`;
   downloadFile(name, json, 'application/json;charset=utf-8');
-  S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
+  S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.', 'success');
 }
 function downloadFile(name, contents, type) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -4501,7 +4522,7 @@ function downloadFile(name, contents, type) {
 }
 async function exportRecoveryData() {
   if (!Persist.rawTables || !Object.keys(Persist.rawTables).length) {
-    toast('Não há dados bloqueados disponíveis para exportar.');
+    toast('Não há dados bloqueados disponíveis para exportar.', 'error');
     return;
   }
   if (!await confirmInDialog('A cópia de recuperação contém dados da conta, inclusive informações de saúde e finanças, e não tem proteção própria por senha. Guarde-a em um local privado e não a compartilhe. Deseja continuar?')) return;
@@ -4513,7 +4534,7 @@ async function exportRecoveryData() {
     tables: Persist.rawTables,
   }, null, 2);
   downloadFile(`aurora-recovery-${today()}.json`, recovery, 'application/json;charset=utf-8');
-  toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.');
+  toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.', 'success');
 }
 const arr = (v) => Array.isArray(v) ? v : [];
 function backupRecords(value, validator, label) {
@@ -4593,7 +4614,7 @@ function parseBackup(text) {
   };
 }
 async function importFile(file) {
-  const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m); };
+  const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m, 'info'); };
   if (!file) return;
   if (file.size > 7 * 1024 * 1024) return err('O arquivo excede o limite permitido para backup.');
   let text;
@@ -4641,10 +4662,10 @@ const ACTIONS = {
         throw new Error('O provedor não confirmou a revogação do consentimento.');
       }
       accountSession.user = data.user;
-      toast('Consentimento retirado. Ciclo foi bloqueado; os registros existentes foram mantidos.');
+      toast('Consentimento retirado. Ciclo foi bloqueado; os registros existentes foram mantidos.', 'error');
     } catch (error) {
       console.error('Aurora: não foi possível retirar o consentimento para dados de Ciclo.', error);
-      toast('Não foi possível retirar o consentimento. Confira sua conexão e tente novamente.');
+      toast('Não foi possível retirar o consentimento. Confira sua conexão e tente novamente.', 'warning');
     } finally {
       ui.cycleConsentBusy = false;
       render();
@@ -4717,7 +4738,7 @@ const ACTIONS = {
     const route = el.dataset.areaGuide;
     if (!AREA_GUIDES[route]) {
       console.error('Aurora: tutorial solicitado para uma área desconhecida.', route);
-      toast('Não foi possível abrir o tutorial desta área.');
+      toast('Não foi possível abrir o tutorial desta área.', 'info');
       return;
     }
     dlgOpen('area-tutorial', { route });
@@ -4726,7 +4747,7 @@ const ACTIONS = {
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     render();
-    toast('Alterações descartadas.');
+    toast('Alterações descartadas.', 'info');
   },
   'profile-discard': () => {
     ui.profileDraft = null;
@@ -4735,7 +4756,7 @@ const ACTIONS = {
       ui.settingsDraftBase = null;
     }
     render();
-    toast('Alterações descartadas.');
+    toast('Alterações descartadas.', 'info');
   },
   'profile-save': async () => {
     if (ui.profileDraft) await saveProfileDraft();
@@ -4762,6 +4783,7 @@ const ACTIONS = {
     const task = findTask(el.dataset.id);
     if (!task) return;
     const wasDone = task.done, previousDoneAt = task.doneAt, completing = !task.done;
+    const row = completing ? [...document.querySelectorAll('.task')].find((item) => item.dataset.k === task.id) : null;
     const snapshot = snapshotSlices(['tasks']);
     task.done = completing;
     task.doneAt = task.done ? new Date().toISOString() : undefined;
@@ -4781,12 +4803,30 @@ const ACTIONS = {
       delete nextTask.sample;
       S.tasks.push(nextTask);
     }
-    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a conclusão da tarefa')) return;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, !completing, 'a conclusão da tarefa')) {
+      if (completing) render();
+      return;
+    }
     if (completing) {
+      if (row) {
+        row.style.height = `${row.getBoundingClientRect().height}px`;
+        row.classList.add('done', 'is-completing');
+        row.inert = true;
+        const checkbox = row.querySelector('[data-action="toggle"]');
+        checkbox?.setAttribute('aria-checked', 'true');
+        checkbox?.setAttribute('aria-label', `Reabrir: ${task.title}`);
+        requestAnimationFrame(() => {
+          row.style.height = '0px';
+          row.classList.add('is-collapsing');
+        });
+        setTimeout(() => { if (row.isConnected) render(); }, 260);
+      } else {
+        render();
+      }
       vibrateFeedback();
       completionFeedback(`.task[data-k="${task.id}"]`);
       const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
-      toast(message, () => {
+      toast(message, 'action', () => {
         const currentTask = findTask(task.id);
         if (!currentTask) return;
         const undoSnapshot = snapshotSlices(['tasks']);
@@ -4817,18 +4857,18 @@ const ACTIONS = {
   },
   'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
   'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
-  'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.'); },
+  'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.', 'info'); },
   'reminders-pause': () => {
     if (ui.remindersPausedUntil > Date.now()) {
       ui.remindersPausedUntil = 0;
       render();
-      toast('Lembretes do app retomados.');
+      toast('Lembretes do app retomados.', 'info');
       return;
     }
     ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
     Object.keys(ui.alerts).forEach((key) => { delete ui.alerts[key]; });
     render();
-    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.');
+    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.', 'info');
   },
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
@@ -4839,13 +4879,32 @@ const ACTIONS = {
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
+  'finance-values-toggle': () => { ui.financeValuesHidden = !ui.financeValuesHidden; render(); },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-result': (el) => {
     const query = ui.dlg?.d.query || '';
     ui.dlg = null;
+    if (el.dataset.kind === 'action') {
+      if (el.dataset.command === 'new-task') {
+        openTaskDialog();
+        return;
+      }
+      if (el.dataset.command === 'open-finances') {
+        nav('financas');
+        return;
+      }
+      if (el.dataset.command === 'add-water') {
+        const habit = S.habits.find((item) => isWaterHabit(item) && item.status === 'active');
+        if (!habit) return toast('Não há um hábito de água ativo para registrar.', 'info');
+        ui.openDetails[`hab-${habit.id}`] = true;
+        nav('habitos');
+        requestAnimationFrame(() => document.getElementById(`water-amount-${CSS.escape(habit.id)}`)?.focus());
+        return;
+      }
+    }
     if (el.dataset.kind === 'task') {
       const task = findTask(el.dataset.id);
-      if (!task) return toast('Esta tarefa não está mais disponível.');
+      if (!task) return toast('Esta tarefa não está mais disponível.', 'info');
       ui.planView = 'lista';
       ui.filters.f = 'todas';
       ui.filters.q = task.title || query;
@@ -4853,19 +4912,19 @@ const ACTIONS = {
       return;
     }
     if (el.dataset.kind === 'habit') {
-      if (!S.habits.some((habit) => habit.id === el.dataset.id)) return toast('Este hábito não está mais disponível.');
+      if (!S.habits.some((habit) => habit.id === el.dataset.id)) return toast('Este hábito não está mais disponível.', 'info');
       nav('habitos');
       return;
     }
     if (el.dataset.kind === 'cycle') {
-      if (!S.cycleLog[el.dataset.id]) return toast('Este registro do ciclo não está mais disponível.');
+      if (!S.cycleLog[el.dataset.id]) return toast('Este registro do ciclo não está mais disponível.', 'info');
       ui.cycDay = el.dataset.id;
       ui.calMonth = el.dataset.id.slice(0, 7);
       nav('ciclo');
       return;
     }
     const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
-    if (!transaction) return toast('Este lançamento não está mais disponível.');
+    if (!transaction) return toast('Este lançamento não está mais disponível.', 'info');
     ui.finMonth = transaction.date.slice(0, 7);
     ui.finTab = 'lancamentos';
     ui.finFilter = 'todos';
@@ -4893,7 +4952,7 @@ const ACTIONS = {
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
   'weekly-keep-task': (el) => {
-    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.');
+    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.', 'info');
   },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
@@ -4903,14 +4962,34 @@ const ACTIONS = {
     task.dueDate = addDays(task.dueDate, 7);
     const deferredDate = task.dueDate;
     if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o adiamento da tarefa')) return;
-    toast('Tarefa adiada por uma semana.', () => {
+    toast('Tarefa adiada por uma semana.', 'action', () => {
       const currentTask = findTask(el.dataset.id);
       if (!currentTask || currentTask.dueDate !== deferredDate) {
-        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.');
+        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.', 'warning');
         return;
       }
       const current = snapshotSlices(['tasks']);
       currentTask.dueDate = previousDate;
+      saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
+    });
+  },
+  'task-swipe-defer': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task || task.done) return;
+    const previousDate = task.dueDate;
+    const deferredDate = addDays(today(), 1);
+    const snapshot = snapshotSlices(['tasks']);
+    task.dueDate = deferredDate;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o adiamento da tarefa')) return;
+    toast('Tarefa adiada para amanhã.', 'action', () => {
+      const currentTask = findTask(task.id);
+      if (!currentTask || currentTask.dueDate !== deferredDate) {
+        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.', 'warning');
+        return;
+      }
+      const current = snapshotSlices(['tasks']);
+      if (previousDate) currentTask.dueDate = previousDate;
+      else delete currentTask.dueDate;
       saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
     });
   },
@@ -4920,7 +4999,7 @@ const ACTIONS = {
     S.settings.prefs.weeklyReflection = text ? { weekOf, text } : null;
     const saved = saveSlices('settings');
     render();
-    if (saved) toast(text ? 'Reflexão salva na sua conta.' : 'Reflexão removida.');
+    if (saved) toast(text ? 'Reflexão salva na sua conta.' : 'Reflexão removida.', 'success');
   },
   'weekly-open-finances': () => { ui.finTab = 'resumo'; nav('financas'); },
   'weekly-open-habits': () => nav('habitos'),
@@ -4983,7 +5062,7 @@ const ACTIONS = {
     if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) return;
     if (completing) {
       completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
-      toast('Hábito marcado como concluído.', () => {
+      toast('Hábito marcado como concluído.', 'action', () => {
         const currentHabit = S.habits.find((item) => item.id === habit.id);
         if (!currentHabit || !currentHabit.completions.includes(day)) return;
         const undoSnapshot = snapshotSlices(['habits']);
@@ -5001,13 +5080,13 @@ const ACTIONS = {
     const undoSkip = skipped.has(day);
     if (undoSkip) skipped.delete(day);
     else {
-      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.');
+      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.', 'warning');
       skipped.add(day);
     }
     const snapshot = snapshotSlices(['habits']);
     habit.skipped = [...skipped].sort();
     if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a alteração do dia pulado')) return;
-    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? null : () => {
+    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? 'success' : 'action', undoSkip ? null : () => {
       const currentHabit = S.habits.find((item) => item.id === habit.id);
       if (!currentHabit || !(currentHabit.skipped || []).includes(day)) return;
       const undoSnapshot = snapshotSlices(['habits']);
@@ -5026,7 +5105,7 @@ const ACTIONS = {
     if (hadSkip && !had) habit.skipped = habit.skipped.filter((item) => item !== day);
     commit('habits');
     if (!had) completionFeedback(`.habit-dot[data-id="${habit.id}"][data-d="${day}"]`);
-    toast(had ? `Marcação de ${shortDate(day)} removida.` : `${habit.name} marcado · ${shortDate(day)}`, () => {
+    toast(had ? `Marcação de ${shortDate(day)} removida.` : `${habit.name} marcado · ${shortDate(day)}`, 'action', () => {
       habit.completions = had ? [...habit.completions, day].sort() : habit.completions.filter((item) => item !== day);
       if (hadSkip) habit.skipped = [...new Set([...(habit.skipped || []), day])].sort();
       commit('habits');
@@ -5054,7 +5133,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Hábito: ${habit.name}`, [
       createTrashRecord('habits', habit.id, index, habit),
     ], ['habits'], () => { S.habits.splice(index, 1); });
-    if (entry) toast('Hábito movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Hábito movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'habit-delete-dialog': () => {
     const id = ui.dlg?.d?.id;
@@ -5093,7 +5172,7 @@ const ACTIONS = {
     }
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast(habit.status === 'paused' ? 'Hábito pausado.' : 'Hábito retomado.');
+    toast(habit.status === 'paused' ? 'Hábito pausado.' : 'Hábito retomado.', 'info');
   },
   'habit-archive': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -5103,7 +5182,7 @@ const ACTIONS = {
     habit.status = 'archived';
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast('Hábito arquivado. O histórico foi preservado.', () => {
+    toast('Hábito arquivado. O histórico foi preservado.', 'action', () => {
       habit.status = previousStatus;
       commit('habits');
     });
@@ -5115,7 +5194,7 @@ const ACTIONS = {
     habit.status = 'active';
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast('Hábito restaurado.');
+    toast('Hábito restaurado.', 'success');
   },
   'habit-month': (el) => {
     const next = shiftMonth(ui.habitMonth, Number(el.dataset.n));
@@ -5132,7 +5211,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Tarefa: ${task.title}`, [
       createTrashRecord('tasks', task.id, i, task),
     ], ['tasks'], () => { S.tasks.splice(i, 1); });
-    if (entry) toast('Tarefa movida para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Tarefa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
   'del-plan': (el) => {
@@ -5144,7 +5223,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Plano: ${title}`, records, ['tasks'], () => {
       S.tasks = S.tasks.filter((task) => task.groupId !== el.dataset.id);
     });
-    if (entry) toast('Plano movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Plano movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'del-task-dlg': () => {
     const id = ui.dlg?.d?.id;
@@ -5208,7 +5287,7 @@ const ACTIONS = {
     );
     updateSettingsDraft((settings) => Object.assign(settings.prefs, defaults));
     document.querySelector('[data-settings-tab="areas-navigation"]')?.focus();
-    toast('Padrão dos menus selecionado. Salve para aplicar permanentemente.');
+    toast('Padrão dos menus selecionado. Salve para aplicar permanentemente.', 'info');
   },
   'home-block-move': (el) => {
     const id = el.dataset.homeBlock, direction = Number(el.dataset.direction);
@@ -5242,7 +5321,7 @@ const ACTIONS = {
       settings.prefs.homeShortcuts = [...defaults.shortcuts];
       saveActiveHomeMode(settings);
     });
-    toast('Modo inicial restaurado. Salve para aplicar permanentemente.');
+    toast('Modo inicial restaurado. Salve para aplicar permanentemente.', 'success');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'habit-push-toggle': () => toggleHabitPush(),
@@ -5261,7 +5340,7 @@ const ACTIONS = {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
     clearSample();
   },
-  'load-sample': () => { loadSample(); toast('Dados de exemplo adicionados.'); },
+  'load-sample': () => { loadSample(); toast('Dados de exemplo adicionados.', 'success'); },
   'undo': () => { const u = ui.toast && ui.toast.undo; ui.toast = null; if (u) u(); renderToast(); },
   'action-confirm-cancel': () => dlgClose(),
   'confirmation-cancel': () => settleDialogConfirmation(false),
@@ -5273,7 +5352,7 @@ const ACTIONS = {
       ui.confirmPrevious = null;
       ui.dlg = null;
       render();
-      toast('Não foi possível concluir esta ação.');
+      toast('Não foi possível concluir esta ação.', 'info');
       return;
     }
     const { action, data } = d;
@@ -5311,19 +5390,19 @@ const ACTIONS = {
     if (S.cycle.some((period) => period.start <= day && cyclePeriodEnd(period) >= day)) {
       ui.cycDay = day;
       render();
-      return toast('Hoje já faz parte de um período registrado.');
+      return toast('Hoje já faz parte de um período registrado.', 'info');
     }
     S.cycle.push({ start: day, end: null });
     ui.cycDay = day;
     ui.calMonth = day.slice(0, 7);
     const saved = saveSlices('cycle');
     render();
-    if (saved) toast('Início registrado para hoje. Você pode ajustar o último dia depois.');
+    if (saved) toast('Início registrado para hoje. Você pode ajustar o último dia depois.', 'success');
   },
   'cyc-period-edit': (el) => {
     const index = Number(el.dataset.index);
     const period = Number.isInteger(index) ? S.cycle[index] : null;
-    if (!period) return toast('Este período não está mais disponível.');
+    if (!period) return toast('Este período não está mais disponível.', 'info');
     dlgOpen('cycle-period', {
       index,
       originalStart: period.start,
@@ -5335,7 +5414,7 @@ const ACTIONS = {
   'cyc-period-delete': (el) => {
     const index = Number(el.dataset.index);
     const period = Number.isInteger(index) ? S.cycle[index] : null;
-    if (!period) return toast('Este período não está mais disponível.');
+    if (!period) return toast('Este período não está mais disponível.', 'info');
     const label = `o período de ${shortDate(period.start)}${cyclePeriodEnd(period) === period.start ? '' : ` a ${shortDate(cyclePeriodEnd(period))}`}`;
     if (ui.confirmedAction !== 'cyc-period-delete') {
       return requestActionConfirmation('cyc-period-delete', { index }, 'Excluir período?', `${label} irá para a lixeira por 30 dias. Os registros diários de sintomas e anotações serão mantidos.`, 'Excluir período');
@@ -5343,7 +5422,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Ciclo: ${label}`, [
       createTrashRecord('cycle', cyclePeriodKey(period), index, period),
     ], ['cycle'], () => { S.cycle.splice(index, 1); });
-    if (entry) toast('Período movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Período movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'cyc-opt': (el) => {
     if (ui.dlg?.type !== 'cycle-log') return;
@@ -5384,7 +5463,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Ciclo: ${longDate(k)}`, [
       createTrashRecord('cycleLog', k, 0, previous),
     ], ['cycleLog'], () => { delete S.cycleLog[k]; });
-    if (entry) toast('Registro movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Registro movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
   'appearance-preset': (el) => {
@@ -5413,7 +5492,7 @@ const ACTIONS = {
     draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     render();
-    toast('Identidade visual padrão selecionada. Salve para aplicar.');
+    toast('Identidade visual padrão selecionada. Salve para aplicar.', 'info');
   },
   'preferences-week-start': (el) => {
     const weekStart = Number(el.dataset.v);
@@ -5441,7 +5520,7 @@ const ACTIONS = {
         reduceMotion: LOOK_DEFAULT.reduceMotion,
       };
     });
-    toast('Padrão visual selecionado. Salve para aplicar permanentemente.');
+    toast('Padrão visual selecionado. Salve para aplicar permanentemente.', 'info');
   },
   'look': (el) => {
     const k = el.dataset.k, v = k === 'weekStart' ? Number(el.dataset.v) : el.dataset.v;
@@ -5458,16 +5537,16 @@ const ACTIONS = {
   'legacy-import-apply': () => { void applyLegacyImport(); },
   'legacy-import-clear': () => clearLegacyBrowserData(),
   'copy-export': async () => {
-    if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.');
+    if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.', 'warning');
     if (!await confirmInDialog('O backup copiado não tem proteção própria por senha e pode incluir dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
     const ta = $('#exp');
     try {
       await navigator.clipboard.writeText(ta.value);
-      toast('Backup copiado.');
+      toast('Backup copiado.', 'success');
     } catch (error) {
       ta.focus();
       ta.select();
-      toast('O backup foi selecionado. Copie manualmente e guarde-o em um local privado.');
+      toast('O backup foi selecionado. Copie manualmente e guarde-o em um local privado.', 'warning');
     }
     S.settings.prefs.lastBackup = new Date().toISOString();
     saveSlices('settings');
@@ -5475,7 +5554,7 @@ const ACTIONS = {
   'import-apply': async (button) => {
     const p = ui.dlg && ui.dlg.d && ui.dlg.d.parsed;
     if (!p) {
-      toast('Não foi possível localizar os dados do backup.');
+      toast('Não foi possível localizar os dados do backup.', 'warning');
       return;
     }
 
@@ -5526,7 +5605,7 @@ const ACTIONS = {
       restoreMetadata();
       render();
       console.error('Aurora: a restauração relacional do backup não foi concluída.', error);
-      toast('A restauração não foi confirmada. Os dados anteriores foram mantidos.');
+      toast('A restauração não foi confirmada. Os dados anteriores foram mantidos.', 'error');
       return;
     } finally {
       Persist.replacing = false;
@@ -5536,7 +5615,7 @@ const ACTIONS = {
     ui.settingsDraftBase = null;
     ui.dlg = null;
     render();
-    toast('Backup restaurado na sua conta.');
+    toast('Backup restaurado na sua conta.', 'success');
   },
   'wipe-ask': () => dlgOpen('wipe'),
   'wipe': async (button) => {
@@ -5544,7 +5623,7 @@ const ACTIONS = {
     const synchronized = await Persist.flush();
     if (!synchronized) {
       button.disabled = false;
-      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.');
+      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.', 'warning');
       return;
     }
     if (getPushNotificationStatus().enabled) {
@@ -5553,7 +5632,7 @@ const ACTIONS = {
       } catch (error) {
         button.disabled = false;
         console.error('Aurora: não foi possível desativar os avisos Push antes de apagar os dados.', error);
-        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`);
+        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`, 'info');
         return;
       }
     }
@@ -5562,7 +5641,7 @@ const ACTIONS = {
     } catch (error) {
       button.disabled = false;
       console.error('Aurora: a exclusão dos dados relacionais falhou.', error);
-      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.');
+      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.', 'info');
       return;
     }
 
@@ -5626,7 +5705,7 @@ function finishOnboard(skip = false) {
   ui.dlg = ui.returnDialog;
   ui.returnDialog = null;
   render();
-  toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.');
+  toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.', 'info');
   void maybeOpenReleaseNotes();
   return true;
 }
@@ -5729,7 +5808,7 @@ const FORMS = {
   'water-add': (f, d) => {
     const habit = S.habits.find((item) => item.id === f.dataset.id);
     if (!habit || !isWaterHabit(habit) || habit.status !== 'active') {
-      return toast('Este hábito de água não está disponível para registro.');
+      return toast('Este hábito de água não está disponível para registro.', 'info');
     }
     const amount = parseWaterMl(d.get('amount'));
     if (amount === null) return fieldError('Informe um volume inteiro entre 1 e 10.000 mL.', '[name="amount"]');
@@ -5742,16 +5821,19 @@ const FORMS = {
     if (completing) habit.completions.push(day);
     const saved = saveSlices('water', ...(completing ? ['habits'] : []));
     render();
-    if (saved) toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`);
+    if (saved) toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
   },
   'home-quick-task': (f, d) => {
     const title = String(d.get('title') || '').trim();
-    if (!title) return toast('Escreva uma tarefa para hoje.');
-    const parsed = parseTags(title);
-    S.tasks.push(mkTask({ title: parsed.title, dueDate: today(), ...(parsed.tags.length ? { tags: parsed.tags } : {}) }));
+    if (!title) return toast('Escreva uma tarefa.', 'info');
+    const date = parseQuickDate(title, today());
+    if (date.error) return toast(date.error, 'info');
+    if (!date.title) return toast('Escreva o título da tarefa além da data.', 'info');
+    const parsed = parseTags(date.title);
+    S.tasks.push(mkTask({ title: parsed.title, dueDate: date.date, ...(date.time ? { time: date.time } : {}), ...(parsed.tags.length ? { tags: parsed.tags } : {}) }));
     const saved = saveSlices('tasks');
     render();
-    if (saved) toast('Tarefa adicionada para hoje.');
+    if (saved) toast(date.date === today() ? 'Tarefa adicionada para hoje.' : `Tarefa adicionada para ${shortDate(date.date)}.`, 'success');
   },
   'settings-save': saveSettingsDraft,
   'settings-profile': saveProfileDraft,
@@ -5760,16 +5842,16 @@ const FORMS = {
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
     const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
-    if (!name) return toast('Dê um nome ao hábito.');
-    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.');
-    if (remind && !isTime(remind)) return toast('Informe um horário válido para o lembrete.');
-    if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.');
+    if (!name) return toast('Dê um nome ao hábito.', 'info');
+    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.', 'error');
+    if (remind && !isTime(remind)) return toast('Informe um horário válido para o lembrete.', 'error');
+    if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.', 'info');
     S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
     f.reset();
     f.querySelectorAll('input[name="days"]').forEach((input) => { input.checked = true; });
     const saved = saveSlices('habits');
     render();
-    if (saved) toast('Hábito adicionado.');
+    if (saved) toast('Hábito adicionado.', 'success');
   },
   'habit-edit': (f, d) => {
     const draft = ui.dlg?.d;
@@ -5791,7 +5873,7 @@ const FORMS = {
     }
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
     if (remind && !isTime(remind)) return fieldError('Informe um horário válido para o lembrete.', '[data-dlg="remind"]');
-    if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.');
+    if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
     const tracksWater = Boolean(draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
@@ -5813,7 +5895,7 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('habits');
     render();
-    if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.');
+    if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
   },
   'tg-add': (f, d) => { const v = String(d.get('tg') || '').trim().replace(/^#/, '').toLowerCase().replace(/[^\p{L}\d_-]/gu, '').slice(0, 24); if (!v) return; const a = ui.dlg.d.tags = ui.dlg.d.tags || []; if (!a.includes(v)) a.push(v); render(); const i = $('#tgn'); if (i) i.focus(); },
   'st-add': (f, d) => { const v = String(d.get('st') || '').trim().slice(0, 100); if (!v) return; (ui.dlg.d.subs = ui.dlg.d.subs || []).push({ id: newId(), title: v, done: false }); render(); const i = $('#stn'); if (i) i.focus(); },
@@ -5845,7 +5927,7 @@ const FORMS = {
       ui.dlg = null;
       const saved = saveSlices('tasks');
       render();
-      if (saved) toast('Tarefa adicionada.');
+      if (saved) toast('Tarefa adicionada.', 'success');
       return;
     }
     const t = findTask(d.id);
@@ -5863,7 +5945,7 @@ const FORMS = {
       if (!log.orgasmCount.trim()) delete log.orgasmCount;
       else if (/^\d{1,2}$/.test(log.orgasmCount)) log.orgasmCount = Number(log.orgasmCount);
     }
-    if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.');
+    if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.', 'info');
     if (typeof log.note === 'string') {
       log.note = log.note.trim().slice(0, 500);
       if (!log.note) delete log.note;
@@ -5881,19 +5963,19 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('cycleLog');
     render();
-    if (saved) toast('Registro do dia atualizado.');
+    if (saved) toast('Registro do dia atualizado.', 'success');
   },
   'cycle-period': (f, d) => {
     const period = createCyclePeriod(String(d.get('start') || ''), String(d.get('end') || ''), today());
-    if (!period) return toast(`Informe um intervalo válido, de até ${MAX_CYCLE_PERIOD_DAYS} dias, que termine até hoje.`);
+    if (!period) return toast(`Informe um intervalo válido, de até ${MAX_CYCLE_PERIOD_DAYS} dias, que termine até hoje.`, 'error');
     const draft = ui.dlg.d;
     const index = Number.isInteger(draft.index) ? draft.index : -1;
     const current = index >= 0 ? S.cycle[index] : null;
     if (index >= 0 && (!current || current.start !== draft.originalStart || (current.end || '') !== draft.originalEnd)) {
-      return toast('Este período mudou desde que você abriu a edição. Feche e tente novamente.');
+      return toast('Este período mudou desde que você abriu a edição. Feche e tente novamente.', 'info');
     }
     if (S.cycle.some((item, itemIndex) => itemIndex !== index && cyclePeriodKey(item) === cyclePeriodKey(period))) {
-      return toast('Esse período já está registrado.');
+      return toast('Esse período já está registrado.', 'info');
     }
     if (current) S.cycle[index] = { ...current, ...period };
     else S.cycle.push(period);
@@ -5902,16 +5984,16 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('cycle');
     render();
-    if (saved) toast(current ? 'Período atualizado.' : 'Período registrado.');
+    if (saved) toast(current ? 'Período atualizado.' : 'Período registrado.', 'success');
   },
   'cycle-batch': (f, d) => {
     const days = cycleLogDays(String(d.get('start') || ''), String(d.get('end') || ''), today());
-    if (!days) return toast(`Informe um intervalo válido de até ${MAX_CYCLE_LOG_RANGE_DAYS} dias, que termine até hoje.`);
+    if (!days) return toast(`Informe um intervalo válido de até ${MAX_CYCLE_LOG_RANGE_DAYS} dias, que termine até hoje.`, 'error');
     const symptoms = ui.dlg.d.symptoms;
     const selections = Object.fromEntries(
       Object.entries(symptoms).map(([category, values]) => [category, [...new Set(values)]]),
     );
-    if (!Object.values(selections).some((values) => values.length)) return toast('Selecione pelo menos um sintoma.');
+    if (!Object.values(selections).some((values) => values.length)) return toast('Selecione pelo menos um sintoma.', 'error');
     for (const day of days) {
       S.cycleLog[day] = mergeCycleLogSymptoms(dayLog(day), selections);
     }
@@ -5920,7 +6002,7 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('cycleLog');
     render();
-    if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`);
+    if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`, 'success');
   },
 };
 const CHANGES = {
@@ -6061,7 +6143,101 @@ document.addEventListener('visibilitychange', async () => {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
   }
 });
+let dialogDragState = null;
+let taskSwipeState = null;
+let suppressTaskClickUntil = 0;
+document.addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary || event.pointerType !== 'touch' || !(event.target instanceof Element)) return;
+  const handle = event.target.closest('.dlg-handle');
+  const dialog = handle?.closest('.dlg:not(.intro-dialog)');
+  if (handle && dialog) {
+    dialogDragState = { pointerId: event.pointerId, startY: event.clientY, deltaY: 0, dialog, handle };
+    dialog.classList.add('is-dragging');
+    handle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+    return;
+  }
+  const title = event.target.closest('.task .tt');
+  const row = title?.closest('.task');
+  if (row && !row.classList.contains('done')) {
+    taskSwipeState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row };
+  }
+});
+document.addEventListener('pointermove', (event) => {
+  if (dialogDragState?.pointerId === event.pointerId) {
+    const deltaY = Math.max(0, event.clientY - dialogDragState.startY);
+    dialogDragState.deltaY = deltaY;
+    dialogDragState.dialog.style.transform = `translateY(${deltaY}px)`;
+    if (deltaY > 4) event.preventDefault();
+    return;
+  }
+  if (taskSwipeState?.pointerId !== event.pointerId) return;
+  const deltaX = event.clientX - taskSwipeState.startX;
+  const deltaY = event.clientY - taskSwipeState.startY;
+  if (Math.abs(deltaY) > 16 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetTaskSwipe(taskSwipeState);
+    taskSwipeState = null;
+    return;
+  }
+  if (Math.abs(deltaX) < 10 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+  taskSwipeState.deltaX = deltaX;
+  taskSwipeState.moved = true;
+  taskSwipeState.row.classList.add('is-swiping');
+  taskSwipeState.row.dataset.swipeDirection = deltaX < 0 ? 'complete' : 'defer';
+  taskSwipeState.row.style.setProperty('--task-swipe-x', `${Math.max(-120, Math.min(120, deltaX))}px`);
+  event.preventDefault();
+}, { passive: false });
+const resetTaskSwipe = (state) => {
+  if (!state?.row.isConnected) return;
+  state.row.classList.remove('is-swiping', 'is-swipe-committing');
+  delete state.row.dataset.swipeDirection;
+  state.row.style.removeProperty('--task-swipe-x');
+};
+document.addEventListener('pointerup', (event) => {
+  if (dialogDragState?.pointerId === event.pointerId) {
+    const { dialog, deltaY } = dialogDragState;
+    dialogDragState = null;
+    dialog.classList.remove('is-dragging');
+    if (deltaY > 96) {
+      ACTIONS['dlg-close']();
+    } else {
+      dialog.style.removeProperty('transform');
+    }
+    return;
+  }
+  if (taskSwipeState?.pointerId !== event.pointerId) return;
+  const state = taskSwipeState;
+  taskSwipeState = null;
+  if (!state.moved || Math.abs(state.deltaX) < 84) {
+    resetTaskSwipe(state);
+    return;
+  }
+  state.row.classList.remove('is-swiping');
+  state.row.classList.add('is-swipe-committing');
+  state.row.style.setProperty('--task-swipe-x', `${state.deltaX < 0 ? '-120vw' : '120vw'}`);
+  suppressTaskClickUntil = Date.now() + 500;
+  setTimeout(() => {
+    ACTIONS[state.deltaX < 0 ? 'toggle' : 'task-swipe-defer']({ dataset: { id: state.row.dataset.k } });
+  }, 170);
+});
+document.addEventListener('pointercancel', (event) => {
+  if (dialogDragState?.pointerId === event.pointerId) {
+    dialogDragState.dialog.classList.remove('is-dragging');
+    dialogDragState.dialog.style.removeProperty('transform');
+    dialogDragState = null;
+  }
+  if (taskSwipeState?.pointerId === event.pointerId) {
+    resetTaskSwipe(taskSwipeState);
+    taskSwipeState = null;
+  }
+});
 document.addEventListener('click', (e) => {
+  if (Date.now() < suppressTaskClickUntil) {
+    suppressTaskClickUntil = 0;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
   const el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
   if (ui.legacyImport.busy) return;
   const focusBeforeAction = !ui.dlg ? describeDialogOpener(el) : null;
@@ -6177,6 +6353,17 @@ document.addEventListener('input', (e) => {
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
       ui.dlg.d.waterGoalEdited = true;
     }
+    if (ui.dlg.type === 'goal' && el.dataset.dlg === 'linkedAccountId'
+      && ui.dlg.d.linkedAccountId && ui.dlg.d.linkedAccountId !== el.value) {
+      const previousAccount = accById(ui.dlg.d.linkedAccountId);
+      if (previousAccount) {
+        const previousProgress = linkedGoalProgressCents({
+          linkedAccountId: previousAccount.id,
+          savedCents: parseMoney(ui.dlg.d.saved) || 0,
+        }, S.finance.accounts, S.finance.tx);
+        ui.dlg.d.saved = moneyIn(previousProgress);
+      }
+    }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
     if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
       const bank = findBankByName(el.value, true);
@@ -6202,10 +6389,15 @@ document.addEventListener('input', (e) => {
       render();
     } else if (ui.dlg.type === 'category-new' && el.dataset.dlg === 'parent') {
       render();
-    } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
+    } else if (['sex', 'accountId', 'linkedAccountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
     }
+  }
+  if (el.id === 'home-quick-title-input') {
+    const date = parseQuickDate(el.value, today());
+    const preview = $('#home-quick-date-preview');
+    if (preview) preview.textContent = date.error || `${date.date === today() ? 'Hoje' : longDate(date.date)}${date.time ? ` · ${date.time}` : ''}`;
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
   if (el.dataset.input === 'search') { ui.filters.q = el.value; const r = $('#task-results'); if (r) r.innerHTML = taskListHtml().s; }
@@ -6355,12 +6547,12 @@ const cardDueLabel = (date) => {
 /* ---- gráficos ---- */
 function donut(items, total, label) {
   let off = 0;
-  const segs = items.map((it) => { const p = it.v / total * 100, visible = Math.max(0, p - 1.25); const s = `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${it.c}" stroke-width="6" stroke-dasharray="${visible.toFixed(2)} ${(100 - visible).toFixed(2)}" stroke-dashoffset="${(25 - off).toFixed(2)}"/>`; off += p; return s; }).join('');
+  const segs = items.map((it) => { const p = it.v / total * 100, visible = Math.max(0, p - 1.25); const s = `<circle class="donut-segment" cx="21" cy="21" r="15.9155" fill="none" stroke="${it.c}" stroke-width="6" stroke-dasharray="${visible.toFixed(2)} ${(100 - visible).toFixed(2)}" stroke-dashoffset="${(25 - off).toFixed(2)}" tabindex="0"><title>${esc(it.label || label)}: ${esc(brl(it.v))} (${Math.round(p)}%)</title></circle>`; off += p; return s; }).join('');
   return raw(`<svg class="donut" viewBox="0 0 42 42" role="img" aria-label="${esc(label)}"><circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--soft2)" stroke-width="6"/>${segs}</svg>`);
 }
 function flowChart(months) {
   const W = 320, H = 160, top = 10, bot = 24, bw = 14, n = months.length, step = W / n, max = Math.max(1, ...months.flatMap((m) => [m.i, m.o])) * 1.1, y = (v) => top + (H - top - bot) * (1 - v / max);
-  const bars = months.map((m, k) => { const x = step * k + step / 2; return `<rect class="bi" x="${x - bw - 1}" y="${y(m.i)}" width="${bw}" height="${Math.max(0, H - bot - y(m.i))}" rx="4"><title>${esc(m.l)}: receitas ${esc(brl(m.i))}</title></rect><rect class="bo" x="${x + 1}" y="${y(m.o)}" width="${bw}" height="${Math.max(0, H - bot - y(m.o))}" rx="4"><title>${esc(m.l)}: despesas ${esc(brl(m.o))}</title></rect><text x="${x}" y="${H - 7}" text-anchor="middle">${esc(m.l)}</text>`; }).join('');
+  const bars = months.map((m, k) => { const x = step * k + step / 2; return `<rect class="bi" x="${x - bw - 1}" y="${y(m.i)}" width="${bw}" height="${Math.max(0, H - bot - y(m.i))}" rx="4" tabindex="0"><title>${esc(m.l)}: receitas ${esc(brl(m.i))}</title></rect><rect class="bo" x="${x + 1}" y="${y(m.o)}" width="${bw}" height="${Math.max(0, H - bot - y(m.o))}" rx="4" tabindex="0"><title>${esc(m.l)}: despesas ${esc(brl(m.o))}</title></rect><text x="${x}" y="${H - 7}" text-anchor="middle">${esc(m.l)}</text>`; }).join('');
   return raw(`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Receitas e despesas dos últimos ${n} meses. ${esc(months.map((m) => `${m.l}: receitas ${brl(m.i)}, despesas ${brl(m.o)}`).join('; '))}">${bars}</svg>`);
 }
 
@@ -6389,7 +6581,7 @@ function finRow(t, { showDate = false } = {}) {
     ${canToggle ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}" data-action="tx-paid" data-id="${t.id}" aria-label="${paymentAction}: ${title}" title="${paymentAction}">${icon('check', 16)}</button>` : h`<span class="pk-sp"></span>`}
   </li>`;
 }
-const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><button class="mlabel" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual">${cap(ymLabel(ui.finMonth))}</button><button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
+const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><span class="mlabel" aria-live="polite">${cap(ymLabel(ui.finMonth))}</span>${ui.finMonth !== today().slice(0, 7) ? h`<button class="btn sm" type="button" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual" title="Voltar para o mês atual">Hoje</button>` : ''}<button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
 const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
 const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
@@ -6440,7 +6632,8 @@ function balanceSparkline() {
   const values = days.map((day) => netAccountBalanceOn(S.finance.accounts, S.finance.tx, day));
   const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
   const points = values.map((value, index) => `${index * (100 / (values.length - 1))},${42 - ((value - min) / range * 34)}`).join(' ');
-  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/></svg>`);
+  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${esc(brl(value))}</title></circle>`).join('');
+  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
 }
 function categoryBars(items, total) {
   return h`<ul class="category-bars">${items.slice(0, 5).map(([name, value]) => {
@@ -6452,7 +6645,13 @@ function categoryBars(items, total) {
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
   const close = summarizeMonthlyClose(F.tx, ym, accById);
-  const forecast = bal + st.inPending - st.outPending;
+  const [forecastYear, forecastMonth] = today().slice(0, 7).split('-').map(Number);
+  const forecastThrough = `${today().slice(0, 7)}-${pad(new Date(forecastYear, forecastMonth, 0).getDate())}`;
+  const forecastInvoices = F.accounts.filter(isCredit).map((card) => ({
+    dueDate: cardInfo(card).due,
+    cents: Math.max(0, -accountBalanceOn(card, F.tx, today()) - scheduledInvoicePrincipal(card.id)),
+  }));
+  const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
   const pendingOut = pend.filter((t) => t.type === 'out');
@@ -6471,7 +6670,7 @@ function finResumo() {
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
       <div class="fin-hero-main"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras feitas no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
-      <div class="fin-hero-trend">${balanceSparkline()}<p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando os lançamentos pendentes: <b>${money(forecast)}</b>` : h`Resumo de ${cap(ymLabel(ym))}`}</p></div>
+      <div class="fin-hero-trend">${balanceSparkline()}<p class="fh-s">${cur ? h`Projeção até o fim do mês, se os compromissos forem pagos. Inclui pendências em contas, transferências e faturas com vencimento neste período; parcelas programadas são contadas uma vez. Compras futuras no cartão não entram na estimativa. <b>${money(forecast)}</b>` : h`Resumo de ${cap(ymLabel(ym))}`}</p></div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês<i>.</i></h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
@@ -6615,12 +6814,23 @@ function finOrc() {
   const names = [...new Set([...catNames('out'), ...Object.keys(spent), ...Object.keys(F.budgets)])].filter((n) => n !== 'Estudos' || spent[n] || F.budgets[n]);
   const rows = names.map((n) => ({ n, sp: spent[n] || 0, lim: (F.budgets[n] || {}).cents || 0 })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
   const limited = rows.filter((r) => r.lim > 0), tl = limited.reduce((s, r) => s + r.lim, 0), ts = limited.reduce((s, r) => s + r.sp, 0);
+  const currentMonth = ym === today().slice(0, 7);
+  const [budgetYear, budgetMonth] = ym.split('-').map(Number);
+  const budgetDays = new Date(budgetYear, budgetMonth, 0).getDate();
+  const daysLeft = currentMonth ? budgetDays - Number(today().slice(8)) + 1 : 0;
+  const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
-      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p></div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
+      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => { const m = outMeta(r.n), over = r.lim && r.sp > r.lim; return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="Definir limite de ${r.n}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`; })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
-      ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; const complete = g.savedCents >= g.targetCents; return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
+      ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
+        const savedCents = linkedGoalProgressCents(g, F.accounts, F.tx);
+        const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
+        const pc = g.targetCents ? Math.min(100, Math.round(savedCents / g.targetCents * 100)) : 0;
+        const complete = savedCents >= g.targetCents;
+        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
+      })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
 }
 
 /* ---- Relatórios ---- */
@@ -6647,7 +6857,8 @@ function viewFinancas() {
   const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
   const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
   const noAcc = !S.finance.accounts.length;
-  const createAction = noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`;
+  const visibilityAction = h`<button type="button" class="ibtn finance-visibility-toggle" data-action="finance-values-toggle" aria-pressed="${String(ui.financeValuesHidden)}" aria-label="${ui.financeValuesHidden ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}" title="${ui.financeValuesHidden ? 'Mostrar valores' : 'Ocultar valores'}">${icon(ui.financeValuesHidden ? 'eyeOff' : 'eye', 18)}</button>`;
+  const createAction = h`<span class="finance-page-actions">${visibilityAction}${noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`}</span>`;
   const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
   return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
     <div class="fin-section-content">${noAcc ? h`${finSectionPicker()}${ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts}` : h`${finSectionPicker()}${panel()}`}</div>${noAcc ? '' : h`${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
@@ -6825,8 +7036,21 @@ function dlgBudget() {
 }
 function dlgGoal() {
   const d = ui.dlg.d;
+  const linkedAccountIds = new Set(S.finance.goals
+    .filter((goal) => goal.id !== d.id && goal.linkedAccountId)
+    .map((goal) => goal.linkedAccountId));
+  const linkedAccount = accById(d.linkedAccountId);
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${d.id ? 'Editar objetivo' : 'Novo objetivo'}<i>.</i></h2>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-goal" novalidate>${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-goal" novalidate>
+      ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}
+      ${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}
+      ${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00" ${d.linkedAccountId ? raw('disabled') : ''}>`)}
+      ${dlgField('Acompanhar saldo da conta (opcional)', h`<select data-dlg="linkedAccountId"><option value="">Acompanhamento manual</option>${S.finance.accounts.filter((account) => !isCredit(account)).map((account) => h`<option value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''} ${linkedAccountIds.has(account.id) ? raw('disabled') : ''}>${accountOptionLabel(account)}${linkedAccountIds.has(account.id) ? ' · já vinculada a outro objetivo' : ''}</option>`)}</select>`, 'full')}
+      <p class="fine full">${d.linkedAccountId
+        ? linkedAccount ? h`O saldo total de ${accountDisplayName(linkedAccount)} será usado como progresso e acompanhará os lançamentos dessa conta. Vincule uma conta dedicada a este objetivo.` : 'A conta vinculada não está disponível. Escolha outra conta ou volte ao acompanhamento manual.'
+        : 'No modo manual, o valor guardado é editado aqui. Ao vincular uma conta, o saldo total dela passa a representar o progresso; não há movimentação automática.'}</p>
+      ${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}
+    </form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">${d.id ? 'Salvar' : 'Criar objetivo'}</button>`);
 }
 function dlgDeposit() {
@@ -6954,8 +7178,8 @@ Object.assign(ACTIONS, {
   'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), interest: t.interestCents == null ? '' : moneyIn(t.interestCents) || '0,00', desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', groupId: t.groupId || '', recId: t.recId || '' }); },
   'tx-anticipate-open': () => {
     const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
-    if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.');
-    if (!anticipationCandidates(transaction.groupId, transaction.date).length) return toast('Não há parcelas futuras disponíveis para antecipar.');
+    if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.', 'info');
+    if (!anticipationCandidates(transaction.groupId, transaction.date).length) return toast('Não há parcelas futuras disponíveis para antecipar.', 'info');
     dlgOpen('txanticipate', { id: transaction.id, groupId: transaction.groupId, fromDate: transaction.date, date: today() });
   },
   'tx-paid': (el) => {
@@ -6972,7 +7196,7 @@ Object.assign(ACTIONS, {
     if (transaction.paid) completionFeedback(`.fr[data-k="${transaction.id}"]`);
     toast(transaction.paid
       ? (transaction.invoiceInstallment ? 'Parcela da fatura marcada como paga.' : transaction.type === 'in' ? 'Marcado como recebido.' : 'Marcado como pago.')
-      : 'Voltou para pendente.', () => {
+      : 'Voltou para pendente.', 'action', () => {
       transaction.paid = wasPaid;
       if (previousSettledDate) transaction.settledDate = previousSettledDate;
       else delete transaction.settledDate;
@@ -6983,7 +7207,7 @@ Object.assign(ACTIONS, {
   },
   'tx-del-dlg': () => { const cur = S.finance.tx.find((x) => x.id === ui.dlg.d.id); if (!cur) return dlgClose(); dlgOpen('txdel', { id: cur.id, ...(cur.groupId && S.finance.tx.filter((x) => x.groupId === cur.groupId).length > 1 ? { gid: cur.groupId } : {}) }); },
   'account-delete-open': () => {
-    if (!accountSession) return toast('Entre na conta que deseja excluir.');
+    if (!accountSession) return toast('Entre na conta que deseja excluir.', 'info');
     dlgOpen('account-delete');
   },
   'txdel-do': (el) => {
@@ -7003,20 +7227,20 @@ Object.assign(ACTIONS, {
       S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
       ui.dlg = null;
     });
-    if (entry) toast('Lançamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Lançamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'category-manager': () => dlgOpen('category-manager', {}),
   'category-new': (el) => {
     const kind = el.dataset.kind;
-    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
     dlgOpen('category-new', { kind, name: '', icon: 'tag', color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length] });
   },
   'category-edit': (el) => {
     const { kind, name, parent = '' } = el.dataset;
-    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.');
+    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.', 'info');
     const match = categoryMatch(kind, parent ? `${parent} > ${name}` : name);
     const category = match?.subcategory || match?.category;
-    if (!category) return toast('Não foi possível localizar essa categoria.');
+    if (!category) return toast('Não foi possível localizar essa categoria.', 'info');
     dlgOpen('category-new', {
       kind,
       editName: name,
@@ -7034,6 +7258,9 @@ Object.assign(ACTIONS, {
   'acct-del-confirm': () => {
     const account = accById(ui.dlg.d.id);
     if (!account) return dlgClose();
+    if (S.finance.goals.some((goal) => goal.linkedAccountId === account.id)) {
+      return toast('Desvincule esta conta dos objetivos antes de movê-la para a lixeira.', 'error');
+    }
     const transactions = S.finance.tx.filter((transaction) => (
       transaction.accountId === account.id || transaction.toAccountId === account.id
     ));
@@ -7061,7 +7288,7 @@ Object.assign(ACTIONS, {
       S.finance.recurring = S.finance.recurring.filter((item) => item.accountId !== account.id);
       ui.dlg = null;
     });
-    if (entry) toast('Conta e dados associados movidos para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Conta e dados associados movidos para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'budget-edit': (el) => { const c = el.dataset.c, b = S.finance.budgets[c]; dlgOpen('budget', { cat: c, limit: b ? moneyIn(b.cents) : '' }); },
   'budget-clear': () => {
@@ -7075,11 +7302,23 @@ Object.assign(ACTIONS, {
       delete S.finance.budgets[d.cat];
       ui.dlg = null;
     });
-    if (entry) toast('Orçamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Orçamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'budget-clear-cancel': () => { ui.dlg.d.confirmClear = false; render(); },
-  'goal-new': () => dlgOpen('goal', { name: '', target: '', saved: '', deadline: '' }),
-  'goal-edit': (el) => { const g = S.finance.goals.find((item) => item.id === el.dataset.id); if (!g) return toast('Objetivo não encontrado.'); dlgOpen('goal', { id: g.id, name: g.name, target: moneyIn(g.targetCents), saved: moneyIn(g.savedCents), deadline: g.deadline || '' }); },
+  'goal-new': () => dlgOpen('goal', { name: '', target: '', saved: '', linkedAccountId: '', deadline: '' }),
+  'goal-edit': (el) => {
+    const goal = S.finance.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return toast('Objetivo não encontrado.', 'info');
+    const savedCents = linkedGoalProgressCents(goal, S.finance.accounts, S.finance.tx);
+    dlgOpen('goal', {
+      id: goal.id,
+      name: goal.name,
+      target: moneyIn(goal.targetCents),
+      saved: moneyIn(savedCents),
+      linkedAccountId: goal.linkedAccountId || '',
+      deadline: goal.deadline || '',
+    });
+  },
   'goal-dep': (el) => dlgOpen('deposit', { id: el.dataset.id, amount: '' }),
   'goal-del': (el) => {
     const goal = S.finance.goals.find((item) => item.id === el.dataset.id);
@@ -7090,7 +7329,7 @@ Object.assign(ACTIONS, {
     const entry = moveRecordsToTrash(`Objetivo: ${goal.name}`, [
       createTrashRecord('finance.goals', goal.id, i, goal),
     ], ['finance'], () => { S.finance.goals.splice(i, 1); });
-    if (entry) toast('Objetivo movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Objetivo movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'pay-inv': (el) => {
     const card = accById(el.dataset.id);
@@ -7115,7 +7354,7 @@ Object.assign(FORMS, {
       .map((input) => input.dataset.advanceId));
     const selected = eligible.filter((transaction) => selectedIds.has(transaction.id));
     if (!isDay(d.date) || d.date > today()) return fieldError('Informe uma data válida de antecipação, até hoje.', '[data-dlg="date"]');
-    if (!selected.length || selected.length !== selectedIds.size) return toast('Selecione uma ou mais parcelas disponíveis.');
+    if (!selected.length || selected.length !== selectedIds.size) return toast('Selecione uma ou mais parcelas disponíveis.', 'error');
     const card = isCredit(accById(selected[0].accountId));
     const previous = selected.map((transaction) => ({
       transaction,
@@ -7132,7 +7371,7 @@ Object.assign(FORMS, {
     });
     ui.dlg = null;
     commit('finance');
-    toast(`${selected.length} ${plural(selected.length, 'parcela antecipada', 'parcelas antecipadas')}.`, () => {
+    toast(`${selected.length} ${plural(selected.length, 'parcela antecipada', 'parcelas antecipadas')}.`, 'action', () => {
       previous.forEach(({ transaction, paid, settledDate, anticipatedDate }) => {
         if (paid === undefined) delete transaction.paid;
         else transaction.paid = paid;
@@ -7147,22 +7386,22 @@ Object.assign(FORMS, {
   'dlg-tx': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), tr = d.kind === 'tr', acc = accById(d.accountId);
     if (!(cents > 0)) return fieldError('Informe um valor maior que zero.', '[data-dlg="amount"]');
-    if (!['out', 'in', 'tr'].includes(d.kind)) return toast('Escolha um tipo de lançamento válido.');
+    if (!['out', 'in', 'tr'].includes(d.kind)) return toast('Escolha um tipo de lançamento válido.', 'info');
     if (!tr && !resolveNew(d.kind === 'in' ? 'in' : 'out', d, 'category')) return;
-    if (!acc) return toast('Escolha uma conta.');
-    if (tr && (!d.toAccountId || d.toAccountId === d.accountId)) return toast('Escolha duas contas diferentes.');
-    if (!isDay(d.date)) return toast('Informe a data.');
-    if (tr && d.date > today()) return toast('Uma transferência futura não pode ser registrada como realizada.');
-    if (!tr && !isCredit(acc) && d.date > today() && d.paid) return toast('Para um lançamento futuro, desmarque a opção de pagamento realizado.');
+    if (!acc) return toast('Escolha uma conta.', 'info');
+    if (tr && (!d.toAccountId || d.toAccountId === d.accountId)) return toast('Escolha duas contas diferentes.', 'info');
+    if (!isDay(d.date)) return toast('Informe a data.', 'error');
+    if (tr && d.date > today()) return toast('Uma transferência futura não pode ser registrada como realizada.', 'error');
+    if (!tr && !isCredit(acc) && d.date > today() && d.paid) return toast('Para um lançamento futuro, desmarque a opção de pagamento realizado.', 'info');
     if (!tr && !isCredit(acc) && d.paid
       && (!isDay(d.settledDate) || d.settledDate > today())) {
-      return toast('Informe uma data válida de pagamento ou recebimento, até hoje.');
+      return toast('Informe uma data válida de pagamento ou recebimento, até hoje.', 'error');
     }
     if (!d.id && d.repeat === 'parcel') {
       const currentInstallment = Number(d.currentInstallment), totalInstallments = Number(d.times);
-      if (!Number.isInteger(totalInstallments) || totalInstallments < 2 || totalInstallments > 60) return toast('Informe um total entre 2 e 60 parcelas.');
-      if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.');
-      if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.');
+      if (!Number.isInteger(totalInstallments) || totalInstallments < 2 || totalInstallments > 60) return toast('Informe um total entre 2 e 60 parcelas.', 'error');
+      if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.', 'info');
+      if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.', 'info');
     }
     const totalInstallments = d.repeat === 'parcel' ? Number(d.times) : 1;
     const firstInstallment = d.repeat === 'parcel' ? Number(d.currentInstallment) : 1;
@@ -7193,11 +7432,11 @@ Object.assign(FORMS, {
       ui.finMonth = d.date.slice(0, 7);
       ui.dlg = null;
       commit('finance');
-      return toast('Lançamento atualizado.');
+      return toast('Lançamento atualizado.', 'success');
     }
     if (d.repeat === 'fixed' && !tr) {
       const r = { id: newId(), type: d.kind, accountId: d.accountId, category: base.category, desc: base.desc, cents, day: pk(d.date).getDate(), startYM: d.date.slice(0, 7), lastYM: null, firstPaid: paid };
-      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.'); return;
+      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.', 'success'); return;
     }
     const installmentsToCreate = totalInstallments - firstInstallment + 1;
     const gid = totalInstallments > 1 ? newId() : undefined;
@@ -7222,20 +7461,20 @@ Object.assign(FORMS, {
         ...(totalInstallments > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${installmentNumber}/${totalInstallments})` } : {}),
       });
     }
-    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.');
+    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.', 'success');
   },
   'dlg-account': () => {
-    const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.');
-    if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.');
+    const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.', 'info');
+    if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.', 'warning');
     const linkedAccount = d.type === 'credit' && d.linkedAccountId ? accById(d.linkedAccountId) : null;
-    if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.');
+    if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.', 'info');
     const bankName = String(d.bank || '').trim().slice(0, 40);
     const knownBank = findBankByName(bankName);
     const bank = norm(bankName) === norm('Outro / não listado') ? OTHER_BANK : knownBank ? knownBank[0] : bankName;
     const bal = d.balance.trim() ? parseMoney(d.balance) : 0, lim = d.limit && d.limit.trim() ? parseMoney(d.limit) : 0;
-    if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.');
+    if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.', 'warning');
     const cl = d.closing.trim() ? Number(d.closing) : 0, du = d.due.trim() ? Number(d.due) : 0;
-    if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.');
+    if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.', 'info');
     const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank }), type: d.type, bank, initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
     if (linkedAccount) patch.linkedAccountId = linkedAccount.id;
     if (d.id) {
@@ -7244,25 +7483,25 @@ Object.assign(FORMS, {
     } else S.finance.accounts.push({ id: newId(), ...patch });
     ui.dlg = null; commit('finance');
   },
-  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
+  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.', 'error'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
   'dlg-category': () => {
     const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
-    if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
     const transactionDialog = d.fromTransaction ? ui.categoryReturnDialog : null;
     if (d.fromTransaction && (transactionDialog?.type !== 'tx'
       || (transactionDialog.d.kind === 'in' ? 'in' : 'out') !== d.kind)) {
-      return toast('Não foi possível retornar ao lançamento. Feche esta janela e tente novamente.');
+      return toast('Não foi possível retornar ao lançamento. Feche esta janela e tente novamente.', 'info');
     }
-    if (!name) return toast('Informe o nome da categoria.');
-    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.');
+    if (!name) return toast('Informe o nome da categoria.', 'error');
+    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.', 'info');
     const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
-    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.');
+    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.', 'info');
     const existing = d.editName ? findCategory(d.kind, d.editName, parentName) : null;
-    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.');
+    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.', 'info');
     const siblings = parentEntry ? (parentEntry.subcategories || []) : listArr(d.kind);
     const duplicate = siblings.some((category) => category !== existing
       && norm(parentEntry ? categoryLeafName(category) : category.name) === norm(name));
-    if (duplicate) return toast('Já existe uma categoria com esse nome.');
+    if (duplicate) return toast('Já existe uma categoria com esse nome.', 'info');
     const financeChanges = [];
     let addedPath = '';
     if (existing) {
@@ -7278,7 +7517,7 @@ Object.assign(FORMS, {
       }
       if (paths.some(([oldValue, newValue]) => oldValue !== newValue
         && Object.hasOwn(S.finance.budgets, newValue))) {
-        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.');
+        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.', 'info');
       }
       existing.name = name;
       existing.color = d.color;
@@ -7292,37 +7531,58 @@ Object.assign(FORMS, {
       addedPath = addItem(d.kind, name, parentName, d.color, d.icon);
     }
     if (d.fromTransaction) {
-      if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.');
+      if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.', 'warning');
       transactionDialog.d.category = addedPath;
       transactionDialog.dirty = true;
       ui.categoryReturnDialog = null;
       ui.dlg = transactionDialog;
       commit('settings');
-      toast('Categoria adicionada e selecionada no lançamento.');
+      toast('Categoria adicionada e selecionada no lançamento.', 'success');
       return;
     }
     ui.dlg = createDialog('category-manager', {});
     commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
-    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.');
+    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.', 'success');
   },
   'dlg-goal': () => {
-    const d = ui.dlg.d, name = d.name.trim(), target = parseMoney(d.target), saved = d.saved.trim() ? parseMoney(d.saved) : 0;
+    const d = ui.dlg.d, name = d.name.trim(), target = parseMoney(d.target);
+    const linkedAccount = d.linkedAccountId ? accById(d.linkedAccountId) : null;
+    const saved = d.linkedAccountId ? 0 : d.saved.trim() ? parseMoney(d.saved) : 0;
     if (!name || name.length > 50) return fieldError('Informe um nome com até 50 caracteres.', '[data-dlg="name"]');
     if (!Number.isSafeInteger(target) || target <= 0) return fieldError('Informe um valor maior que zero.', '[data-dlg="target"]');
-    if (!Number.isSafeInteger(saved) || saved < 0) return fieldError('Informe um valor válido, igual ou maior que zero.', '[data-dlg="saved"]');
+    if (!d.linkedAccountId && (!Number.isSafeInteger(saved) || saved < 0)) {
+      return fieldError('Informe um valor válido, igual ou maior que zero.', '[data-dlg="saved"]');
+    }
     if (d.deadline && !isDay(d.deadline)) return fieldError('Informe um prazo válido.', '[data-dlg="deadline"]');
-    const values = { name, targetCents: target, savedCents: saved, deadline: d.deadline || '' };
+    if (d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) {
+      return fieldError('Escolha uma conta disponível, sem ser cartão de crédito.', '[data-dlg="linkedAccountId"]');
+    }
+    if (d.linkedAccountId && S.finance.goals.some((goal) => (
+      goal.id !== d.id && goal.linkedAccountId === d.linkedAccountId
+    ))) {
+      return fieldError('Esta conta já acompanha outro objetivo. Escolha outra ou desvincule-a primeiro.', '[data-dlg="linkedAccountId"]');
+    }
+    const values = {
+      name,
+      targetCents: target,
+      savedCents: linkedAccount
+        ? (d.id ? S.finance.goals.find((goal) => goal.id === d.id)?.savedCents ?? 0 : 0)
+        : saved,
+      ...(linkedAccount ? { linkedAccountId: linkedAccount.id } : {}),
+      deadline: d.deadline || '',
+    };
     if (d.id) {
       const goal = S.finance.goals.find((item) => item.id === d.id);
-      if (!goal) return toast('Objetivo não encontrado.');
+      if (!goal) return toast('Objetivo não encontrado.', 'info');
       Object.assign(goal, values);
+      if (!linkedAccount) delete goal.linkedAccountId;
     } else S.finance.goals.push({ id: newId(), ...values });
     ui.dlg = null;
     commit('finance');
   },
   'dlg-deposit': () => {
     const d = ui.dlg.d, goal = S.finance.goals.find((item) => item.id === d.id), amount = parseMoney(d.amount);
-    if (!goal) return toast('Objetivo não encontrado.');
+    if (!goal) return toast('Objetivo não encontrado.', 'info');
     if (!Number.isSafeInteger(amount) || amount === 0) return fieldError('Informe um valor diferente de zero.', '[data-dlg="amount"]');
     const total = goal.savedCents + amount;
     if (!Number.isSafeInteger(total)) return fieldError('Informe um valor menor.', '[data-dlg="amount"]');
@@ -7330,21 +7590,21 @@ Object.assign(FORMS, {
     ui.dlg = null;
     const saved = saveSlices('finance');
     render();
-    if (saved) toast(amount > 0 ? 'Valor guardado.' : 'Valor retirado.');
+    if (saved) toast(amount > 0 ? 'Valor guardado.' : 'Valor retirado.', 'info');
   },
   'dlg-payinv': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), card = accById(d.cardId), source = accById(d.from);
-    if (!Number.isSafeInteger(cents) || cents <= 0) return toast('Informe um valor maior que zero.');
-    if (!card || !isCredit(card) || !source || isCredit(source) || source.id === card.id) return toast('Escolha um cartão e uma conta de origem válidos.');
+    if (!Number.isSafeInteger(cents) || cents <= 0) return toast('Informe um valor maior que zero.', 'error');
+    if (!card || !isCredit(card) || !source || isCredit(source) || source.id === card.id) return toast('Escolha um cartão e uma conta de origem válidos.', 'info');
     const outstanding = cardInfo(card).used;
-    if (outstanding <= 0) return toast('Este cartão não tem valores em aberto.');
+    if (outstanding <= 0) return toast('Este cartão não tem valores em aberto.', 'info');
     if (d.mode === 'installments') {
       const times = Number(d.times), interestCents = parseMoney(d.interest);
       const available = Math.max(0, outstanding - scheduledInvoicePrincipal(card.id));
-      if (!Number.isInteger(times) || times < 2 || times > 60) return toast('Informe de 2 a 60 parcelas.');
-      if (!isSafeInteger(interestCents) || interestCents < 0) return toast('Informe um valor válido de juros por parcela.');
-      if (!isDay(d.firstDueDate) || d.firstDueDate < today()) return toast('Informe o vencimento de hoje ou de uma data futura.');
-      if (cents > available) return toast(h`O valor a parcelar não pode ultrapassar ${money(available)} (saldo em aberto descontadas outras parcelas programadas).`);
+      if (!Number.isInteger(times) || times < 2 || times > 60) return toast('Informe de 2 a 60 parcelas.', 'error');
+      if (!isSafeInteger(interestCents) || interestCents < 0) return toast('Informe um valor válido de juros por parcela.', 'error');
+      if (!isDay(d.firstDueDate) || d.firstDueDate < today()) return toast('Informe o vencimento de hoje ou de uma data futura.', 'error');
+      if (cents > available) return toast(h`O valor a parcelar não pode ultrapassar ${money(available)} (saldo em aberto descontadas outras parcelas programadas).`, 'info');
       const groupId = newId(), baseCents = Math.floor(cents / times), remainder = cents % times;
       const plan = Array.from({ length: times }, (_, index) => {
         const principalPart = baseCents + (index === 0 ? remainder : 0);
@@ -7367,19 +7627,19 @@ Object.assign(FORMS, {
         };
       });
       if (plan.some((transaction) => !transaction || !isDay(transaction.date))) {
-        return toast('Não foi possível gerar as datas ou os valores das parcelas. Revise os dados.');
+        return toast('Não foi possível gerar as datas ou os valores das parcelas. Revise os dados.', 'info');
       }
       S.finance.tx.push(...plan);
       ui.finMonth = plan[0].date.slice(0, 7);
       ui.dlg = null;
       commit('finance');
       const total = plan.reduce((sum, transaction) => sum + transaction.cents, 0);
-      return toast(`${times} parcelas programadas, totalizando ${money(total)}. O saldo da conta não foi alterado.`);
+      return toast(`${times} parcelas programadas, totalizando ${money(total)}. O saldo da conta não foi alterado.`, 'info');
     }
-    if (d.mode !== 'single') return toast('Escolha uma forma de pagamento válida.');
-    if (cents > outstanding) return toast(h`O pagamento não pode ultrapassar o valor em aberto de ${money(outstanding)}.`);
+    if (d.mode !== 'single') return toast('Escolha uma forma de pagamento válida.', 'info');
+    if (cents > outstanding) return toast(h`O pagamento não pode ultrapassar o valor em aberto de ${money(outstanding)}.`, 'info');
     S.finance.tx.push({ id: newId(), type: 'tr', accountId: source.id, toAccountId: card.id, cents, category: 'Transferência', desc: 'Pagamento da fatura', date: today(), paid: true, createdAt: Date.now() });
-    ui.dlg = null; commit('finance'); toast('Pagamento registrado.');
+    ui.dlg = null; commit('finance'); toast('Pagamento registrado.', 'success');
   },
 });
 Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); } });
@@ -7390,9 +7650,9 @@ async function finCsv() {
   const rows = filteredTx(), head = ['Data', 'Data de pagamento/recebimento', 'Data da antecipação', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Juros já incluídos no valor', 'Situação'];
   const lines = rows.map((t) => [t.date, t.settledDate || '', t.anticipatedDate || '', { in: 'Receita', out: 'Despesa', tr: 'Transferência' }[t.type], t.desc || '', t.category || '', accName(t.accountId), (t.type === 'out' ? -t.cents : t.cents) / 100, t.interestCents == null ? '' : t.interestCents / 100, isPaid(t) ? 'Pago' : 'Pendente'].map(csvCell).join(';'));
   const csv = '\uFEFF' + [head.join(';'), ...lines].join('\r\n'), name = `aurora-lancamentos-${ui.finMonth}.csv`;
-  if (!rows.length) return toast('Não há lançamentos para exportar neste filtro.');
+  if (!rows.length) return toast('Não há lançamentos para exportar neste filtro.', 'info');
   downloadFile(name, csv, 'text/csv;charset=utf-8');
-  toast('Arquivo baixado.');
+  toast('Arquivo baixado.', 'success');
 }
 /* ========== Finanças 2: fixas automáticas, importar extrato, calendário ========== */
 const recList = () => S.finance.recurring || (S.finance.recurring = []);
@@ -7492,21 +7752,32 @@ function impRecalc(d, resetCats) {
   d.rows.forEach((r) => {
     const amt = d.invert ? -r.cents : r.cents; r.kind = amt > 0 ? 'in' : 'out'; r.abs = Math.abs(amt);
     if (resetCats || !catNames(r.kind).includes(r.cat)) r.cat = guessCategory(r.desc, r.kind);
-    r.dup = S.finance.tx.some((t) => t.accountId === d.accountId && t.date === r.date && t.cents === r.abs && t.type === r.kind);
+    const status = statementDuplicateStatus({
+      accountId: d.accountId,
+      date: r.date,
+      cents: r.abs,
+      type: r.kind,
+      desc: r.desc,
+    }, S.finance.tx);
+    r.dup = status.duplicate;
+    r.possibleDup = status.possible;
     r.on = !r.dup;
   });
 }
 function dlgImport2() {
-  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length, dups = d.rows.filter((r) => r.dup).length;
+  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length;
+  const dups = d.rows.filter((r) => r.dup).length;
+  const possibleDups = d.rows.filter((r) => r.possibleDup).length;
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
-    <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} parecem já existir (desmarcados)` : ''}. Confira as categorias antes de importar.</p>
+    <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} têm descrição correspondente e foram desmarcados como prováveis duplicatas para conferência` : ''}${possibleDups ? `, ${possibleDups} têm data, valor e tipo iguais a registros existentes, mas descrições diferentes; permanecem marcados para sua revisão` : ''}. Confira antes de importar.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
     <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
       <label class="row full form-choice-row"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
-    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · possível duplicado' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
+    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · provável duplicata (desmarcada)' : r.possibleDup ? ' · confira possível semelhança' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
       <select class="impcat" data-dlg="rows.${i}.cat" aria-label="Categoria de ${r.desc}">${catNames(r.kind).map((c) => h`<option class="user-value" ${c === r.cat ? raw('selected') : ''}>${c}</option>`)}</select></li>`)}</ul>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="imp-apply" ${n ? '' : raw('disabled')}>Importar ${n ? '(' + n + ')' : ''}</button>`);
 }
+let statementDuplicateStatus;
 Object.assign(DLG, { recurlist: dlgRecurList, recur: dlgRecur, impfin: dlgImport2 });
 
 Object.assign(ACTIONS, {
@@ -7544,32 +7815,32 @@ Object.assign(ACTIONS, {
       S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
       ui.dlg = null;
     });
-    if (entry) toast('Fixa movida para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Fixa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'imp-apply': () => { const d = ui.dlg.d, ids = []; d.rows.filter((r) => r.on).forEach((r, i) => { const id = newId(); ids.push(id); const account = accById(d.accountId), paid = isCredit(account) || r.date <= today(); S.finance.tx.push({ id, type: r.kind, accountId: d.accountId, category: r.cat, desc: r.desc, cents: r.abs, date: r.date, ...(paid && account && !isCredit(account) ? { settledDate: r.date } : {}), paid, createdAt: Date.now() + i }); });
-    const mo = d.rows.filter((r) => r.on).map((r) => r.date).sort().pop(); if (mo) ui.finMonth = mo.slice(0, 7); ui.dlg = null; commit('finance'); toast(`${ids.length} ${plural(ids.length, 'lançamento importado', 'lançamentos importados')}${d.truncated ? '. O restante do arquivo não foi incluído; importe-o em partes.' : '.'}`, () => { S.finance.tx = S.finance.tx.filter((t) => !ids.includes(t.id)); commit('finance'); }); },
+    const mo = d.rows.filter((r) => r.on).map((r) => r.date).sort().pop(); if (mo) ui.finMonth = mo.slice(0, 7); ui.dlg = null; commit('finance'); toast(`${ids.length} ${plural(ids.length, 'lançamento importado', 'lançamentos importados')}${d.truncated ? '. O restante do arquivo não foi incluído; importe-o em partes.' : '.'}`, 'action', () => { S.finance.tx = S.finance.tx.filter((t) => !ids.includes(t.id)); commit('finance'); }); },
 });
 Object.assign(FORMS, { 'dlg-recur': () => {
   const d = ui.dlg.d, r = recById(d.id), cents = parseMoney(d.amount), day = Math.round(num(d.day)); if (!r) return dlgClose();
-  if (!(cents > 0)) return toast('Informe um valor maior que zero.'); if (!(day >= 1 && day <= 31)) return toast('O dia deve ser de 1 a 31.');
+  if (!(cents > 0)) return toast('Informe um valor maior que zero.', 'error'); if (!(day >= 1 && day <= 31)) return toast('O dia deve ser de 1 a 31.', 'error');
   Object.assign(r, { desc: d.desc.trim().slice(0, 80), cents, day, category: d.category, accountId: d.accountId, paused: !!d.paused });
   if (d.future) S.finance.tx.forEach((t) => { if (t.recId === r.id && !isPaid(t) && t.date >= today()) { const dim = new Date(Number(t.date.slice(0, 4)), Number(t.date.slice(5, 7)), 0).getDate(); Object.assign(t, { desc: r.desc, cents, category: r.category, accountId: r.accountId, date: `${t.date.slice(0, 7)}-${pad(Math.min(day, dim))}` }); } });
-  ui.dlg = null; genRecurring(); commit('finance'); toast('Fixa atualizada.'); } });
+  ui.dlg = null; genRecurring(); commit('finance'); toast('Fixa atualizada.', 'success'); } });
 Object.assign(CHANGES, { 'fin-import': async (el) => {
   const f = el.files && el.files[0]; el.value = ''; if (!f) return;
-  if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).');
-  if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.');
-  let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.'); }
+  if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).', 'error');
+  if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.', 'info');
+  let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.', 'error'); }
   let parseStatement;
   try {
-    ({ parseStatement } = await import('./features/finance/statement.js'));
+    ({ parseStatement, statementDuplicateStatus } = await import('./features/finance/statement.js'));
   } catch (error) {
     console.error('Aurora: não foi possível carregar a leitura de extratos.', error);
-    toast('Não foi possível preparar a leitura do extrato. Tente novamente.');
+    toast('Não foi possível preparar a leitura do extrato. Tente novamente.', 'info');
     return;
   }
   const parsed = parseStatement(text, f.name);
-  if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.');
+  if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.', 'error');
   const acc = S.finance.accounts.find((a) => !isCredit(a)) || S.finance.accounts[0], d = { file: f.name.slice(0, 40), accountId: acc.id, invert: false, truncated: parsed.truncated, rows: parsed.transactions.map((r) => ({ ...r, on: true })) };
   impRecalc(d, true); dlgOpen('impfin', d); } });
 
@@ -7627,7 +7898,14 @@ function renderAccountLoading(root) {
   message.className = 'account-loading-message';
   message.textContent = 'Preparando seu espaço…';
 
-  content.append(brand, indicator, message);
+  const skeleton = document.createElement('div');
+  skeleton.className = 'account-loading-skeleton';
+  skeleton.setAttribute('aria-hidden', 'true');
+  skeleton.innerHTML = '<span class="loading-skeleton-heading"></span><ul>'
+    + Array.from({ length: 3 }, () => '<li class="loading-skeleton-row"><span class="loading-skeleton-check"></span><span class="loading-skeleton-lines"><i></i><i></i></span></li>').join('')
+    + '</ul>';
+
+  content.append(brand, indicator, message, skeleton);
   page.append(content);
   root.replaceChildren(page);
 }
@@ -7689,7 +7967,7 @@ function showAccountDataLoadError(root, error, user) {
 }
 
 function onPushNotification(event) {
-  if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
+  if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.', 'info');
 }
 
 async function continueAuthenticatedAurora(root, user) {
@@ -7705,7 +7983,7 @@ async function continueAuthenticatedAurora(root, user) {
   }
 
   purgeExpiredTrash();
-  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.');
+  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.', 'error');
   const recurringReconciled = reconcileRecurringTransactions();
   const recurringGenerated = genRecurring();
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
@@ -7967,7 +8245,7 @@ document.addEventListener('click', async (event) => {
   if (!button || !accountSession) return;
   event.preventDefault();
   if (ui.legacyImport.busy) {
-    toast('A importação está em andamento. Aguarde a confirmação antes de sair.');
+    toast('A importação está em andamento. Aguarde a confirmação antes de sair.', 'warning');
     return;
   }
   button.disabled = true;
@@ -7988,7 +8266,7 @@ document.addEventListener('click', async (event) => {
   const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
   if (error) {
     intentionalSignOut = false;
-    toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
+    toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.', 'info');
     return;
   }
   Persist.wipe();
@@ -8000,7 +8278,7 @@ document.addEventListener('click', async (event) => {
 window.addEventListener('offline', () => render());
 window.addEventListener('online', () => {
   render();
-  if (Persist.pendingSnapshot) toast('A conexão voltou. As alterações pendentes continuam apenas nesta página; toque em “Tentar novamente” para gravá-las.');
+  if (Persist.pendingSnapshot) toast('A conexão voltou. As alterações pendentes continuam apenas nesta página; toque em “Tentar novamente” para gravá-las.', 'warning');
 });
 window.addEventListener('beforeunload', (event) => {
   if (!ui.legacyImport.busy && !syncState.pending.size && !syncState.failed.size) return;
