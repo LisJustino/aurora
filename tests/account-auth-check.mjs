@@ -14,7 +14,9 @@ import {
   isAccountDeletionConfirmed,
   isExistingAccountSignup,
   isPasswordRecoveryCallback,
-  LEGAL_DOCUMENT_VERSION,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_POLICY_VERSION,
+  CYCLE_DATA_CONSENT_VERSION,
   meetsPasswordRequirements,
   passwordRecoveryErrorMessage,
   getEmailDomainSuggestions,
@@ -202,13 +204,15 @@ assert.equal(
 
 assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')), {
   terms_accepted_at: '2026-10-29T12:00:00.000Z',
-  terms_version: LEGAL_DOCUMENT_VERSION,
-  privacy_policy_version: LEGAL_DOCUMENT_VERSION,
+  terms_version: TERMS_DOCUMENT_VERSION,
+  privacy_policy_version: PRIVACY_POLICY_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.9');
+assert.equal(TERMS_DOCUMENT_VERSION, '1.9');
+assert.equal(PRIVACY_POLICY_VERSION, '2.0');
+assert.equal(CYCLE_DATA_CONSENT_VERSION, '2.0');
 assert.deepEqual(createCycleDataConsentMetadata(new Date('2026-11-08T12:00:00.000Z')), {
   cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-  cycle_data_consent_version: '1.9',
+  cycle_data_consent_version: CYCLE_DATA_CONSENT_VERSION,
   cycle_data_consent_revoked_at: null,
 });
 assert.deepEqual(createCycleDataConsentRevocationMetadata(new Date('2026-11-08T13:00:00.000Z')), {
@@ -222,7 +226,7 @@ const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
 assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.9">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.9">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.0">/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);
@@ -238,10 +242,17 @@ assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-ma
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.9',
-    privacy_policy_version: '1.9',
+    privacy_policy_version: '2.0',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
+    terms_version: '1.9',
+    privacy_policy_version: '1.9',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), false);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.6',
@@ -267,10 +278,17 @@ assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-    cycle_data_consent_version: '1.9',
+    cycle_data_consent_version: '2.0',
     cycle_data_consent_revoked_at: null,
   },
 }), true);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '1.9',
+    cycle_data_consent_revoked_at: null,
+  },
+}), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
@@ -281,7 +299,7 @@ assert.equal(hasCurrentCycleDataConsent({
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-    cycle_data_consent_version: '1.9',
+    cycle_data_consent_version: '2.0',
     cycle_data_consent_revoked_at: '2026-11-08T13:00:00.000Z',
   },
 }), false);

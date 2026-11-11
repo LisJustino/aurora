@@ -3,6 +3,9 @@
 import { PALETTES } from '../src/js/features/appearance/palettes.js';
 
 const probe = document.getElementById('probe');
+probe.classList.add('main');
+probe.dataset.route = 'contrast-check';
+probe.style.display = 'none';
 const root = document.documentElement;
 // O navegador pode devolver color(srgb …) para color-mix; o canvas normaliza tudo para RGBA de 8 bits.
 const canvas = document.createElement('canvas');
@@ -37,6 +40,13 @@ const PAIRS = [
   ['--on-hero-home', '--hero-home', 4.5, 'texto sobre saudação'],
   ['--muted', '--hero-home', 4.5, 'texto secundário sobre saudação'],
   ['--accent', '--hero-home', 4.5, 'destaque sobre saudação'],
+  ['--ink', '--brand-surface', 4.5, 'texto sobre saudação colorida'],
+  ['--muted', '--brand-surface', 4.5, 'texto secundário sobre saudação colorida'],
+  ['--accent', '--brand-surface', 4.5, 'destaque sobre saudação colorida'],
+  ['--ink', '--brand-surface-strong', 4.5, 'texto sobre chamada pública'],
+  ['--muted', '--brand-surface-strong', 4.5, 'texto secundário sobre chamada pública'],
+  ['--accent', '--area-heading-surface', 4.5, 'destaque sobre cabeçalho de área'],
+  ['--muted', '--area-heading-surface', 4.5, 'texto secundário sobre cabeçalho de área'],
   ['--accent', '--surface', 4.5, 'destaque sobre cartões'],
   ['--ok', '--ok-soft', 4.5, 'selo de sucesso'],
   ['--warn', '--warn-soft', 4.5, 'selo de aviso'],

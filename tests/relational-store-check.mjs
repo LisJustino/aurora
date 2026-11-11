@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { RelationalAccountStore } from '../src/js/data/relational-account-store.js';
+import {
+  isValidCycleSexualLog,
+  isValidCycleSocialLog,
+  isValidCycleTrackingLog,
+} from '../src/js/features/cycle/log.js';
 
 for (const migrationName of [
   '20261028190000_relational_persistence.sql',
@@ -91,6 +96,48 @@ assert.match(cycleIntimacyMigration, /add column if not exists masturbation_acti
 assert.match(cycleIntimacyMigration, /add column if not exists orgasm_count integer/i);
 assert.match(cycleIntimacyMigration, /if not exists \([\s\S]*cycle_days_orgasm_count_check/i);
 assert.match(cycleIntimacyMigration, /orgasm_count is null or orgasm_count between 0 and 99/i);
+const cycleIntimacyOptionsMigration = await readFile(
+  new URL('../supabase/migrations/20261111000000_cycle_intimacy_options.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists sex_toys_used boolean/i);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists libido_level text/i);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists orgasm_occurred boolean/i);
+assert.match(cycleIntimacyOptionsMigration, /libido_level is null or libido_level in \('high', 'low'\)/i);
+assert.doesNotMatch(cycleIntimacyOptionsMigration, /update\s+public\.cycle_days/i);
+assert.equal(isValidCycleSexualLog({ sexualActivity: false }), true);
+assert.equal(isValidCycleSexualLog({ libido: 'high', orgasmOccurred: false, sexToysUsed: true }), true);
+assert.equal(isValidCycleSexualLog({ libido: 'medium' }), false);
+assert.equal(isValidCycleSexualLog({ orgasmOccurred: 'no' }), false);
+const cycleSocialMigration = await readFile(
+  new URL('../supabase/migrations/20261111010000_cycle_social_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleSocialMigration, /add column if not exists social text\[\] not null default '\{\}'::text\[\]/i);
+assert.match(cycleSocialMigration, /cycle_days_social_options_check/i);
+assert.equal(isValidCycleSocialLog({ social: ['interaction', 'interaction-helped'] }), true);
+assert.equal(isValidCycleSocialLog({ social: ['not-an-option'] }), false);
+assert.equal(isValidCycleSocialLog({ social: ['interaction', 'interaction'] }), false);
+assert.equal(isValidCycleTrackingLog({
+  weightKg: 65.5,
+  ovulationTestResult: 'positive',
+  pregnancyTestResult: 'undisclosed',
+  medicationTaken: false,
+}), true);
+assert.equal(isValidCycleTrackingLog({ weightKg: 401 }), false);
+assert.equal(isValidCycleTrackingLog({ weightKg: 65.55 }), false);
+assert.equal(isValidCycleTrackingLog({ ovulationTestResult: 'maybe' }), false);
+assert.equal(isValidCycleTrackingLog({ medicationTaken: 'yes' }), false);
+const cycleDailyTrackingMigration = await readFile(
+  new URL('../supabase/migrations/20261111020000_cycle_daily_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleDailyTrackingMigration, /add column if not exists weight_kg numeric\(5, 2\)/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists ovulation_test_result text/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists pregnancy_test_result text/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists medication_taken boolean/i);
+assert.match(cycleDailyTrackingMigration, /weight_kg is null or weight_kg between 20 and 400/i);
+assert.doesNotMatch(cycleDailyTrackingMigration, /update\s+public\.cycle_days/i);
 
 const trashCollectionMigration = await readFile(
   new URL('../supabase/migrations/20261029040000_trash_cycle_collection.sql', import.meta.url),
@@ -134,9 +181,10 @@ assert.match(rlsIsolationTest, /User A read User B vault key/i);
 assert.match(rlsIsolationTest, /User A read User B legacy data/i);
 assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
 assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
-assert.match(rlsIsolationTest, /masturbation_activity, orgasm_count/i);
-assert.match(rlsIsolationTest, /'2026-03-01', true, true, 2/i);
-assert.match(rlsIsolationTest, /'2026-03-02', true, true, 100/i);
+assert.match(rlsIsolationTest, /masturbation_activity, sex_toys_used,[\s\S]*libido_level, orgasm_occurred, orgasm_count/i);
+assert.match(rlsIsolationTest, /'2026-03-01', array\['concentration', 'memory'\], array\['interaction', 'interaction-helped'\],[\s\S]*true, true, true, 'high', true, 2/i);
+assert.match(rlsIsolationTest, /The social options constraint accepted an unknown value/i);
+assert.match(rlsIsolationTest, /'2026-03-02', true, true, true, 'high', true, 100/i);
 assert.match(rlsIsolationTest, /The orgasm count constraint accepted 100/i);
 assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
 assert.match(rlsIsolationTest, /expected_versions/i);
@@ -261,7 +309,21 @@ const state = {
       sexualActivity: true,
       contraceptionMethods: ['condom'],
       masturbationActivity: true,
+      sexToysUsed: true,
+      libido: 'high',
+      orgasmOccurred: true,
       orgasmCount: 2,
+      mood: ['concentration', 'memory'],
+      social: ['interaction', 'interaction-helped'],
+      weightKg: 65.5,
+      ovulationTestResult: 'positive',
+      pregnancyTestResult: 'negative',
+      medicationTaken: true,
+    },
+    '2026-10-29': {
+      sexualActivity: false,
+      libido: 'low',
+      orgasmOccurred: false,
     },
   },
   weight: [],
@@ -301,7 +363,20 @@ assert.equal(cycleDayRow.log_date, '2026-10-28');
 assert.equal(cycleDayRow.sexual_activity, true);
 assert.deepEqual(cycleDayRow.contraception_methods, ['condom']);
 assert.equal(cycleDayRow.masturbation_activity, true);
+assert.equal(cycleDayRow.sex_toys_used, true);
+assert.equal(cycleDayRow.libido_level, 'high');
+assert.equal(cycleDayRow.orgasm_occurred, true);
 assert.equal(cycleDayRow.orgasm_count, 2);
+assert.deepEqual(cycleDayRow.mood, ['concentration', 'memory']);
+assert.deepEqual(cycleDayRow.social, ['interaction', 'interaction-helped']);
+assert.equal(cycleDayRow.weight_kg, 65.5);
+assert.equal(cycleDayRow.ovulation_test_result, 'positive');
+assert.equal(cycleDayRow.pregnancy_test_result, 'negative');
+assert.equal(cycleDayRow.medication_taken, true);
+const explicitNoSexRow = changeByTable.get('cycle_days').find((row) => row.log_date === '2026-10-29');
+assert.equal(explicitNoSexRow.sexual_activity, false);
+assert.equal(explicitNoSexRow.libido_level, 'low');
+assert.equal(explicitNoSexRow.orgasm_occurred, false);
 assert.equal(changeByTable.get('water_logs')[0].amount_ml, 250);
 assert.equal(changeByTable.get('water_logs')[0].recorded_at, '2026-10-29T12:00:00.000Z');
 const checkinRow = changeByTable.get('daily_checkins')[0];
@@ -450,10 +525,25 @@ assert.equal(loadedState.finance.tx[1].interestCents, undefined);
 assert.equal(loadedState.finance.tx[1].anticipatedDate, undefined);
 assert.equal(loadedState.finance.tx[1].invoiceInstallment, undefined);
 assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
+  mood: ['concentration', 'memory'],
+  social: ['interaction', 'interaction-helped'],
+  weightKg: 65.5,
+  ovulationTestResult: 'positive',
+  pregnancyTestResult: 'negative',
+  medicationTaken: true,
   sexualActivity: true,
   contraceptionMethods: ['condom'],
   masturbationActivity: true,
+  sexToysUsed: true,
+  libido: 'high',
+  orgasmOccurred: true,
   orgasmCount: 2,
+  sample: undefined,
+});
+assert.deepEqual(loadedState.cycleLog['2026-10-29'], {
+  sexualActivity: false,
+  libido: 'low',
+  orgasmOccurred: false,
   sample: undefined,
 });
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);

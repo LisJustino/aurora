@@ -60,7 +60,7 @@ export function renderHabitsView(dependencies) {
   const todaySummary = eligibleToday
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
-  const ideasOpen = ui.openDetails.ideas ?? S.habits.length === 0 ? raw('open') : '';
+  const ideasOpen = ui.openDetails.ideas ? raw('open') : '';
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
     .map((category) => ({
       ...category,
@@ -87,7 +87,7 @@ export function renderHabitsView(dependencies) {
       : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
     'reminder-note': hasReminders
       ? h`<div class="habit-reminder-note">
-        <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
+        <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${icon('bell', 16)}${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
       </div>`.s
       : '',
