@@ -196,6 +196,10 @@ function closeMenu(control = activeControl) {
   }
 }
 
+function menuPortalRoot(control) {
+  return control.trigger.closest('dialog[open]') || control.document.body;
+}
+
 function repositionActiveMenu() {
   if (!activeControl) return;
   const rect = activeControl.trigger.getBoundingClientRect();
@@ -215,7 +219,7 @@ function openMenu(control, initial = 'selected') {
   control.menu = buildMenu(control);
   control.trigger.setAttribute('aria-expanded', 'true');
   control.trigger.setAttribute('aria-controls', control.menuId);
-  control.document.body.append(control.menu);
+  menuPortalRoot(control).append(control.menu);
 
   let index = -1;
   if (initial === 'first') index = enabledOptionFrom(control, 0, 1);
@@ -261,7 +265,7 @@ function syncControl(control) {
   if (activeControl === control) {
     control.menu?.remove();
     control.menu = buildMenu(control);
-    control.document.body.append(control.menu);
+    menuPortalRoot(control).append(control.menu);
     control.trigger.setAttribute('aria-controls', control.menuId);
     const activeIndex = disabledOption(select.options[control.activeIndex])
       ? -1

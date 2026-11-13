@@ -74,7 +74,7 @@
   border-color: transparent;
   background: transparent;
   color: var(--accent);
-  font-weight: 750;
+  font-weight: var(--weight-bold);
 }
 .btn.ghost:hover { background: var(--soft); }
 
@@ -138,13 +138,13 @@
   margin: 0;
   align-self: flex-start;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-group);
   background: var(--soft);
   color: var(--ink);
 }
 .ibtn.dlg-close::after { content: ""; position: absolute; inset: -2px; }
 .ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
-.ibtn.dlg-close:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.ibtn.dlg-close:focus-visible { outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }

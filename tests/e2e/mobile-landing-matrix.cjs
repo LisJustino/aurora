@@ -54,12 +54,9 @@ async function checkLanding(page, profile, viewportLabel) {
       demoNote: rect('.public-hero .public-price-note'),
       demoNoteText: document.querySelector('.public-hero .public-price-note')?.textContent || '',
       previewTasks: Boolean(document.querySelector('.public-hero .product-preview .preview-task-row')),
-      makerFollowsFeatures: [...document.querySelector('.public-main').children]
-        .findIndex((element) => element.classList.contains('public-maker'))
-        > [...document.querySelector('.public-main').children]
-          .findIndex((element) => element.classList.contains('public-features')),
-      heroProofOmitsCycle: !document.querySelector('.public-hero-support .public-proof')?.textContent
-        .toLowerCase().includes('ciclo'),
+      makerAfterHero: [...document.querySelector('.public-main').children][1]
+        ?.classList.contains('public-maker'),
+      heroProofRemoved: !document.querySelector('.public-hero-support'),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
         return { width: bounds.width, height: bounds.height };
@@ -83,10 +80,11 @@ async function checkLanding(page, profile, viewportLabel) {
   check(metrics.title?.visible && metrics.title.width > 0 && metrics.title.height > 0,
     profile, `título principal visível (${viewportLabel})`);
   check(metrics.demoNote?.visible
-    && /dados fictícios, sem cadastro/i.test(metrics.demoNoteText),
-  profile, `demo informa que não exige cadastro (${viewportLabel})`);
-  check(metrics.makerFollowsFeatures, profile, `transparência sobre a autoria vem após as áreas (${viewportLabel})`);
-  check(metrics.heroProofOmitsCycle, profile, `Ciclo permanece apresentado junto às áreas e ao consentimento (${viewportLabel})`);
+    && /grátis e sem cadastro/i.test(metrics.demoNoteText)
+    && /dados fictícios/i.test(metrics.demoNoteText),
+  profile, `demonstração grátis e sem cadastro fica clara (${viewportLabel})`);
+  check(metrics.makerAfterHero, profile, `autoria aparece logo depois do hero (${viewportLabel})`);
+  check(metrics.heroProofRemoved, profile, `selos repetidos não aparecem no hero (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
     profile, `hero cabe na largura disponível (${viewportLabel})`);
   check(metrics.targets.length >= 4
@@ -185,7 +183,7 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await checkLanding(page, profile.name, '520px');
       await page.setViewportSize(devices[profile.name].viewport);
 
-      await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+      await page.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
       await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
       check(await page.locator('.demo-nav-link').count() === 5,
         profile.name, 'demonstração expõe navegação sem o timer removido');

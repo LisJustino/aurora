@@ -36,6 +36,11 @@ for (const page of ['index.html', 'privacy.html', 'terms.html']) {
   assert.ok(description && description.length >= 50 && description.length <= 160, `${page}: description ausente ou fora de 50–160 caracteres.`);
 }
 
+for (const page of ['pages/agua.html', 'pages/ajustes.html', 'pages/ciclo.html', 'pages/financas.html', 'pages/habitos.html', 'pages/inicio.html', 'pages/perfil.html', 'pages/planejar.html']) {
+  const html = await readFile(resolve(dist, page), 'utf8');
+  assert.equal(meta(html, 'name', 'robots'), 'noindex', `${page}: rota protegida deve usar noindex.`);
+}
+
 const home = await readFile(resolve(dist, 'index.html'), 'utf8');
 assert.ok(home.includes('data-prerendered'), 'index.html: landing não foi pré-renderizada.');
 assert.match(home, /<link rel="canonical" href="https:\/\/aurora-rotinas\.com\.br\/">/);
@@ -53,6 +58,15 @@ assert.equal(meta(home, 'property', 'og:image:height'), '630');
 const jsonLd = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => JSON.parse(m[1]));
 const types = jsonLd.map((item) => item['@type']);
 assert.ok(types.includes('SoftwareApplication') && types.includes('FAQPage'), 'JSON-LD sem SoftwareApplication/FAQPage.');
+const landingTitle = 'aurora. — tarefas, hábitos, foco, ciclo e finanças';
+assert.equal(home.match(/<title>([^<]+)<\/title>/)?.[1], landingTitle);
+assert.match(meta(home, 'name', 'description') || '', /tarefas, hábitos, foco, ciclo e finanças/i);
+const softwareApplication = jsonLd.find((item) => item['@type'] === 'SoftwareApplication');
+assert.match(softwareApplication?.description || '', /tarefas, hábitos, foco, ciclo e finanças/i);
+const landingFaq = jsonLd.find((item) => item['@type'] === 'FAQPage');
+assert.equal(landingFaq?.mainEntity?.length, 5, 'FAQ estruturado deve conter apenas as perguntas essenciais.');
+assert.ok(landingFaq.mainEntity.every((question) => home.includes(question.name)),
+  'FAQ estruturado deve corresponder às perguntas da landing pré-renderizada.');
 
 const manifest = JSON.parse(await readFile(resolve(dist, 'manifest.webmanifest'), 'utf8'));
 const tokens = await readFile(new URL('../src/css/design-system/tokens.css', import.meta.url), 'utf8');

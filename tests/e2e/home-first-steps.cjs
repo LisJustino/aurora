@@ -18,6 +18,7 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#inicio`);
+  await page.locator('.home-extras > summary').click();
   const card = page.locator('.home-first-steps');
   await card.waitFor({ state: 'visible' });
   check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem recolhidos no Início');
@@ -33,7 +34,7 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 1366, height: 768 });
   const desktopLayout = await page.evaluate(() => {
     const hero = document.querySelector('.home-head').getBoundingClientRect();
-    const guide = document.querySelector('.home-head-side .area-guide-button');
+    const guide = document.querySelector('.home-head .area-guide-button');
     const steps = document.querySelector('.home-first-steps');
     const guideStyle = getComputedStyle(guide);
     const ghostButton = document.createElement('button');
@@ -59,7 +60,7 @@ const check = (passed, name, detail = '') => {
       guideInHeader: Boolean(guide),
       guideAlignedRight,
       guideMatchesGhostStyle,
-      stepsColumn: getComputedStyle(steps).gridColumn,
+      stepsColumn: getComputedStyle(document.querySelector('.home-extras')).gridColumn,
       stepsWidth: steps.getBoundingClientRect().width,
       actionColumns: getComputedStyle(steps.querySelector('.home-first-steps-list')).gridTemplateColumns.split(' ').length,
     };
@@ -81,10 +82,12 @@ const check = (passed, name, detail = '') => {
     }), `atalho de ${route} cabe na largura móvel`);
   }
   await page.goto(`${BASE}/?preview#inicio`);
+  await page.locator('.home-extras > summary').click();
   await card.waitFor({ state: 'visible' });
 
   check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
-  await page.locator('.profile-link').click();
+  await page.locator('.profile-menu-trigger').click();
+  await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
   check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
@@ -92,17 +95,20 @@ const check = (passed, name, detail = '') => {
   await page.locator('.nav a[href="/inicio"]').click();
   await card.waitFor({ state: 'visible' });
 
-  await page.locator('.profile-link').click();
+  await page.locator('.profile-menu-trigger').click();
+  await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
   for (const area of activeAreas) {
     await page.locator(`.areas-navigation-toggle input[data-area="${area}"]`).uncheck();
   }
   await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a.nav-item').length === 2);
   await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'primeiros passos oculta ações de áreas desativadas e some quando a tarefa restante já está concluída');
 
   await page.reload();
+  await page.locator('.home-extras > summary').click();
   await card.waitFor({ state: 'visible' });
   check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo após recarregar');
   await card.locator('summary').click();
@@ -132,7 +138,8 @@ const check = (passed, name, detail = '') => {
   check(await Promise.all(sources.map(async ({ src }) => (await page.request.get(src)).ok())).then((results) => results.every(Boolean)), 'arquivos WebM e MP4 respondem pela origem local');
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
-  await page.locator('.profile-link').click();
+  await page.locator('.profile-menu-trigger').click();
+  await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="account"]').click();
   await page.locator('.account-resources-card').waitFor({ state: 'visible' });
   await page.locator('.account-resources-card [data-legal-document="terms"]').click();

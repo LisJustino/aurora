@@ -85,6 +85,7 @@
       <p>O Aurora usa infraestrutura de Supabase e Cloudflare; recursos opcionais também podem envolver Google, Firebase, Apple e serviços Push do navegador. Esses fornecedores podem processar dados em infraestrutura localizada fora do Brasil. A localização pode variar conforme o serviço e a configuração do ambiente; o Aurora não fixa uma região única para todos os fornecedores. Cada fornecedor aplica seus próprios termos e políticas, que recomendamos consultar.</p>
       <h3>Dispositivo e cópias</h3>
       <p>A sessão fica no armazenamento de sessão do navegador por padrão; se você escolher “Manter conectado”, pode ficar no armazenamento local deste dispositivo. Versões anteriores podem ter deixado dados nas cópias locais legadas, que podem ser revisadas em Ajustes → Dados e backup. O service worker guarda recursos estáticos. Backups exportados ficam sob seu controle e não são enviados automaticamente pelo Aurora; os backups comuns podem ser protegidos por senha, enquanto cópias de recuperação não são criptografadas.</p>
+      <p>Para gravar registros da conta, é necessária uma conexão ativa. Se ela cair, o app bloqueia novas gravações; alterações feitas offline não ficam aguardando sincronização automática.</p>
       <details class="legal-technical-details">
         <summary>Saiba mais: detalhes técnicos de calendário, Push e armazenamento legado</summary>
         <div>

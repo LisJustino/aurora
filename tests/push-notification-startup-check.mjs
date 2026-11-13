@@ -29,9 +29,11 @@ const context = {
   isNativeApp: () => false,
   initializePushNotifications: async () => {
     initialized += 1;
-    const event = new Event('aurora:push-notification');
-    event.detail = { kind: 'habit-reminder' };
-    listeners.dispatchEvent(event);
+    for (const kind of ['habit-reminder', 'task-reminder']) {
+      const event = new Event('aurora:push-notification');
+      event.detail = { kind };
+      listeners.dispatchEvent(event);
+    }
   },
   syncHabitReminderSchedule: async () => {},
   Persist: { retryPending() {} },
@@ -42,15 +44,18 @@ const start = createStartup(...Object.values(context));
 
 await start();
 assert.equal(initialized, 1);
-assert.deepEqual(messages, ['Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.']);
+assert.deepEqual(messages, [
+  'Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.',
+  'Um lembrete de tarefa chegou. Abra Planejar para conferir sua lista.',
+]);
 const ignored = new Event('aurora:push-notification');
 ignored.detail = { kind: 'other' };
 listeners.dispatchEvent(ignored);
-assert.equal(messages.length, 1);
+assert.equal(messages.length, 2);
 
 await start();
 assert.equal(initialized, 2);
-assert.equal(messages.length, 2, 'A reinicialização não deve duplicar o listener.');
+assert.equal(messages.length, 4, 'A reinicialização não deve duplicar o listener.');
 assert.equal((source.match(/addEventListener\('aurora:push-notification'/g) || []).length, 1);
 assert.ok(source.indexOf('const toast = setToast;') < source.indexOf("addEventListener('aurora:push-notification'"));
 console.log('push-notification-startup: all checks passed');

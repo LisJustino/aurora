@@ -467,27 +467,48 @@ async function main() {
           'tutorial escolhido não inicia automaticamente');
         await onboardingGuide.locator('[data-action="dlg-close"]').first().click();
         await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
+        await page.waitForFunction(() => !document.querySelector('.save-indicator'));
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').click();
         }
+        await page.locator('.profile-menu-trigger').click();
+        await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
+        const signout = page.locator('#profile-menu [data-account-signout]');
+        await signout.waitFor({ state: 'visible' });
+        const profileMenuAlignment = await page.locator('#profile-menu').evaluate((menu) => {
+          const menuBounds = menu.getBoundingClientRect();
+          const signoutBounds = menu.querySelector('[data-account-signout]').getBoundingClientRect();
+          return {
+            signoutLeft: signoutBounds.left,
+            signoutRight: signoutBounds.right,
+            menuLeft: menuBounds.left,
+            menuRight: menuBounds.right,
+          };
+        });
+        assert.ok(profileMenuAlignment.signoutLeft >= profileMenuAlignment.menuLeft
+          && profileMenuAlignment.signoutRight <= profileMenuAlignment.menuRight,
+        'botão Sair da conta deve ficar alinhado dentro do menu');
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('.profile-menu-control').getAttribute('open'), null,
+          'menu da conta fecha ao pressionar Escape');
         const firstSteps = page.locator('.home-first-steps');
         await firstSteps.locator('summary').evaluate((element) => element.click());
         await page.waitForTimeout(0);
         assert.equal(await firstSteps.evaluate((element) => element.open), true);
-        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await firstSteps.evaluate((element) => element.open), true,
           'Primeiros passos deve permanecer aberto após renderização');
-        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         await firstSteps.locator('summary').evaluate((element) => element.click());
         await page.waitForTimeout(0);
         assert.equal(await firstSteps.evaluate((element) => element.open), false);
-        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await firstSteps.evaluate((element) => element.open), false,
           'Primeiros passos deve permanecer fechado após renderização');
-        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         const completed = page.locator('.home-completed');
         await completed.locator('summary').evaluate((element) => element.click());
-        await page.locator('.nav-more-trigger').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await completed.evaluate((element) => element.open), true,
           'Tarefas concluídas deve permanecer aberto após renderização');
         for (const width of [375, 1280]) {

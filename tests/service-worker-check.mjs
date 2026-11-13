@@ -127,7 +127,7 @@ assert.equal(stored.has('https://aurora.test/config?section=data'), false, 'quer
 stored.delete('https://aurora.test/index.html');
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), offlineResponse, 'uncached offline routes should show the branded offline page');
 
-assert.match(source, /aurora-static-v13/);
+assert.match(source, /aurora-static-v14/);
 assert.match(source, /APP_SHELL_ASSET/);
 assert.match(source, /APP_ROUTE/);
 assert.match(source, /APP_DOCUMENT/);

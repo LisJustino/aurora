@@ -2,7 +2,7 @@
 .fin-tools {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .fin-tools-actions { gap: var(--space-2); }
 .fin-import-action { cursor: pointer; }
@@ -29,14 +29,14 @@
 
 @media (width >= 700px) {
   .fin-tools { flex-direction: row; align-items: center; justify-content: space-between; }
-  .fin-tools .seg { min-width: 240px; }
+  .fin-tools .tabs { min-width: 240px; }
 }
 
 .fin-filter-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 145px 145px;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .fin-filter-row .search,
 .fin-filter-row > label { min-width: 0; }
@@ -46,16 +46,9 @@
   .fin-filter-row .search { grid-column: 1 / -1; }
 }
 
-@media (width < 900px) {
-  .fab-clearance { height: calc(160px + env(safe-area-inset-bottom, 0px)); }
-}
-
 @media (width <= 480px) {
-  .main[data-route="financas"] {
-    padding-bottom: calc(var(--nav-h) + 112px + env(safe-area-inset-bottom, 0px));
-  }
   .main[data-route="financas"] .fin-section-content {
-    gap: 14px;
+    gap: var(--space-4);
   }
   .main[data-route="financas"] .fin-section-menu {
     position: relative;
@@ -65,19 +58,19 @@
     min-height: var(--control-md);
   }
   .main[data-route="financas"] .fin-hero {
-    gap: 2px;
+    gap: var(--space-1);
     padding: 16px;
   }
   .main[data-route="financas"] .balance-sparkline {
     height: 38px;
   }
   .main[data-route="financas"] .fh-row {
-    gap: 10px 12px;
+    gap: var(--space-3) var(--space-3);
     margin-top: 8px;
     padding-top: 12px;
   }
 }
 
-.imp > li { flex-direction: column; align-items: stretch; gap: 6px; }
+.imp > li { flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .impcat { min-height: var(--control-sm); padding: 6px 10px; font-size: var(--text-sm); }
 .ellip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

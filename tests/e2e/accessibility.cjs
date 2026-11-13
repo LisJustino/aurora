@@ -109,14 +109,14 @@ async function checkContrast(page) {
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
     assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
-    await publicPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+    await publicPage.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
     await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
     await systemPage.goto(BASE);
-    await systemPage.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+    await systemPage.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
     await systemPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;
@@ -148,8 +148,8 @@ async function checkContrast(page) {
     assert.notEqual(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
       getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra a marca completa no desktop');
     await appPage.setViewportSize({ width: 390, height: 844 });
-    assert.equal(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
-      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra apenas o ícone da marca no celular');
+    assert.notEqual(await appPage.locator('.app > .topbar .wordmark').evaluate((wordmark) =>
+      getComputedStyle(wordmark).display), 'none', 'cabeçalho autenticado mostra a marca completa no celular');
     await appPage.setViewportSize({ width: 1280, height: 900 });
     assert.equal(await appPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho');
     await appPage.evaluate(() => { location.hash = 'config?section=personalization'; });

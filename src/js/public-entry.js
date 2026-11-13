@@ -130,6 +130,7 @@ function observeLandingScroll() {
 }
 
 let applicationLoaded = false;
+let publicAccountNavigationPending = false;
 async function loadApplication(mode = 'login') {
   publicPwaCleanup();
   publicConnectionCleanup();
@@ -288,7 +289,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       document.title = 'Demonstração | aurora.';
     } else {
       renderLanding(root);
-      document.title = 'aurora. — planner semanal, hábitos e finanças em um só lugar';
+      document.title = 'aurora. - rotinas';
       observeLandingScroll();
     }
     updatePublicConnectionNotice();
@@ -434,21 +435,19 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       return;
     }
     if (action !== 'login' && action !== 'signup') return;
+    if (publicAccountNavigationPending) return;
+    publicAccountNavigationPending = true;
 
-    const buttons = [...root.querySelectorAll('[data-public-action="login"], [data-public-action="signup"], [data-public-action="demo"]')];
     const setBusy = (control, busy) => {
       if (control instanceof HTMLButtonElement) control.disabled = busy;
       else if (busy) control.setAttribute('aria-disabled', 'true');
       else control.removeAttribute('aria-disabled');
     };
-    buttons.forEach((button) => {
-      setBusy(button, true);
-      button.setAttribute('aria-busy', 'true');
-      if (button !== trigger) return;
-      const label = button.textContent?.trim();
-      if (label && !button.dataset.defaultLabel) button.dataset.defaultLabel = label;
-      if (button.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
-    });
+    setBusy(trigger, true);
+    trigger.setAttribute('aria-busy', 'true');
+    const label = trigger.textContent?.trim();
+    if (label && !trigger.dataset.defaultLabel) trigger.dataset.defaultLabel = label;
+    if (trigger.dataset.defaultLabel) trigger.textContent = trigger.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
 
     try {
       const sessionReady = await sessionRestore;
@@ -458,12 +457,11 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       console.error('Aurora: a inicialização segura falhou.', error);
       showEntryError(root);
     } finally {
-      buttons.forEach((button) => {
-        setBusy(button, false);
-        button.removeAttribute('aria-busy');
-        const defaultLabel = button.dataset.defaultLabel;
-        if (defaultLabel) button.textContent = defaultLabel;
-      });
+      publicAccountNavigationPending = false;
+      setBusy(trigger, false);
+      trigger.removeAttribute('aria-busy');
+      const defaultLabel = trigger.dataset.defaultLabel;
+      if (defaultLabel) trigger.textContent = defaultLabel;
     }
   });
 

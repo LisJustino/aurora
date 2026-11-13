@@ -70,6 +70,8 @@ async function checkCustomDialog(browser, options, label, base) {
     const position = await scrollPageBeforeModal(page, `${label}, modal Aurora`);
     await page.evaluate(() => document.querySelector('[data-action="habit-new"]').click());
     await page.locator('#dlg').waitFor();
+    assert.equal(await page.locator('#dlg').evaluate((dialog) => dialog instanceof HTMLDialogElement && dialog.open), true,
+      `${label}: diálogos do app devem usar <dialog> nativo em modo modal`);
     await assertLocked(page, position, `${label}, modal Aurora`);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
     await page.locator('#dlg').waitFor({ state: 'detached' });

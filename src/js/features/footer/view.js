@@ -55,7 +55,7 @@ export function renderFooterContent({
     <div class="site-footer-content">
       <div class="footer-brand">
         <div class="footer-brand-mark"><img src="${brandLogo}" alt="" aria-hidden="true" width="32" height="32"><span class="wordmark">aurora<span>.</span></span></div>
-        <p>Organize sua rotina com tarefas, hábitos, ciclo e finanças em um único lugar.</p>
+        <p>Organize sua rotina com tarefas, hábitos, foco, ciclo e finanças em um único lugar.</p>
       </div>
       <nav class="footer-nav" aria-label="Conta">
         <h2>Conta</h2>
@@ -122,7 +122,7 @@ export function renderFooterContent({
 }
 
 export function initializeFaqDisclosure(root) {
-  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item, details.public-faq-more').forEach((details) => {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
     const summary = details.querySelector(':scope > summary');
     if (!summary || summary.dataset.expandedStateBound) return;
     summary.dataset.expandedStateBound = 'true';

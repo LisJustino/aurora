@@ -26,7 +26,7 @@
 .accessibility-head h2 { font-size: var(--text-lg); }
 .accessibility-head p { margin-top: 4px; color: var(--muted); font-size: var(--text-meta); }
 .accessibility-font { display: grid; gap: var(--space-2); }
-.accessibility-group-label { font-size: var(--text-sm); font-weight: 700; }
+.accessibility-group-label { font-size: var(--text-sm); font-weight: var(--weight-bold); }
 .accessibility-font-controls { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: var(--space-2); }
 .accessibility-font-controls .btn { min-height: var(--control-md); }
 .accessibility-options { display: grid; gap: var(--space-2); }
@@ -47,19 +47,19 @@
 }
 .accessibility-option:hover { border-color: var(--accent); background: var(--surface-soft); }
 .accessibility-option[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); }
-.accessibility-option-copy { display: grid; gap: 2px; }
+.accessibility-option-copy { display: grid; gap: var(--space-1); }
 .accessibility-option-copy b { font-size: var(--text-sm); }
 .accessibility-option-copy small { color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
 .accessibility-state {
   flex: none;
   color: var(--muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
 }
 .accessibility-option[aria-pressed="true"] .accessibility-state { color: var(--accent); }
 .accessibility-reset { width: 100%; }
 .accessibility-advanced { border-top: 1px solid var(--line); padding-top: var(--space-2); }
-.accessibility-advanced summary { min-height: var(--control-sm); color: var(--accent); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.accessibility-advanced summary { min-height: var(--control-sm); color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-bold); cursor: pointer; }
 .accessibility-advanced .accessibility-options { padding-top: var(--space-2); }
 .accessibility-settings-options {
   width: 100%;
@@ -82,7 +82,7 @@
 @media (width < 480px) {
   .header-actions { gap: 0; }
   .header-actions .iconbtn { width: 44px; height: 44px; }
-  .topbar .brand { gap: 4px; }
+  .topbar .brand { gap: var(--space-1); }
   .topbar .wordmark { font-size: var(--text-lg); }
 }
 

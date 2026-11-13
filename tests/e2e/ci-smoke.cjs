@@ -65,6 +65,34 @@ async function waitForServer(server, url) {
   throw new Error(`Tempo esgotado aguardando o servidor Vite: ${url}`);
 }
 
+async function verifyPreviewMissingFiles() {
+  const homepage = await fetch(PREVIEW_URL);
+  const policy = homepage.headers.get('content-security-policy') || '';
+  if (!policy.includes("default-src 'self'")
+    || !policy.includes("frame-ancestors 'none'")
+    || homepage.headers.get('strict-transport-security') !== 'max-age=31536000; includeSubDomains'
+    || homepage.headers.get('x-frame-options') !== 'DENY') {
+    throw new Error('Preview não aplicou os headers de segurança definidos em _headers.');
+  }
+  const cases = [
+    ['/src/js/__aurora_missing_asset__.js', 404],
+    ['/icons/__aurora_missing_icon__.svg', 404],
+    ['/pages/__aurora_missing_page__.html', 404],
+    ['/pages/inicio.html', 200],
+    ['/inicio', 200],
+  ];
+  for (const [pathname, expectedStatus] of cases) {
+    const response = await fetch(`${PREVIEW_URL}${pathname}`);
+    const body = await response.text();
+    if (response.status !== expectedStatus) {
+      throw new Error(`Preview retornou HTTP ${response.status} para ${pathname}; esperado ${expectedStatus}.`);
+    }
+    if (expectedStatus === 404 && !body.includes('Esta página não existe')) {
+      throw new Error(`Preview não serviu 404.html para ${pathname}.`);
+    }
+  }
+}
+
 function runSuite(file, ...args) {
   console.log(`\n==> ${file}`);
   const result = spawnSync(process.execPath, [
@@ -120,6 +148,7 @@ async function main() {
     waitForServer(devServer, DEV_URL),
     waitForServer(previewServer, PREVIEW_URL),
   ]);
+  await verifyPreviewMissingFiles();
 
   runSuite('design-system.cjs', DEV_URL);
   runSuite('visual-captures.cjs', DEV_URL);

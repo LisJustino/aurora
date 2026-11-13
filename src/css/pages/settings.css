@@ -3,23 +3,23 @@
   --settings-edge: color-mix(in srgb, var(--accent) 16%, var(--line));
   --settings-card-gap: var(--space-4);
   --settings-card-padding: clamp(var(--space-4), 3vw, var(--space-6));
-  --settings-link-height: 54px;
+  --settings-link-height: var(--row-height-compact);
 }
 
 .main[data-route="config"] .settings-layout {
   grid-template-columns: minmax(220px, 252px) minmax(0, 1fr);
   align-items: start;
-  gap: clamp(18px, 2.8vw, 32px);
+  gap: clamp(var(--space-4), 2.8vw, var(--space-6));
 }
 
 .main[data-route="config"] .settings-menu {
   top: 84px;
   max-height: none;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 10px;
   overflow: visible;
   border-color: var(--line);
-  border-radius: var(--r-large);
+  border-radius: var(--r-control);
   background: var(--surface);
   box-shadow: none;
 }
@@ -34,7 +34,7 @@
   letter-spacing: .02em;
 }
 
-.main[data-route="config"] .settings-menu-group { gap: 5px; }
+.main[data-route="config"] .settings-menu-group { gap: var(--space-1); }
 .main[data-route="config"] .settings-menu-group + .settings-menu-group {
   margin-top: 2px;
   padding-top: 10px;
@@ -43,8 +43,8 @@
 
 .main[data-route="config"] .settings-link {
   min-height: var(--settings-link-height);
-  grid-template-columns: 34px minmax(0, 1fr) 14px;
-  gap: 9px;
+  grid-template-columns: var(--icon-box-sm) minmax(0, 1fr) 14px;
+  gap: var(--space-2);
   padding: 7px;
   border-radius: var(--r-group);
 }
@@ -54,30 +54,20 @@
   background: var(--surface-soft);
 }
 
-.main[data-route="config"] .settings-link[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
-  background: var(--soft2);
-  color: var(--accent);
-  box-shadow: none;
-}
 
 .main[data-route="config"] .settings-link-icon {
-  width: 34px;
-  height: 34px;
+  width: var(--icon-box-sm);
+  height: var(--icon-box-sm);
   border-color: transparent;
   border-radius: var(--r-control);
   background: var(--surface-soft);
   color: var(--muted);
 }
 
-.main[data-route="config"] .settings-link[aria-current="page"] .settings-link-icon {
-  background: var(--soft);
-  color: var(--accent);
-}
 
-.main[data-route="config"] .settings-link-copy { gap: 3px; }
+.main[data-route="config"] .settings-link-copy { gap: var(--space-1); }
 .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); font-weight: var(--weight-bold); }
-.main[data-route="config"] .settings-link-copy small { font-size: var(--text-2xs); line-height: 1.35; }
+.main[data-route="config"] .settings-link-copy small { font-size: var(--text-xs); line-height: 1.35; }
 .main[data-route="config"] .settings-link-arrow { width: 14px; color: var(--muted); }
 
 .main[data-route="config"] .settings-content {
@@ -88,7 +78,7 @@
 .main[data-route="config"] .settings-content > .card {
   max-width: none;
   border-color: var(--settings-edge);
-  border-radius: var(--r-large);
+  border-radius: var(--r-control);
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--accent) 2.5%, var(--surface-strong)), var(--surface-strong) 38%);
   box-shadow: var(--card-shadow);
@@ -181,7 +171,7 @@
 }
 
 .main[data-route="config"] .appearance-preset {
-  min-height: 76px;
+  min-height: var(--row-height-card);
   padding: var(--space-4);
   transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
@@ -277,7 +267,7 @@
     position: relative;
     top: auto;
     display: flex;
-    gap: 4px;
+    gap: var(--space-1);
     max-height: none;
     margin-inline: calc(-1 * var(--gut-l)) calc(-1 * var(--gut-r));
     padding: 4px var(--gut-r) 8px var(--gut-l);
@@ -304,7 +294,7 @@
     min-height: var(--control-field);
     grid-template-columns: 24px minmax(0, 1fr);
     justify-items: start;
-    gap: 8px;
+    gap: var(--space-2);
     padding: 6px 10px;
     border: 1px solid transparent;
     border-radius: var(--r-control);
@@ -319,12 +309,6 @@
     background: var(--surface);
   }
 
-  .main[data-route="config"] .settings-link[aria-current="page"] {
-    border-color: color-mix(in srgb, var(--accent) 20%, var(--line));
-    background: var(--soft2);
-    color: var(--accent);
-    box-shadow: none;
-  }
 
   .main[data-route="config"] .settings-link-arrow { display: none; }
   .main[data-route="config"] .settings-link-icon {

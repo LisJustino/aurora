@@ -18,15 +18,16 @@
 
 :root {
   color-scheme: light;
-  --p: #c8a19e;
-  --pd: #78504c;
-  --plum: #634742;
-  --bg: #f8f8f6;
-  --bg-strong: #f2f2ef;
-  --surface: #ffffff;
-  --surface-strong: #faf9f7;
+  --p: #c65a79;
+  --pd: #ab4e69;
+  --plum: #593047;
+  --bg: #f7f0ea;
+  --canvas-initial: #f8f8f6;
+  --bg-strong: #f0e7e1;
+  --surface: #fffdfa;
+  --surface-strong: #fcf8f5;
   --surface-raised: #ffffff;
-  --surface-soft: #faf9f7;
+  --surface-soft: #f8f2ed;
   --surface-qr: #fff; /* QR codes keep a white field in both themes. */
   --ink: #252321;
   --muted: #625f5b;
@@ -52,37 +53,31 @@
   --area-finances: #397650;
   --area-cycle: #8b4e78;
   --priority-low: #3f7f93;
-  --hero: var(--surface-strong);
-  --hero-home: color-mix(in srgb, var(--p) 2%, var(--surface));
-  --brand-surface: color-mix(in srgb, var(--p) 4%, var(--surface));
+  --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
+  --hero-home: color-mix(in srgb, var(--p) 3%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 3%, var(--surface));
   --brand-surface-strong: color-mix(in srgb, var(--p) 17%, var(--surface));
   --on-hero-home: var(--ink);
   --on-hero: var(--ink);
+  --public-hero-start: #3f2b2a;
+  --public-hero-end: #7b504d;
+  --public-account-start: #402c2b;
+  --public-account-end: #7d514e;
+  --public-hero-ink: #fffaf6;
+  --public-hero-accent: #ffd7ca;
+  --public-hero-marker: #eec0b3;
+  --public-hero-button-ink: #503331;
+  --public-art-rose: #e8b4a6;
+  --public-art-lilac: #edc5dd;
+  --public-art-ok: #81c3a0;
+  --preview-phone-border: #62545e;
+  --preview-phone-frame: #51444e;
+  --preview-phone-dark: #211d22;
+  --preview-phone-camera: #746674;
   --shadow: 0 20px 48px -24px rgb(44 38 33 / 22%);
   --shadow-sm: 0 4px 12px -8px rgb(44 38 33 / 18%);
-  --card-shadow: none;
-  --shadow-hover: none;
-  --loading-bg: #f8f3f0;
-  --loading-glow: #f3e0e5;
-  --loading-text: #351b3d;
-  --loading-muted: #76617e;
-  --loading-track: #f5dfe6;
-  --loading-mark: #c65a79;
-  --loading-mark-text: #fff;
-  --loading-card: rgb(255 255 255 / 78%);
-  --loading-card-border: rgb(255 255 255 / 88%);
-  --loading-white: #fff;
-  --loading-light-canvas: #fffaf5;
-  --loading-light-ink: #241d25;
-  --loading-light-muted: #514954;
-  --loading-dark-canvas: #171619;
-  --loading-dark-text: #f7f1f0;
-  --loading-dark-muted: #ddd0d6;
-  --loading-dark-bg: color-mix(in srgb, var(--loading-primary) 9%, var(--loading-dark-canvas));
-  --loading-dark-glow: color-mix(in srgb, var(--loading-primary) 20%, var(--loading-dark-canvas));
-  --loading-dark-shape: color-mix(in srgb, var(--loading-primary) 35%, var(--loading-dark-canvas));
-  --loading-dark-track: color-mix(in srgb, var(--loading-primary) 30%, var(--loading-dark-canvas));
-  --loading-dark-mark: color-mix(in srgb, var(--loading-primary) 75%, var(--loading-white));
+  --card-shadow: 0 10px 24px -20px rgb(74 37 52 / 36%), 0 1px 3px rgb(74 37 52 / 7%);
+  --shadow-hover: 0 18px 34px -24px rgb(95 43 63 / 38%);
   --focus-ring-shadow: 0 0 0 4px var(--focus-soft);
   --status-halo-shadow: 0 0 0 4px var(--ok-soft);
   --current-control-shadow: inset 0 0 0 1px var(--accent);
@@ -101,6 +96,7 @@
   --space-11: 72px;
   --space-12: 80px;
   --space-half: 2px;
+  --space-quarter: 1px;
   --card-padding: var(--space-5);
   --card-padding-compact: clamp(var(--space-4), 5vw, var(--space-5));
   --card-content-gap: var(--space-4);
@@ -122,6 +118,12 @@
   --list-row-gap: var(--space-3);
   --list-row-padding-block: var(--space-4);
   --list-row-padding-inline: var(--space-3);
+  --icon-box-sm: 32px;
+  --icon-box-md: 40px;
+  --icon-box-lg: 48px;
+  --row-height-compact: 56px;
+  --row-height-standard: 64px;
+  --row-height-card: 88px;
   --dialog-padding: 20px;
   --dialog-padding-compact: 16px;
   --text-xs: .75rem;
@@ -134,27 +136,21 @@
   --text-section: clamp(1.45rem, 3vw, 1.9rem);
   --text-display: clamp(2.5rem, 5vw, 4rem);
   --text-hero: clamp(2.1rem, 4vw, 3.3rem);
+  --text-home-title: clamp(1.55rem, 3vw, 2.65rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
   --text-annual-plan-title: clamp(1.6rem, 3vw, 2.25rem);
   --text-metric: clamp(2.1rem, 5vw, 3rem);
   --text-water-total: clamp(2.75rem, 8vw, 4rem);
-  --text-loading-brand: clamp(2.25rem, 5vw, 3rem);
-  --text-loading-mark: 1.9rem;
-  --text-loading-spark: .7rem;
-  --text-loading-spark-compact: .6rem;
-  --text-loading-message-compact: .95rem;
-  --text-loading-caption-compact: .9rem;
   --text-account-brand: clamp(1.25rem, 2vw, 1.625rem);
   --text-account-intro: clamp(1rem, 1.4vw, 1.1875rem);
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
-  --weight-strong: 750;
   --leading-tight: 1.2;
   --leading-body: 1.5;
   --leading-relaxed: 1.6;
-  --content-width: 1120px;
+  --content-width: 1200px;
   --reading-width: 880px;
   --control-height: 48px;
   --target-size: 44px;
@@ -174,11 +170,15 @@
   --r-control: 16px;
   --r-group: 12px;
   --r: 8px;
-  --r-large: 16px;
   --r-pill: 999px;
+  --r-hairline: 1px;
+  --r-tiny: 2px;
+  --r-phone-outer: 40px;
+  --r-phone-inner: 32px;
+  --r-public-hero-min: 28px;
+  --r-public-hero: clamp(var(--r-public-hero-min), 4vw, var(--target-size));
   /* ---- Escalas do design system (use sempre tokens; nunca valores soltos) ---- */
-  /* Tipografia: 2xs 12 · xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
-  --text-2xs: .75rem;
+  /* Tipografia: xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
   --text-md: .9375rem;
   --text-title: 1.375rem;
   --text-2xl: 1.5rem;
@@ -194,18 +194,16 @@
   --control-lg: 52px;
   --select-menu-max-height: 288px;
   /* Raios: 8 · 12 · 16 · pill */
-  --r-xs: 8px;
-  --r-sm: 12px;
-  --r-detail: var(--r-xs);
-  --r-detail-sm: var(--r-xs);
   /* Elevação e canvas */
-  --canvas-glow: transparent;
+  --canvas-glow: color-mix(in srgb, var(--p) 12%, transparent);
   --public-glow: transparent;
   --canvas-grid: color-mix(in srgb, var(--ink) 2.2%, transparent);
   --nav-h: 72px;
   --gut-l: max(16px, env(safe-area-inset-left, 0px));
   --gut-r: max(16px, env(safe-area-inset-right, 0px));
 }
+
+:root[data-scrolled="true"] { --topbar-height: 60px; }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -235,54 +233,14 @@
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
   --priority-low: #8ccddd;
-  --hero: var(--surface-strong);
-  --hero-home: color-mix(in srgb, var(--p) 2%, var(--surface));
+  --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
+  --hero-home: color-mix(in srgb, var(--p) 6%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 9%, var(--surface));
   --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
   --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
+  --card-shadow: 0 14px 28px -22px rgb(0 0 0 / 80%);
+  --shadow-hover: 0 18px 36px -24px rgb(0 0 0 / 88%);
 }
-
-:root[data-loading-palette="customized"] {
-  --loading-bg: color-mix(in srgb, var(--loading-primary) 7%, var(--loading-light-canvas));
-  --loading-glow: color-mix(in srgb, var(--loading-primary) 16%, var(--loading-light-canvas));
-  --loading-shape: color-mix(in srgb, var(--loading-primary) 38%, var(--loading-light-canvas));
-  --loading-text: color-mix(in srgb, var(--loading-accent) 30%, var(--loading-light-ink));
-  --loading-muted: color-mix(in srgb, var(--loading-accent) 45%, var(--loading-light-muted));
-  --loading-track: color-mix(in srgb, var(--loading-primary) 22%, var(--loading-light-canvas));
-  --loading-mark: var(--loading-accent);
-  --loading-mark-text: var(--loading-white);
-  --loading-card: color-mix(in srgb, var(--loading-primary) 4%, var(--loading-white));
-  --loading-card-border: color-mix(in srgb, var(--loading-primary) 16%, var(--loading-white));
-}
-
-:root[data-loading-mode="dark"] {
-  --loading-bg: var(--loading-dark-bg);
-  --loading-glow: var(--loading-dark-glow);
-  --loading-shape: var(--loading-dark-shape);
-  --loading-text: var(--loading-dark-text);
-  --loading-muted: var(--loading-dark-muted);
-  --loading-track: var(--loading-dark-track);
-  --loading-mark: var(--loading-dark-mark);
-  --loading-mark-text: var(--loading-dark-canvas);
-  --loading-card: rgb(36 30 37 / 82%);
-  --loading-card-border: rgb(255 255 255 / 12%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-loading-mode="auto"] {
-    --loading-bg: var(--loading-dark-bg);
-    --loading-glow: var(--loading-dark-glow);
-    --loading-shape: var(--loading-dark-shape);
-    --loading-text: var(--loading-dark-text);
-    --loading-muted: var(--loading-dark-muted);
-    --loading-track: var(--loading-dark-track);
-    --loading-mark: var(--loading-dark-mark);
-    --loading-mark-text: var(--loading-dark-canvas);
-    --loading-card: rgb(36 30 37 / 82%);
-    --loading-card-border: rgb(255 255 255 / 12%);
-  }
-}
-
-
 
 :root[data-contrast="high"] {
   --muted: #403840;

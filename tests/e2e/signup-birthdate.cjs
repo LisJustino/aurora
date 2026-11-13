@@ -28,13 +28,13 @@ function localDateValue(date) {
   );
   check(
     await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
-    'hero mobile estreito mantém o cadastro visível sem rolagem',
+    'hero mobile estreito mantém as ações principais visíveis sem rolagem',
     `${heroAt320}px`,
   );
   await page.setViewportSize({ width: 390, height: 844 });
   check(
     await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
-    'hero mobile compacto mantém o cadastro visível sem rolagem',
+    'hero mobile compacto mantém as ações principais visíveis sem rolagem',
   );
   await page.setViewportSize({ width: 768, height: 900 });
   check(
@@ -80,21 +80,22 @@ function localDateValue(date) {
     'convite final redundante foi removido da landing',
   );
   check(
-    await page.locator('#landing-main').evaluate((main) => main.lastElementChild?.classList.contains('public-suggestion')
-      && main.lastElementChild.previousElementSibling?.classList.contains('public-faq')),
-    'FAQ e formulário de sugestões encerram o conteúdo principal antes do rodapé',
+    await page.locator('#landing-main').evaluate((main) => {
+      const faq = main.lastElementChild;
+      const suggestion = faq?.querySelector('[data-suggestion-disclosure]');
+      return faq?.classList.contains('public-faq')
+        && faq.querySelectorAll('.public-faq-item').length === 6
+        && suggestion?.open === false;
+    }),
+    'sugestão fica recolhida na FAQ, no fim do conteúdo principal',
   );
-  const heroSignup = page.locator('.public-hero [data-public-action="signup"]');
+  const heroSignup = page.locator('.public-topbar [data-public-action="signup"]');
   check(
     await heroSignup.count() === 1 && await heroSignup.evaluate((button) => button.classList.contains('primary')),
-    'CTA principal de cadastro permanece disponível no hero',
+    'cadastro permanece disponível no cabeçalho sem competir com o convite para explorar',
   );
-  await page.locator('.public-faq-more > summary').click();
-  const emailFaqItem = page.locator('.public-faq-item', { hasText: 'Preciso confirmar meu e-mail?' });
-  await emailFaqItem.locator('summary').click();
-  const emailFaq = await emailFaqItem.textContent();
-  check(/Não\.\s+No cadastro, você digita o endereço duas vezes/i.test(emailFaq), 'FAQ explica que não há confirmação de e-mail');
-  check(/endereço inválido pode impedir a recuperação da senha/i.test(emailFaq), 'FAQ alerta sobre recuperação da senha');
+  check(await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 5,
+    'FAQ da landing apresenta apenas as dúvidas essenciais para começar');
   await page.getByRole('link', { name: /criar conta/i }).first().click();
   await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
   check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');

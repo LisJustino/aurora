@@ -15,7 +15,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .cycle-overview,
 .weekly-review-hero,
 .profile-intro {
-  border-radius: var(--r-large);
+  border-radius: var(--r-control);
   background: var(--hero);
   box-shadow: none;
 }
@@ -28,7 +28,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 }
 @media (width < 700px) {
   .home-quick-copy p { display: none; }
-  .home-quick-card { gap: 12px; padding-block: 16px; }
+  .home-quick-card { gap: var(--space-3); padding-block: 16px; }
 }
 
 /* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
@@ -40,7 +40,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
 /* ---- Calendário anual: células maiores e fim da fileira sempre à vista ---- */
-.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; }
+.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: var(--space-1); }
 .habit-year-cell { width: 14px; height: 14px; }
 
 /* ---- Finanças: valores alinhados à direita, tabulares ---- */
@@ -49,40 +49,13 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 /* ---- Tema escuro: cartões se destacam pelo contorno ---- */
 :root[data-theme="dark"] .card {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---- Erro ao lado do campo ---- */
 .field-err { display: block; margin-top: 2px; }
 .f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
 .f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
-
-/* ---- Finanças no celular: seções em uma única fileira rolável (antes quebrava em três linhas) ---- */
-@media (width <= 700px) {
-  .main[data-route="financas"] .fin-section-menu { flex-wrap: nowrap; border-radius: var(--r-pill); }
-  .main[data-route="financas"] .fin-section-option { white-space: nowrap; }
-}
-
-/* ---- Menu "Mais": fundo escurecido e painel opaco (antes dava para ler o conteúdo atrás) ---- */
-.nav-scrim { display: none; }
-@media (width < 900px) {
-  .nav-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: calc(var(--z-nav) - 1);
-    display: block;
-    background: color-mix(in srgb, var(--ink) 52%, transparent);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-  }
-  :root[data-theme="dark"] .nav-scrim { background: rgb(0 0 0 / 62%); }
-  .nav-more-menu {
-    background: var(--surface-raised);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    box-shadow: 0 24px 48px -12px rgb(0 0 0 / 55%);
-  }
-}
 
 /* ---- Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas ---- */
 /* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
@@ -118,19 +91,6 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 .dlg-handle { display: none; }
 @media (width < 900px) {
-  .nav a { position: relative; font-size: var(--text-xs); }
-  .nav a[aria-current="page"] .ni { background: transparent; transform: none; }
-  .nav a[aria-current="page"]::before {
-    position: absolute;
-    top: 2px;
-    left: 50%;
-    width: 18px;
-    height: 3px;
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    content: "";
-    transform: translateX(-50%);
-  }
   .dlg-back {
     display: flex;
     align-items: flex-end;
@@ -142,7 +102,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     width: 100%;
     max-height: min(92dvh, 820px);
     margin: 0;
-    border-radius: var(--r-large) var(--r-large) 0 0;
+    border-radius: var(--r-control) var(--r-control) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
   .dlg:not(.intro-dialog) .dlg-foot {

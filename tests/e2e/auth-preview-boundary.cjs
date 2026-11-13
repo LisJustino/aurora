@@ -34,14 +34,10 @@ const check = (passed, name, detail = '') => {
   const routes = ['inicio', 'planejar', 'financas', 'ciclo', 'habitos', 'config'];
   for (const route of routes) {
     const link = route === 'config'
-      ? page.locator('.profile-link[href="/config"]')
+      ? page.locator('.profile-menu-trigger')
       : page.locator(`.nav a[href="/${route}"]`).first();
-    if (await link.isVisible()) {
-      await link.click();
-    } else {
-      await page.getByRole('button', { name: 'Mais' }).click();
-      await page.locator(`#nav-more-menu a[href="/${route}"]`).click();
-    }
+    await link.click();
+    if (route === 'config') await page.locator('#profile-menu a[href="/config"]').click();
     await page.waitForFunction((expected) => location.pathname === `/${expected}`, route);
     check(await page.locator('main h1, main h2').count() > 0, `rota ${route} renderiza conteúdo`);
   }

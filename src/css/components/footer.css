@@ -46,7 +46,7 @@
 .footer-brand-mark .wordmark {
   color: var(--ink);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: var(--weight-bold);
   letter-spacing: -.04em;
 }
 
@@ -336,7 +336,7 @@
 
 
 @media (width <= 700px) {
-  .app-footer { flex-direction: column; gap: 4px; padding-bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px)); }
+  .app-footer { flex-direction: column; gap: var(--space-1); padding-bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom, 0px)); }
 
   .app-footer .save-indicator {
     align-self: center;

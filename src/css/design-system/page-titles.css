@@ -10,8 +10,8 @@
   overflow: hidden;
   padding: var(--space-5) var(--space-5);
   border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 20%, var(--line));
-  border-radius: var(--r-large);
-  background: var(--area-heading-surface);
+  border-radius: var(--r-control);
+  background: linear-gradient(120deg, var(--area-heading-surface), var(--surface));
   box-shadow: var(--card-shadow);
 }
 
@@ -40,7 +40,7 @@
 
 .main > .page-title .page-title-eyebrow {
   color: var(--area-tone, var(--accent));
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: .1em;
 }
@@ -89,7 +89,7 @@
 
 @media (width <= 700px) {
   .main > .page-title {
-    min-height: 78px;
+    min-height: var(--row-height-card);
     padding: var(--space-4);
     border-radius: var(--r);
   }

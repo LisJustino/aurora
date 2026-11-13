@@ -52,6 +52,7 @@ function applyPublicLook() {
   root.style.setProperty('--pd', accent);
   root.setAttribute('data-palette', 'rose');
   root.setAttribute('data-theme', effectiveMode);
+  window.auroraManifestTheme?.setMode(publicLook.mode);
   root.setAttribute('data-density', publicLook.density);
   root.setAttribute('data-fs', publicLook.font);
   root.setAttribute('data-contrast', publicLook.contrast ? 'high' : 'normal');

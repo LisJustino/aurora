@@ -43,15 +43,12 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from './features/finance/accounts.js';
-import { financePrivacyNotice } from './features/finance/view.js';
 import { createToastController } from './features/feedback/toast.js';
 import {
   AREA_GUIDES,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
-import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
-import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
 import { filteredTasks as selectFilteredTasks, todayTasks as selectTodayTasks } from './features/planning/task-selection.js';
 import {
@@ -62,9 +59,7 @@ import {
   isValidAnnualPlans,
   normalizeAnnualPlans,
 } from './features/planning/annual-plan.js';
-import { createCycleDialogViews } from './features/cycle/dialogs.js';
 import { canAccessCycle } from './features/cycle/access.js';
-import { createFinanceDialogViews } from './features/finance/dialogs.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -73,6 +68,8 @@ import {
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
 import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
+import { buildTaskPushReminders } from './features/push/task-reminders.js';
+import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
 import {
   cancelHabitPushReminders,
   clearPushNotificationState,
@@ -83,6 +80,8 @@ import {
   initializePushNotifications,
   pushNotificationErrorMessage,
   scheduleHabitPushReminders,
+  scheduleTaskPushReminders,
+  cancelTaskPushReminders,
 } from './services/push-notifications.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
@@ -146,8 +145,6 @@ import {
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from './features/cycle/period.js';
-import { cycleDayNumber, cycleStats } from './features/cycle/calculations.js';
-import { estimatedCyclePhase } from './features/cycle/phases.js';
 import {
   createBirthdayReferenceFromParts,
   isValidBirthdayReference,
@@ -443,7 +440,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -458,21 +455,13 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const SIDEBAR_COLLAPSED_KEY = 'aurora.ui.sidebar-collapsed';
-const readSidebarCollapsed = () => {
-  try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch { return false; }
-};
-const writeSidebarCollapsed = (collapsed) => {
-  try {
-    if (collapsed) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, '1');
-    else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
-  } catch { /* storage indisponível */ }
-};
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+ui.habitCelebrationDay = '';
+let quickActionsReturnTarget = '.nav-quick-trigger';
 const toastController = createToastController({
   readToast: () => ui.toast,
   writeToast: (toast) => { ui.toast = toast; },
-  getContext: () => ({ top: Boolean(ui.dlg || ui.navigationOpen || ui.quickActionsOpen) }),
+  getContext: () => ({ top: Boolean(ui.dlg || ui.quickActionsOpen) }),
   getOverride: () => {
     if (Object.keys(ui.integrityIssues).length) {
       const slices = Object.keys(ui.integrityIssues).join(', ');
@@ -689,6 +678,18 @@ async function saveProfileDraft() {
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
 let habitsTemplateError = false;
+let renderHabitsView = null;
+let loadHabitsTemplate = null;
+let renderHabitsTemplate = null;
+let cycleDayNumber = null;
+let cycleStats = null;
+let estimatedCyclePhase = null;
+let renderCycleView = null;
+let cycleDialogViews = null;
+let cycleModulesPromise = null;
+let financeDialogViews = null;
+let financePrivacyNotice = null;
+let financeModulesPromise = null;
 let renderedRoute = null;
 const routeScrollPositions = new Map();
 
@@ -729,6 +730,7 @@ function normalizeSettings(s) {
   o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
   o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
   o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
+  o.prefs.financeCategoryRules = normalizeCategoryRules(prefs.financeCategoryRules);
   o.prefs.waterGoalMl = Number.isInteger(prefs.waterGoalMl) && prefs.waterGoalMl >= 500 && prefs.waterGoalMl <= 10000 ? prefs.waterGoalMl : d.prefs.waterGoalMl;
   o.prefs.habitWaterGoals = Object.fromEntries(
     Object.entries(isPlainObject(prefs.habitWaterGoals) ? prefs.habitWaterGoals : {})
@@ -1110,16 +1112,6 @@ function normalizeSlice(k, v) {
 
 /* ---------- Persistência local ---------- */
 /* ---------- Persistencia relacional ---------- */
-function cacheLoadingAppearance(settings) {
-  const [primary, accent] = paletteColors(settings.theme, settings.look);
-  window.auroraLoadingAppearance?.save({
-    palette: settings.theme === 'rose' ? 'rose' : 'customized',
-    mode: settings.look.mode,
-    reduceMotion: settings.look.reduceMotion,
-    primary,
-    accent,
-  });
-}
 const Persist = {
   userId: '',
   store: null,
@@ -1197,7 +1189,6 @@ const Persist = {
             clearTimeout(saveTimer);
           }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
-          cacheLoadingAppearance(snapshot.settings);
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
@@ -1262,7 +1253,6 @@ const Persist = {
     if (this.inFlight) await this.inFlight;
     await this.store.save(JSON.parse(JSON.stringify(S)));
     this.confirmedState = JSON.parse(JSON.stringify(S));
-    cacheLoadingAppearance(S.settings);
     this.pendingSnapshot = null;
     syncState.pending.clear();
     syncState.failed.clear();
@@ -1277,13 +1267,11 @@ const Persist = {
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.confirmedState = JSON.parse(JSON.stringify(defaults()));
-    cacheLoadingAppearance(this.confirmedState.settings);
     syncState.pending.clear();
     syncState.failed.clear();
     syncState.conflicts.clear();
   },
   wipe() {
-    window.auroraLoadingAppearance?.clear();
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.store = null;
@@ -1318,7 +1306,6 @@ async function loadAccountData() {
   syncState.failed.clear();
   persistFailed.forEach((slice) => syncState.failed.add(slice));
   Persist.confirmedState = JSON.parse(JSON.stringify(S));
-  if (!persistBlocked.has('settings')) cacheLoadingAppearance(S.settings);
 }
 function initializeBirthdayFromMetadata(user) {
   const prefs = S.settings.prefs;
@@ -1340,7 +1327,7 @@ const saveSlices = (...ks) => {
   if (!saved && navigator.onLine !== false) {
     toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.', 'error');
   }
-  if (saved && ks.includes('habits')) syncHabitReminderSchedule();
+  if (saved && ks.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   return saved;
 };
 const commit = (...ks) => { if (saveSlices(...ks)) render(); };
@@ -1365,7 +1352,7 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
     if (shouldRender) render();
     return false;
   }
-  if (!ui.preview && slices.includes('habits')) syncHabitReminderSchedule();
+  if (!ui.preview && slices.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   if (shouldRender) render();
   return true;
 }
@@ -1648,21 +1635,9 @@ function shell(body) {
             : '';
   const menuAreas = { ...S.settings.areas, cycle: areaOn('cycle') };
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
-  const mobileAreaPriority = new Set(['financas', 'habitos']);
-  const mobileAreaItems = [
-    ...menuItems.filter((item) => item.area && mobileAreaPriority.has(item.id)),
-    ...menuItems.filter((item) => item.area && !mobileAreaPriority.has(item.id)),
-  ].slice(0, 2);
-  const compactItems = [
-    ...['inicio', 'planejar'].map((id) => menuItems.find((item) => item.id === id)).filter(Boolean),
-    ...mobileAreaItems,
-  ];
-  const secondaryItems = menuItems.filter((item) => !compactItems.includes(item));
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" data-tip="${label}" title="${ui.sidebarCollapsed ? '' : label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
-  const currentInMore = secondaryItems.some(({ id }) => isCurrent(id));
-  const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
+  const navLink = ({ id, label, icon: iconName, area }) => h`<a class="nav-item" href="/${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
     ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
     : ui.route === 'financas'
@@ -1681,13 +1656,19 @@ function shell(body) {
       ${financeQuickActions}`;
   const quickActionsHeading = isFinanceRoute ? 'Ações de Finanças' : 'Criar rapidamente';
   const quickActions = h`<div class="nav-quick-control">
-    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
+    <button type="button" class="nav-quick-trigger iconbtn" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${menuItems.map((item) => navLink(item, compactItems.includes(item) ? 'nav-primary' : 'nav-secondary'))}<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
-  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
-    <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar"><div class="sidebar-brand-row">${brandLink}<button type="button" class="sidebar-toggle" data-action="sidebar-toggle" aria-label="${ui.sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}" aria-expanded="${String(!ui.sidebarCollapsed)}" aria-controls="primary-navigation" title="${ui.sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}">${icon(ui.sidebarCollapsed ? 'chevRight' : 'chevLeft', 18)}</button></div><nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+  const profileMenu = h`<details class="profile-menu-control">
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu">${icon('user', 20)}</summary>
+    <div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Menu da conta">
+      <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
+      ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
+    </div>
+  </details>`;
+  const navItems = h`${menuItems.map(navLink)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button>${profileMenu}</div></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
       ${notificationsHtml()}
@@ -1708,7 +1689,7 @@ function persistenceNotice() {
     action = h`<a class="btn sm" href="/config?section=data">Revisar dados</a>`;
   } else if (syncState.conflicts.size) {
     message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
-    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar app</button>`;
+    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar dados da conta</button>`;
   } else if (Persist.pendingSnapshot) {
     message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
     action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
@@ -1791,7 +1772,6 @@ const pageTitle = (title, action = '') => {
   return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
 const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
-const ring = (done, total) => { const c = 2 * Math.PI * 32, pc = total ? done / total : 0; return h`<div class="ringw" role="img" aria-label="${done} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pc)).toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${done}/${total}</div></div>`; };
 const areaOn = (a) => Boolean(S.settings.areas[a])
   && (a !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
 function setAreaEnabled(settings, area, enabled) {
@@ -1812,12 +1792,6 @@ function setAreaEnabled(settings, area, enabled) {
 function gate(area, name) {
   if (areaOn(area)) return null;
   return h`<div class="card">${empty(name + ' está desligado', 'Esta área é opcional. Ative quando quiser; você pode desligar depois sem perder o que registrou.', h`<button class="btn primary" data-action="enable-area" data-area="${area}">Ativar ${name}</button>`)}</div>`;
-}
-function areaNav(cur) {
-  const areas = { ...S.settings.areas, cycle: areaOn('cycle') };
-  const items = orderMenuItems(S.settings.prefs.menuOrder, areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
-  if (items.length < 2) return '';
-  return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="/${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
 }
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
@@ -1860,6 +1834,7 @@ function applyTheme(theme) {
   r.setAttribute('data-palette', th); r.style.setProperty('--p', p); r.style.setProperty('--pd', pd);
   const effectiveMode = L.mode === 'auto' ? (systemThemeQuery?.matches ? 'dark' : 'light') : L.mode;
   r.setAttribute('data-theme', effectiveMode);
+  window.auroraManifestTheme?.setMode(L.mode);
   const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
   HOME_AREA_COLORS.forEach(({ id, css }) => {
     const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
@@ -1942,7 +1917,7 @@ function restoreDialogOpener(opener) {
   target?.focus({ preventScroll: true });
 }
 function cycleDataConsentGate() {
-  return h`${areaNav('ciclo')}${pageTitle('Ciclo')}
+  return h`${pageTitle('Ciclo')}
     <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
       <span class="section-kicker">Consentimento específico</span>
       <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
@@ -2202,11 +2177,42 @@ function focusRouteTarget(id) {
   target.focus({ preventScroll: true });
   target.scrollIntoView({ block: 'start' });
 }
+function loadFinanceModules() {
+  if (financeDialogViews) return Promise.resolve();
+  financeModulesPromise ||= Promise.all([
+    import('./features/finance/dialogs.js'),
+    import('./features/finance/view.js'),
+  ]).then(([dialogs, view]) => {
+    financeDialogViews = dialogs.createFinanceDialogViews({
+      ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+      accountOptionLabel, accById, isCredit, expenseTitle,
+      categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
+      anticipationCandidates,
+    });
+    financePrivacyNotice = view.financePrivacyNotice;
+  }).catch((error) => {
+    financeModulesPromise = null;
+    throw error;
+  });
+  return financeModulesPromise;
+}
+function openFinanceQuickAction(action) {
+  ui.quickActionsOpen = false;
+  if (financeDialogViews) { action(); return; }
+  const opener = ui.lastFocus;
+  render();
+  void loadFinanceModules().then(() => {
+    ui.lastFocus = opener;
+    action();
+  }, (error) => {
+    console.error('Aurora: não foi possível carregar as ações de Finanças.', error);
+    toast('Não foi possível carregar Finanças. Atualize a página e tente novamente.', 'error');
+  });
+}
 function onRoute() {
   const wasBooted = ui.booted;
   const previousRoute = ui.route;
   const previousScroll = window.scrollY;
-  ui.navigationOpen = false;
   ui.quickActionsOpen = false;
   const fallbackRoute = document.querySelector('meta[name="aurora-route"]')?.content || 'inicio';
   const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
@@ -2220,6 +2226,40 @@ function onRoute() {
     toast(hasProfileSex
       ? 'Ciclo está disponível apenas para mulheres.'
       : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.', 'info');
+  }
+  if (resolved.route === 'ciclo' && !cycleDialogViews) {
+    cycleModulesPromise ||= Promise.all([
+      import('./features/cycle/calculations.js'),
+      import('./features/cycle/phases.js'),
+      import('./features/cycle/dialogs.js'),
+      import('./features/cycle/view.js'),
+    ]).then(([calculations, phases, dialogs, view]) => {
+      cycleDayNumber = calculations.cycleDayNumber;
+      cycleStats = calculations.cycleStats;
+      estimatedCyclePhase = phases.estimatedCyclePhase;
+      renderCycleView = view.renderCycleView;
+      cycleDialogViews = dialogs.createCycleDialogViews({
+        ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS,
+        CYCLE_TEST_RESULTS, cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
+      });
+      if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'ciclo') onRoute();
+    }).catch((error) => {
+      cycleModulesPromise = null;
+      console.error('Aurora: não foi possível carregar a área de Ciclo.', error);
+      history.replaceState(null, '', '/inicio');
+      toast('Não foi possível carregar Ciclo. Atualize a página e tente novamente.', 'error');
+    });
+    return;
+  }
+  if (resolved.route === 'financas' && !financeDialogViews) {
+    void loadFinanceModules().then(() => {
+      if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'financas') onRoute();
+    }).catch((error) => {
+      console.error('Aurora: não foi possível carregar a área de Finanças.', error);
+      history.replaceState(null, '', '/inicio');
+      toast('Não foi possível carregar Finanças. Atualize a página e tente novamente.', 'error');
+    });
+    return;
   }
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
   if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
@@ -2290,11 +2330,14 @@ async function syncHabitReminderSchedule() {
         timeZone,
         skipDate: habitCompletedFor(habit, today()) || habitIsSkipped(habit, today(), today()) ? today() : null,
       }));
+    const taskReminders = buildTaskPushReminders(S.tasks);
     if (reminders.length) await scheduleHabitPushReminders(reminders);
     else await cancelHabitPushReminders();
-    ui.habitPushNotice = reminders.length
+    if (taskReminders.length) await scheduleTaskPushReminders(taskReminders);
+    else await cancelTaskPushReminders();
+    ui.habitPushNotice = reminders.length || taskReminders.length
       ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPushNotificationStatus().native ? 'do dispositivo' : 'do navegador'}.`
-      : 'Não há horários de lembrete ativos para enviar ao serviço.';
+      : 'Não há lembretes de hábitos ou tarefas próximos para enviar ao serviço.';
     return true;
   } catch (error) {
     ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pushNotificationErrorMessage(error)}`;
@@ -2400,7 +2443,7 @@ function homeUpcomingTasks() {
   </section>`;
 }
 
-function homeHabitCheckins(highlightNext = false) {
+function homeHabitCheckins(highlightNext = false, onlyNext = false) {
   if (!areaOn('habits')) return '';
   const scheduled = S.habits.filter((habit) => (
     (habit.status || 'active') === 'active'
@@ -2410,9 +2453,10 @@ function homeHabitCheckins(highlightNext = false) {
   const nextHabit = highlightNext ? scheduled.find((habit) => (
     !habitCompletedFor(habit, today()) && !habitIsSkipped(habit, today(), today())
   )) : null;
-  return h`<section class="card home-habit-checkins" aria-labelledby="home-habits-title">
-    <div class="head"><h2 id="home-habits-title">Hábitos de hoje<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
-    <ul class="list">${scheduled.map((habit) => {
+  if (onlyNext && !nextHabit) return '';
+  return h`<section class="card home-habit-checkins" aria-label="${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}">
+    <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
+    <ul class="list">${(onlyNext ? [nextHabit] : scheduled).map((habit) => {
       const completed = habitCompletedFor(habit, today());
       const skipped = habitIsSkipped(habit, today(), today());
       return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
@@ -2457,7 +2501,7 @@ function viewInicio() {
   const name = (S.settings.profile.preferredName || S.settings.profile.name).trim();
   const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
   const greeting = profileGreeting(profileAppearance.greeting);
-  const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
+  const tt = todayTasks(), pend = tt.filter((t) => !t.done);
   const overdue = pend.filter((t) => t.dueDate < today());
   const dueToday = pend.filter((t) => t.dueDate === today());
   const completed = tt.filter((t) => t.done);
@@ -2469,7 +2513,6 @@ function viewInicio() {
   const sundayReview = pk(today()).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
-  const taskShortcutVisible = homePrefs.homeShortcuts.includes('task');
   const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => (
     homePrefs.homeShortcuts.includes(id)
     && (!area || areaOn(area))
@@ -2480,7 +2523,13 @@ function viewInicio() {
   const habitsLeft = habitsToday.filter((hb) => !habitCompletedFor(hb, today())
     && !habitIsSkipped(hb, today(), today())).length;
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
-  const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
+  const taskSummary = [
+    overdue.length ? `${overdue.length} ${plural(overdue.length, 'tarefa atrasada', 'tarefas atrasadas')}` : '',
+    dueToday.length ? `${dueToday.length} ${plural(dueToday.length, 'tarefa para hoje', 'tarefas para hoje')}` : '',
+  ].filter(Boolean).join(' · ');
+  const lead = (taskSummary || (!tt.length
+    ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
+    : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
   return renderHomeView({
     name,
     profileAppearance,
@@ -2488,9 +2537,7 @@ function viewInicio() {
     dateLabel: cap(longDate(today())),
     homeMessage,
     lead,
-    taskShortcutVisible,
     tt,
-    doneN,
     sundayReview,
     optionalAreas,
     overdue,
@@ -2500,6 +2547,7 @@ function viewInicio() {
     inbox,
     homeShortcuts,
     openCompleted: ui.openDetails['home-completed'],
+    openExtras: ui.openDetails['home-extras'],
     financeAccountsCount: S.finance.accounts.length,
     showHomeBlock,
     homeBlockStyle,
@@ -2513,7 +2561,6 @@ function viewInicio() {
     homeUpcomingBill,
     homeUpcomingTasks,
     profileAvatarMarkup,
-    ring,
     sampleBanner,
     taskRow,
   });
@@ -2856,13 +2903,13 @@ function disconnectGoogleCalendar(accountId) {
 }
 function viewPlanejar() {
   const f = ui.filters;
-  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual" aria-pressed="${ui.planView === 'anual'}">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
+  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
     <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
-      <div class="plan-view-control"><span>Ver como</span><div class="seg plan-view-segments" role="group" aria-label="Modo de visualização">${[['lista', 'Lista', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']].map(([value, label, ic]) => h`<button type="button" data-action="plan-view" data-v="${value}" aria-pressed="${String(ui.planView === value)}">${icon(ic, 16)}<span>${label}</span></button>`)}</div></div>
-      ${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
+      <div class="plan-view-control"><span>Ver como</span><div class="tabs plan-view-segments" role="tablist" aria-label="Modo de visualização">${[['lista', 'Lista', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']].map(([value, label, ic]) => h`<button type="button" class="tab" role="tab" id="plan-tab-${value}" aria-controls="plan-panel" tabindex="${ui.planView === value ? '0' : '-1'}" data-action="plan-view" data-v="${value}" aria-selected="${String(ui.planView === value)}">${icon(ic, 16)}<span>${label}</span></button>`)}</div></div>
+      <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${ui.planView}">${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
-      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</section>
+      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</div></section>
     ${ui.planView === 'anual' ? '' : plansHtml()}`;
 }
 
@@ -3097,7 +3144,7 @@ function habitRow(habit) {
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span class="habit-circle-check">${icon('check', 22)}</span>
     </button>
     <details class="habit-more" id="d-hab-${habit.id}" ${open}>
-      <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span></span>${icon('chevDown', 18, 'chev')}</summary>
+      <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span>${stats.streak ? h`<span class="habit-streak">Sequência: ${stats.streak} ${plural(stats.streak, 'dia programado', 'dias programados')}</span>` : ''}</span>${icon('chevDown', 18, 'chev')}</summary>
       <div class="habit-more-body">
         ${habitWaterTracker(habit)}
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
@@ -3113,6 +3160,10 @@ function habitRow(habit) {
   </li>`;
 }
 function viewHabits() {
+  if (!renderHabitsView) {
+    requestHabitsTemplate();
+    return h`${areaPageTitle('habitos', 'Hábitos')}<section class="card habit-loading" role="status" aria-label="Carregando Hábitos"><span class="sr">Carregando Hábitos…</span><div aria-hidden="true"><span></span><span></span><span></span></div></section>`;
+  }
   return renderHabitsView({
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
@@ -3124,7 +3175,15 @@ function viewHabits() {
 function requestHabitsTemplate() {
   if (habitsTemplate || habitsTemplatePromise) return;
   habitsTemplateError = false;
-  habitsTemplatePromise = loadHabitsTemplate().then(
+  habitsTemplatePromise = Promise.all([
+    import('./features/habits/view.js'),
+    import('./features/habits/template.js'),
+  ]).then(([viewModule, templateModule]) => {
+    renderHabitsView = viewModule.renderHabitsView;
+    loadHabitsTemplate = templateModule.loadHabitsTemplate;
+    renderHabitsTemplate = templateModule.renderHabitsTemplate;
+    return loadHabitsTemplate();
+  }).then(
     (template) => {
       habitsTemplate = template;
       habitsTemplatePromise = null;
@@ -3234,94 +3293,11 @@ function cycleCalendarPhase(day, stats) {
   return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set, stats.canEstimateFertility);
 }
 function viewCiclo() {
-  const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}${g}`;
-  const tdy = today(), st = cycleStats(S.cycleLog, S.cycle, tdy), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
-  const ym = ui.calMonth, [y, m] = ym.split('-').map(Number), first = new Date(y, m - 1, 1), nDays = new Date(y, m, 0).getDate();
-  const strip = Array.from({ length: 14 }, (_, i) => addDays(tdy, i - 13));
-  const dn = cycleDayNumber(sel, st.starts);
-  const hasCycleHistory = st.starts.length > 0;
-  const hasCycleRecords = Object.values(S.cycleLog).some(hasAnyLog);
-  const selectedPeriodIndex = S.cycle.findIndex((period) => period.start <= sel && cyclePeriodEnd(period) >= sel);
-  const selectedPeriod = selectedPeriodIndex >= 0 ? S.cycle[selectedPeriodIndex] : null;
-  const selectedPhase = cycleCalendarPhase(sel, st);
-  const cycleMoment = st.set.has(sel)
-    ? ['Período registrado', 'Este dia faz parte de um período que você registrou.']
-    : st.next === sel
-      ? ['Início estimado', 'Esta é uma estimativa baseada nos seus registros anteriores.']
-      : selectedPhase === 'ovulation'
-        ? ['Ovulação estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
-        : selectedPhase === 'fertile'
-          ? ['Janela fértil estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
-      : dn
-        ? [`Dia ${dn} do ciclo`, 'Fase não estimada para esta data. As previsões dependem dos registros e podem variar.']
-        : hasCycleHistory
-          ? ['Sem ciclo iniciado nesta data', 'Selecione uma data a partir do início registrado para ver o dia do ciclo.']
-          : ['Comece pelo primeiro registro', 'Marque o primeiro dia do fluxo menstrual. Com dois inícios registrados, você poderá ver médias e estimativas.'];
-  const cells = []; for (let i = 0; i < (first.getDay() + 7 - weekStartDay()) % 7; i++) cells.push('<span></span>');
-  for (let d = 1; d <= nDays; d++) {
-    const k = `${ym}-${pad(d)}`, fut = k > tdy, phase = cycleCalendarPhase(k, st);
-    const phaseLabel = phase === 'menstruation' ? 'menstruação registrada'
-      : phase === 'fertile' ? 'janela fértil estimada'
-        : phase === 'ovulation' ? 'ovulação estimada' : '';
-    const phaseClass = phase ? `phase-${phase}` : '';
-    cells.push(`<button type="button" class="${phaseClass} ${st.set.has(k) ? 'm' : st.next === k ? 'p' : ''} ${k === tdy ? 't' : ''} ${k === sel ? 's' : ''} ${hasAnyLog(S.cycleLog[k]) ? 'l' : ''}" ${fut ? 'disabled' : ''} data-action="cyc-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}${phaseLabel ? ', ' + phaseLabel : st.next === k ? ', próximo início estimado' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}">${d}</button>`);
-  }
-  const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
-  const cycleRange = st.min === st.max ? `${st.min} dias` : `${st.min} a ${st.max} dias`;
-  const cycleEstimateNotice = !st.avg
-    ? 'Ainda não há registros suficientes para estimar fases do ciclo. As previsões não substituem avaliação profissional nem servem como método contraceptivo.'
-    : st.canEstimateFertility
-      ? 'Ovulação e janela fértil são estimativas que podem variar. As previsões não substituem avaliação profissional nem servem como método contraceptivo.'
-      : st.hasOutOfRangeRecentInterval
-        ? 'Há um intervalo recente fora da faixa de 15 a 60 dias usada nos cálculos; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.'
-        : `A variação dos últimos ${st.observedIntervals} intervalos foi de ${st.min} a ${st.max} dias; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.`;
-  return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}
-    <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
-    ${!hasCycleHistory && !hasCycleRecords
-      ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
-      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`      <div class="stat"><b>${st.avg} dias</b><span>Média dos ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo recente', 'intervalos recentes')} · variação de ${cycleRange}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
-    <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
-      ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
-      <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
-      <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
-    <section class="card cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-      <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
-      <div class="cycle-calendar-legend" role="group" aria-label="Legenda das fases do calendário">
-        <span><i class="lg m"></i>Menstruação registrada</span>
-        ${st.canEstimateFertility ? h`<span><i class="lg fertile"></i>Janela fértil estimada</span><span><i class="lg ovulation"></i>Ovulação estimada</span>` : ''}
-        ${st.next ? h`<span><i class="lg p"></i>Próximo início estimado</span>` : ''}
-        <span><i class="lg l"></i>Dia com registro</span>
-      </div>
-      <div class="notice cycle-estimate-notice" role="note">${icon('info', 18)}<span>${cycleEstimateNotice}</span></div></section>
-    <details class="card cycle-health-card">
-      <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Ciclo, sexualidade e prevenção</strong><small>Orientações gerais sobre mudanças do ciclo, contracepção, ISTs e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
-      <div class="cycle-health-content">
-        <article class="cycle-health-topic">
-          <h3>${icon('activity', 17)}O que pode explicar as mudanças?</h3>
-          <p>Os níveis hormonais mudam ao longo do ciclo e podem acompanhar cólicas, sensibilidade nas mamas e variações de humor. A cólica costuma ocorrer porque o útero se contrai para eliminar seu revestimento. Estresse, mudanças de peso ou de exercício, gravidez e alguns métodos contraceptivos também podem alterar o padrão. Uma mudança isolada não confirma uma causa: registre quando acontece e converse com uma profissional de saúde se persistir ou preocupar.</p>
-        </article>
-        <article class="cycle-health-topic">
-          <h3>${icon('heart', 17)}Relações, contracepção e ISTs</h3>
-          <p>Ter relações durante a menstruação é uma escolha; conforto e consentimento importam. Menstruar não impede uma gravidez: a ovulação pode variar e espermatozoides podem permanecer viáveis por alguns dias. As previsões deste calendário não servem como método contraceptivo.</p>
-          <p>Contracepção e prevenção de ISTs são cuidados distintos. Preservativos ajudam a reduzir o risco de ISTs, que podem ser transmitidas em qualquer fase do ciclo e nem sempre causam sinais. Para orientação, testagem ou atendimento após uma possível exposição, procure uma UBS.</p>
-          <p>Sangramento entre menstruações ou depois da relação pode ter diferentes causas, inclusive contraceptivos, ressecamento ou infecções. Se for novo, recorrente ou vier com dor, procure avaliação — não dá para descobrir a causa apenas pelo aplicativo.</p>
-        </article>
-        <article class="cycle-health-topic">
-          <h3>${icon('alert', 17)}Dor e sinais para buscar atendimento</h3>
-          <p>Procure uma UBS ou ginecologista se a dor piorar, atrapalhar suas atividades, houver dor durante a relação, ao urinar ou evacuar, ou mudança persistente no fluxo ou intervalo. Dor pélvica muito forte, nova ou pior que o habitual merece avaliação urgente. Se houver possibilidade de gravidez ou atraso menstrual junto com sangramento fora do usual e dor abdominal, procure atendimento com urgência. Em emergência, ligue 192 (SAMU).</p>
-        </article>
-        <div class="cycle-health-sources" aria-label="Fontes de saúde">
-          <span>Fontes:</span>
-          <a href="https://www.gov.br/saude/pt-br/assuntos/saude-de-a-a-z/i/ist" target="_blank" rel="noopener noreferrer">Ministério da Saúde · ISTs</a>
-          <a href="https://www.nhs.uk/contraception/methods-of-contraception/natural-family-planning/" target="_blank" rel="noopener noreferrer">NHS · contracepção e fertilidade</a>
-          <a href="https://www.nhs.uk/conditions/periods/period-problems/" target="_blank" rel="noopener noreferrer">NHS · alterações menstruais</a>
-          <a href="https://www.nhs.uk/symptoms/period-pain/" target="_blank" rel="noopener noreferrer">NHS · dor menstrual</a>
-          <a href="https://www.nhs.uk/symptoms/vaginal-bleeding-between-periods-or-after-sex/" target="_blank" rel="noopener noreferrer">NHS · sangramento fora do período ou após sexo</a>
-          <a href="https://www.gov.br/saude/pt-br/composicao/saes/samu-192" target="_blank" rel="noopener noreferrer">Ministério da Saúde · SAMU 192</a>
-        </div>
-      </div>
-    </details>
-    `;
+  return renderCycleView({
+    S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
+    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, weekStartDay, clamp,
+    plural, empty, cycleLogSummary, CYC_ICON, cap, ymLabel,
+  });
 }
 
 /* ---------- Ajustes ---------- */
@@ -3469,7 +3445,7 @@ function homeLayoutSettings(s) {
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início. O plano de hoje fica fixo no topo.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações. O plano de hoje fica no topo; os demais ficam em Mais do Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
     <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
@@ -4179,11 +4155,6 @@ function dlgTask() {
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
     'task-dialog');
 }
-const cycleDialogViews = createCycleDialogViews({
-  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS,
-  CYCLE_TEST_RESULTS,
-  cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
-});
 function dlgCycleLog() { return cycleDialogViews.log(); }
 function dlgCyclePeriod() { return cycleDialogViews.period(); }
 function dlgHabitEdit() {
@@ -4498,6 +4469,12 @@ function replaceCategoryReferences(oldPath, newPath) {
       changed = true;
     }
   }));
+  S.settings.prefs.financeCategoryRules.forEach((rule) => {
+    if (rule.category === oldPath) {
+      rule.category = newPath;
+      changed = true;
+    }
+  });
   if (Object.hasOwn(S.finance.budgets, oldPath)) {
     Object.defineProperty(S.finance.budgets, newPath, {
       value: S.finance.budgets[oldPath],
@@ -4611,6 +4588,7 @@ function renderDialog() {
       history.back();
     }
     if (el) {
+      if (el instanceof HTMLDialogElement && el.open) el.close();
       el.remove();
       $('#app').inert = false;
       const lf = ui.lastFocus;
@@ -4633,10 +4611,24 @@ function renderDialog() {
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
   const afSel = af ? { id: af.id, data: af.dataset.dlg, action: af.dataset.action, v: af.dataset.v, c: af.dataset.c } : null;
   const prevScroll = !opening ? (el.querySelector('.dlg-body') || {}).scrollTop : 0;
-  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll(); }
+  if (opening) {
+    if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement);
+    el = document.createElement('dialog');
+    el.id = 'dlg';
+    el.className = 'dlg-back is-opening';
+    el.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      if (ui.dlg) dlgClose();
+    });
+    setTimeout(() => el.classList.remove('is-opening'), 500);
+    document.body.appendChild(el);
+    if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll();
+  }
   el.classList.toggle('is-intro', isIntro);
   fitDlg();
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  el.setAttribute('aria-labelledby', 'dt');
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
@@ -4910,41 +4902,28 @@ const ACTIONS = {
     void confirmInDialog('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?')
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
-  'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
   'tasks-show-more': () => showMoreResults('tasks', '#task-results', taskListHtml),
   'transactions-show-more': () => showMoreResults('transactions', '#tx-results', txListHtml),
-  'sidebar-toggle': () => {
-    ui.sidebarCollapsed = !ui.sidebarCollapsed;
-    writeSidebarCollapsed(ui.sidebarCollapsed);
-    render();
-    requestAnimationFrame(() => document.querySelector('.sidebar-toggle')?.focus());
-  },
   'quick-actions-toggle': (el) => {
     const opening = !ui.quickActionsOpen;
-    const returnTarget = el.matches('.finance-fab')
-      ? '.finance-fab'
-      : window.matchMedia('(max-width: 899px)').matches
-        ? '.finance-fab'
-        : '.nav-quick-trigger';
-    ui.navigationOpen = false;
+    if (opening) quickActionsReturnTarget = el.matches('.finance-fab') ? '.finance-fab' : '.nav-quick-trigger';
     ui.quickActionsOpen = opening;
     render();
     requestAnimationFrame(() => {
       const target = opening
         ? document.querySelector('#quick-actions-menu button')
-        : document.querySelector(returnTarget);
+        : document.querySelector(quickActionsReturnTarget);
       target?.focus();
     });
   },
   'quick-action-task': () => { ui.quickActionsOpen = false; openTaskDialog(today()); },
   'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
-  'quick-action-transaction': () => { ui.quickActionsOpen = false; newTxDlg('out'); },
+  'quick-action-transaction': () => { openFinanceQuickAction(() => newTxDlg('out')); },
   'quick-action-finance': (el) => {
-    ui.quickActionsOpen = false;
     const kind = el.dataset.kind;
-    newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card');
+    openFinanceQuickAction(() => newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card'));
   },
-  'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
+  'quick-action-account': () => { openFinanceQuickAction(() => ACTIONS['acct-new']()); },
   'areas-nav-open': (_, event) => {
     event.preventDefault();
     nav('config?section=areas-navigation');
@@ -4979,14 +4958,6 @@ const ACTIONS = {
   },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
-  'home-quick-focus': () => {
-    const input = $('#home-quick-title-input');
-    if (!input) return openTaskDialog(today());
-    const reduceMotion = prefersReducedMotion(settingsView().look.reduceMotion);
-    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
-    if (reduceMotion) input.focus();
-    else setTimeout(() => input.focus(), 250);
-  },
   'first-steps-dismiss': () => {
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.firstStepsDismissed = true;
@@ -5148,11 +5119,13 @@ const ACTIONS = {
   },
   'plan-view': (el) => {
     if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
+    const focusTab = el.getAttribute('role') === 'tab';
     ui.planView = el.dataset.v;
     ui.annualEditingGoalId = '';
     ui.annualGoalFormOpen = false;
     ui.annualGoalDraft = null;
     render();
+    if (focusTab) requestAnimationFrame(() => document.getElementById(`plan-tab-${ui.planView}`)?.focus());
     if (ui.planView === 'calendario') {
       const staleAccounts = connectedGoogleCalendarAccounts()
         .filter((account) => account.loadedMonth !== ui.taskCal)
@@ -5352,11 +5325,22 @@ const ACTIONS = {
     const day = today();
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
+    const previousCelebrationDay = ui.habitCelebrationDay;
     const snapshot = snapshotSlices(['habits']);
     habit.completions = habit.completions.includes(day)
       ? habit.completions.filter((completed) => completed !== day)
       : [...habit.completions, day];
-    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) return;
+    const scheduledToday = S.habits.filter((item) => (
+      (item.status || 'active') === 'active'
+      && item.days.includes(pk(day).getDay())
+      && !habitIsSkipped(item, day, day)
+    ));
+    ui.habitCelebrationDay = completing && scheduledToday.length > 0
+      && scheduledToday.every((item) => habitCompletedFor(item, day)) ? day : '';
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) {
+      ui.habitCelebrationDay = previousCelebrationDay;
+      return;
+    }
     if (completing) {
       completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
       toast('Hábito marcado como concluído.', 'action', () => {
@@ -5364,6 +5348,7 @@ const ACTIONS = {
         if (!currentHabit || !currentHabit.completions.includes(day)) return;
         const undoSnapshot = snapshotSlices(['habits']);
         currentHabit.completions = currentHabit.completions.filter((completed) => completed !== day);
+        ui.habitCelebrationDay = '';
         saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do hábito');
       });
     }
@@ -6164,6 +6149,24 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'finance-category-rule': (form, data) => {
+    const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
+    const kind = ui.dlg?.d?.ruleKind === 'in' ? 'in' : 'out';
+    const category = String(data.get('category') || '').trim();
+    if (!phrase) return toast('Informe uma frase para reconhecer.', 'warning');
+    if (!catNames(kind).includes(category)) return toast('Escolha uma categoria válida para o tipo selecionado.', 'warning');
+    const rules = S.settings.prefs.financeCategoryRules;
+    if (rules.length >= 50) return toast('Você pode configurar até 50 regras de categoria.', 'warning');
+    if (rules.some((rule) => rule.kind === kind && norm(rule.phrase) === norm(phrase))) {
+      return toast('Já existe uma regra com essa frase para este tipo.', 'info');
+    }
+    const snapshot = snapshotSlices(['settings']);
+    rules.unshift({ id: newId(), phrase, category, kind });
+    if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a regra de categoria')) return;
+    ui.dlg.d.ruleCategory = category;
+    render();
+    toast('Regra automática adicionada.', 'success');
+  },
   'cycle-data-consent': async (form) => {
     const checkbox = form.elements.namedItem('cycleConsent');
     if (!(checkbox instanceof HTMLInputElement) || !checkbox.checked) return;
@@ -6420,6 +6423,12 @@ const FORMS = {
 };
 const CHANGES = {
   'plan-view': (el) => ACTIONS['plan-view']({ dataset: { v: el.value } }),
+  'finance-rule-kind': (el) => {
+    if (ui.dlg?.type !== 'category-manager' || !['in', 'out'].includes(el.value)) return;
+    ui.dlg.d.ruleKind = el.value;
+    ui.dlg.d.ruleCategory = catNames(el.value)[0] || '';
+    render();
+  },
   'annual-plan-year': (el) => {
     if (!/^\d{4}$/.test(el.value) || Number(el.value) < 2026) return;
     ui.annualYear = el.value;
@@ -6555,11 +6564,12 @@ function tick() {
 /* ---- Eventos globais ---- */
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
-  if (!Persist.store || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
+  if (!Persist.store || Persist.inFlight || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
     return;
   }
   try {
     await loadAccountData();
+    render();
   } catch (error) {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
   }
@@ -6642,17 +6652,15 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
-  if (!ui.navigationOpen || !(target instanceof Element)
-    || target.closest('#nav-more-menu, .nav-more-trigger, .nav-more-create')) return;
-  ui.navigationOpen = false;
+  if (!ui.quickActionsOpen || !(target instanceof Element)
+    || target.closest('#quick-actions-menu, .nav-quick-trigger, .finance-fab')) return;
+  ui.quickActionsOpen = false;
   render();
 });
 document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (!ui.quickActionsOpen || !(target instanceof Element)
-    || target.closest('#quick-actions-menu, .nav-quick-trigger, .nav-more-create, .finance-fab')) return;
-  ui.quickActionsOpen = false;
-  render();
+  const menu = document.querySelector('.profile-menu-control[open]');
+  if (!menu || !(e.target instanceof Node) || menu.contains(e.target)) return;
+  menu.open = false;
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
@@ -6716,6 +6724,7 @@ document.addEventListener('input', (e) => {
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
   const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
+  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'category' && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
   if (ui.dlg && ui.dlg.type !== 'search' && !opensCategoryDialog && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const preferredInput = $('#ppreferred');
@@ -6842,6 +6851,22 @@ document.addEventListener('toggle', (e) => {
 }, true);
 document.addEventListener('keydown', (e) => {
   if (handlePublicKeydown(e)) return;
+  const tab = e.target instanceof Element ? e.target.closest('[role="tab"]') : null;
+  if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    const list = tab.closest('[role="tablist"]');
+    const tabs = list ? [...list.querySelectorAll('[role="tab"]:not([disabled])')] : [];
+    const index = tabs.indexOf(tab);
+    if (index >= 0) {
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+        : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      const target = tabs[next];
+      const id = target.id;
+      target.click();
+      requestAnimationFrame(() => document.getElementById(id)?.focus());
+      return;
+    }
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     if (ui.dlg?.type === 'onboard') return;
     e.preventDefault();
@@ -6849,23 +6874,22 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
+  if (e.key === 'Escape') {
+    const profileMenu = document.querySelector('.profile-menu-control[open]');
+    if (profileMenu) {
+      e.preventDefault();
+      profileMenu.open = false;
+      profileMenu.querySelector('summary')?.focus();
+      return;
+    }
+  }
   if (e.key === 'Escape' && ui.quickActionsOpen) {
     e.preventDefault();
     ui.quickActionsOpen = false;
     render();
     requestAnimationFrame(() => {
-      const returnTarget = window.matchMedia('(max-width: 899px)').matches
-        ? '.finance-fab'
-        : '.nav-quick-trigger';
-      document.querySelector(returnTarget)?.focus();
+      document.querySelector(quickActionsReturnTarget)?.focus();
     });
-    return;
-  }
-  if (e.key === 'Escape' && ui.navigationOpen) {
-    e.preventDefault();
-    ui.navigationOpen = false;
-    render();
-    requestAnimationFrame(() => document.querySelector('[data-action="nav-more-toggle"]')?.focus());
     return;
   }
   if (!ui.dlg) return;
@@ -7028,9 +7052,9 @@ const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin
 const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
 const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
-  return h`<div class="fin-section-menu" role="group" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="fin-section-option ${id === key ? 'is-active' : ''}" data-action="fin-tab" data-t="${id}" aria-pressed="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
+  return h`<div class="tabs fin-section-menu" role="tablist" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="tab fin-section-option" role="tab" id="fin-tab-${id}" aria-controls="fin-panel" tabindex="${id === key ? '0' : '-1'}" data-action="fin-tab" data-t="${id}" aria-selected="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
 };
-const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="quick-actions-toggle" aria-label="Abrir ações rápidas de Finanças" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
+const fab = () => S.finance.accounts.length ? h`<button type="button" class="fab finance-fab" data-action="quick-actions-toggle" aria-label="Abrir ações rápidas de Finanças" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
 
 /* ---- Resumo ---- */
 function expenseTrendChart(ym, cur) {
@@ -7207,11 +7231,10 @@ function txListHtml() {
   return h`<div class="finance-results-groups">${days.map((g) => { const net = netByDay.get(g.d); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`; })}</div>
     ${all.length > r.length ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} lançamentos</p><button type="button" class="btn" data-action="transactions-show-more">Mostrar mais lançamentos</button>` : ''}`;
 }
-function finLanc() { return ui.finView === 'cal' ? h`${monthNav()}${finTools()}${finCal()}` : finLancList(); }
+function finLanc() { return h`${monthNav()}${finTools()}<div id="fin-view-panel" role="tabpanel" aria-labelledby="fin-view-${ui.finView}">${ui.finView === 'cal' ? finCal() : finLancList()}</div>`; }
 function finLancList() {
   const st = monthStats(ui.finMonth);
-  return h`${monthNav()}${finTools()}
-    <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
+  return h`<section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
       <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
@@ -7266,7 +7289,12 @@ function finOrc() {
   return h`${monthNav()}
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
       ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
-      <ul class="list budget-list">${rows.map((r) => { const m = outMeta(r.n), over = r.lim && r.sp > r.lim; return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="Definir limite de ${r.n}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`; })}</ul></section>
+      <ul class="list budget-list">${rows.map((r) => {
+        const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
+        const nearLimit = r.lim > 0 && !over && r.sp / r.lim >= .8;
+        const label = `Definir limite de ${r.n}${nearLimit ? '. Atenção: atingiu pelo menos 80% do limite mensal.' : ''}`;
+        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
+      })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
       ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
         const savedCents = linkedGoalProgressCents(g, F.accounts, F.tx);
@@ -7298,14 +7326,14 @@ function finRel() {
 }
 
 function viewFinancas() {
-  const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
+  const g = gate('finances', 'Finanças'); if (g) return h`${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
   const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
   const noAcc = !S.finance.accounts.length;
   const visibilityAction = h`<button type="button" class="ibtn finance-visibility-toggle" data-action="finance-values-toggle" aria-pressed="${String(ui.financeValuesHidden)}" aria-label="${ui.financeValuesHidden ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}" title="${ui.financeValuesHidden ? 'Mostrar valores' : 'Ocultar valores'}">${icon(ui.financeValuesHidden ? 'eyeOff' : 'eye', 18)}</button>`;
-  const createAction = h`<span class="finance-page-actions">${visibilityAction}${noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`}</span>`;
+  const createAction = h`<span class="finance-page-actions">${visibilityAction}${noAcc ? '' : h`<button type="button" class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>${fab()}`}</span>`;
   const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
-  return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
-    <div class="fin-section-content">${noAcc ? h`${finSectionPicker()}${ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts}` : h`${finSectionPicker()}${panel()}`}</div>${noAcc ? '' : h`${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
+  return h`${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
+    <div class="fin-section-content">${finSectionPicker()}<div id="fin-panel" role="tabpanel" aria-labelledby="fin-tab-${ui.finTab}">${noAcc ? (ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts) : panel()}</div></div>`;
 }
 
 /* ========== Diálogos de Finanças ========== */
@@ -7338,6 +7366,7 @@ function newTxDlg(kind = 'out', preferCredit = false) {
     amount: '',
     desc: '',
     category: defaults.category,
+    categoryTouched: false,
     accountId: first ? first.id : '',
     toAccountId: second?.id || '',
     date: today(),
@@ -7378,12 +7407,6 @@ function recentTransactionDefaults(kind, preferCredit = false) {
     toAccountId: kind === 'tr' ? recent?.toAccountId || '' : '',
   };
 }
-const financeDialogViews = createFinanceDialogViews({
-  ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
-  accountOptionLabel, accById, isCredit, expenseTitle,
-  categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
-  anticipationCandidates,
-});
 function dlgTx() { return financeDialogViews.transaction(); }
 function dlgCategoryManager() {
   const renderCategoryNode = (kind, category) => {
@@ -7400,9 +7423,23 @@ function dlgCategoryManager() {
     <div class="head"><h3>${label}</h3><button type="button" class="btn sm" data-action="category-new" data-kind="${kind}">${icon('plus', 16)}Adicionar</button></div>
     <ul class="list category-manager-list">${categoryEntries(kind).map((category) => renderCategoryNode(kind, category))}</ul>
   </section>`;
+  const ruleKind = ui.dlg.d.ruleKind === 'in' ? 'in' : 'out';
+  const ruleCategories = catNames(ruleKind);
+  const rules = S.settings.prefs.financeCategoryRules;
   return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
     ${categoryGroup('out', 'Despesas')}
-    ${categoryGroup('in', 'Receitas')}`,
+    ${categoryGroup('in', 'Receitas')}
+    <section class="category-manager-group finance-category-rules"><div class="head"><div><h3>Regras automáticas</h3><p class="small muted">Na importação e em novos lançamentos, uma frase da descrição pode sugerir uma categoria.</p></div></div>
+      <form class="form finance-category-rule-form" data-form="finance-category-rule">
+        <label class="f"><span>Tipo</span><select data-change="finance-rule-kind" aria-label="Tipo da regra"><option value="out" ${ruleKind === 'out' ? raw('selected') : ''}>Despesa</option><option value="in" ${ruleKind === 'in' ? raw('selected') : ''}>Receita</option></select></label>
+        <label class="f"><span>Frase na descrição</span><input name="phrase" type="text" maxlength="80" required placeholder="Ex.: Café Central"></label>
+        <label class="f"><span>Categoria</span><select name="category" required>${ruleCategories.map((category) => h`<option value="${category}" ${category === ui.dlg.d.ruleCategory ? raw('selected') : ''}>${category}</option>`)}</select></label>
+        <button class="btn sm" type="submit">${icon('plus', 16)}Adicionar regra</button>
+      </form>
+      ${rules.length
+        ? h`<ul class="finance-category-rule-list" aria-label="Regras configuradas">${rules.map((rule) => h`<li><span><b>“${rule.phrase}”</b><small>${rule.kind === 'in' ? 'Receita' : 'Despesa'} · ${rule.category}</small></span><button type="button" class="ibtn" data-action="finance-category-rule-delete" data-id="${rule.id}" aria-label="Excluir regra para ${rule.phrase}">${icon('trash', 16)}</button></li>`)}</ul>`
+        : h`<p class="small muted">Nenhuma regra configurada.</p>`}
+    </section>`,
     h`<button type="button" class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgCategoryNew() {
@@ -7729,6 +7766,15 @@ Object.assign(ACTIONS, {
     if (entry) toast('Lançamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'category-manager': () => dlgOpen('category-manager', {}),
+  'finance-category-rule-delete': (el) => {
+    const index = S.settings.prefs.financeCategoryRules.findIndex((rule) => rule.id === el.dataset.id);
+    if (index < 0) return;
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.financeCategoryRules.splice(index, 1);
+    if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a regra de categoria')) return;
+    render();
+    toast('Regra automática removida.', 'success');
+  },
   'category-new': (el) => {
     const kind = el.dataset.kind;
     if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
@@ -7960,7 +8006,13 @@ Object.assign(FORMS, {
     if (interestInput && (!Number.isSafeInteger(interestCents) || interestCents < 0 || interestCents > installmentCents)) {
       return fieldError('Informe juros válidos, entre zero e o valor da parcela.', '[data-dlg="interest"]');
     }
-    const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : d.category, desc: d.desc.trim().slice(0, 80) };
+    const matchedRule = !d.id && !d.categoryTouched && !tr
+      ? matchCategoryRule(d.desc, d.kind, S.settings.prefs.financeCategoryRules)
+      : null;
+    const category = matchedRule && catNames(d.kind).includes(matchedRule.category)
+      ? matchedRule.category
+      : d.category;
+    const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : category, desc: d.desc.trim().slice(0, 80) };
     if (tr) base.toAccountId = d.toAccountId;
     const paid = tr || isCredit(acc) ? true : !!d.paid;
     const settledDate = !tr && !isCredit(acc) && paid ? d.settledDate : '';
@@ -8240,7 +8292,7 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
   const n = recList().length;
-  return h`<div class="fin-tools"><div class="seg" role="group" aria-label="Modo"><button type="button" aria-pressed="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
+  return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
     <div class="row fin-tools-actions"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
@@ -8288,6 +8340,8 @@ function dlgRecur() {
 const KW = [[/mercado|supermerc|padaria|restaur|lanche|ifood|pizza|cafe|burger|acougue|hortifruti/, 'Alimentação'], [/uber|99 ?pop|combust|posto|estacion|onibus|metro|pedagio/, 'Transporte'], [/farmac|drog|medic|consulta|clinica|hospital|dentist/, 'Saúde'], [/aluguel|condominio|energia|enel|sabesp|internet|vivo|claro|tim /, 'Moradia'], [/netflix|spotify|cinema|ingresso|steam|disney|prime video/, 'Lazer'], [/curso|escola|faculdade|livro|udemy/, 'Educação'], [/salario|folha|pagamento de/, 'Salário']];
 function guessCategory(desc, kind) {
   const names = catNames(kind), n = norm(desc);
+  const customRule = matchCategoryRule(desc, kind, S.settings.prefs.financeCategoryRules);
+  if (customRule && names.includes(customRule.category)) return customRule.category;
   const hit = S.finance.tx.find((t) => t.type === kind && t.desc && norm(t.desc) === n) || S.finance.tx.find((t) => t.type === kind && t.desc && norm(t.desc).length >= 4 && n.includes(norm(t.desc)));
   if (hit && names.includes(hit.category)) return hit.category;
   for (const [re, c] of KW) { const f = names.find((x) => norm(x) === norm(c)); if (f && re.test(n)) return f; }
@@ -8326,7 +8380,11 @@ let statementDuplicateStatus;
 Object.assign(DLG, { recurlist: dlgRecurList, recur: dlgRecur, impfin: dlgImport2 });
 
 Object.assign(ACTIONS, {
-  'fin-view': (el) => { ui.finView = el.dataset.v; render(); },
+  'fin-view': (el) => {
+    ui.finView = el.dataset.v;
+    render();
+    requestAnimationFrame(() => document.getElementById(`fin-view-${ui.finView}`)?.focus());
+  },
   'fin-day': (el) => { ui.finDay = el.dataset.d; render(); },
   'tx-new-day': () => { newTxDlg('out'); ui.dlg.d.date = ui.finDay || today(); render(); },
   'rec-list': () => dlgOpen('recurlist', {}),
@@ -8421,37 +8479,17 @@ function renderAccountLoading(root) {
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
 
-  const content = document.createElement('div');
-  content.className = 'account-loading-content';
-
-  const brand = document.createElement('span');
-  brand.className = 'account-loading-brand-text';
-  brand.setAttribute('aria-hidden', 'true');
-  brand.textContent = 'aurora';
-
-  const brandDot = document.createElement('span');
-  brandDot.className = 'account-loading-brand-dot';
-  brandDot.setAttribute('aria-hidden', 'true');
-  brandDot.textContent = '.';
-  brand.append(brandDot);
-
-  const indicator = document.createElement('span');
-  indicator.className = 'account-loading-indicator';
-  indicator.setAttribute('aria-hidden', 'true');
-
-  const message = document.createElement('p');
-  message.className = 'account-loading-message';
-  message.textContent = 'Preparando seu espaço…';
-
-  const skeleton = document.createElement('div');
-  skeleton.className = 'account-loading-skeleton';
-  skeleton.setAttribute('aria-hidden', 'true');
-  skeleton.innerHTML = '<span class="loading-skeleton-heading"></span><ul>'
-    + Array.from({ length: 3 }, () => '<li class="loading-skeleton-row"><span class="loading-skeleton-check"></span><span class="loading-skeleton-lines"><i></i><i></i></span></li>').join('')
-    + '</ul>';
-
-  content.append(brand, indicator, message, skeleton);
-  page.append(content);
+  page.innerHTML = `<div class="account-loading-content">
+      <header class="account-loading-header">
+        <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
+        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
+      </header>
+      <div class="account-loading-skeleton" aria-hidden="true">
+        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
+        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      </div>
+    </div>`;
+  page.querySelector('.account-loading-brand img').src = new URL('../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(page);
 }
 
@@ -8513,6 +8551,7 @@ function showAccountDataLoadError(root, error, user) {
 
 function onPushNotification(event) {
   if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.', 'info');
+  if (event.detail?.kind === 'task-reminder') toast('Um lembrete de tarefa chegou. Abra Planejar para conferir sua lista.', 'info');
 }
 
 async function continueAuthenticatedAurora(root, user) {
@@ -8616,7 +8655,6 @@ export async function startAuthenticatedAurora(root, initialMode = 'login', allo
     initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
     onPublicReturn: () => { returnedToPublic = true; },
     onAccountDeleted: () => {
-      window.auroraLoadingAppearance?.clear();
       redirectToPublicLanding(location);
     },
   });
@@ -8789,6 +8827,7 @@ document.addEventListener('click', async (event) => {
   const button = event.target instanceof Element ? event.target.closest('[data-account-signout]') : null;
   if (!button || !accountSession) return;
   event.preventDefault();
+  if (button.closest('.profile-menu-control')) button.closest('.profile-menu-control').open = false;
   if (ui.legacyImport.busy) {
     toast('A importação está em andamento. Aguarde a confirmação antes de sair.', 'warning');
     return;
@@ -8800,7 +8839,7 @@ document.addEventListener('click', async (event) => {
     return;
   }
   try {
-    await cancelHabitPushReminders();
+    await Promise.all([cancelHabitPushReminders(), cancelTaskPushReminders()]);
   } catch {
     if (!await confirmInDialog('Não foi possível cancelar os lembretes de Hábitos deste dispositivo. Eles podem continuar ativos até o próximo ajuste. Deseja sair mesmo assim?')) {
       button.disabled = false;

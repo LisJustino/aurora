@@ -119,6 +119,35 @@ test('aviso de hábito usa texto genérico e abre a área de Hábitos ao ser cli
   assert.deepEqual(focused, [true]);
 });
 
+test('aviso de tarefa não revela o título e abre Planejar ao ser clicado', async () => {
+  const harness = serviceWorkerHarness();
+  const reminder = pushEvent({ kind: 'task-reminder', title: 'Pagar luz' });
+  harness.listeners.get('push')(reminder.event);
+  await reminder.complete();
+  assert.equal(harness.shown[0][0], 'aurora. · Planejar');
+  assert.match(harness.shown[0][1].body, /lembrete de tarefa chegou/i);
+  assert.equal(harness.shown[0][1].body.includes('Pagar luz'), false);
+  assert.equal(harness.shown[0][1].tag, 'aurora-tasks');
+  assert.equal(harness.shown[0][1].data.route, 'planejar');
+
+  const navigated = [];
+  const focused = [];
+  harness.windows.push({
+    visibilityState: 'hidden',
+    url: 'https://aurora.example/',
+    navigate: async (url) => navigated.push(url),
+    focus: async () => focused.push(true),
+  });
+  let completion;
+  harness.listeners.get('notificationclick')({
+    notification: { data: { route: 'planejar' }, close() {} },
+    waitUntil: (promise) => { completion = promise; },
+  });
+  await completion;
+  assert.deepEqual(navigated, ['https://aurora.example/planejar']);
+  assert.deepEqual(focused, [true]);
+});
+
 test('clique em notificação legada do timer não abre uma rota removida', async () => {
   const harness = serviceWorkerHarness();
   const focused = [];

@@ -11,6 +11,7 @@
     "build": "vite build && node scripts/copy-static-assets.mjs && node scripts/prerender-landing.mjs",
     "preview": "vite preview",
     "lint": "eslint src/js",
+    "format:check": "prettier --check package.json .github/workflows/tests.yml .github/dependabot.yml \"src/js/features/push/**/*.js\"",
     "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
     "visuals:generate": "node scripts/generate-visual-screenshots.mjs && node scripts/generate-social-image.mjs",
     "test": "node tests/run.js && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs && node tests/push-notification-startup-check.mjs && node tests/release-notes-check.mjs",
@@ -34,6 +35,7 @@
     "eslint": "^9.39.5",
     "globals": "^17.14.0",
     "playwright": "^1.64.1",
+    "prettier": "^3.10.0",
     "vite": "^6.4.1"
   }
 }
