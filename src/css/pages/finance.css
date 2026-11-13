@@ -1,4 +1,11 @@
 /* Finanças */
+.finance-export-json {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--text-xs);
+}
+.main[data-route="financas"] .tc u.finance-day-dot--out { background: var(--bad); }
+.main[data-route="financas"] .tc u.finance-day-dot--in { background: var(--ok); }
+.main[data-route="financas"] .tc u.finance-day-dot--settled { background: var(--line2); }
 .fin-section-content { display: flex; flex-direction: column; gap: var(--space-4); }
 .main[data-route="financas"] .budget-list > li { padding-inline: var(--space-4); }
 .budget-threshold-alert {

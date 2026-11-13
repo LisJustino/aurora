@@ -10,6 +10,7 @@ const check = (passed, name, detail = '') => {
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -33,7 +34,7 @@ const check = (passed, name, detail = '') => {
   };
 
   await page.goto(`${BASE}/?preview#financas`);
-  await page.getByRole('button', { name: 'Resumo', exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Resumo', exact: true }).waitFor();
   check(await page.evaluate(() => {
     const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
     const fab = document.querySelector('.finance-fab');
@@ -77,7 +78,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('.fin-section-option[data-t="resumo"]').click();
   await page.getByRole('button', { name: 'Ver receitas lançadas no mês' }).click();
   const revenueRows = await page.locator('#tx-results .fr').evaluateAll((rows) => rows.map((row) => row.querySelector('.amt')?.classList.contains('in') ?? false));
-  check(await page.locator('.fin-section-option[data-t="lancamentos"]').getAttribute('aria-pressed') === 'true', 'indicador de receitas abre Lançamentos');
+  check(await page.locator('.fin-section-option[data-t="lancamentos"]').getAttribute('aria-selected') === 'true', 'indicador de receitas abre Lançamentos');
   check(revenueRows.length > 0 && revenueRows.every(Boolean), 'indicador de receitas filtra apenas receitas do mês');
   check(await page.locator('.mnav .mlabel').textContent() === selectedMonth, 'atalho de receitas preserva o mês selecionado');
   await page.locator('.fin-section-option[data-t="resumo"]').click();
@@ -425,7 +426,7 @@ const check = (passed, name, detail = '') => {
     'categorias do lançamento incluem metadados visuais de ícone e cor');
   const categoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="category"]) .ds-select__trigger');
   await categoryTrigger.click();
-  check(await page.locator('body > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,
+  check(await page.locator('#dlg > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,
     'lista aberta de categorias exibe os respectivos ícones');
   await page.keyboard.press('Escape');
   check(await categoryTrigger.locator('.ds-select__category-icon').count() === 1,
@@ -505,7 +506,7 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#dlg [data-dlg="category"]').inputValue() === latestCategory, 'novo lançamento reutiliza a categoria usada por último');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
-  await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
+  await page.getByRole('tab', { name: 'Orçamento', exact: true }).click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
   const ruleForm = page.locator('.finance-category-rule-form');
   await ruleForm.locator('[name="phrase"]').fill('Café Central');
@@ -542,9 +543,11 @@ const check = (passed, name, detail = '') => {
   check(await subcategory.locator('.ci').getAttribute('style').then((style) => style.includes('#22aa88')), 'subcategoria mantém sua própria cor');
   await page.locator('#dlg [data-action="dlg-close"]').last().click();
   check(await page.locator('.budget-list').getByText('Alimentação personalizada').count() === 1, 'renomear categoria atualiza os limites financeiros');
+  await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
   check((await page.locator('.finance-category-rule-list').textContent()).includes('Alimentação personalizada'),
     'renomear categoria atualiza a regra automática');
-  await page.getByRole('button', { name: 'Resumo', exact: true }).click();
+  await page.locator('#dlg [data-action="dlg-close"]').last().click();
+  await page.getByRole('tab', { name: 'Resumo', exact: true }).click();
   const renamedTransaction = page.locator('.finance-recent .fr').filter({ hasText: 'Mercado' });
   check(await renamedTransaction.locator('.meta2').textContent().then((text) => text.includes('Alimentação personalizada')), 'renomear categoria atualiza lançamentos existentes');
   check(await renamedTransaction.locator('.ci').getAttribute('style').then((style) => style.includes('#123abc')), 'ícone do lançamento usa a cor personalizada');
@@ -611,7 +614,7 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await page.getByRole('button', { name: 'Descartar alterações' }).click();
 
-  await page.getByRole('button', { name: 'Lançamentos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Lançamentos', exact: true }).click();
   await page.waitForFunction(() => document.activeElement?.dataset?.t === 'lancamentos');
   check(await page.evaluate(() => document.activeElement?.dataset?.t === 'lancamentos'), 'seção escolhida permanece focada');
   await page.locator('.finance-fab').click();
@@ -639,7 +642,7 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await page.getByRole('button', { name: 'Descartar alterações' }).click();
 
-  await page.getByRole('button', { name: 'Resumo', exact: true }).click();
+  await page.getByRole('tab', { name: 'Resumo', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
   check(await page.locator('.finance-fab').isVisible()

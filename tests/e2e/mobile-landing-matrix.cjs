@@ -54,8 +54,8 @@ async function checkLanding(page, profile, viewportLabel) {
       demoNote: rect('.public-hero .public-price-note'),
       demoNoteText: document.querySelector('.public-hero .public-price-note')?.textContent || '',
       previewTasks: Boolean(document.querySelector('.public-hero .product-preview .preview-task-row')),
-      makerAfterHero: [...document.querySelector('.public-main').children][1]
-        ?.classList.contains('public-maker'),
+      featuresAfterHero: [...document.querySelector('.public-main').children][1]
+        ?.classList.contains('public-features'),
       heroProofRemoved: !document.querySelector('.public-hero-support'),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
@@ -83,7 +83,7 @@ async function checkLanding(page, profile, viewportLabel) {
     && /grátis e sem cadastro/i.test(metrics.demoNoteText)
     && /dados fictícios/i.test(metrics.demoNoteText),
   profile, `demonstração grátis e sem cadastro fica clara (${viewportLabel})`);
-  check(metrics.makerAfterHero, profile, `autoria aparece logo depois do hero (${viewportLabel})`);
+  check(metrics.featuresAfterHero, profile, `áreas aparecem logo depois do hero (${viewportLabel})`);
   check(metrics.heroProofRemoved, profile, `selos repetidos não aparecem no hero (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
     profile, `hero cabe na largura disponível (${viewportLabel})`);

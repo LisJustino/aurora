@@ -1,0 +1,19 @@
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root *,
+  :root:root:root *::before,
+  :root:root:root *::after {
+    scroll-behavior: auto;
+    animation-duration: .01ms;
+    animation-iteration-count: 1;
+    transition-duration: .01ms;
+  }
+}
+
+:root[data-motion="reduce"]:root:root *,
+:root[data-motion="reduce"]:root:root *::before,
+:root[data-motion="reduce"]:root:root *::after {
+  scroll-behavior: auto;
+  animation-duration: .01ms;
+  animation-iteration-count: 1;
+  transition-duration: .01ms;
+}

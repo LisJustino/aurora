@@ -86,6 +86,10 @@ async function main() {
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const supabaseSdkRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('@supabase_supabase-js')) supabaseSdkRequests.push(request.url());
+  });
   const errors = [];
   const externalRequests = [];
   const unexpectedAuthRequests = [];
@@ -380,6 +384,8 @@ async function main() {
 
   try {
     await page.goto(BASE);
+    await page.waitForLoadState('networkidle');
+    assert.equal(supabaseSdkRequests.length, 0, 'landing sem sessão não deve baixar o SDK Supabase');
     await page.evaluate(() => {
       sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
     });
@@ -398,6 +404,7 @@ async function main() {
     await page.locator('.app-skeleton[role="status"]').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.public-site').count(), 0, 'callback Google não deve renderizar a landing');
     await page.getByRole('heading', { name: 'Complete seu perfil' }).waitFor();
+    assert.ok(supabaseSdkRequests.length > 0, 'callback de autenticação deve carregar o SDK Supabase');
     assert.equal(pkceRequests, 1, 'callback deve trocar o código PKCE exatamente uma vez');
     assert.equal(await page.locator('.public-site').count(), 0);
     assert.equal(new URL(page.url()).searchParams.has('code'), false);
@@ -597,7 +604,21 @@ async function main() {
       }
     }
     assert.equal(pkceRequests, 5);
+    for (const storageName of ['sessionStorage', 'localStorage']) {
+      await page.evaluate((target) => {
+        const key = 'sb-cltymialatksylhzsitz-auth-token';
+        const session = sessionStorage.getItem(key) || localStorage.getItem(key);
+        if (!session) throw new Error('Sessão de teste ausente.');
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+        window[target].setItem(key, session);
+      }, storageName);
+      await page.goto(BASE);
+      await page.waitForURL('**/inicio');
+      await page.locator('.main').waitFor({ state: 'visible' });
+    }
     await page.evaluate(() => sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
+    await page.evaluate(() => localStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
     simulateRelational = false;
     user = null;
     await page.goto(`${BASE}/?error=access_denied`);

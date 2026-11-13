@@ -51,8 +51,15 @@
     gap: var(--space-4);
   }
   .main[data-route="financas"] .fin-section-menu {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
     position: relative;
     z-index: 1;
+  }
+  .main[data-route="financas"] .fin-section-option {
+    min-width: 0;
+    padding-inline: var(--space-2);
   }
   .main[data-route="financas"] .mnav {
     min-height: var(--control-md);

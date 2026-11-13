@@ -112,7 +112,7 @@ const check = (passed, name, detail = '') => {
     'controle da barra lateral não aparece no dock móvel', JSON.stringify(mobileNavLabels));
   await page.setViewportSize({ width: 320, height: 700 });
   check(await page.locator('.home-extras').getAttribute('open') === null
-    && !await page.locator('.home-quick-form').isVisible(), 'blocos adicionais começam recolhidos');
+    && await page.locator('.home-quick-card .home-quick-form').isVisible(), 'conteúdo secundário começa recolhido e o próximo passo permanece visível');
   await page.locator('.home-extras > summary').click();
   const homeOrder = await page.evaluate(() => ({
     plan: document.querySelector('.home-today-card')?.getBoundingClientRect().top,
@@ -126,7 +126,7 @@ const check = (passed, name, detail = '') => {
   check(homeOrder.summary === undefined || homeOrder.plan < homeOrder.summary, 'plano de hoje aparece antes dos resumos no layout padrão');
   check(homeOrder.areas === undefined || homeOrder.areas >= homeOrder.primaryBottom, 'atalhos das áreas ficam depois do plano e dos resumos');
   check(await page.locator('.home-head .home-action[href="/planejar"]').count() === 1, 'cabeçalho oferece uma ação direta para planejar o dia');
-  check(await page.locator('.home-quick-form').isVisible(), 'formulário rápido permanece acessível nos blocos adicionais');
+  check(await page.locator('.home-quick-card .home-quick-form').isVisible(), 'formulário rápido permanece acessível fora dos blocos adicionais');
   check(await page.locator('.home-tools [data-action="quick-action-task"]').count() === 0, 'atalho favorito de tarefa não duplica o formulário rápido');
   check(await page.locator('.home-inbox-reminder').count() === 0
     || await page.locator('.home-inbox-reminder a[data-action="filter-inbox"]').count() === 1,
@@ -339,11 +339,11 @@ const check = (passed, name, detail = '') => {
     for (const width of [360, 390, 768, 900, 1024, 1200, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate((value) => document.documentElement.setAttribute('data-theme', value), theme);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       breakpoints.push(await page.evaluate(() => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a.nav-item')];
         const active = nav.querySelector('[aria-current="page"]');
-        const bounds = nav.getBoundingClientRect();
         return {
           width: innerWidth,
           theme: document.documentElement.dataset.theme,
@@ -352,7 +352,7 @@ const check = (passed, name, detail = '') => {
           labelsVisible: links.length === 5 && links.every((link) => {
             const label = link.querySelector('.tab-label-group');
             const rect = label.getBoundingClientRect();
-            return rect.width > 0 && rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+            return rect.width > 0 && label.scrollWidth <= label.clientWidth + 1;
           }),
           activeCircle: active && getComputedStyle(active.querySelector('.ni')).backgroundColor !== 'rgba(0, 0, 0, 0)',
           noMore: !document.querySelector('.nav-more-trigger, .nav-more-menu, .sidebar-toggle'),
@@ -504,12 +504,37 @@ const check = (passed, name, detail = '') => {
   }));
   check(settingsState.background === 'rgba(0, 0, 0, 0)' && settingsState.iconBackground !== 'rgba(0, 0, 0, 0)',
     'ajustes usa círculo no ícone sem fundo no item', JSON.stringify(settingsState));
-  check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
-    'busca global não aparece como botão no cabeçalho');
+  const searchTrigger = page.locator('.app > .topbar .global-search-trigger');
+  check(await searchTrigger.isVisible(), 'busca global aparece no cabeçalho');
+  await searchTrigger.click();
+  await page.waitForFunction(() => document.activeElement?.matches('#dlg input[data-dlg="query"]'));
+  await page.locator('#dlg input[data-dlg="query"]').fill('termo sem correspondência 94735');
+  check((await page.locator('#global-search-results').textContent()).includes('Tente outra palavra')
+    && (await page.locator('#global-search-results').textContent()).includes('Áreas pesquisadas'),
+  'busca sem resultados oferece sugestões e informa as áreas');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.activeElement?.matches('.global-search-trigger'));
+  check(await searchTrigger.evaluate((button) => document.activeElement === button), 'Esc devolve o foco ao botão da busca');
+  await searchTrigger.focus();
+  await page.keyboard.press('/');
+  await page.waitForFunction(() => document.activeElement?.matches('#dlg input[data-dlg="query"]'));
+  await page.keyboard.type('/');
+  check(await page.locator('#dlg input[data-dlg="query"]').inputValue() === '/',
+    'barra abre a busca fora dos campos e pode ser digitada no campo');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.activeElement?.matches('.global-search-trigger'));
   await page.keyboard.press('Control+k');
   check(await page.locator('#dlg').getByRole('heading', { name: 'Buscar no Aurora.' }).count() === 1, 'acionador abre a busca global');
   await page.keyboard.press('Escape');
   check(await page.locator('#dlg').count() === 0, 'Esc fecha a busca aberta pelo atalho de teclado');
+  await page.setViewportSize({ width: 320, height: 720 });
+  check(await searchTrigger.isVisible()
+    && await searchTrigger.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth && bounds.width >= 44 && bounds.height >= 44;
+    }), 'busca permanece visível e acessível no celular');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    'cabeçalho com busca não causa overflow no celular');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

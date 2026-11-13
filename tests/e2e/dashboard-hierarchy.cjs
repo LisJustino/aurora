@@ -22,6 +22,13 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         hasProgressRing: Boolean(document.querySelector('.home-head .ringw')),
         planLink: document.querySelector('.home-head-actions a.home-action')?.getAttribute('href'),
         heroHeight: document.querySelector('.home-head').getBoundingClientRect().height,
+        quickIsVisible: Boolean(document.querySelector('.home-quick-card')
+          && !document.querySelector('.home-quick-card').closest('.home-extras')),
+        hierarchy: ['.home-quick-card', '.home-today-card', '.home-habit-checkins']
+          .map((selector) => [...document.querySelectorAll(selector)]
+            .find((element) => element.offsetParent !== null)?.getBoundingClientRect().top ?? -1),
+        todayTop: document.querySelector('.home-today-card').getBoundingClientRect().top,
+        viewportHeight: innerHeight,
       };
     });
     assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Ciclo', 'Hábitos']);
@@ -30,7 +37,23 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     assert.equal(home.radius, '0px');
     assert.equal(home.hasProgressRing, false);
     assert.equal(home.planLink, '/planejar');
+    assert.equal(home.quickIsVisible, true);
+    assert(home.hierarchy[0] >= 0
+      && home.hierarchy[1] >= 0
+      && home.hierarchy[0] < home.hierarchy[1]
+      && (home.hierarchy[2] < 0 || home.hierarchy[1] < home.hierarchy[2]));
+    assert(home.todayTop < home.viewportHeight, 'Hoje aparece na primeira tela do celular');
     assert(home.heroHeight < 210, `cabeçalho compacto em mobile (${home.heroHeight}px)`);
+    for (const width of [360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const firstScreen = await page.evaluate(() => ({
+        todayTop: document.querySelector('.home-today-card').getBoundingClientRect().top,
+        viewportHeight: innerHeight,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      }));
+      assert(firstScreen.todayTop < firstScreen.viewportHeight, `Hoje aparece sem rolagem em ${width}px`);
+      assert.equal(firstScreen.overflow, false);
+    }
     await page.setViewportSize({ width: 320, height: 900 });
     const narrowHome = await page.evaluate(() => ({
       height: document.querySelector('.home-head').getBoundingClientRect().height,
