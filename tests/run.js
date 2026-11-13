@@ -159,6 +159,7 @@ import {
   backupReminderStatus,
 } from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
+import { renderHomeView } from '../src/js/features/home/view.js';
 import { createToastController } from '../src/js/features/feedback/toast.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 
@@ -176,6 +177,60 @@ const test = (name, run) => {
     });
   }
 };
+
+test('Início prioriza a captura rápida e o estado vazio não duplica a ação principal', () => {
+  let emptyArgs;
+  const html = renderHomeView({
+    name: '',
+    profileAppearance: {},
+    greeting: 'Bom dia',
+    dateLabel: 'Hoje',
+    homeMessage: '',
+    lead: '',
+    tt: [],
+    sundayReview: false,
+    optionalAreas: '',
+    overdue: [],
+    dueToday: [],
+    completed: [],
+    nextTask: null,
+    inbox: [],
+    homeShortcuts: [],
+    emptyWorkspace: true,
+    openCompleted: false,
+    openExtras: false,
+    financeAccountsCount: 0,
+    showHomeBlock: () => true,
+    homeBlockStyle: () => '',
+  }, {
+    areaGuideButton: () => '',
+    backupReminder: () => '',
+    empty: (...args) => {
+      emptyArgs = args;
+      return 'EMPTY-STATE';
+    },
+    homeFirstSteps: () => '',
+    homeHabitCheckins: () => 'HABITS',
+    homeInboxReminder: () => '',
+    homeUpcomingBill: () => '',
+    homeUpcomingTasks: () => '',
+    profileAvatarMarkup: () => '',
+    sampleBanner: () => '',
+    taskRow: () => '',
+  }).s;
+  const quickIndex = html.indexOf('class="card home-quick-card"');
+  const todayIndex = html.indexOf('class="home-today-card"');
+  const habitsIndex = html.indexOf('HABITS');
+  if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0
+    || !(quickIndex < todayIndex && todayIndex < habitsIndex)) {
+    throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
+  }
+  if (emptyArgs?.[0] !== 'Seu Início começa aqui'
+    || emptyArgs[2] !== ''
+    || !html.includes('home-quick-form')) {
+    throw new Error('O estado sem tarefas, hábitos e contas deve apontar para a captura rápida sem uma segunda ação.');
+  }
+});
 
 test('seleção de tarefas preserva filtros, ordenação e dados originais', () => {
   const tasks = [
@@ -282,7 +337,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
-  if (documentStub.title !== 'aurora. — tarefas, hábitos, foco, ciclo e finanças') {
+  if (documentStub.title !== 'aurora. — tarefas, hábitos, finanças e ciclo') {
     throw new Error('A landing deve atualizar o título da aba.');
   }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -290,14 +345,13 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Menos ruído. Mais clareza no dia',
     'Um planner independente para a vida real',
     'Feito para a vida como ela é',
-    'momentos de foco',
+    'Organize tarefas e prazos; acompanhe o que já foi concluído.',
     'Criar conta',
     'Explorar demonstração',
     'Abrir demonstração',
     'Grátis e sem cadastro.',
-    'Tarefas, hábitos, foco, ciclo e finanças no seu ritmo.',
+    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.',
     'totalmente grátis',
-    'Feito por uma pessoa só, com cuidado',
     'preview-area-cycle',
     'Ciclo',
     'Escolha por onde começar',
@@ -306,7 +360,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Leve sua rotina com você',
     'Adicione o Aurora à tela inicial do celular',
     'O Aurora não se conecta a bancos',
-    'href="/privacy.html"',
+    'href="/privacy"',
     'Acompanhe datas e sintomas com seu consentimento específico',
   ];
   expectedContent.forEach((text) => {
@@ -317,7 +371,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const softwareApplication = structuredData.find((item) => item['@type'] === 'SoftwareApplication');
   const landingFaq = structuredData.find((item) => item['@type'] === 'FAQPage');
   const faqNames = landingFaq?.mainEntity?.map((question) => question.name) || [];
-  if (!/tarefas.*hábitos.*foco.*ciclo.*finanças/i.test(softwareApplication?.description || '')
+  if (softwareApplication?.description !== 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.'
     || faqNames.length !== 5
     || !faqNames.every((name) => root.innerHTML.includes(name))) {
     throw new Error('Metadados e FAQ estruturado devem acompanhar as áreas e perguntas atuais da landing.');
@@ -326,8 +380,8 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     || root.innerHTML.includes('Veja como Planejar, Hábitos, Finanças e Ciclo se encaixam')) {
     throw new Error('A landing não deve repetir benefícios que já aparecem no título e nos cartões das áreas.');
   }
-  if (root.innerHTML.indexOf('class="public-maker"') > root.innerHTML.indexOf('class="public-features"')) {
-    throw new Error('A autoria deve aparecer antes da apresentação detalhada das áreas.');
+  if (root.innerHTML.includes('public-maker')) {
+    throw new Error('A landing não deve exibir a seção de autoria removida.');
   }
   if (root.innerHTML.includes('É o dado mais sensível do app')) {
     throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
@@ -353,14 +407,18 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
   const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
   if (!heroMarkup.includes('href="/demonstracao"')
+    || !heroMarkup.includes('class="public-account-note"><a href="#public-features">Ver áreas</a></p>')
     || heroMarkup.includes('data-public-action="signup"')
     || heroMarkup.includes('data-public-action="login"')) {
     throw new Error('O hero deve convidar a experimentar o produto sem repetir ações de conta.');
   }
+  if (!root.innerHTML.includes('role="group" aria-label="Demonstração visual das quatro áreas"')) {
+    throw new Error('A apresentação nomeada das áreas deve ter semântica de grupo compatível.');
+  }
   if (root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
   }
-  const landingTitle = 'aurora. — tarefas, hábitos, foco, ciclo e finanças';
+  const landingTitle = 'aurora. — tarefas, hábitos, finanças e ciclo';
   if (!entryHtml.includes(`<title>${landingTitle}</title>`)
     || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
     || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)

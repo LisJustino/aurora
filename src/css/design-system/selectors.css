@@ -42,6 +42,11 @@
 .tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); font-weight: var(--weight-bold); }
 .tab:focus-visible { outline-offset: -3px; }
 
+@media (pointer: coarse) and (width > 480px) {
+  .fin-section-menu,
+  .plan-view-segments { touch-action: pan-x; }
+}
+
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   display: inline-flex;

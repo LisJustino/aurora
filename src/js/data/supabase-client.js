@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
 const PROJECT_REFS = {
   development: 'cltymialatksylhzsitz',
   production: 'xeneztudcqdumfhwotry',
@@ -73,8 +71,17 @@ const isSafeSupabaseConfig = () => {
   }
 };
 
-let client;
+let clientPromise;
 let rememberSession = false;
+
+function authStorageKey(url) {
+  return `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
+}
+
+export function hasStoredAuthSession({ localStorage, sessionStorage }, url = supabaseUrl) {
+  const key = authStorageKey(url);
+  return localStorage.getItem(key) !== null || sessionStorage.getItem(key) !== null;
+}
 
 export function setRememberSession(enabled) {
   rememberSession = enabled === true;
@@ -103,7 +110,7 @@ export function createAuthSessionStorage({ localStorage, sessionStorage }) {
   };
 }
 
-export function getSupabaseClient() {
+export async function getSupabaseClient() {
   if (!isSafeSupabaseConfig()) {
     const variables = isDevelopment
       ? 'VITE_SUPABASE_LOCAL_URL e VITE_SUPABASE_LOCAL_ANON_KEY do projeto aurora-dev'
@@ -114,21 +121,25 @@ export function getSupabaseClient() {
           : 'VITE_SUPABASE_TARGET como development ou production';
     throw new Error(`Configuração Supabase inválida. Configure ${variables}. O Aurora bloqueia qualquer projeto diferente do ambiente esperado.`);
   }
-  if (!client) {
-    client = createClient(supabaseUrl, supabaseAnonKey, {
+  if (!clientPromise) {
+    clientPromise = import('@supabase/supabase-js').then(({ createClient }) => createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
         persistSession: true,
+        storageKey: authStorageKey(supabaseUrl),
         storage: createAuthSessionStorage({
           localStorage: window.localStorage,
           sessionStorage: window.sessionStorage,
         }),
       },
+    })).catch((error) => {
+      clientPromise = undefined;
+      throw error;
     });
   }
-  return client;
+  return clientPromise;
 }
 
 export function hasSupabaseConfig() {

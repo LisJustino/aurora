@@ -579,7 +579,7 @@ function createAccountIntro(mode = '', brandLink = null) {
   if (brandLink) intro.append(brandLink);
   if (!introCopy) {
     const topics = create('ul', 'account-intro-topics');
-    ['Tarefas', 'Hábitos', 'Foco', 'Finanças'].forEach((label) => {
+    ['Tarefas', 'Hábitos', 'Finanças', 'Ciclo'].forEach((label) => {
       topics.append(create('li', '', label));
     });
     intro.append(eyebrow, heading, description, topics);

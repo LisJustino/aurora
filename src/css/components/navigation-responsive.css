@@ -29,9 +29,9 @@
   display: grid;
   width: min(320px, calc(100vw - 24px));
   max-height: min(60dvh, 420px);
-  gap: var(--space-1);
+  gap: var(--space-2);
   overflow: auto;
-  padding: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   background: var(--surface-raised);
@@ -49,10 +49,10 @@
 .quick-actions-menu > button, .profile-menu-item {
   display: flex;
   min-width: 0;
-  min-height: var(--control-md);
+  min-height: var(--control-field);
   align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--r-control);
   background: transparent;
@@ -95,9 +95,9 @@
     bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     width: min(520px, calc(100% - 16px));
     max-width: calc(100% - 16px);
-    gap: 0;
+    gap: var(--space-1);
     margin-inline: auto;
-    padding: 6px;
+    padding: var(--space-2);
     border-radius: var(--r-control);
     border-color: color-mix(in srgb, var(--line-strong) 55%, transparent);
     background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
@@ -107,6 +107,7 @@
     min-width: 0;
     min-height: var(--row-height-compact);
     flex: 1 1 0;
+    padding-inline: var(--space-1);
     font-size: var(--text-xs);
   }
   .topbar .nav a .ni { width: var(--icon-box-sm); height: var(--icon-box-sm); }
@@ -124,7 +125,7 @@
     flex: 1 1 auto;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    gap: var(--space-1);
     overflow-x: auto;
     margin: 0;
     padding: 0;
@@ -137,8 +138,8 @@
     min-height: var(--control-md);
     flex: none;
     flex-direction: row;
-    gap: var(--space-1);
-    padding-inline: 5px;
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
     border-radius: var(--r-pill);
     font-size: var(--text-meta);
     white-space: nowrap;
@@ -148,4 +149,15 @@
   .topbar .nav .nav-enable-areas { display: none; }
   .topbar .header-actions { gap: 0; }
   .topbar .header-actions .iconbtn { width: 40px; height: 40px; }
+  .topbar .header-actions .global-search-trigger { width: var(--control-md); height: var(--control-md); }
+}
+
+@media (width <= 480px) {
+  .topbar .nav { gap: var(--space-half); padding-inline: var(--space-1); }
+  .topbar .nav a { padding-inline: 0; }
+}
+
+@media (width >= 900px) and (width < 1200px) {
+  .topbar .nav { gap: var(--space-half); }
+  .topbar .nav a { gap: var(--space-1); padding-inline: var(--space-1); }
 }

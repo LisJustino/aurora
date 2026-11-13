@@ -6,6 +6,21 @@ const APP_SHELL_ASSET = /^\/(?:(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf))|(?:ic
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+  if (event.data?.type === 'CACHE_PUBLIC_STYLES') {
+    event.waitUntil((async () => {
+      const url = new URL(event.data.url, self.location.origin);
+      if (url.origin !== self.location.origin || !/^\/assets\/[a-zA-Z0-9_-]+\.css$/.test(url.pathname) || url.search || url.hash) {
+        throw new Error('A URL dos estilos offline é inválida.');
+      }
+      const cache = await caches.open(CACHE_NAME);
+      if (await cache.match(url.href)) return;
+      const response = await fetch(url.href, { priority: 'low' });
+      if (!response.ok || response.type !== 'basic') throw new Error('Os estilos offline não puderam ser carregados.');
+      await cache.put(url.href, response);
+    })().catch((error) => {
+      console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
+    }));
+  }
 });
 
 self.addEventListener('install', (event) => {
@@ -59,7 +74,8 @@ self.addEventListener('fetch', (event) => {
   if (APP_SHELL_ASSET.test(url.pathname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(request);
+      // O CSS antecipado e o link com crossorigin podem enviar Origin diferente.
+      const cached = await cache.match(request, url.pathname.endsWith('.css') ? { ignoreVary: true } : undefined);
       if (cached) return cached;
 
       const response = await fetch(request);

@@ -21,15 +21,10 @@ function publicFooter({ demoAvailable = false } = {}) {
 export function renderLanding(root) {
   landingControllers.get(root)?.();
   stopLandingDemo(root);
-  document.title = 'aurora. — tarefas, hábitos, foco, ciclo e finanças';
-  const prerendered = Boolean(root.querySelector?.('.public-site[data-prerendered]'));
-  root.innerHTML = landingMarkup();
+  document.title = 'aurora. — tarefas, hábitos, finanças e ciclo';
+  if (!root.querySelector?.('.public-site[data-prerendered]')) root.innerHTML = landingMarkup();
   initializeLandingTaskMock(root);
   initializeAreaSelector(root);
-  if (prerendered) {
-    // Evita repetir a animação de entrada sobre o conteúdo já exibido.
-    root.querySelector('.public-main')?.classList.add('is-hydrated');
-  }
   initializeFaqDisclosure(root);
 }
 
@@ -141,12 +136,12 @@ export function landingMarkup() {
           <div class="public-copy">
             <p class="public-eyebrow"><span aria-hidden="true"></span> Um planner independente para a vida real</p>
             <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
-            <p class="public-subtitle">Tarefas, hábitos, foco, ciclo e finanças no seu ritmo.</p>
+            <p class="public-subtitle">Organize tarefas, hábitos, finanças e ciclo no seu ritmo.</p>
             <p class="public-lead">Veja o que importa hoje e dê o próximo passo, sem lista infinita e sem culpa.</p>
             <div class="public-actions">
               <a class="btn primary large" href="/demonstracao" data-public-action="demo">Abrir demonstração</a>
-              <a class="btn large" href="#public-features">Ver áreas</a>
             </div>
+            <p class="public-account-note"><a href="#public-features">Ver áreas</a></p>
             <p class="public-price-note"><strong>Grátis e sem cadastro.</strong> A demonstração usa dados fictícios.</p>
           </div>
           <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
@@ -180,13 +175,6 @@ export function landingMarkup() {
             </div>
           </figure>
         </section>
-        <section class="public-maker" aria-labelledby="public-maker-title">
-          <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
-          <div>
-            <h2 id="public-maker-title">Feito por uma pessoa só, com cuidado</h2>
-            <p>O Aurora é criado e mantido por Elisa da Silva Justino. As sugestões chegam direto a ela: <a href="mailto:lisjustino@gmail.com">fale por e-mail</a> ou use o formulário de sugestões.</p>
-          </div>
-        </section>
         <section class="public-features" id="public-features" aria-labelledby="public-features-title">
           <div class="public-section-heading"><p class="public-eyebrow">Feito para a vida como ela é</p><h2 id="public-features-title">Escolha por onde começar</h2><p class="public-section-lead">Cada espaço cuida de uma parte do seu dia. Você usa só o que fizer sentido agora.</p></div>
           <div class="public-area-selector" data-area-selector role="group" aria-label="Escolha uma área para conhecer" hidden>
@@ -195,10 +183,10 @@ export function landingMarkup() {
             <button type="button" aria-pressed="false">Finanças</button>
             <button type="button" aria-pressed="false">Ciclo</button>
           </div>
-          <div class="public-values" aria-label="Demonstração visual das quatro áreas">
+          <div class="public-values" role="group" aria-label="Demonstração visual das quatro áreas">
           <article class="card public-value">
             <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-            <div><h3>Planejar</h3><p>Organize tarefas, prazos e momentos de foco; acompanhe o que já foi concluído.</p></div>
+            <div><h3>Planejar</h3><p>Organize tarefas e prazos; acompanhe o que já foi concluído.</p></div>
             <div class="public-value-preview preview-area-planner" aria-hidden="true">
               <span class="preview-mini-heading">HOJE <b>3</b><small>2 de 3 feitas</small></span>
               <span class="preview-mini-progress"><i></i></span>
@@ -212,8 +200,10 @@ export function landingMarkup() {
             <div><h3>Hábitos</h3><p>Registre check-ins e metas semanais com espaço para ajustar o plano à sua rotina.</p></div>
             <div class="public-value-preview preview-area-habits" aria-hidden="true">
               <span class="preview-mini-heading">Beber água <small>5/7</small></span>
+              <span class="preview-habit-days"><i>Seg</i><i>Ter</i><i>Qua</i><i>Qui</i><i>Sex</i><i>Sáb</i><i>Dom</i></span>
               <span class="preview-habit-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
               <span class="preview-mini-heading">Ler 10 minutos <small>3/5</small></span>
+              <span class="preview-habit-days is-short"><i>Seg</i><i>Ter</i><i>Qua</i><i>Qui</i><i>Sex</i></span>
               <span class="preview-habit-dots is-short"><i></i><i></i><i></i><i></i><i></i></span>
             </div>
           </article>
@@ -233,7 +223,7 @@ export function landingMarkup() {
               <span class="preview-cycle-week"><i>S</i><i>T</i><i>Q</i><i>Q</i><i>S</i><i>S</i><i>D</i></span>
               <span class="preview-cycle-days"><i>2</i><i class="is-period">3</i><i class="is-period">4</i><i class="is-period">5</i><i>6</i><i>7</i><i>8</i></span>
               <span class="preview-cycle-note">${demoIcon('lock', 13)}Acesso restrito à sua conta</span>
-              <a class="preview-cycle-privacy" href="/privacy.html" target="_blank" rel="noopener noreferrer">Saiba mais na Política de Privacidade</a>
+              <a class="preview-cycle-privacy" href="/privacy" target="_blank" rel="noopener noreferrer">Saiba mais na Política de Privacidade</a>
             </div>
           </article>
           </div>

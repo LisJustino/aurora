@@ -34,7 +34,7 @@ async function handleNativeAuthCallback(value) {
 
     try {
       if (!hasSupabaseConfig()) throw new Error('O projeto de contas não está configurado.');
-      const client = getSupabaseClient();
+      const client = await getSupabaseClient();
       const { error } = await client.auth.exchangeCodeForSession(callback.code);
       if (error) throw error;
     } catch (error) {

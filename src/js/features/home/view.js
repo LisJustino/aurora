@@ -18,6 +18,7 @@ export function renderHomeView(model, renderers) {
     nextTask,
     inbox,
     homeShortcuts,
+    emptyWorkspace,
     openCompleted,
     openExtras,
     financeAccountsCount,
@@ -40,18 +41,29 @@ export function renderHomeView(model, renderers) {
 
   return h`
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title">
+      <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Use “amanhã 14h” ou um dia da semana para escolher o prazo.</p></div></div>
+      <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar apresentação amanhã 14h" aria-describedby="home-quick-date-preview" required><span id="home-quick-date-preview" class="home-quick-date badge" aria-live="polite">Hoje</span><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
+    </section>` : ''}
     ${sampleBanner()}
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
-        ${!nextTask && showHomeBlock('habits') ? homeHabitCheckins(true, true) : ''}
         ${showHomeBlock('today') ? h`<section class="home-today-card" aria-labelledby="th"><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje</h2></div></div>
           ${completed.length && !overdue.length && !dueToday.length ? h`<div class="home-day-complete" role="status">${icon('check', 20)}<div><b>Dia concluído</b><p>Você terminou as tarefas de hoje. Amanhã é um novo começo.</p></div></div>` : ''}
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
             ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
             ${completed.length ? h`<details class="home-completed" id="d-home-completed" ${openCompleted ? raw('open') : ''}><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua uma prioridade no Planejar ou use as ações rápidas.', h`<a class="btn" href="/planejar">${icon('list', 16)}Ver tarefas no Planejar</a>`, 'calendarCheck')}
+          </div>` : empty(
+            emptyWorkspace ? 'Seu Início começa aqui' : 'Seu dia está aberto',
+            emptyWorkspace
+              ? 'Adicione sua primeira tarefa pelo campo “Qual é o próximo passo?” acima.'
+              : 'Inclua uma prioridade no Planejar ou use as ações rápidas.',
+            emptyWorkspace ? '' : h`<a class="btn" href="/planejar">${icon('list', 16)}Ver tarefas no Planejar</a>`,
+            'calendarCheck',
+          )}
         </section>` : ''}
+        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(false)}</div>` : ''}
       </div>
     </div>
     <details class="home-extras" id="d-home-extras" ${openExtras ? raw('open') : ''}>
@@ -63,11 +75,6 @@ export function renderHomeView(model, renderers) {
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
           <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
         </section>` : ''}
-        ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title" ${raw(homeBlockStyle('quick'))}>
-          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Use “amanhã 14h” ou um dia da semana para escolher o prazo.</p></div></div>
-          <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar apresentação amanhã 14h" aria-describedby="home-quick-date-preview" required><span id="home-quick-date-preview" class="home-quick-date badge" aria-live="polite">Hoje</span><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
-        </section>` : ''}
-        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(false)}</div>` : ''}
         ${homeUpcomingTasks()}
         ${homeInboxReminder(inbox)}
         ${homeUpcomingBill()}

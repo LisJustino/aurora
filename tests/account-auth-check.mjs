@@ -37,6 +37,7 @@ import {
 import { timeBasedGreeting } from '../src/js/features/profile/model.js';
 import {
   createAuthSessionStorage,
+  hasStoredAuthSession,
   resolveSupabaseConfig,
   setRememberSession,
 } from '../src/js/data/supabase-client.js';
@@ -109,12 +110,23 @@ const authSessionStorage = createAuthSessionStorage({
   localStorage: localAuthStorage,
   sessionStorage: sessionAuthStorage,
 });
+const storage = { localStorage: localAuthStorage, sessionStorage: sessionAuthStorage };
+const testUrl = 'https://test.supabase.co';
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
+assert.throws(() => hasStoredAuthSession({
+  localStorage: { getItem() { throw new Error('storage unavailable'); } },
+  sessionStorage: sessionAuthStorage,
+}, testUrl), /storage unavailable/);
+sessionAuthStorage.setItem('sb-test-auth-token-code-verifier', 'verifier');
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
 setRememberSession(false);
 await authSessionStorage.setItem('sb-test-auth-token', 'session-only');
+assert.equal(hasStoredAuthSession(storage, testUrl), true);
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), 'session-only');
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), null);
 setRememberSession(true);
 await authSessionStorage.setItem('sb-test-auth-token', 'remembered');
+assert.equal(hasStoredAuthSession(storage, testUrl), true);
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), 'remembered');
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), null);
 setRememberSession(false);
@@ -122,6 +134,7 @@ assert.equal(await authSessionStorage.getItem('sb-test-auth-token'), 'remembered
 await authSessionStorage.removeItem('sb-test-auth-token');
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), null);
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), null);
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
 assert.equal(isPasswordRecoveryCallback({ search: '?type=recovery', hash: '' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '?code=', hash: '' }), false);

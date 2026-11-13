@@ -1,0 +1,20 @@
+/* Mantém a ordem de main.css; a demonstração e o app carregam a folha completa. */
+@import url("./design-system/tokens.css");
+@import url("./base.css");
+@import url("./layout.css");
+@import url("./design-system/cards.css");
+@import url("./components/controls.css");
+@import url("./components/tasks.css");
+@import url("./components/modals.css");
+@import url("./components/navigation.css");
+@import url("./components/accessibility.css");
+@import url("./components/navigation-responsive.css");
+@import url("./components/responsive.css");
+@import url("./design-system/buttons.css");
+@import url("./design-system/feedback.css");
+@import url("./design-system/touch.css");
+@import url("./pages/loading.css");
+@import url("./pages/landing.css");
+@import url("./components/footer.css");
+@import url("./pages/legal.css");
+@import url("./design-system/motion.css");

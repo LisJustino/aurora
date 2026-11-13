@@ -18,11 +18,17 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#inicio`);
-  await page.locator('.home-extras > summary').click();
+  const quickCard = page.locator('.home-quick-card');
+  await quickCard.waitFor({ state: 'visible' });
+  check(await quickCard.locator('#home-quick-title-input').isVisible(), 'próximo passo fica visível sem abrir Mais do Início');
+  check(await quickCard.evaluate((element) => !element.closest('.home-extras')), 'captura rápida fica fora do conteúdo secundário');
+  check(await page.locator('.home-extras').getAttribute('open') === null, 'Mais do Início começa recolhido');
   const card = page.locator('.home-first-steps');
-  await card.waitFor({ state: 'visible' });
-  check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem recolhidos no Início');
+  check(await card.count() === 1, 'primeiros passos ficam no conteúdo secundário');
   check(await card.getByRole('link').count() === 0, 'ações iniciais ficam recolhidas por padrão');
+  await page.locator('.home-extras > summary').click();
+  await card.waitFor({ state: 'visible' });
+  check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem ao expandir Mais do Início');
   await card.locator('summary').click();
   check(await card.getByRole('link').count() === 3, 'ações iniciais podem ser expandidas');
   check(await card.locator('ol > li').count() === 3, 'cartão lista as três ações iniciais');
