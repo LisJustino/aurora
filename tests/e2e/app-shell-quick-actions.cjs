@@ -19,16 +19,38 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('.preview-shell .main').waitFor();
-  const moreTrigger = page.getByRole('button', { name: /Mais áreas/ });
-  const moreMenu = page.locator('#nav-more-menu');
-  const quickTrigger = moreMenu.locator('.nav-more-create');
+  const quickTrigger = page.locator('.nav-quick-trigger');
   const quickMenu = page.locator('#quick-actions-menu');
   const openQuickActions = async () => {
     if (await quickMenu.isVisible()) return;
-    if (await moreMenu.isHidden()) await moreTrigger.click();
     await quickTrigger.click();
     await quickMenu.waitFor({ state: 'visible' });
   };
+  const shortcutPage = await browser.newPage();
+  const shortcutErrors = [];
+  shortcutPage.on('pageerror', (error) => shortcutErrors.push(error.message));
+  await shortcutPage.goto(`${BASE}/?preview#inicio`);
+  await shortcutPage.locator('.home-extras > summary').click();
+  await shortcutPage.locator('.home-tools [data-action="quick-action-finance"]').click();
+  await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento.' }).waitFor();
+  check(shortcutErrors.length === 0, 'atalho financeiro do Início carrega o formulário sem abrir Finanças', shortcutErrors.join(' | '));
+  await shortcutPage.keyboard.press('Escape');
+  check(await shortcutPage.locator('.home-day-complete').count() === 0, 'dia não aparece concluído com tarefas pendentes');
+  const pendingToday = shortcutPage.locator('.home-today-card .home-task-group [data-action="toggle"][aria-checked="false"]');
+  while (await pendingToday.count()) {
+    const taskId = await pendingToday.first().getAttribute('data-id');
+    await pendingToday.first().click();
+    await shortcutPage.waitForFunction((id) => !document.querySelector(
+      `.home-today-card .home-task-group .task[data-k="${id}"]`,
+    ), taskId);
+  }
+  await shortcutPage.locator('.home-day-complete').waitFor({ state: 'visible' });
+  check(await shortcutPage.locator('.home-day-complete').isVisible(), 'dia concluído aparece após terminar as tarefas de hoje e atrasadas');
+  await shortcutPage.locator('.home-completed > summary').click();
+  await shortcutPage.locator('.home-completed [data-action="toggle"]').first().click();
+  await shortcutPage.locator('.home-day-complete').waitFor({ state: 'detached' });
+  check(await shortcutPage.locator('.home-day-complete').count() === 0, 'reabrir uma tarefa remove a conclusão do dia');
+  await shortcutPage.close();
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'shell não tem overflow horizontal em 320 px');
   check(await page.evaluate(() => (
     document.querySelector('#app > .app-definitions')?.getBoundingClientRect().height === 0
@@ -40,8 +62,8 @@ const check = (passed, name, detail = '') => {
     await page.setViewportSize({ width, height: 700 });
     mobileNavLabels.push(await page.evaluate(() => ({
       width: innerWidth,
-      brandHidden: getComputedStyle(document.querySelector('.topbar .wordmark')).display === 'none',
-      collapseToggleHidden: getComputedStyle(document.querySelector('.sidebar-toggle')).display === 'none',
+      brandVisible: getComputedStyle(document.querySelector('.topbar .wordmark')).display !== 'none',
+      collapseToggleHidden: !document.querySelector('.sidebar-toggle'),
       dockedAsFloatingCapsule: (() => {
         const nav = document.querySelector('.topbar .nav');
         const bounds = nav.getBoundingClientRect();
@@ -71,7 +93,7 @@ const check = (passed, name, detail = '') => {
       directNavigation: (() => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
-        return getComputedStyle(nav.querySelector('.nav-more-trigger')).display === 'none'
+        return !nav.querySelector('.nav-more-trigger')
           && links.length === 5 && links.every((link) => getComputedStyle(link).display !== 'none');
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
@@ -82,13 +104,16 @@ const check = (passed, name, detail = '') => {
   check(mobileNavLabels.every(({ actionsInsideBackground }) => actionsInsideBackground),
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
-  check(mobileNavLabels.every(({ directNavigation, headerGap }) => directNavigation && headerGap >= 8),
-    'dock mostra cinco destinos sem Mais e cabeçalho espaça os controles', JSON.stringify(mobileNavLabels));
-  check(mobileNavLabels.every(({ brandHidden }) => brandHidden),
-    'marca usa apenas o símbolo no cabeçalho móvel para preservar espaço', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ directNavigation }) => directNavigation),
+    'dock mostra cinco destinos sem Mais', JSON.stringify(mobileNavLabels));
+  check(mobileNavLabels.every(({ brandVisible }) => brandVisible),
+    'nome da marca permanece visível no cabeçalho móvel', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ collapseToggleHidden }) => collapseToggleHidden),
     'controle da barra lateral não aparece no dock móvel', JSON.stringify(mobileNavLabels));
   await page.setViewportSize({ width: 320, height: 700 });
+  check(await page.locator('.home-extras').getAttribute('open') === null
+    && !await page.locator('.home-quick-form').isVisible(), 'blocos adicionais começam recolhidos');
+  await page.locator('.home-extras > summary').click();
   const homeOrder = await page.evaluate(() => ({
     plan: document.querySelector('.home-today-card')?.getBoundingClientRect().top,
     primaryBottom: document.querySelector('.home-primary')?.getBoundingClientRect().bottom,
@@ -100,8 +125,8 @@ const check = (passed, name, detail = '') => {
   check(homeOrder.plan < homeOrder.onboarding, 'plano de hoje aparece antes dos primeiros passos');
   check(homeOrder.summary === undefined || homeOrder.plan < homeOrder.summary, 'plano de hoje aparece antes dos resumos no layout padrão');
   check(homeOrder.areas === undefined || homeOrder.areas >= homeOrder.primaryBottom, 'atalhos das áreas ficam depois do plano e dos resumos');
-  check(await page.locator('.home-head .home-action').count() === 0, 'cabeçalho não repete o formulário rápido de tarefa');
-  check(await page.locator('.home-quick-form').isVisible(), 'formulário rápido permanece como ação principal');
+  check(await page.locator('.home-head .home-action[href="/planejar"]').count() === 1, 'cabeçalho oferece uma ação direta para planejar o dia');
+  check(await page.locator('.home-quick-form').isVisible(), 'formulário rápido permanece acessível nos blocos adicionais');
   check(await page.locator('.home-tools [data-action="quick-action-task"]').count() === 0, 'atalho favorito de tarefa não duplica o formulário rápido');
   check(await page.locator('.home-inbox-reminder').count() === 0
     || await page.locator('.home-inbox-reminder a[data-action="filter-inbox"]').count() === 1,
@@ -310,73 +335,37 @@ const check = (passed, name, detail = '') => {
   }
 
   const breakpoints = [];
-  for (const width of [768, 900, 1024, 1100, 1199, 1200, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    breakpoints.push(await page.evaluate(() => {
-      const nav = document.querySelector('.topbar .nav');
-      const currentLabel = nav.querySelector('a[aria-current="page"] .tab-label-group');
-      const sidebarElement = document.querySelector('.app > .topbar');
-      const sidebarBounds = sidebarElement.getBoundingClientRect();
-      const sidebar = getComputedStyle(document.querySelector('.app')).gridTemplateColumns.startsWith('220px');
-      const sidebarFixed = getComputedStyle(sidebarElement).position === 'fixed'
-        && Math.abs(sidebarBounds.top) <= 1
-        && Math.abs(sidebarBounds.bottom - innerHeight) <= 1;
-      const navLabels = [...nav.querySelectorAll(':scope > a.nav-primary .tab-label-group')];
-      return {
-        width: innerWidth,
-        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        reloadButtonVisible: getComputedStyle(nav.parentElement.querySelector('[data-action="reload-app"]')).display !== 'none',
-        sidebar,
-        sidebarFixed,
-        activeLabelVisible: currentLabel ? currentLabel.getBoundingClientRect().width > 0 : true,
-        primaryLabelsVisible: navLabels.length > 0 && navLabels.every((label) => label.getBoundingClientRect().width > 1),
-        createLabelVisible: nav.querySelector('.nav-quick-trigger .tab-label-group').getBoundingClientRect().width > 1,
-        sidebarToggleVisible: getComputedStyle(document.querySelector('.sidebar-toggle')).display !== 'none',
-        navPosition: getComputedStyle(nav).position,
-      };
-    }));
+  for (const theme of ['light', 'dark']) {
+    for (const width of [360, 390, 768, 900, 1024, 1200, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate((value) => document.documentElement.setAttribute('data-theme', value), theme);
+      breakpoints.push(await page.evaluate(() => {
+        const nav = document.querySelector('.topbar .nav');
+        const links = [...nav.querySelectorAll(':scope > a.nav-item')];
+        const active = nav.querySelector('[aria-current="page"]');
+        const bounds = nav.getBoundingClientRect();
+        return {
+          width: innerWidth,
+          theme: document.documentElement.dataset.theme,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          position: getComputedStyle(nav).position,
+          labelsVisible: links.length === 5 && links.every((link) => {
+            const label = link.querySelector('.tab-label-group');
+            const rect = label.getBoundingClientRect();
+            return rect.width > 0 && rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+          }),
+          activeCircle: active && getComputedStyle(active.querySelector('.ni')).backgroundColor !== 'rgba(0, 0, 0, 0)',
+          noMore: !document.querySelector('.nav-more-trigger, .nav-more-menu, .sidebar-toggle'),
+          headerCreate: Boolean(document.querySelector('.header-actions .nav-quick-trigger')),
+        };
+      }));
+    }
   }
-  check(breakpoints.every(({ overflow }) => !overflow), 'sem overflow horizontal entre 768 e 1440 px', JSON.stringify(breakpoints));
-  check(breakpoints.find(({ width }) => width === 1024)?.activeLabelVisible, 'nome da área atual permanece visível em tablet');
-  const labeledTablet = breakpoints.find(({ width }) => width === 1100);
-  check(labeledTablet?.primaryLabelsVisible && labeledTablet?.createLabelVisible, 'nomes da navegação principal e de Criar ficam visíveis no tablet largo');
-  check(breakpoints.find(({ width }) => width === 1200)?.sidebar, 'barra lateral entra a partir de 1200 px');
-  check(breakpoints.find(({ width }) => width === 1200)?.sidebarFixed,
-    'barra lateral desktop permanece fixa na altura da janela', JSON.stringify(breakpoints.find(({ width }) => width === 1200)));
-  check(breakpoints.find(({ width }) => width === 1200)?.sidebarToggleVisible
-    && !breakpoints.find(({ width }) => width === 1199)?.sidebarToggleVisible,
-  'controle de recolher só aparece no layout de barra lateral', JSON.stringify(breakpoints));
-  for (const width of [900, 1024, 1199]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(100);
-    check(await moreMenu.isHidden(), `menu Mais fica fechado em ${width} px`);
-    const compactHeaderHeight = await page.locator('.topbar').evaluate((header) => header.getBoundingClientRect().height);
-    await moreTrigger.click();
-    await moreMenu.waitFor({ state: 'visible' });
-    const compactMenuLayout = await page.evaluate(() => {
-      const header = document.querySelector('.topbar').getBoundingClientRect();
-      const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
-      const menu = document.querySelector('#nav-more-menu');
-      const menuBounds = menu.getBoundingClientRect();
-      return {
-        headerHeight: header.height,
-        menuPosition: getComputedStyle(menu).position,
-        menuBelowNav: menuBounds.top >= nav.bottom,
-        menuWithinViewport: menuBounds.left >= 0 && menuBounds.right <= innerWidth,
-        linksFit: [...menu.querySelectorAll('.nav-more-link, .nav-more-create')].every((item) => (
-          item.scrollWidth <= item.clientWidth + 1
-          && item.getBoundingClientRect().width > 0
-        )),
-      };
-    });
-    check(Math.abs(compactMenuLayout.headerHeight - compactHeaderHeight) <= 1 && compactMenuLayout.menuPosition === 'absolute',
-      `menu Mais flutua sem alterar o cabeçalho em ${width} px`, JSON.stringify(compactMenuLayout));
-    check(compactMenuLayout.menuBelowNav && compactMenuLayout.menuWithinViewport && compactMenuLayout.linksFit,
-      `menu Mais cabe na tela e mantém os rótulos em ${width} px`, JSON.stringify(compactMenuLayout));
-    await moreTrigger.click();
-    check(await moreMenu.isHidden(), `acionador Mais fecha o painel em ${width} px`);
-  }
+  check(breakpoints.every(({ overflow }) => !overflow), 'sem overflow nos tamanhos e temas solicitados', JSON.stringify(breakpoints));
+  check(breakpoints.every(({ labelsVisible, activeCircle, noMore, headerCreate }) => labelsVisible && activeCircle && noMore && headerCreate),
+    'áreas, estado ativo e criação permanecem visíveis nos dois temas', JSON.stringify(breakpoints));
+  check(breakpoints.every(({ width, position }) => width < 900 ? position === 'fixed' : position === 'static'),
+    'dock e barra superior usam os breakpoints previstos', JSON.stringify(breakpoints));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}/?preview#config?section=areas-navigation`);
   const cycleAreaToggle = page.locator('[data-change="area"][data-area="cycle"]');
@@ -400,9 +389,9 @@ const check = (passed, name, detail = '') => {
     await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  const cycleSidebarLink = page.locator('.app > .topbar .nav > a.nav-secondary[href="/ciclo"]');
-  await cycleSidebarLink.waitFor({ state: 'visible' });
-  check(await cycleSidebarLink.isVisible(), 'Ciclo ativo aparece como link direto na barra lateral desktop');
+  const cycleLink = page.locator('.app > .topbar .nav > a.nav-item[href="/ciclo"]');
+  await cycleLink.waitFor({ state: 'visible' });
+  check(await cycleLink.isVisible(), 'Ciclo ativo aparece como link direto na barra superior');
   let orderChanged = false;
   for (let moves = 0; moves < 5; moves++) {
     const moveUp = page.locator('#menu-move-up-habitos');
@@ -417,9 +406,22 @@ const check = (passed, name, detail = '') => {
   ));
   check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas,/ciclo',
     'dock móvel mostra todas as áreas na ordem escolhida');
-  check(!(await page.locator('.nav-more-trigger').isVisible()), 'dock móvel não mostra Mais');
-  check(await page.locator('.profile-link[href="/config"]').isVisible(),
-    'Ajustes permanece acessível pelo atalho de perfil no cabeçalho móvel');
+  check(await page.locator('.nav-more-trigger').count() === 0, 'dock móvel não mostra Mais');
+  check(await page.locator('.profile-menu-trigger').isVisible(),
+    'menu da conta permanece acessível pelo atalho de perfil no cabeçalho móvel');
+  await page.locator('.profile-menu-trigger').click();
+  const profileMenu = page.locator('#profile-menu');
+  check(await profileMenu.locator('a[href="/config"]').isVisible(),
+    'menu de perfil oferece acesso a Perfil e ajustes');
+  const profileMenuBounds = await profileMenu.evaluate((menu) => {
+    const { left, right } = menu.getBoundingClientRect();
+    return { left, right, viewport: innerWidth };
+  });
+  check(profileMenuBounds.left >= 0 && profileMenuBounds.right <= profileMenuBounds.viewport,
+    'menu da conta cabe na largura do celular');
+  await page.keyboard.press('Escape');
+  check(await page.locator('.profile-menu-control').getAttribute('open') === null,
+    'Escape fecha o menu da conta');
   await cycleMenuToggle.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 4);
   check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 4,
@@ -435,94 +437,18 @@ const check = (passed, name, detail = '') => {
     orderChanged = true;
   }
   if (orderChanged) await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
-  const sidebarToggle = page.getByRole('button', { name: 'Recolher menu lateral' });
-  check(await sidebarToggle.isVisible(), 'controle para recolher o menu aparece na barra lateral web');
-  await sidebarToggle.click();
-  const collapsedSidebar = await page.locator('.app').evaluate((app) => ({
-    collapsed: app.classList.contains('sidebar-collapsed'),
-    columns: getComputedStyle(app).gridTemplateColumns,
-    toggleLabel: app.querySelector('.sidebar-toggle')?.getAttribute('aria-label'),
-    homeLinkLabel: app.querySelector('.nav-primary[href="/inicio"]')?.innerText.trim(),
-    iconVisible: app.querySelector('.nav-primary[href="/inicio"] .ni')?.getBoundingClientRect().width > 0,
-    controlsAtTopRight: (() => {
-      const actions = app.querySelector('.header-actions');
-      const bounds = actions.getBoundingClientRect();
-      return getComputedStyle(actions).position === 'fixed'
-        && bounds.top >= 16
-        && bounds.right <= innerWidth - 16
-        && bounds.left > app.querySelector('.topbar').getBoundingClientRect().right;
-    })(),
-  }));
-  check(collapsedSidebar.collapsed && collapsedSidebar.columns.startsWith('76px'),
-    'menu lateral recolhe para uma coluna compacta de ícones', JSON.stringify(collapsedSidebar));
-  check(collapsedSidebar.toggleLabel === 'Expandir menu lateral'
-    && collapsedSidebar.homeLinkLabel.startsWith('Início') && collapsedSidebar.iconVisible,
-  'menu recolhido mantém nomes acessíveis e atualiza o acionador', JSON.stringify(collapsedSidebar));
-  check(collapsedSidebar.controlsAtTopRight,
-    'controles do tema, notificações e perfil permanecem no topo ao recolher', JSON.stringify(collapsedSidebar));
-  await page.locator('.app > .topbar .nav a[href="/planejar"]').click();
-  await page.locator('.main[data-route="planejar"]').waitFor();
-  check(await page.locator('.app').evaluate((app) => app.classList.contains('sidebar-collapsed')),
-    'estado recolhido permanece ao navegar entre telas');
-  await page.getByRole('button', { name: 'Expandir menu lateral' }).click();
-  check(!(await page.locator('.app').evaluate((app) => app.classList.contains('sidebar-collapsed'))),
-    'menu lateral expande pelo controle');
-  const sidebarControlsLayout = await page.locator('.app').evaluate((app) => {
-    const actions = app.querySelector('.header-actions');
-    const nav = app.querySelector('.nav');
-    const create = nav.querySelector('.nav-quick-trigger');
-    const main = app.querySelector('.main');
-    const rect = (element) => element.getBoundingClientRect();
-    const actionsBounds = rect(actions);
-    const navBounds = rect(nav);
-    const createBounds = rect(create);
-    const firstContent = [...main.children].find((element) => (
-      !element.matches('.notification-panel, .fab')
-      && getComputedStyle(element).display !== 'none'
-    ));
-    return {
-      actionsDisplay: getComputedStyle(actions).display,
-      visibleButtons: [...actions.children].filter((button) => getComputedStyle(button).display !== 'none').length,
-      actionsAtTopRight: getComputedStyle(actions).position === 'fixed'
-        && actionsBounds.top >= 16
-        && actionsBounds.right <= innerWidth - 16
-        && actionsBounds.left > navBounds.right,
-      actionsBounds: { left: actionsBounds.left, top: actionsBounds.top, right: actionsBounds.right, bottom: actionsBounds.bottom },
-      navRight: navBounds.right,
-      mainClearsActions: firstContent && rect(firstContent).top >= actionsBounds.bottom,
-      createFits: createBounds.width > 0
-        && createBounds.left >= navBounds.left
-        && createBounds.right <= navBounds.right
-        && create.scrollWidth <= create.clientWidth,
-    };
-  });
-  check(sidebarControlsLayout.actionsDisplay === 'flex' && sidebarControlsLayout.visibleButtons >= 3,
-    'tema, notificações e perfil ficam agrupados no topo', JSON.stringify(sidebarControlsLayout));
-  check(sidebarControlsLayout.actionsAtTopRight && sidebarControlsLayout.mainClearsActions,
-    'controles superiores ficam à direita sem cobrir o conteúdo', JSON.stringify(sidebarControlsLayout));
-  check(sidebarControlsLayout.createFits,
-    'botão Criar cabe inteiro dentro da barra lateral', JSON.stringify(sidebarControlsLayout));
-  const sidebarItemOrder = await page.locator('.app > .topbar .nav').evaluate((nav) => (
-    [...nav.children]
-      .filter((item) => getComputedStyle(item).display !== 'none'
-        && !item.classList.contains('nav-more-menu'))
-      .map((item) => item.classList.contains('nav-quick-control')
-        ? 'criar'
-        : item.getAttribute('href'))
+  await page.waitForFunction(() => (
+    [...document.querySelectorAll('.topbar .nav > a.nav-item')].map((link) => link.getAttribute('href')).join(',')
+      === '/inicio,/planejar,/financas,/ciclo,/habitos'
   ));
-  check(sidebarItemOrder[0] === '/inicio', 'Início permanece como primeiro item da barra lateral', sidebarItemOrder.join(', '));
-  check(sidebarItemOrder.slice(0, 5).join(',') === '/inicio,/planejar,/financas,/ciclo,/habitos',
-    'ordem padrão das áreas segue o menu visual nos breakpoints', sidebarItemOrder.join(', '));
-  const sidebarHabitsIndex = sidebarItemOrder.indexOf('/habitos');
-  const sidebarCreateIndex = sidebarItemOrder.indexOf('criar');
-  check(sidebarHabitsIndex < 0 || sidebarCreateIndex > sidebarHabitsIndex,
-    'Criar aparece depois de Hábitos na barra lateral', sidebarItemOrder.join(', '));
-  check(breakpoints.find(({ width }) => width === 768)?.navPosition === 'fixed', 'dock inferior permanece em tablet estreito');
-  check(breakpoints.find(({ width }) => width === 1024)?.reloadButtonVisible,
-    'botão de atualização permanece disponível no layout compacto do navegador');
-  check(!breakpoints.find(({ width }) => width === 1200)?.reloadButtonVisible,
-    'botão de atualização não aparece na visão web');
-  const sidebarAfterRouteChanges = [];
+  const desktopOrder = await page.locator('.topbar .nav > a.nav-item').evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const updatedMobileOrder = await page.locator('.topbar .nav > a.nav-item').evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  check(desktopOrder.join(',') === updatedMobileOrder.join(','),
+    'barra superior preserva a ordem configurada no dock', desktopOrder.join(', '));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(300);
+  const headerAfterRouteChanges = [];
   await page.evaluate(() => {
     window.__appRootMutations = 0;
     window.__appRootObserver = new MutationObserver((records) => {
@@ -540,19 +466,44 @@ const check = (passed, name, detail = '') => {
   for (const [path, route] of [['/inicio', 'inicio'], ['/planejar', 'planejar']]) {
     await page.locator(`.topbar .nav a[href="${path}"]`).click();
     await page.locator(`.main[data-route="${route}"]`).waitFor();
-    sidebarAfterRouteChanges.push(await page.locator('.app > .topbar').evaluate((sidebar) => {
-      const bounds = sidebar.getBoundingClientRect();
+    headerAfterRouteChanges.push(await page.locator('.app > .topbar').evaluate((header) => {
+      const bounds = header.getBoundingClientRect();
       return {
-        position: getComputedStyle(sidebar).position,
+        position: getComputedStyle(header).position,
         top: bounds.top,
-        bottom: bounds.bottom,
-        viewportHeight: innerHeight,
       };
     }));
   }
-  check(sidebarAfterRouteChanges.every(({ position, top, bottom, viewportHeight }) => (
-    position === 'fixed' && Math.abs(top) <= 1 && Math.abs(bottom - viewportHeight) <= 1
-  )), 'barra lateral não se desloca ao alternar entre telas', JSON.stringify(sidebarAfterRouteChanges));
+  check(headerAfterRouteChanges.every(({ position, top }) => position === 'sticky' && Math.abs(top) <= 1),
+    'barra superior permanece no topo ao alternar entre telas', JSON.stringify(headerAfterRouteChanges));
+  await page.locator('#plan-tab-lista').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => document.activeElement?.id === 'plan-tab-calendario');
+  check(await page.locator('#plan-tab-calendario').getAttribute('aria-selected') === 'true'
+    && await page.locator('#plan-panel').getAttribute('aria-labelledby') === 'plan-tab-calendario',
+  'setas selecionam a visão de Planejar e mantêm o foco');
+  await page.locator('.nav a[href="/financas"]').click();
+  await page.locator('#fin-tab-resumo').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => document.activeElement?.id === 'fin-tab-lancamentos');
+  check(await page.locator('#fin-panel').getAttribute('aria-labelledby') === 'fin-tab-lancamentos',
+    'setas selecionam a seção de Finanças e mantêm o foco');
+  await page.locator('#fin-view-lista').focus();
+  await page.keyboard.press('End');
+  await page.waitForFunction(() => document.activeElement?.id === 'fin-view-cal');
+  check(await page.locator('#fin-view-cal').getAttribute('aria-selected') === 'true'
+    && await page.locator('#fin-view-panel').getAttribute('aria-labelledby') === 'fin-view-cal',
+  'teclado seleciona a visão de lançamentos');
+  await page.locator('.profile-menu-trigger').click();
+  await page.locator('#profile-menu a[href="/config"]').click();
+  const settingsState = await page.locator('.settings-link[aria-current="page"]').evaluate((link) => ({
+    background: getComputedStyle(link).backgroundColor,
+    iconBackground: getComputedStyle(link.querySelector('.settings-link-icon')).backgroundColor,
+    color: getComputedStyle(link).color,
+    accent: getComputedStyle(link).getPropertyValue('--accent').trim(),
+  }));
+  check(settingsState.background === 'rgba(0, 0, 0, 0)' && settingsState.iconBackground !== 'rgba(0, 0, 0, 0)',
+    'ajustes usa círculo no ícone sem fundo no item', JSON.stringify(settingsState));
   check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
     'busca global não aparece como botão no cabeçalho');
   await page.keyboard.press('Control+k');

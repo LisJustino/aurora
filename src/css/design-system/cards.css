@@ -5,9 +5,9 @@
   gap: var(--card-content-gap);
   padding: var(--card-padding);
   border: 1px solid var(--line);
-  border-radius: var(--r);
+  border-radius: var(--r-group);
   background: var(--surface-strong);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
   transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 
@@ -64,8 +64,8 @@
 
 .shortcut-card-icon {
   display: grid;
-  width: var(--control-sm);
-  height: var(--control-sm);
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
   flex: none;
   place-items: center;
   border-radius: var(--r-pill);
@@ -135,7 +135,7 @@
   border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
   background: var(--soft);
 }
-.strip b { font: var(--weight-strong) var(--text-2xl)/var(--leading-tight) var(--font-h); font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.strip b { font: var(--weight-bold) var(--text-2xl)/var(--leading-tight) var(--font-h); font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
 .strip span { color: var(--muted); font-size: var(--text-meta); line-height: 1.4; }
 
 .stats {
@@ -156,7 +156,7 @@
 }
 
 .stat b {
-  font: var(--weight-strong) var(--text-2xl)/var(--leading-tight) var(--font-h);
+  font: var(--weight-bold) var(--text-2xl)/var(--leading-tight) var(--font-h);
   letter-spacing: -.035em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -170,7 +170,7 @@
   gap: var(--space-5);
   padding: var(--card-padding);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
-  border-radius: var(--r-large);
+  border-radius: var(--r-control);
   background: var(--hero);
   color: var(--on-hero);
 }

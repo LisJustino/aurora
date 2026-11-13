@@ -27,19 +27,29 @@ const check = (passed, name, detail = '') => {
   await page.goto(BASE);
   check(mainModuleRequests.length === 0, 'landing pública não baixa o módulo completo antes da autenticação');
   check(await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).count() === 1, 'landing apresenta o benefício principal do Aurora');
-  check(await page.getByText('Da cabeça cheia a um próximo passo possível').count() === 1
-    && await page.locator('.public-journey-step').count() === 3
-    && await page.locator('.public-journey').count() === 0,
-  'landing mostra como o Aurora transforma organização em ações e revisão semanal dentro de uma única seção');
-  check(await page.getByText('Planner de tarefas, hábitos, ciclo e finanças em um só lugar.').count() === 1
-    && await page.getByText('Totalmente grátis').count() > 0
-    && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1,
-  'landing explica o produto, informa que é grátis e mostra a transparência do criador');
+  check(await page.getByText('Feito para a vida como ela é').count() === 1
+    && await page.locator('.public-values > .public-value').count() === 4
+    && await page.locator('.public-journey-grid').count() === 0,
+  'landing apresenta as áreas sem repetir uma jornada intermediária');
+  check(await page.getByText('Tarefas, hábitos, foco, ciclo e finanças no seu ritmo.').count() === 1
+    && await page.getByText(/totalmente grátis/i).count() > 0
+    && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1
+    && await page.locator('.public-main > .public-maker').evaluate((maker) =>
+      maker.previousElementSibling?.classList.contains('public-hero')),
+  'landing resume as áreas e apresenta a autoria logo no início');
+  const suggestionDisclosure = page.locator('[data-suggestion-disclosure]');
   check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
-    && await page.locator('.public-faq form[data-footer-suggestion]').count() === 0
+    && await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 5
+    && await page.locator('.public-faq-item').count() === 6
+    && await page.locator('.public-faq').getByText(/não são criptografados|sem conexão|confirmar meu e-mail/i).count() === 0
     && await page.locator('.public-footer form[data-footer-suggestion]').count() === 0
-    && await page.locator('.public-suggestion form[data-footer-suggestion]').count() === 1,
-  'FAQ começa por preço e a sugestão tem seção própria');
+    && await suggestionDisclosure.count() === 1
+    && await suggestionDisclosure.evaluate((disclosure) =>
+      !disclosure.open && Boolean(disclosure.closest('.public-faq-list')))
+    && await suggestionDisclosure.locator(':scope > summary').getAttribute('aria-expanded') === 'false'
+    && await suggestionDisclosure.locator('form[data-footer-suggestion]').count() === 1
+    && !(await suggestionDisclosure.locator('form[data-footer-suggestion]').isVisible()),
+  'FAQ curto mantém a sugestão recolhida e detalhes técnicos fora da vitrine');
   check(await page.locator('.public-value-preview').count() === 4
     && await page.locator('.public-value-preview video').count() === 0
     && await page.locator('.public-value-preview').evaluateAll((previews) => previews.filter((preview) => preview.getClientRects().length).every((preview) => {
@@ -55,16 +65,28 @@ const check = (passed, name, detail = '') => {
   check(await page.getByText('profissional e mãe').count() === 0
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
-  check(await page.locator('.public-hero [data-public-action="signup"]').evaluate((button) => button.classList.contains('primary'))
+  check(await page.locator('.public-hero [data-public-action="demo"]').evaluate((button) => button.classList.contains('primary'))
     && await page.locator('.public-hero a[href="/demonstracao"]').count() === 1,
-  'cadastro é o CTA principal e a demonstração abre como página');
-  check(await page.locator('.public-hero a[data-public-action="login"]').textContent().then((text) => /Google/.test(text)),
-    'landing informa que é possível entrar com Google');
+  'demonstração é o CTA principal e abre como página sem cadastro');
+  check(await page.locator('.preview-phone-nav').getByText('Ciclo').count() === 1,
+    'prévia do celular mostra as quatro áreas, incluindo Ciclo');
+  check(await page.locator('.public-hero [data-public-action="signup"], .public-hero [data-public-action="login"]').count() === 0,
+    'hero não repete ações de cadastro ou entrada');
+  check(await page.locator('.public-cta-panel [data-public-action="signup"], .public-cta-panel [data-public-action="demo"]').count() === 0,
+    'chamada final propõe instalar o app em vez de repetir o cadastro ou a demonstração');
   const heroTask = page.locator('.public-hero [data-landing-task]').last();
   check(await page.locator('.public-hero .preview-phone').count() === 1
     && await page.locator('.preview-phone [data-landing-task]').count() === 3
     && await page.locator('.public-hero .preview-float').count() === 0,
   'hero apresenta um único celular com tarefas interativas, sem cartões flutuantes');
+  check(await page.locator('.preview-phone').evaluate((phone) => {
+    const bounds = phone.getBoundingClientRect();
+    return bounds.height / bounds.width >= 1.7;
+  })
+    && await page.locator('.preview-phone-screen').count() === 1
+    && await page.locator('.preview-phone-logo').evaluate((logo) => logo.complete && logo.naturalWidth > 0 && logo.alt === '')
+    && await page.locator('.preview-phone-wordmark').textContent() === 'aurora.',
+  'prévia mostra uma tela de celular com o logo oficial do Aurora');
   await heroTask.click();
   check(await heroTask.getAttribute('aria-pressed') === 'true'
     && await heroTask.locator('small').textContent() === 'Concluída'
@@ -72,13 +94,8 @@ const check = (passed, name, detail = '') => {
   'mock do hero permite concluir uma tarefa sem sair da landing');
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
-  check(
-    await page.locator('.public-journey-grid').evaluate((grid) => {
-      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().top));
-      return new Set(positions).size === 3 && grid.scrollWidth <= grid.clientWidth;
-    }),
-    'percurso de valor organiza os três momentos sem rolagem horizontal no celular',
-  );
+  check(await page.locator('.public-journey-grid').count() === 0,
+    'landing não repete a proposta de valor em uma jornada no celular');
   await page.setViewportSize({ width: 390, height: 844 });
   const termsTrigger = page.locator('[data-legal-document="terms"]').first();
   await page.evaluate(() => window.scrollTo(0, 200));
@@ -140,7 +157,7 @@ const check = (passed, name, detail = '') => {
   await page.mouse.click(backdropPoint.x, backdropPoint.y);
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
-  await page.locator('.public-hero').getByRole('link', { name: 'Ver demo em 1 minuto' }).click();
+  await page.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
   check(new URL(page.url()).pathname === '/demonstracao'
     && await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).isVisible(),
   'o CTA abre a demonstração sem cadastro');
@@ -149,7 +166,8 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(mainModuleRequests.length === 0, 'a demonstração direta não baixa o módulo completo');
   check(await page.locator('.demo-nav-link').count() === 5, 'demonstração oferece navegação pelas áreas do app');
-  check(await page.getByText(/dados fictícios, somente leitura/i).count() === 1, 'a demonstração deixa claro que os dados são fictícios e somente de leitura');
+  check(await page.getByText(/dados fictícios.*não são salvas/i).count() === 1,
+    'a demonstração informa que as edições são temporárias');
   await page.waitForTimeout(500);
   const storageBefore = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
@@ -157,14 +175,38 @@ const check = (passed, name, detail = '') => {
   }));
   collectRequests = true;
 
-  await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar tarefa de exemplo' }).click();
   check(await page.locator('.demo-task-list .task').count() === 3
-    && await page.locator('.demo-task-list button, .demo-task-list input').count() === 0,
-  'tarefas de exemplo são exibidas sem controles de edição');
+    && await page.locator('.demo-task-list [role="checkbox"]').count() === 3
+    && await page.locator('.demo-add-form input').count() === 1,
+  'tarefas de exemplo podem ser concluídas e uma tarefa pode ser adicionada');
+  const taskInput = page.locator('.demo-add-form input');
+  await taskInput.fill('   ');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('.demo-task-list .task').count() === 3
+    && await taskInput.evaluate((input) => !input.validity.valid),
+  'tarefa vazia ou composta de espaços não é adicionada');
+  const newTaskTitle = 'Tarefa <b>sem HTML</b>';
+  await taskInput.fill(newTaskTitle);
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const newTask = page.getByRole('checkbox', { name: `Marcar como concluída: ${newTaskTitle}` });
+  check(await page.locator('.demo-task-list .task').count() === 4
+    && await page.getByText(newTaskTitle, { exact: true }).count() === 1
+    && await page.locator('.demo-task-list b').count() === 0,
+  'tarefa nova é exibida como texto escapado, não como HTML');
+  await newTask.click();
+  check(await page.getByRole('checkbox', { name: `Marcar como pendente: ${newTaskTitle}` })
+    .getAttribute('aria-checked') === 'true'
+    && await page.locator('.demo-area-panel .pill').textContent() === '3 de 4 feitos',
+  'tarefa de exemplo pode ser marcada como concluída');
 
   await page.getByRole('link', { name: 'Hábitos', exact: true }).click();
-  check(await page.locator('.demo-habit-card button, .demo-habit-card input').count() === 0,
-    'hábitos de exemplo são somente de leitura');
+  check(await page.locator('.demo-habit-card [data-demo-action="habit-toggle"]').count() === 7,
+    'check-ins de hábito podem ser alternados nesta visita');
+  await page.getByRole('button', { name: 'quarta-feira: não marcado' }).click();
+  check(await page.getByRole('button', { name: 'quarta-feira: marcado' }).getAttribute('aria-pressed') === 'true'
+    && await page.locator('.demo-habit-card .demo-muted').textContent() === '3 dias nesta semana',
+  'marcar um hábito atualiza o check-in e o resumo semanal');
 
   check(await page.getByRole('link', { name: 'Foco', exact: true }).count() === 0
     && await page.locator('.demo-focus-card, .focus-timer, .pomodoro-mini').count() === 0,
@@ -185,28 +227,30 @@ const check = (passed, name, detail = '') => {
   check(interactionRequests.length === 0, 'interações não fazem requisições de rede', interactionRequests.join(', '));
   check(await page.getByRole('link', { name: 'Criar conta' }).count() > 0, 'CTA para criar conta permanece disponível');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em 390 px');
+  collectRequests = false;
+  await page.reload();
+  await page.getByRole('link', { name: 'Tarefas', exact: true }).click();
+  check(await page.locator('.demo-task-list .task').count() === 3
+    && await page.locator('.demo-task-list .task').getByText(newTaskTitle, { exact: true }).count() === 0,
+  'recarregar descarta as alterações da demonstração');
 
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
   await page.setViewportSize({ width: 1366, height: 900 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   const demoLayout = await page.evaluate(() => {
-    const sidebar = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
+    const header = document.querySelector('.demo-app > .topbar').getBoundingClientRect();
     const main = document.querySelector('.demo-main').getBoundingClientRect();
     return {
-      sidebarVisible: sidebar.width >= 180 && sidebar.left === 0 && sidebar.bottom >= innerHeight,
-      mainFitsWorkspace: main.left >= sidebar.right && main.right <= document.documentElement.clientWidth,
+      headerVisible: header.width > 0 && header.top === 0 && header.height < 150,
+      mainFitsWorkspace: main.top >= header.bottom && main.right <= document.documentElement.clientWidth,
     };
   });
-  check(demoLayout.sidebarVisible, 'demonstração usa a navegação lateral do app no desktop');
-  check(demoLayout.mainFitsWorkspace, 'conteúdo respeita a coluna ao lado da navegação');
+  check(demoLayout.headerVisible, 'demonstração usa a navegação superior do app no desktop');
+  check(demoLayout.mainFitsWorkspace, 'conteúdo fica abaixo da navegação superior');
   await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
-  check(
-    await page.locator('.public-journey-grid').evaluate((grid) => {
-      const positions = [...grid.children].map((step) => Math.round(step.getBoundingClientRect().left));
-      return new Set(positions).size === 3;
-    }),
-    'percurso de valor organiza os três momentos em colunas no desktop',
-  );
+  check(await page.locator('.public-journey-grid').count() === 0,
+    'landing não repete a proposta de valor em uma jornada no desktop');
   check(
     await page.locator('.public-values').evaluate((grid) => {
       const cards = [...grid.children];
@@ -227,9 +271,15 @@ const check = (passed, name, detail = '') => {
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
+  await page.locator('[data-suggestion-disclosure] > summary').click();
+  check(
+    await page.locator('[data-suggestion-disclosure] > summary').getAttribute('aria-expanded') === 'true'
+      && await page.locator('[data-suggestion-disclosure] form[data-footer-suggestion]').isVisible(),
+    'sugestão fica visível ao abrir o item da FAQ',
+  );
   await page.locator('[name="message"]').fill('Uma sugestão de teste');
   const taskState = await page.locator('[data-landing-task]').last().getAttribute('aria-pressed');
-  await page.locator('.public-hero [data-public-action="login"]').click();
+  await page.locator('.public-topbar [data-public-action="login"]').click();
   await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
   check(await page.title() === 'Entrar na sua conta | aurora.', 'login tem título próprio');
   await page.locator('.account-home-link').click();
@@ -240,8 +290,10 @@ const check = (passed, name, detail = '') => {
   'voltar do login preserva o estado da landing nesta aba');
   await page.evaluate(() => window.scrollTo(0, 600));
   await page.waitForFunction(() => !document.querySelector('.public-mobile-cta').hidden);
-  check(await page.locator('.public-mobile-cta').isVisible(), 'CTA móvel continua funcionando após voltar do login');
-  await page.locator('.public-hero [data-public-action="signup"]').click();
+  check(await page.locator('.public-mobile-cta').isVisible()
+    && await page.locator('.public-mobile-cta').getAttribute('data-public-action') === 'demo',
+  'CTA móvel continua oferecendo a demonstração após voltar do login');
+  await page.locator('.public-topbar [data-public-action="signup"]').click();
   await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
   check(await page.title() === 'Seu perfil | aurora.', 'cadastro tem título próprio');
   await page.locator('.account-site-header .public-brand-link').click();

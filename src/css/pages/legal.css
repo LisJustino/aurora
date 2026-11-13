@@ -166,7 +166,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--r-large);
+  border-radius: var(--r-control);
   background: var(--surface-strong);
   color: var(--ink);
   box-shadow: var(--shadow);
@@ -258,7 +258,7 @@
 
   .legal-modal {
     width: calc(100vw - var(--space-3) * 2);
-    border-radius: var(--r-large);
+    border-radius: var(--r-control);
   }
 
   .legal-modal > .legal-modal-header {

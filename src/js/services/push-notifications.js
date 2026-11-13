@@ -132,12 +132,15 @@ async function ensureNativePushListeners() {
     await plugin.addListener('registrationError', nativePushError);
     await plugin.addListener('pushNotificationReceived', (notification) => {
       const kind = notification.data?.kind;
-      if (kind === 'habit-reminder') {
+      if (kind === 'habit-reminder' || kind === 'task-reminder') {
         window.dispatchEvent(new CustomEvent('aurora:push-notification', { detail: { kind } }));
       }
     });
     await plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      if (notification.data?.kind === 'habit-reminder') window.location.assign('/habitos');
+      const route = notification.data?.kind === 'habit-reminder'
+        ? '/habitos'
+        : notification.data?.kind === 'task-reminder' ? '/planejar' : '';
+      if (route) window.location.assign(route);
     });
     if (Capacitor.getPlatform() === 'ios') {
       const { FCM } = await import('@capacitor-community/fcm');
@@ -463,6 +466,28 @@ export async function cancelHabitPushReminders() {
   });
 }
 
+export async function scheduleTaskPushReminders(reminders) {
+  return serializeMutation(async () => {
+    const credentials = activeCredentials;
+    if (!credentials?.enabled) return false;
+    if (!reminders.length) {
+      await request('/api/tasks', { method: 'DELETE', credentials });
+      return false;
+    }
+    await request('/api/tasks', { method: 'POST', credentials, body: { reminders } });
+    return true;
+  });
+}
+
+export async function cancelTaskPushReminders() {
+  return serializeMutation(async () => {
+    const credentials = activeCredentials;
+    if (!credentials?.enabled) return false;
+    await request('/api/tasks', { method: 'DELETE', credentials });
+    return true;
+  });
+}
+
 export function pushNotificationErrorMessage(error) {
   const messages = {
     'not-configured': 'O serviço de avisos não está configurado para esta instalação.',
@@ -483,6 +508,7 @@ export function pushNotificationErrorMessage(error) {
     'rate-limited': 'Muitas solicitações em pouco tempo. Aguarde um minuto e tente novamente.',
     'server-unavailable': 'O serviço de avisos está indisponível no momento.',
     'invalid-habit-reminders': 'Os dias, horários ou o fuso dos lembretes foram rejeitados pelo serviço.',
+    'invalid-task-reminders': 'As datas ou horários dos lembretes de tarefa foram rejeitados pelo serviço.',
     'invalid-request': 'A solicitação enviada ao serviço de avisos foi rejeitada.',
     'invalid-subscription': 'A inscrição Push deste navegador foi rejeitada pelo serviço.',
     'subscription-required': 'Ative os avisos antes de configurar os lembretes.',

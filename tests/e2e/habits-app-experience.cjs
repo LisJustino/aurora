@@ -154,8 +154,15 @@ const check = (passed, name, detail = '') => {
   'controle de notificações apresenta o interruptor sem explicações extensas');
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
+  check(await row.locator('.habit-more > summary .habit-streak').textContent() === 'Sequência: 1 dia programado',
+    'sequência individual fica visível sem abrir os detalhes');
+  check(await page.getByRole('status').filter({ hasText: 'Dia concluído!' }).count() === 1,
+    'concluir o último hábito do dia mostra o estado de dia concluído');
   check(await page.locator('#toast').getByText('Hábito marcado como concluído.').count() === 1, 'marcação de hábito oferece desfazer');
   await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).click();
+  check(await page.locator('.habit-day-complete').count() === 0,
+    'desfazer a última marcação remove o estado de dia concluído');
+  check(await row.locator('.habit-streak').count() === 0, 'desfazer o check-in atualiza a sequência');
   const undoneHabitState = await row.locator('.habit-circle').evaluate((button) => ({
     pressed: button.getAttribute('aria-pressed'),
     action: button.dataset.action,

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurora-static-v13';
+const CACHE_NAME = 'aurora-static-v14';
 const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
 const APP_ROUTE = /^\/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?$/i;
 const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
@@ -107,15 +107,29 @@ self.addEventListener('push', (event) => {
     } catch {
       payload = {};
     }
-    const habitReminder = payload.kind === 'habit-reminder';
-    if (!habitReminder) return;
-    await self.registration.showNotification('aurora. · Hábitos', {
-      body: 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.',
+    const notification = payload.kind === 'habit-reminder'
+      ? {
+        title: 'aurora. · Hábitos',
+        body: 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.',
+        tag: 'aurora-habits',
+        route: 'habitos',
+      }
+      : payload.kind === 'task-reminder'
+        ? {
+          title: 'aurora. · Planejar',
+          body: 'Um lembrete de tarefa chegou. Abra o Aurora para conferir sua lista.',
+          tag: 'aurora-tasks',
+          route: 'planejar',
+        }
+        : null;
+    if (!notification) return;
+    await self.registration.showNotification(notification.title, {
+      body: notification.body,
       icon: new URL('./icons/aurora-192.png', self.registration.scope).href,
       badge: new URL('./icons/aurora-192.png', self.registration.scope).href,
-      tag: 'aurora-habits',
+      tag: notification.tag,
       renotify: false,
-      data: { route: 'habitos' },
+      data: { route: notification.route },
     });
   })());
 });
@@ -123,10 +137,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
-    if (event.notification.data?.route !== 'habitos') return;
+    const route = event.notification.data?.route;
+    if (!['habitos', 'planejar'].includes(route)) return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-    const targetUrl = new URL('./habitos', self.registration.scope).href;
+    const targetUrl = new URL(`./${route}`, self.registration.scope).href;
     if (existing) {
       if (typeof existing.navigate === 'function') await existing.navigate(targetUrl);
       await existing.focus();

@@ -19,18 +19,30 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         targets: nav.map((item) => [item.getBoundingClientRect().width, item.getBoundingClientRect().height, parseFloat(getComputedStyle(item.querySelector('.tab-label') || item).fontSize)]),
         card: document.querySelector('.home-today-card').classList.contains('card'),
         radius: getComputedStyle(row).borderRadius,
-        ring: document.querySelector('.home-head .ringw').getBoundingClientRect().width,
+        hasProgressRing: Boolean(document.querySelector('.home-head .ringw')),
+        planLink: document.querySelector('.home-head-actions a.home-action')?.getAttribute('href'),
+        heroHeight: document.querySelector('.home-head').getBoundingClientRect().height,
       };
     });
     assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Ciclo', 'Hábitos']);
     assert(home.targets.every(([width, height, font]) => width >= 44 && height >= 44 && font >= 12));
     assert.equal(home.card, false);
     assert.equal(home.radius, '0px');
-    assert.equal(home.ring, 64);
-    assert.equal(await page.locator('.nav-more-trigger').isVisible(), false);
-    assert.equal(await page.locator('.profile-link[href="/config"]').isVisible(), true);
+    assert.equal(home.hasProgressRing, false);
+    assert.equal(home.planLink, '/planejar');
+    assert(home.heroHeight < 210, `cabeçalho compacto em mobile (${home.heroHeight}px)`);
+    await page.setViewportSize({ width: 320, height: 900 });
+    const narrowHome = await page.evaluate(() => ({
+      height: document.querySelector('.home-head').getBoundingClientRect().height,
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    }));
+    assert(narrowHome.height < 210, `cabeçalho compacto em 320px (${narrowHome.height}px)`);
+    assert.equal(narrowHome.overflow, false);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.locator('.nav-more-trigger').count(), 0);
+    assert.equal(await page.locator('.profile-menu-trigger').isVisible(), true);
     await page.locator('.nav > a[href="/planejar"]').click();
-    assert.equal(await page.locator('[data-action="plan-view"][data-v="lista"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('[role="tab"][data-action="plan-view"][data-v="lista"]').getAttribute('aria-selected'), 'true');
     await page.locator('[data-action="plan-view"][data-v="semana"]').click();
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
@@ -43,6 +55,14 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       if (width < 900 && layout.today !== null) assert.equal(layout.today, '-1');
       assert.equal(layout.overflow, false);
     }
+    await page.locator('.profile-menu-trigger').click();
+    assert.equal(await page.locator('#profile-menu a[href="/config"]').isVisible(), true);
+    const profileMenuBounds = await page.locator('#profile-menu').evaluate((menu) => {
+      const { left, right } = menu.getBoundingClientRect();
+      return { left, right, viewport: innerWidth };
+    });
+    assert(profileMenuBounds.left >= 0 && profileMenuBounds.right <= profileMenuBounds.viewport);
+    await page.keyboard.press('Escape');
     await page.locator('[data-action="plan-view"][data-v="lista"]').click();
     await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').click();
     assert.equal(await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');

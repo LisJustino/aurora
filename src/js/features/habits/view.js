@@ -46,7 +46,8 @@ export function renderHabitsView(dependencies) {
     habitCompletedFor,
     (habit, day) => habitIsSkipped(habit, day, today()),
   );
-  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind);
+  const hasTaskReminders = S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null);
+  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind) || hasTaskReminders;
   const pushStatus = hasReminders ? getPushNotificationStatus() : null;
   const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
     && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
@@ -60,6 +61,7 @@ export function renderHabitsView(dependencies) {
   const todaySummary = eligibleToday
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
+  const dayComplete = eligibleToday > 0 && doneN === eligibleToday;
   const ideasOpen = ui.openDetails.ideas ? raw('open') : '';
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
     .map((category) => ({
@@ -81,6 +83,9 @@ export function renderHabitsView(dependencies) {
     'add-button': todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`.s : '',
     'today-progress': eligibleToday
       ? h`<div class="habit-today-bar" role="progressbar" aria-label="Hábitos concluídos hoje, sem contar dias pulados" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`.s
+      : '',
+    'day-complete': dayComplete
+      ? h`<div class="habit-day-complete${ui.habitCelebrationDay === today() ? ' is-celebrating' : ''}" role="status" aria-live="polite">${icon('sparkles', 20)}<span><b>Dia concluído!</b><small>Você marcou todos os hábitos programados para hoje.</small></span></div>`.s
       : '',
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s

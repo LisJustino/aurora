@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Acompanhe seus hábitos no Aurora.">
+  <meta name="robots" content="noindex">
   <meta name="theme-color" content="#f8f8f6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,14 +21,14 @@
 <body>
   <div id="app"><main class="account-loading" role="status" aria-busy="true">
     <div class="account-loading-content">
-      <span class="account-loading-brand-text" aria-hidden="true">aurora<span class="account-loading-brand-dot">.</span></span>
-      <span class="account-loading-indicator" aria-hidden="true"></span>
-      <p class="account-loading-message">Preparando seu espaço…</p>
-      <div class="account-loading-skeleton" aria-hidden="true"><span class="loading-skeleton-heading"></span><ul>
-        <li class="loading-skeleton-row"><span class="loading-skeleton-check"></span><span class="loading-skeleton-lines"><i></i><i></i></span></li>
-        <li class="loading-skeleton-row"><span class="loading-skeleton-check"></span><span class="loading-skeleton-lines"><i></i><i></i></span></li>
-        <li class="loading-skeleton-row"><span class="loading-skeleton-check"></span><span class="loading-skeleton-lines"><i></i><i></i></span></li>
-      </ul></div>
+      <header class="account-loading-header">
+        <span class="account-loading-brand" aria-hidden="true"><img src="%BASE_URL%icons/favicon.svg" alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
+        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
+      </header>
+      <div class="account-loading-skeleton" aria-hidden="true">
+        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
+        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      </div>
     </div>
   </main></div>
   <noscript>O Aurora precisa de JavaScript para autenticar sua conta e salvar seus dados com segurança.</noscript>
