@@ -48,6 +48,11 @@ async function addTask(page, title, offsetMinutes) {
       await addTask(page, 'Separar documentos', -2);
       await addTask(page, 'Ligar para o dentista', 90);
 
+      await page.locator('a[href="/habitos"]:visible').first().click();
+      assert.equal(await page.locator('[data-action="habit-push-toggle"]').isVisible(), true,
+        `${name}: Push deve ficar disponível quando tarefas têm horário de lembrete`);
+      await page.locator('a[href="/planejar"]:visible').first().click();
+
       assert.equal(await page.locator('#notification-panel').isVisible(), false, `${name}: painel não deve abrir automaticamente`);
       const trigger = page.locator('#notification-top');
       await page.waitForFunction(
@@ -59,6 +64,9 @@ async function addTask(page, title, offsetMinutes) {
       assert.match(await page.locator('#notification-announcer').textContent(), /Abra Notificações para conferir\./);
       await trigger.click();
       await page.locator('#notification-panel').waitFor({ state: 'visible' });
+      const panelTop = await page.locator('#notification-panel').evaluate((panel) => panel.getBoundingClientRect().top);
+      const headerBottom = await page.locator('.topbar').evaluate((header) => header.getBoundingClientRect().bottom);
+      assert(panelTop >= headerBottom, `${name}: painel deve começar abaixo do cabeçalho`);
       assert.notEqual(await page.evaluate(() => document.documentElement.dataset.scrollLocked), 'true', `${name}: a caixa não bloqueia a tela`);
       assert.equal(await page.locator('.notification-item').count(), 2, `${name}: deve exibir os dois lembretes`);
       assert.equal(await page.locator('.notification-section-title').textContent(), 'Agora');

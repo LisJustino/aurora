@@ -236,8 +236,9 @@ assert.match(termsDocument, /cadastro não exige confirmação do e-mail, mas pe
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
 assert.match(accountAuthSource, /erro pode impedir a recuperação da senha/i);
-assert.match(landingSource, /você digita o endereço duas vezes/i);
-assert.match(landingSource, /endereço inválido pode impedir a recuperação da senha/i);
+assert.match(accountAuthSource, /Digite novamente o endereço para evitar erros de recuperação\./i);
+assert.match(accountAuthSource, /um erro pode impedir a recuperação da senha/i);
+assert.doesNotMatch(landingSource, /endereço.*recuperação da senha/i);
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {

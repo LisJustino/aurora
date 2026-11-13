@@ -3,6 +3,7 @@ import { buildPushPayload } from '@block65/webcrypto-web-push';
 const API_PREFIX = '/api';
 const MAX_BODY_BYTES = 16_384;
 const MAX_HABIT_REMINDERS = 100;
+const MAX_TASK_REMINDERS = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,64}$/;
@@ -153,6 +154,27 @@ function validStoredHabitReminders(value) {
   return validHabitReminders({ reminders: value });
 }
 
+function validTaskReminders(value) {
+  if (!hasExactKeys(value, ['reminders'])
+    || !Array.isArray(value.reminders)
+    || value.reminders.length > MAX_TASK_REMINDERS) return false;
+  const ids = new Set();
+  return value.reminders.every((reminder) => {
+    if (!hasExactKeys(reminder, ['id', 'at'])
+      || typeof reminder.id !== 'string'
+      || !/^[A-Za-z0-9_-]{1,48}$/.test(reminder.id)
+      || ids.has(reminder.id)
+      || !Number.isSafeInteger(reminder.at)
+      || reminder.at <= 0) return false;
+    ids.add(reminder.id);
+    return true;
+  });
+}
+
+function validStoredTaskReminders(value) {
+  return validTaskReminders({ reminders: value });
+}
+
 function timeZoneParts(timestamp, timeZone) {
   return Object.fromEntries(timeZoneFormatter(timeZone).formatToParts(new Date(timestamp))
     .map(({ type, value }) => [type, value]));
@@ -289,7 +311,10 @@ async function dispatchClientOperation(env, request, headers, operation, body) {
   if (operation === 'habits' && request.method === 'POST' && !validHabitReminders(body)) {
     return json({ error: 'invalid-habit-reminders' }, 400, headers);
   }
-  if (!['subscribe', 'unsubscribe', 'habits', 'clear-habits'].includes(operation)) {
+  if (operation === 'tasks' && request.method === 'POST' && !validTaskReminders(body)) {
+    return json({ error: 'invalid-task-reminders' }, 400, headers);
+  }
+  if (!['subscribe', 'unsubscribe', 'habits', 'clear-habits', 'tasks', 'clear-tasks'].includes(operation)) {
     return json({ error: 'not-found' }, 404, headers);
   }
   if (env.API_RATE_LIMIT) {
@@ -370,12 +395,27 @@ export default {
         return dispatchClientOperation(env, request, headers, 'clear-habits', {});
       }
     }
+    if (path === `${API_PREFIX}/tasks`) {
+      if (request.method === 'POST') {
+        const body = await readJson(request);
+        if (!body) return json({ error: 'invalid-request' }, 400, headers);
+        return dispatchClientOperation(env, request, headers, 'tasks', body);
+      }
+      if (request.method === 'DELETE') {
+        if (request.body) return json({ error: 'invalid-request' }, 400, headers);
+        return dispatchClientOperation(env, request, headers, 'clear-tasks', {});
+      }
+    }
     return json({ error: 'not-found' }, 404, headers);
   },
 };
 
 function habitReminderNotification() {
   return { kind: 'habit-reminder' };
+}
+
+function taskReminderNotification() {
+  return { kind: 'task-reminder' };
 }
 
 function constantTimeEqual(left, right) {
@@ -422,7 +462,9 @@ export class PomodoroAlarm {
       return json({ ok: true });
     }
     if (path === '/unsubscribe' && request.method === 'POST') {
-      await this.storage.delete(['subscription', 'schedule', 'habitReminders', 'habitReminderAt']);
+      await this.storage.delete([
+        'subscription', 'schedule', 'habitReminders', 'habitReminderAt', 'taskReminders', 'taskReminderAt',
+      ]);
       await this.state.storage.deleteAlarm();
       return json({ ok: true });
     }
@@ -439,24 +481,52 @@ export class PomodoroAlarm {
       await this.refreshAlarm();
       return json({ ok: true });
     }
+    if (path === '/tasks' && request.method === 'POST') {
+      const body = await readJson(request);
+      if (!validTaskReminders(body)) return json({ error: 'invalid-task-reminders' }, 400);
+      if (!(await this.storage.get('subscription'))) return json({ error: 'subscription-required' }, 409);
+      await this.storage.put('taskReminders', body.reminders);
+      const scheduledAt = await this.refreshAlarm();
+      return json({ ok: true, scheduledAt });
+    }
+    if (path === '/clear-tasks' && request.method === 'POST') {
+      await this.storage.delete(['taskReminders', 'taskReminderAt']);
+      await this.refreshAlarm();
+      return json({ ok: true });
+    }
     return json({ error: 'not-found' }, 404);
   }
 
   async refreshAlarm(now = Date.now()) {
     await this.storage.delete('schedule');
-    let reminderAt = null;
+    const alarmTimes = [];
     const reminders = await this.storage.get('habitReminders');
     if (validStoredHabitReminders(reminders) && reminders.length) {
-      reminderAt = nextHabitReminderAt(reminders, now);
+      const habitReminderAt = nextHabitReminderAt(reminders, now);
+      if (Number.isSafeInteger(habitReminderAt)) alarmTimes.push(habitReminderAt);
+      await this.storage.put('habitReminderAt', habitReminderAt);
+    } else {
+      await this.storage.delete('habitReminderAt');
     }
-    if (reminderAt === null) await this.storage.delete('habitReminderAt');
-    else await this.storage.put('habitReminderAt', reminderAt);
-    if (!Number.isSafeInteger(reminderAt)) {
+    const taskReminders = await this.storage.get('taskReminders');
+    if (validStoredTaskReminders(taskReminders) && taskReminders.length) {
+      const taskReminderAt = taskReminders
+        .map((reminder) => reminder.at)
+        .filter((timestamp) => timestamp > now)
+        .sort((left, right) => left - right)[0] ?? null;
+      if (Number.isSafeInteger(taskReminderAt)) alarmTimes.push(taskReminderAt);
+      if (Number.isSafeInteger(taskReminderAt)) await this.storage.put('taskReminderAt', taskReminderAt);
+      else await this.storage.delete('taskReminderAt');
+    } else {
+      await this.storage.delete(['taskReminders', 'taskReminderAt']);
+    }
+    const alarmAt = alarmTimes.length ? Math.min(...alarmTimes) : null;
+    if (!Number.isSafeInteger(alarmAt)) {
       await this.state.storage.deleteAlarm();
       return null;
     }
-    await this.state.storage.setAlarm(reminderAt);
-    return reminderAt;
+    await this.state.storage.setAlarm(alarmAt);
+    return alarmAt;
   }
 
   async sendNotification(notification, subscription) {
@@ -471,7 +541,9 @@ export class PomodoroAlarm {
       });
       const response = await fetch(subscription.endpoint, payload);
       if (response.status === 404 || response.status === 410 || response.status === 400) {
-        await this.storage.delete(['subscription', 'schedule', 'habitReminders', 'habitReminderAt']);
+        await this.storage.delete([
+          'subscription', 'schedule', 'habitReminders', 'habitReminderAt', 'taskReminders', 'taskReminderAt',
+        ]);
         await this.state.storage.deleteAlarm();
         return false;
       } else if (!response.ok) {
@@ -486,7 +558,9 @@ export class PomodoroAlarm {
   async alarm() {
     const subscription = await this.storage.get('subscription');
     if (!subscription) {
-      await this.storage.delete(['schedule', 'habitReminders', 'habitReminderAt']);
+      await this.storage.delete([
+        'schedule', 'habitReminders', 'habitReminderAt', 'taskReminders', 'taskReminderAt',
+      ]);
       await this.state.storage.deleteAlarm();
       return;
     }
@@ -496,10 +570,26 @@ export class PomodoroAlarm {
       await this.storage.delete(['habitReminders', 'habitReminderAt']);
       reminders = [];
     }
+    let taskReminders = await this.storage.get('taskReminders');
+    if (!validStoredTaskReminders(taskReminders)) {
+      await this.storage.delete(['taskReminders', 'taskReminderAt']);
+      taskReminders = [];
+    }
     const now = Date.now();
     const reminderAt = await this.storage.get('habitReminderAt');
     const reminderDue = reminders.length > 0 && Number.isSafeInteger(reminderAt) && reminderAt <= now;
+    const taskReminderAt = await this.storage.get('taskReminderAt');
+    const taskReminderDue = taskReminders.length > 0
+      && Number.isSafeInteger(taskReminderAt)
+      && taskReminderAt <= now;
+    if (taskReminderDue) {
+      taskReminders = taskReminders.filter((reminder) => reminder.at > now);
+      await this.storage.put('taskReminders', taskReminders);
+    }
     await this.refreshAlarm(now);
     if (reminderDue) await this.sendNotification(habitReminderNotification(), subscription);
+    if (taskReminderDue && now - taskReminderAt <= 2 * 60 * 60 * 1000) {
+      await this.sendNotification(taskReminderNotification(), subscription);
+    }
   }
 }

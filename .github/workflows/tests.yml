@@ -17,8 +17,12 @@ jobs:
           node-version: 24
       - name: Install application dependencies
         run: npm ci
+      - name: Audit application dependencies
+        run: npm audit --audit-level=high
       - name: Check JavaScript
         run: npm run lint
+      - name: Check formatting
+        run: npm run format:check
       - name: Run application tests
         run: npm test
       - name: Install Supabase CLI
@@ -45,7 +49,7 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Run browser smoke tests
         env:
-          RUN_BROWSER_MATRIX: '1'
+          RUN_BROWSER_MATRIX: "1"
         run: npm run test:e2e:ci
       - name: Install worker dependencies
         working-directory: worker

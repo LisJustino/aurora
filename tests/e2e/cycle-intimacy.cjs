@@ -16,6 +16,19 @@ const check = (passed, name) => {
     if (message.type() === 'error') errors.push(message.text());
   });
 
+  const lazyPage = await browser.newPage();
+  const cycleViewRequests = [];
+  lazyPage.on('request', (request) => {
+    if (new URL(request.url()).pathname.endsWith('/src/js/features/cycle/view.js')) cycleViewRequests.push(request.url());
+  });
+  await lazyPage.goto(`${BASE}/?preview#inicio`);
+  await lazyPage.locator('.home-head').waitFor();
+  check(cycleViewRequests.length === 0, 'a tela de Ciclo não é carregada ao abrir o Início');
+  await lazyPage.locator('.nav a[href="/ciclo"]').click();
+  await lazyPage.locator('.cycle-health-card').waitFor();
+  check(cycleViewRequests.length === 1, 'a tela de Ciclo é carregada ao acessar a área');
+  await lazyPage.close();
+
   await page.goto(`${BASE}/?preview#ciclo`);
   const healthCard = page.locator('.cycle-health-card');
   check(await healthCard.evaluate((element) => !element.open), 'orientações de saúde começam recolhidas para reduzir a rolagem da tela');

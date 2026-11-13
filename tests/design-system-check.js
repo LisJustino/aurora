@@ -31,7 +31,7 @@ const offenders = (regex, filter = () => true) => outsideTokens.flatMap(({ file,
 
 // Variáveis definidas só por JavaScript (estilos inline) ficam de fora da checagem.
 const SET_BY_SCRIPT = new Set([
-  '--c', '--category-tone', '--cycle-progress', '--loading-primary', '--loading-accent',
+  '--c', '--category-tone', '--cycle-progress',
   '--profile-avatar-color', '--preset-color',
   '--scroll-lock-offset-x', '--scroll-lock-offset-y',
 ]);
@@ -56,11 +56,6 @@ check(
   'Breakpoints usam os limites compartilhados ou as exceções legadas específicas',
   unexpectedWidths.join(', ') || [...responsiveWidths].sort((a, b) => a - b).join(', '),
 );
-const loadingResponse = await fetch('/loading-appearance.js', { cache: 'no-store' });
-if (!loadingResponse.ok) throw new Error(`Não foi possível carregar a aparência inicial: HTTP ${loadingResponse.status}.`);
-const loadingScript = await loadingResponse.text();
-check(['--loading-primary', '--loading-accent'].every((name) => loadingScript.includes(`setProperty('${name}'`)),
-  'Tokens da aparência de carregamento são definidos pelo script inicial');
 const defined = new Set([...allText.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
 const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((match) => match[1]))]
   .filter((name) => !defined.has(name) && !SET_BY_SCRIPT.has(name));
@@ -101,6 +96,8 @@ const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|
 check(!fontSizeLiterals.length, 'Tamanhos de fonte usam tokens --text-* (com mínimo de 16 px nos campos)', fontSizeLiterals.slice(0, 6).join(' | '));
 const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
 check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', fontShorthandLiterals.slice(0, 6).join(' | '));
+const fontWeightLiterals = offenders(/(?:font-weight:\s*\d+|font:\s*(?:400|500|600|650|700|750|800)\b)/g);
+check(!fontWeightLiterals.length, 'Pesos de fonte usam os quatro tokens compartilhados', fontWeightLiterals.slice(0, 6).join(' | '));
 
 const radiusLiterals = offenders(/border-radius:\s*[^;{}]*\d+(?:\.\d+)?px[^;{}]*[;}]/g);
 check(!radiusLiterals.length, 'Raios usam tokens --r-*', radiusLiterals.slice(0, 6).join(' | '));
@@ -158,7 +155,7 @@ const spacingBaseline = {
   'design-system/custom-selects.css': [2, 8],
   'design-system/feedback.css': [5, 1],
   'design-system/fields.css': [3, 6],
-  'design-system/selectors.css': [6, 10],
+  'design-system/selectors.css': [6, 9],
   'design-system/touch.css': [2, 9],
   'layout.css': [3, 8],
   'pages/account.css': [35, 33],
@@ -167,7 +164,7 @@ const spacingBaseline = {
   'pages/finance.css': [58, 38],
   'pages/habits.css': [59, 39],
   'pages/home.css': [50, 29],
-  'pages/landing.css': [3, 3],
+  'pages/landing.css': [1, 3],
   'pages/layouts.css': [24, 25],
   'pages/legal.css': [0, 1],
   'pages/planning.css': [18, 6],
@@ -183,18 +180,20 @@ for (const [index, label] of ['gap', 'padding'].entries()) {
   for (const { file, text } of outsideTokens) {
     const count = [...strip(text).matchAll(spacingPatterns[index])].length;
     total += count;
-    const limit = spacingBaseline[file]?.[index] ?? 0;
+    const limit = index === 0 ? 0 : (spacingBaseline[file]?.[index] ?? 0);
     if (count > limit) increased.push(`${file}: ${count} (limite ${limit})`);
   }
   check(!increased.length, `${label}: sem aumento de literais px/rem por arquivo`,
     `${total} declarações legadas; ${increased.length ? increased.join(' | ') : 'conversão gradual pendente'}`);
 }
 
-const scale = new Set([...allText.matchAll(/--text-(2xs|xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
-check(scale.size === 12, 'A escala de tipografia tem os 12 degraus', [...scale].join(', '));
+const scale = new Set([...allText.matchAll(/--text-(xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
+check(scale.size === 11, 'A escala de tipografia tem 11 degraus distintos', [...scale].join(', '));
 for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
-  '--r-xs', '--r-sm', '--r-control', '--r-group', '--r', '--r-large', '--r-pill', '--on-solid',
+  '--r-control', '--r-group', '--r', '--r-pill', '--on-solid',
+  '--icon-box-sm', '--icon-box-md', '--icon-box-lg',
+  '--row-height-compact', '--row-height-standard', '--row-height-card',
   '--priority-low',
   '--text-4xl', '--text-timer',
   '--card-padding', '--card-padding-compact', '--card-content-gap',
@@ -207,6 +206,8 @@ for (const name of [
 }
 const buttonRadius = allText.match(/--button-radius\s*:\s*var\((--[\w-]+)\)/);
 check(buttonRadius?.[1] === '--r-group', 'Botões usam o raio arredondado --r-group');
+const retiredTokens = ['--r-xs', '--r-sm', '--r-large', '--r-detail', '--r-detail-sm', '--text-2xs', '--weight-strong'];
+check(!retiredTokens.some((name) => defined.has(name) || allText.includes(`var(${name})`)), 'Tokens duplicados foram removidos');
 
 const failed = results.filter((item) => !item.passed).length;
 document.querySelector('#status').textContent = failed

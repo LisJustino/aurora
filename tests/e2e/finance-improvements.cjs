@@ -38,11 +38,12 @@ const check = (passed, name, detail = '') => {
     const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
     const fab = document.querySelector('.finance-fab');
     const fabBounds = fab.getBoundingClientRect();
-    const fabBottom = parseFloat(getComputedStyle(fab).bottom);
     return Math.abs(nav.bottom - (innerHeight - 8)) <= 1
-      && Math.abs(fabBounds.bottom - (innerHeight - fabBottom)) <= 1
-      && fabBounds.bottom <= nav.top - 12;
-  }), 'dock fica no rodapé sem cobrir a ação fixa de lançamento');
+      && getComputedStyle(fab).position === 'static'
+      && Boolean(fab.closest('.page-title'))
+      && !document.querySelector('.fab-clearance')
+      && fabBounds.bottom < nav.top;
+  }), 'dock fica no rodapé e a ação de Finanças permanece no título sem reservar espaço extra');
   const recent = await page.locator('.finance-recent').textContent();
   const selectedMonth = await page.locator('.mnav .mlabel').textContent();
   await page.locator('.mnav [data-n="-1"]').click();
@@ -506,6 +507,12 @@ const check = (passed, name, detail = '') => {
 
   await page.getByRole('button', { name: 'Orçamento', exact: true }).click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
+  const ruleForm = page.locator('.finance-category-rule-form');
+  await ruleForm.locator('[name="phrase"]').fill('Café Central');
+  await ruleForm.locator('[name="category"]').selectOption({ label: 'Alimentação' });
+  await ruleForm.locator('button[type="submit"]').click();
+  check(await page.locator('.finance-category-rule-list li').filter({ hasText: 'Café Central' }).count() === 1,
+    'regra automática é salva na gestão de categorias');
   const categoryIconShapes = await page.locator('.category-manager-item > .ci svg').evaluateAll((icons) => new Set(icons.map((item) => item.innerHTML)).size);
   check(categoryIconShapes > 1, 'categorias existentes exibem ícones próprios');
   await page.locator('.category-manager-item [data-action="category-edit"]').first().click();
@@ -535,10 +542,21 @@ const check = (passed, name, detail = '') => {
   check(await subcategory.locator('.ci').getAttribute('style').then((style) => style.includes('#22aa88')), 'subcategoria mantém sua própria cor');
   await page.locator('#dlg [data-action="dlg-close"]').last().click();
   check(await page.locator('.budget-list').getByText('Alimentação personalizada').count() === 1, 'renomear categoria atualiza os limites financeiros');
+  check((await page.locator('.finance-category-rule-list').textContent()).includes('Alimentação personalizada'),
+    'renomear categoria atualiza a regra automática');
   await page.getByRole('button', { name: 'Resumo', exact: true }).click();
   const renamedTransaction = page.locator('.finance-recent .fr').filter({ hasText: 'Mercado' });
   check(await renamedTransaction.locator('.meta2').textContent().then((text) => text.includes('Alimentação personalizada')), 'renomear categoria atualiza lançamentos existentes');
   check(await renamedTransaction.locator('.ci').getAttribute('style').then((style) => style.includes('#123abc')), 'ícone do lançamento usa a cor personalizada');
+
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('5,00');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Café Central loja');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  const autoCategorized = page.locator('.finance-recent .fr').filter({ hasText: 'Café Central loja' });
+  check((await autoCategorized.locator('.meta2').textContent()).includes('Alimentação personalizada'),
+    'nova despesa aplica a regra automática atualizada');
 
   await page.locator('.fin-section-option[data-t="orcamento"]').click();
   await page.locator('[data-action="goal-new"]').first().click();
@@ -626,7 +644,7 @@ const check = (passed, name, detail = '') => {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
   check(await page.locator('.finance-fab').isVisible()
     && !await page.locator('.finance-page-action').isVisible(),
-  'celular mostra apenas a ação flutuante de lançamento');
+  'celular mostra a ação rápida no título, sem botão flutuante');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
   check(!await page.locator('.finance-fab').isVisible()
@@ -650,6 +668,20 @@ const check = (passed, name, detail = '') => {
     menu.scrollWidth <= menu.clientWidth
       && menu.querySelectorAll('.fin-section-option').length === 6
   )), 'todas as seções ficam visíveis sem rolagem horizontal no celular');
+
+  await page.locator('.finance-fab').click();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  await page.locator('#dlg [data-dlg="amount"]').fill('330,00');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Teste de limite de orçamento');
+  await page.locator('#dlg [data-dlg="category"]').selectOption({ label: 'Alimentação personalizada' });
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="orcamento"]').click();
+  const budgetAlert = page.locator('.budget-list .budget-threshold-alert');
+  check(await budgetAlert.count() === 1
+    && (await budgetAlert.first().textContent()).includes('pelo menos 80%')
+    && (await page.locator('.budget-list [data-c="Alimentação personalizada"]').getAttribute('aria-label')).includes('80%'),
+  'orçamento mostra aviso acessível ao atingir 80% sem ultrapassar o limite');
+
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();
