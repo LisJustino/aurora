@@ -442,8 +442,8 @@
 }
 .appearance-settings .appearance-swatches .swatch span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .appearance-settings .appearance-swatches .swatch i { width: 18px; height: 18px; flex: none; }
-.appearance-custom-preview {
-  border: 1px solid var(--line) !important;
+.appearance-settings .appearance-custom-preview {
+  border: 1px solid var(--line);
   border-radius: var(--r-pill);
 }
 @media (width <= 480px) {

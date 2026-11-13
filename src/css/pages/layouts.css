@@ -247,8 +247,6 @@
   background: transparent;
   box-shadow: none;
 }
-.main[data-route="planejar"] .plan-view-control { align-self: flex-start; }
-
 @media (width <= 480px) {
   .main[data-route="planejar"] > .focus-entry { padding: var(--space-3); }
 }
@@ -302,20 +300,7 @@
   background: var(--surface);
   box-shadow: var(--card-shadow);
 }
-.main[data-route="planejar"] .plan-view-control {
-  display: grid;
-  width: min(100%, 560px);
-  gap: var(--space-2);
-}
-.main[data-route="planejar"] .plan-view-control > span {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-.main[data-route="planejar"] .plan-view-control > .tabs {
-  width: 100%;
-  min-width: 0;
-}
+.main[data-route="planejar"] .plan-view-segments { width: 100%; }
 #plan-panel { display: flex; min-width: 0; flex-direction: column; gap: var(--card-content-gap); }
 .main[data-route="planejar"] .scroll-x { padding-block: 2px; }
 .main[data-route="planejar"] #plan-panel > .row { gap: var(--space-3); }
@@ -336,18 +321,15 @@
   .main[data-route="planejar"] > .qa-card .head { align-items: flex-start; }
   .main[data-route="planejar"] > .qa-card .head h2.sr { font-size: var(--text-xl); }
   .main[data-route="planejar"] > .card.plain { padding: 14px; }
-  .main[data-route="planejar"] .plan-view-control { width: 100%; }
-  .main[data-route="planejar"] .seg,
-  .main[data-route="planejar"] .tabs {
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  .main[data-route="planejar"] .plan-view-segments {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
   }
-  .main[data-route="planejar"] .seg::-webkit-scrollbar,
-  .main[data-route="planejar"] .tabs::-webkit-scrollbar { display: none; }
-  .main[data-route="planejar"] .seg > *,
-  .main[data-route="planejar"] .tabs > * { flex: 0 0 auto; }
+  .main[data-route="planejar"] .plan-view-segments > .tab {
+    min-width: 0;
+    padding-inline: var(--space-2);
+  }
 }
 
 @media (width <= 700px) {
@@ -375,13 +357,6 @@
 .main[data-route="planejar"] .grp .gh .n { display: inline-grid; min-width: 21px; height: 21px; place-items: center; padding-inline: 5px; border-radius: var(--r-pill); background: var(--soft2); color: var(--accent); font-size: var(--text-xs); letter-spacing: 0; }
 .main[data-route="planejar"] .grp .gh.bad { color: var(--bad); }
 .main[data-route="planejar"] .grp .gh.bad .n { background: var(--bad-soft); color: var(--bad); }
-
-.main[data-route="planejar"] .tabs {
-  padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
-}
 
 @media (width <= 700px) {
   .main[data-route="planejar"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }

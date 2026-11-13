@@ -11,6 +11,7 @@ const check = (passed, name, detail = '') => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   const interactionRequests = [];
   const mainModuleRequests = [];
@@ -26,17 +27,19 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(BASE);
   check(mainModuleRequests.length === 0, 'landing pública não baixa o módulo completo antes da autenticação');
+  check(await page.locator('.public-values p, .preview-cycle-week i, .preview-cycle-days i, .preview-cycle-note, .preview-cycle-privacy, .preview-task-heading small, .preview-task-row b, .preview-task-row small, .public-footer .footer-brand p, .public-footer .footer-meta').evaluateAll((elements) =>
+    elements.every((element) => parseFloat(getComputedStyle(element).fontSize) >= 14)),
+  'texto informativo e interativo da landing tem no mínimo 14px');
   check(await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).count() === 1, 'landing apresenta o benefício principal do Aurora');
   check(await page.getByText('Feito para a vida como ela é').count() === 1
     && await page.locator('.public-values > .public-value').count() === 4
     && await page.locator('.public-journey-grid').count() === 0,
   'landing apresenta as áreas sem repetir uma jornada intermediária');
-  check(await page.getByText('Tarefas, hábitos, foco, ciclo e finanças no seu ritmo.').count() === 1
-    && await page.getByText(/totalmente grátis/i).count() > 0
-    && await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 1
-    && await page.locator('.public-main > .public-maker').evaluate((maker) =>
-      maker.previousElementSibling?.classList.contains('public-hero')),
-  'landing resume as áreas e apresenta a autoria logo no início');
+  check(await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 0
+    && await page.locator('.public-main > .public-maker').count() === 0
+    && await page.locator('.public-main > .public-features').evaluate((features) =>
+      features.previousElementSibling?.classList.contains('public-hero')),
+  'landing apresenta as áreas diretamente após o hero, sem a seção removida');
   const suggestionDisclosure = page.locator('[data-suggestion-disclosure]');
   check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
     && await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 5
@@ -66,8 +69,13 @@ const check = (passed, name, detail = '') => {
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
   check(await page.locator('.public-hero [data-public-action="demo"]').evaluate((button) => button.classList.contains('primary'))
-    && await page.locator('.public-hero a[href="/demonstracao"]').count() === 1,
-  'demonstração é o CTA principal e abre como página sem cadastro');
+    && await page.locator('.public-hero a[href="/demonstracao"]').count() === 1
+    && await page.locator('.public-header-actions [data-public-action="signup"]').evaluate((button) => !button.classList.contains('primary'))
+    && await page.locator('.public-hero .public-actions .btn.primary').count() === 1,
+  'demonstração é o único CTA primário do hero e abre como página sem cadastro');
+  check(await page.locator('.preview-cycle-privacy').getAttribute('href') === '/privacy'
+    && await page.locator('.public-values').getAttribute('role') === 'group',
+  'link de privacidade vai direto ao destino final e o grupo de áreas tem nome semântico');
   check(await page.locator('.preview-phone-nav').getByText('Ciclo').count() === 1,
     'prévia do celular mostra as quatro áreas, incluindo Ciclo');
   check(await page.locator('.public-hero [data-public-action="signup"], .public-hero [data-public-action="login"]').count() === 0,
@@ -158,6 +166,7 @@ const check = (passed, name, detail = '') => {
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
   await page.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
+  await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(new URL(page.url()).pathname === '/demonstracao'
     && await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).isVisible(),
   'o CTA abre a demonstração sem cadastro');

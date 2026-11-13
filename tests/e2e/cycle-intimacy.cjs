@@ -31,6 +31,21 @@ const check = (passed, name) => {
 
   await page.goto(`${BASE}/?preview#ciclo`);
   const healthCard = page.locator('.cycle-health-card');
+  const estimates = page.locator('#d-cycle-estimates');
+  check(await estimates.evaluate((element) => !element.open), 'explicação das estimativas começa recolhida');
+  await estimates.locator('summary').click();
+  check(await estimates.locator('p').isVisible()
+    && (await estimates.locator('p').textContent()).includes('avaliação profissional')
+    && (await estimates.locator('p').textContent()).includes('método contraceptivo'),
+  'explicação reúne os avisos de saúde e contracepção');
+  await page.locator('.cycle-day-entry [data-action="cyc-day"]').first().click();
+  check(await estimates.evaluate((element) => element.open), 'explicação permanece aberta ao selecionar outro dia');
+  await page.locator('.cycle-day-entry [data-action="cyc-day"]').last().click();
+  if (await page.locator('.cycle-calendar-legend .fertile').count()) {
+    check(await page.locator('.cycle-calendar-card > p').isVisible()
+      && (await page.locator('.cycle-calendar-card > p').textContent()).includes('não servem como método contraceptivo'),
+    'aviso contraceptivo permanece visível junto às fases estimadas');
+  }
   check(await healthCard.evaluate((element) => !element.open), 'orientações de saúde começam recolhidas para reduzir a rolagem da tela');
   check((await healthCard.textContent()).includes('Contracepção e prevenção de ISTs são cuidados distintos'), 'orientações distinguem contracepção e prevenção de ISTs');
   check(!(await page.locator('[data-dlg="log.stiPrevention"]').count()), 'não há novo campo persistido de prevenção de ISTs');

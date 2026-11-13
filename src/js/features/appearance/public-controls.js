@@ -19,7 +19,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
     const isCurrentMode = authMode === mode;
     const action = authMode ? `data-account-mode="${mode}"` : `data-public-action="${mode}"`;
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
-    const variant = (isLanding || demo) && mode === 'signup' ? 'primary' : '';
+    const variant = demo && mode === 'signup' ? 'primary' : '';
     const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
     if (!authMode) {
       const href = mode === 'signup' ? '/criar-conta' : '/entrar';
@@ -30,7 +30,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
       <a class="brand public-brand-link" href="./" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
-      ${isLanding ? `<nav class="public-header-nav" aria-label="Navegação principal"><a href="#public-features">Áreas</a><a href="/demonstracao" data-public-action="demo">Demonstração</a><a href="#public-faq">Perguntas</a></nav>` : ''}
+      ${isLanding ? `<nav class="public-header-nav" aria-label="Navegação principal"><a href="#public-features"><span class="ni" aria-hidden="true">${icon('grid', 20)}</span><span>Áreas</span></a><a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Demonstração</span></a><a href="#public-faq"><span class="ni" aria-hidden="true">${icon('info', 20)}</span><span>Perguntas</span></a></nav>` : ''}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'Entrar')}
         ${accountAction('signup', 'Criar conta')}

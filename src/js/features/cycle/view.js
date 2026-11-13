@@ -20,13 +20,13 @@ export function renderCycleView({
   const cycleMoment = st.set.has(sel)
     ? ['Período registrado', 'Este dia faz parte de um período que você registrou.']
     : st.next === sel
-      ? ['Início estimado', 'Esta é uma estimativa baseada nos seus registros anteriores.']
+      ? ['Início estimado', 'Veja como as estimativas funcionam no calendário.']
       : selectedPhase === 'ovulation'
         ? ['Ovulação estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
         : selectedPhase === 'fertile'
           ? ['Janela fértil estimada', `Dia ${dn} do ciclo. A previsão pode variar e não serve como método contraceptivo.`]
       : dn
-        ? [`Dia ${dn} do ciclo`, 'Fase não estimada para esta data. As previsões dependem dos registros e podem variar.']
+        ? [`Dia ${dn} do ciclo`, 'Fase não estimada para esta data.']
         : hasCycleHistory
           ? ['Sem ciclo iniciado nesta data', 'Selecione uma data a partir do início registrado para ver o dia do ciclo.']
           : ['Comece pelo primeiro registro', 'Marque o primeiro dia do fluxo menstrual. Com dois inícios registrados, você poderá ver médias e estimativas.'];
@@ -65,7 +65,11 @@ export function renderCycleView({
         ${st.next ? h`<span><i class="lg p"></i>Próximo início estimado</span>` : ''}
         <span><i class="lg l"></i>Dia com registro</span>
       </div>
-      <div class="notice cycle-estimate-notice" role="note">${icon('info', 18)}<span>${cycleEstimateNotice}</span></div></section>
+      ${st.canEstimateFertility ? h`<p class="fine">Ovulação e janela fértil são estimativas e não servem como método contraceptivo.</p>` : ''}
+      <details id="d-cycle-estimates" class="cycle-estimate-notice" ${ui.openDetails['cycle-estimates'] ? raw('open') : ''}>
+        <summary>Como as estimativas funcionam ${icon('chevDown', 18)}</summary>
+        <p>${cycleEstimateNotice}</p>
+      </details></section>
     <details class="card cycle-health-card">
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Ciclo, sexualidade e prevenção</strong><small>Orientações gerais sobre mudanças do ciclo, contracepção, ISTs e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">

@@ -91,7 +91,7 @@
 
 /* Desabilitado */
 .btn:disabled,
-.btn[aria-disabled="true"] { opacity: .58; cursor: not-allowed; box-shadow: none; transform: none !important; }
+.btn[aria-disabled="true"] { opacity: .58; cursor: not-allowed; box-shadow: none; transform: none; }
 
 /* Estados ocupados preservam o feedback de progresso sem repetir o spinner da conta. */
 .btn[aria-busy="true"] { cursor: progress; }

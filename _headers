@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://aurora-pomodoro-push.lisjustino.workers.dev https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-PX3cqD9XIF6vsSUPOWIDz3TWY6Da8nu0ccLNwk0vz1Q=' 'sha256-nrqKV7vEiQ/ZbOACOgeDrWZ8fj1tzqv76Rq/lRLGdVk=' https://accounts.google.com/gsi/client https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://aurora-pomodoro-push.lisjustino.workers.dev https://www.googleapis.com https://accounts.google.com/gsi/ https://cloudflareinsights.com; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff

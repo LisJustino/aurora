@@ -1,3 +1,4 @@
+import '../css/main.css';
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
 import { brl as formatBRL, formatMoneyInput, parseMoney } from './utils/currency.js';
@@ -233,10 +234,22 @@ import {
   normalizeVisibleMenuItems,
   orderMenuItems,
 } from './features/navigation/menu.js';
-import { tasksForWeek, weekDays, weeklyReview } from './features/planning/week.js';
+import { weekDays, weeklyReview } from './features/planning/week.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
 import { renderTaskRow } from './features/planning/task-row.js';
 import { renderHomeView } from './features/home/view.js';
+import {
+  renderGoogleCalendarPlanPanel,
+  renderPlanningView,
+  renderPlansView,
+  renderTaskCalendar,
+  renderTaskWeek,
+} from './features/planning/view.js';
+import {
+  renderSettingsSegment as settingsSegment,
+  renderSettingsStorageNotice,
+  renderSettingsView,
+} from './features/settings/view.js';
 import { searchRecords } from './features/search/search.js';
 import { parseQuickDate } from './features/planning/quick-date.js';
 import {
@@ -689,6 +702,7 @@ let cycleDialogViews = null;
 let cycleModulesPromise = null;
 let financeDialogViews = null;
 let financePrivacyNotice = null;
+let renderFinanceView = null;
 let financeModulesPromise = null;
 let renderedRoute = null;
 const routeScrollPositions = new Map();
@@ -1668,7 +1682,7 @@ function shell(body) {
   </details>`;
   const navItems = h`${menuItems.map(navLink)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
-    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button>${profileMenu}</div></header>
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions"><button type="button" class="iconbtn global-search-trigger" data-action="search-open" aria-label="Buscar no Aurora" title="Buscar no Aurora · Ctrl+K ou ⌘K">${icon('search', 20)}</button>${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button>${profileMenu}</div></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
       ${notificationsHtml()}
@@ -2190,6 +2204,7 @@ function loadFinanceModules() {
       anticipationCandidates,
     });
     financePrivacyNotice = view.financePrivacyNotice;
+    renderFinanceView = view.renderFinanceView;
   }).catch((error) => {
     financeModulesPromise = null;
     throw error;
@@ -2518,6 +2533,9 @@ function viewInicio() {
     && (!area || areaOn(area))
     && !(id === 'task' && showHomeBlock('quick'))
   ));
+  const emptyWorkspace = !S.tasks.length
+    && !S.habits.some((habit) => (habit.status || 'active') === 'active')
+    && !S.finance.accounts.length;
   const nextTask = showHomeBlock('today') ? overdue[0] || dueToday[0] : null;
   const habitsToday = areaOn('habits') ? S.habits.filter((hb) => (hb.status || 'active') === 'active' && hb.days.includes(pk(today()).getDay())) : [];
   const habitsLeft = habitsToday.filter((hb) => !habitCompletedFor(hb, today())
@@ -2546,6 +2564,7 @@ function viewInicio() {
     nextTask,
     inbox,
     homeShortcuts,
+    emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
     openExtras: ui.openDetails['home-extras'],
     financeAccountsCount: S.finance.accounts.length,
@@ -2618,73 +2637,6 @@ function taskListHtml() {
   if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>${more}`;
   const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
   return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>` : ''; })}</div>${more}`;
-}
-function plansHtml() {
-  const g = {};
-  S.tasks.forEach((t) => { if (t.groupId) (g[t.groupId] ||= { title: t.groupTitle, items: [] }).items.push(t); });
-  const plans = Object.entries(g); if (!plans.length) return '';
-  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, p]) => { const d = p.items.filter((t) => t.done).length, pc = Math.round(d / p.items.length * 100); return h`<li><div class="grow"><div class="ttl">${p.title}</div><div class="bar plan-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${p.title}"><span style="width:${pc}%"></span></div><span class="small muted">${d} de ${p.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${p.title}">${icon('trash', 18)}</button></li>`; })}</ul></section>`;
-}
-function taskCalendar() {
-  const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
-  const eventsByDay = new Map();
-  connectedGoogleCalendarAccounts().forEach((account) => account.events.forEach((event) => {
-    const dayEvents = eventsByDay.get(event.day) || [];
-    dayEvents.push(event);
-    eventsByDay.set(event.day, dayEvents);
-  }));
-  const wd = Array.from({ length: 7 }, (_, i) => DIAS[(ws + i) % 7]);
-  const by = {}; S.tasks.forEach((t) => { if (t.dueDate && t.dueDate.startsWith(ym) && !(t.done && ui.filters.f === 'pendentes')) (by[t.dueDate] = by[t.dueDate] || []).push(t); });
-  const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
-  for (let d = 1; d <= n; d++) {
-    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done), dayEvents = eventsByDay.get(k) || [];
-    const labels = [
-      `${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
-      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} das agendas conectadas`] : []),
-    ];
-    const markers = [
-      pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : '',
-      dayEvents.length ? '<u class="google-event-dot"></u>' : '',
-    ].join('');
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${d}</b><i>${markers}</i></button>`);
-  }
-  const day = S.tasks.filter((t) => t.dueDate === ui.taskDay).sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
-  const selectedEvents = eventsByDay.get(ui.taskDay) || [];
-  return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    ${googleCalendarPlanPanel()}
-    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
-    ${connectedGoogleCalendarAccounts().length ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
-      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
-      ${selectedEvents.length
-        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`
-        : h`<p class="small muted">Nenhum evento das agendas conectadas neste dia.</p>`}
-    </section>` : ''}
-    <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
-      ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul><button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>` : empty('Dia livre', 'Nada marcado para este dia.', h`<button type="button" class="btn primary" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>`, 'calendarCheck')}</section>`;
-}
-function taskWeek() {
-  const days = weekDays(ui.taskWeek, weekStartDay());
-  const entries = tasksForWeek(S.tasks, days);
-  const first = pk(days[0]), last = pk(days[6]);
-  const label = first.getMonth() === last.getMonth()
-    ? `${first.getDate()}–${last.getDate()} ${MESES_L[last.getMonth()]} ${last.getFullYear()}`
-    : `${shortDate(days[0])}–${shortDate(days[6])}`;
-  return h`<div class="week-planner">
-    <div class="mnav"><button class="ibtn" data-action="tweek-nav" data-n="-1" aria-label="Semana anterior">${icon('chevLeft', 20)}</button><b>${label}</b><button class="ibtn" data-action="tweek-nav" data-n="1" aria-label="Próxima semana">${icon('chevRight', 20)}</button><button class="btn sm" data-action="tweek-today">Esta semana</button></div>
-    <div class="week-days">${entries.map(({ day, tasks }) => h`<section class="week-day${day === today() ? ' is-today' : ''}" aria-labelledby="week-${day}">
-      <div class="head"><h3 id="week-${day}">${cap(DIAS[pk(day).getDay()])} <span>${shortDate(day)}</span>${day === today() ? h` <span class="badge">Hoje</span>` : ''}</h3><span class="small muted">${tasks.filter((task) => !task.done).length} pendente(s)</span></div>
-      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>` : empty('Dia livre', 'Nada marcado.', h`<button type="button" class="btn primary" data-action="week-add" data-d="${day}">Adicionar tarefa</button>`, 'calendarCheck')}
-    </section>`)}</div>
-  </div>`;
-}
-function googleCalendarPlanPanel() {
-  const accounts = connectedGoogleCalendarAccounts();
-  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
-    <div class="head"><div><h3 id="google-calendar-title">Agendas conectadas</h3><span class="badge">Somente leitura</span></div><a class="btn sm" href="/config?section=calendars">Gerenciar agendas</a></div>
-    <p class="small muted">${accounts.length
-      ? `${accounts.length} ${accounts.length === 1 ? 'conta Google conectada' : 'contas Google conectadas'}. Os eventos ficam disponíveis junto às tarefas enquanto esta aba estiver aberta.`
-      : 'Conecte uma ou mais contas Google em Ajustes para ver os eventos junto às suas tarefas.'}</p>
-  </section>`;
 }
 function googleCalendarSettingsPanel() {
   const state = ui.googleCalendar;
@@ -2902,100 +2854,39 @@ function disconnectGoogleCalendar(accountId) {
   toast('A conta foi desconectada desta aba.', 'success');
 }
 function viewPlanejar() {
-  const f = ui.filters;
-  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
-    <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
-      <div class="plan-view-control"><span>Ver como</span><div class="tabs plan-view-segments" role="tablist" aria-label="Modo de visualização">${[['lista', 'Lista', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']].map(([value, label, ic]) => h`<button type="button" class="tab" role="tab" id="plan-tab-${value}" aria-controls="plan-panel" tabindex="${ui.planView === value ? '0' : '-1'}" data-action="plan-view" data-v="${value}" aria-selected="${String(ui.planView === value)}">${icon(ic, 16)}<span>${label}</span></button>`)}</div></div>
-      <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${ui.planView}">${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
-      <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
-        <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
-      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</div></section>
-    ${ui.planView === 'anual' ? '' : plansHtml()}`;
-}
-
-function annualPlanView() {
-  const currentYear = Number(today().slice(0, 4));
-  const plans = S.settings.prefs.annualPlans || {};
-  const years = [...new Set([
-    ...Array.from({ length: Math.max(1, currentYear + 4 - 2026) }, (_, index) => String(2026 + index)),
-    ...Object.keys(plans),
-  ])].filter((year) => /^\d{4}$/.test(year) && Number(year) >= 2026).sort();
-  const year = ui.annualYear;
-  const plan = plans[year] || { intention: '', goals: [] };
-  const goals = plan.goals || [];
-  const completed = goals.filter((goal) => goal.done).length;
-  const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
-  const quarterData = [
-    { id: 'q1', title: '1º trimestre', months: 'jan — mar' },
-    { id: 'q2', title: '2º trimestre', months: 'abr — jun' },
-    { id: 'q3', title: '3º trimestre', months: 'jul — set' },
-    { id: 'q4', title: '4º trimestre', months: 'out — dez' },
-    { id: '', title: 'Ao longo do ano', months: 'sem data definida' },
-  ];
-  const goalCard = (goal) => h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
-    <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
-    <div class="annual-goal-content"><h4>${goal.title}</h4>
-      ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}</div>
-    <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
-    <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
-  </li>`;
-  const ideas = filterAnnualPlanIdeas(ui.annualIdeaCategory, ui.annualIdeaQuery);
-  const visibleIdeaIds = new Set(ideas.map((idea) => idea.id));
-  const goalForm = (quarter) => h`<form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
-    <label class="annual-goal-title-field"><span>Conquista</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ui.annualGoalDraft?.title || ''}"></label>
-    <label class="annual-goal-action-field"><span>Primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ui.annualGoalDraft?.action || ''}"></label>
-    <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${quarterData.slice(0, 4).map(({ id, title }) => h`<option value="${id}" ${quarter === id ? raw('selected') : ''}>${title}</option>`)}</select></label>
-    <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button><button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button></div>
-  </form>`;
-  const activeIdeaFilters = ui.annualIdeaCategory !== 'all' || Boolean(String(ui.annualIdeaQuery || '').trim());
-  return h`<section class="annual-planner" aria-labelledby="annual-plan-title">
-    <header class="annual-plan-hero">
-      <div class="annual-plan-hero-copy"><p class="section-kicker">Seu próximo capítulo</p><h2 id="annual-plan-title">Um ano com intenção.</h2><p>Escolha o que importa e distribua suas conquistas ao longo de ${year}.</p>
-        <label class="annual-year-select"><span>Planejando o ano de</span><select data-change="annual-plan-year" aria-label="Ano do plano">${years.map((option) => h`<option value="${option}" ${option === year ? raw('selected') : ''}>${option}</option>`)}</select></label>
-      </div>
-      <div class="annual-plan-progress-card" aria-label="Resumo das conquistas do ano">
-        <span class="annual-plan-progress-ring" style="--annual-progress:${goals.length ? Math.round(completed / goals.length * 100) : 0}%"><b>${goals.length ? `${Math.round(completed / goals.length * 100)}%` : '—'}</b></span>
-        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${completed} concluída(s) · ${goals.length - completed} em andamento</small></span>
-      </div>
-    </header>
-    <form class="annual-intention-form" data-form="annual-intention">
-      <label for="annual-intention"><span class="annual-intention-label">Sua intenção para ${year}</span><span class="annual-intention-hint">O que você quer sentir, mudar ou priorizar neste ano?</span></label>
-      <textarea id="annual-intention" name="intention" rows="2" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: ter mais tempo para mim e para quem amo.">${plan.intention}</textarea>
-      <button type="submit" class="btn sm">${plan.intention ? 'Atualizar intenção' : 'Salvar intenção'}</button>
-    </form>
-    <details class="annual-ideas" id="d-annual-ideas" aria-labelledby="annual-ideas-title" ${ui.openDetails['annual-ideas'] ? raw('open') : ''}>
-      <summary class="annual-ideas-summary"><span><b id="annual-ideas-title">Ideias para o seu ano</b><small>Inspirações para escolher no seu ritmo.</small></span><span class="annual-ideas-count">${ANNUAL_PLAN_IDEAS.length}</span>${icon('chevDown', 18, 'annual-ideas-chevron')}</summary>
-      <div class="annual-ideas-content">
-        <div class="annual-ideas-heading"><p>Escolha uma inspiração para preencher a conquista e o primeiro passo. Você revisa tudo antes de adicionar.</p></div>
-        <div class="annual-ideas-controls">
-          <label class="annual-ideas-search"><span>Buscar ideias</span><input type="search" data-input="annual-ideas-search" value="${ui.annualIdeaQuery}" placeholder="Ex.: viagem, estudos, descanso"></label>
-          <div class="annual-ideas-filter-status"><span class="annual-ideas-result-count" data-annual-ideas-count role="status" aria-live="polite">${ideas.length} ${plural(ideas.length, 'ideia encontrada', 'ideias encontradas')}</span><button type="button" class="btn ghost sm" data-action="annual-ideas-clear" ${activeIdeaFilters ? '' : raw('hidden')}>Limpar busca e filtros</button></div>
-        </div>
-        <div class="annual-ideas-categories" role="group" aria-label="Filtrar ideias por categoria">
-          ${[['all', 'Todas'], ...ANNUAL_PLAN_IDEA_CATEGORIES.map(({ id, label }) => [id, label])].map(([id, label]) => h`<button type="button" class="chip" data-action="annual-idea-category" data-category="${id}" aria-pressed="${String(ui.annualIdeaCategory === id)}">${label}</button>`)}
-        </div>
-        <div class="annual-ideas-grid">
-          ${ANNUAL_PLAN_IDEAS.map((idea) => h`<button type="button" class="annual-idea" data-annual-idea="${idea.id}" data-action="annual-idea-use" data-id="${idea.id}" ${visibleIdeaIds.has(idea.id) ? '' : raw('hidden')}>
-            <span class="annual-idea-category">${ANNUAL_PLAN_IDEA_CATEGORIES.find(({ id }) => id === idea.category)?.label || ''}</span>
-            <b>${idea.title}</b><span class="annual-idea-first-step"><b>Primeiro passo</b>${idea.action}</span>
-            <span class="annual-idea-use">${icon('plus', 15)} Usar esta ideia</span>
-          </button>`)}
-          <p class="annual-ideas-empty" ${ideas.length ? raw('hidden') : ''}>Nenhuma ideia encontrada. Tente outra busca ou limpe os filtros.</p>
-        </div>
-      </div>
-    </details>
-    <div class="annual-roadmap-heading"><div><p class="section-kicker">Seu roteiro</p><h3>O ano, passo a passo</h3></div><p class="small muted">Metas flexíveis: você pode mudar o trimestre quando quiser.</p></div>
-    <div class="annual-roadmap">${quarterData.map(({ id, title, months }) => {
-      const quarterGoals = goals.filter((goal) => goal.quarter === id);
-      const quarterCompleted = quarterGoals.filter((goal) => goal.done).length;
-      const isEditingHere = ui.annualGoalFormOpen && ui.annualGoalQuarter === id;
-      return h`<section class="annual-quarter${isEditingHere ? ' is-editing' : ''}" data-quarter="${id}" aria-labelledby="annual-${id || 'year'}-title">
-        <header class="annual-quarter-heading"><div><span class="annual-quarter-marker">${id ? id.toUpperCase() : icon('calendar', 16)}</span><div><h4 id="annual-${id || 'year'}-title">${title}</h4><small>${months}</small></div></div><span class="annual-quarter-count">${quarterCompleted}/${quarterGoals.length}</span></header>
-        ${quarterGoals.length ? h`<ul class="annual-goal-list">${quarterGoals.map(goalCard)}</ul>` : h`<p class="annual-quarter-empty">${id ? 'Ainda sem conquistas para este período.' : 'Conquistas sem uma data específica ficam aqui.'}</p>`}
-        ${isEditingHere ? goalForm(id) : h`<button type="button" class="annual-add-goal" data-action="annual-goal-add" data-quarter="${id}" aria-label="Adicionar conquista: ${title}">${icon('plus', 16)}Adicionar conquista</button>`}
-      </section>`;
-    })}</div>
-  </section>`;
+  return renderPlanningView({
+    S,
+    ui,
+    filterOptions: FILTERS,
+    allTags,
+    areaPageTitle,
+    plural,
+    today,
+    taskCalendar: () => renderTaskCalendar({
+      S,
+      ui,
+      weekStartDay,
+      today,
+      connectedGoogleCalendarAccounts,
+      cap,
+      ymLabel,
+      taskRow,
+      empty,
+      googleCalendarPlanPanel: () => renderGoogleCalendarPlanPanel(connectedGoogleCalendarAccounts()),
+    }),
+    taskWeek: () => renderTaskWeek({
+      S,
+      ui,
+      weekStartDay,
+      today,
+      cap,
+      taskRow,
+      empty,
+    }),
+    weeklyReviewView,
+    taskListHtml,
+    plansHtml: () => renderPlansView(S.tasks),
+  });
 }
 
 function updateAnnualIdeaFilters() {
@@ -3301,9 +3192,6 @@ function viewCiclo() {
 }
 
 /* ---------- Ajustes ---------- */
-function settingsSegment(look, key, label, options, action = 'look') {
-  return h`<div class="seg" role="group" aria-label="${label}">${options.map(([value, text, ic, sample]) => h`<button type="button" aria-pressed="${String(look[key]) === String(value)}" data-action="${action}" data-k="${key}" data-v="${value}">${ic ? icon(ic, 16) : ''}${sample ? h`<span class="appearance-font-sample appearance-font-sample-${value}" aria-hidden="true">Aa</span>` : ''}<span class="appearance-segment-label">${text}</span></button>`)}</div>`;
-}
 function activeAppearancePreset(settings) {
   return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
     && settings.look.density === preset.density
@@ -3890,71 +3778,31 @@ function dataSettings(p) {
       </div>
     </section>`;
 }
-function settingsStorageNotice(selectedTab) {
-  if (selectedTab === 'data') return '';
-  const integritySlices = Object.keys(ui.integrityIssues);
-  if (integritySlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Há dados inválidos em ${integritySlices.join(', ')}. A gravação está bloqueada para evitar perda; revise Dados e backup antes de continuar.</span><button type="button" class="btn sm" data-action="settings-section" data-settings-tab="data">Revisar dados</button></div>`;
-  }
-  const failedSlices = [...ui.persistFailed];
-  if (failedSlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Não foi possível salvar. Algumas alterações ainda não foram salvas.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>`;
-  }
-  return '';
-}
-function settingsSectionContent(s, p, selectedTab) {
-  switch (selectedTab) {
-    case 'personalization': return aparencia(s);
-    case 'home': return homeSettings(s);
-    case 'areas-navigation': return areasNavigationSettings(s);
-    case 'data': return dataSettings(p);
-    case 'calendars': return googleCalendarSettingsPanel();
-    case 'mental-health': return h`<section class="card" aria-labelledby="mental-health-title">
-      <div class="head"><div><h2 id="mental-health-title">${icon('heart', 20)} Apoio psicológico<i>.</i></h2><p>Você não precisa enfrentar momentos difíceis sem apoio. Estes recursos são voltados a pessoas no Brasil.</p></div></div>
-      <h3>Onde buscar cuidado</h3>
-      <p>Uma Unidade Básica de Saúde (UBS) pode acolher e orientar sobre atendimento psicológico pelo SUS. Os Centros de Atenção Psicossocial (CAPS) também oferecem cuidado em saúde mental.</p>
-      <p><a class="inline-link" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps" target="_blank" rel="noopener noreferrer">Conheça a rede de atenção psicossocial do SUS</a></p>
-      <h3>Acolhimento emocional</h3>
-      <p>O CVV oferece escuta gratuita e sigilosa pelo telefone <a class="inline-link" href="tel:188">188</a>, 24 horas por dia, além de atendimento online.</p>
-      <p><a class="inline-link" href="https://cvv.org.br/" target="_blank" rel="noopener noreferrer">Acessar o CVV</a></p>
-      <h3>Em uma emergência</h3>
-      <p>Se houver risco imediato, procure um serviço de emergência ou ligue para o SAMU pelo <a class="inline-link" href="tel:192">192</a>.</p>
-      <p class="small muted">O Aurora não oferece atendimento psicológico e estas informações não substituem o acompanhamento profissional.</p>
-    </section>`;
-    case 'account': return accountSettings(s);
-    default: return profileSettings(s);
-  }
-}
-function unsavedSettingsBanner() {
-  const hasProfile = Boolean(ui.profileDraft);
-  const hasOtherChanges = settingsDraftDirty();
-  const dirty = hasProfile || hasOtherChanges;
-  const saving = ui.profileSaving || ui.settingsSaving;
-  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas" ${dirty ? '' : raw('hidden')}>
-    <span>Alterações não salvas</span>
-    <div class="settings-unsaved-actions">
-      <button type="button" class="btn back" data-action="profile-discard" ${dirty && !saving ? '' : raw('disabled')}>Descartar alterações</button>
-      <button type="button" class="btn primary" data-action="profile-save" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : 'Salvar alterações'}</button>
-    </div>
-  </div>`;
-}
 function viewConfig() {
-  const s = S.settings, p = s.prefs;
-  const requestedTab = settingsTabId(ui.settingsTab);
-  const selectedSection = SETTINGS_SECTIONS.find(([id]) => id === requestedTab) || SETTINGS_SECTIONS[0];
-  const selected = selectedSection[0];
-  const content = settingsSectionContent(s, p, selected);
-  const menuGroups = SETTINGS_SECTION_GROUPS.map((group) => h`<div class="settings-menu-group"><span class="settings-menu-heading">${group.label}</span>${group.items.map((id) => {
-    const section = SETTINGS_SECTIONS.find(([item]) => item === id);
-    if (!section) return '';
-    const [key, label, ic, description] = section;
-    return h`<a class="settings-link" href="/config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
-  })}</div>`);
-  return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}${unsavedSettingsBanner()}
-    <div class="settings-layout">
-      <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
-      <div class="settings-content" id="settings-content" role="region" aria-label="Seção de ajustes: ${selectedSection[1]}">${content}</div>
-    </div>`;
+  return renderSettingsView({
+    S,
+    ui,
+    sections: SETTINGS_SECTIONS,
+    sectionGroups: SETTINGS_SECTION_GROUPS,
+    settingsTabId,
+    tabLabel,
+    pageTitle,
+    storageNotice: (selectedTab) => renderSettingsStorageNotice(selectedTab, {
+      integrityIssues: ui.integrityIssues,
+      persistFailed: ui.persistFailed,
+      isOnline: navigator.onLine,
+    }),
+    settingsDirty: settingsDraftDirty(),
+    renderers: {
+      appearance: aparencia,
+      home: homeSettings,
+      areasNavigation: areasNavigationSettings,
+      data: dataSettings,
+      calendars: googleCalendarSettingsPanel,
+      account: accountSettings,
+      profile: profileSettings,
+    },
+  });
 }
 
 const ROUTES = { inicio: viewInicio, planejar: viewPlanejar, financas: viewFinancas, ciclo: viewCiclo, habitos: viewHabits, config: viewConfig };
@@ -4219,10 +4067,11 @@ function highlightSearchText(value, query) {
   const end = positions[index + norm(query).length - 1] + 1;
   return raw(`${esc(chars.slice(0, start).join(''))}<mark>${esc(chars.slice(start, end).join(''))}</mark>${esc(chars.slice(end).join(''))}`);
 }
+function globalSearchAreas() {
+  return ['Planejar', ...(areaOn('habits') ? ['Hábitos'] : []), 'Finanças', ...(areaOn('cycle') ? ['Ciclo'] : [])].join(', ');
+}
 function globalSearchResults(query) {
-  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
-    ? 'Planejar, Hábitos, Finanças e Ciclo'
-    : 'Planejar, Hábitos e Finanças';
+  const searchAreas = globalSearchAreas();
   const searchableCycleLogs = areaOn('cycle')
     ? Object.fromEntries(Object.entries(S.cycleLog).map(([date, value]) => {
       const log = value && typeof value === 'object' ? value : {};
@@ -4252,7 +4101,7 @@ function globalSearchResults(query) {
     ],
   }, query);
   if (String(query).trim().length < 2) return h`<p class="small muted">Digite pelo menos duas letras para buscar em ${searchAreas}.</p>`;
-  if (!results.length) return empty('Nenhum resultado', 'Tente outro nome, categoria ou descrição.', '', 'search');
+  if (!results.length) return empty('Nenhum resultado', `Tente outra palavra, nome, categoria ou descrição. Áreas pesquisadas: ${searchAreas}.`, '', 'search');
   const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart', action: 'plus', water: 'droplet' };
   const groups = [...results.reduce((map, item) => {
     if (!map.has(item.area)) map.set(item.area, []);
@@ -4268,9 +4117,7 @@ function globalSearchResults(query) {
 }
 function dlgSearch() {
   const query = ui.dlg.d.query || '';
-  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
-    ? 'Planejar, Hábitos, Finanças e Ciclo'
-    : 'Planejar, Hábitos e Finanças';
+  const searchAreas = globalSearchAreas();
   return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora<i>.</i></h2><p class="small muted">${searchAreas}</p></div>${closeBtn}</div>
     <label class="search global-search-input"><span class="sr">Buscar em todas as áreas</span>${icon('search', 18)}<input id="f0" type="search" data-dlg="query" value="${query}" placeholder="Tarefa, hábito, conta ou descrição" autocomplete="off"></label>
     <div id="global-search-results" aria-live="polite">${globalSearchResults(query)}</div>`,
@@ -4385,7 +4232,7 @@ function dlgExport() {
   }
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">${ui.dlg.d.kind === 'csv' ? 'O download direto não está disponível aqui. Copie o texto e salve em um arquivo .csv.' : 'O download direto não está disponível aqui. Copie o conteúdo e salve em um arquivo de backup para importar depois.'}</p>
-    <textarea id="exp" readonly rows="8" style="font-family:ui-monospace,monospace;font-size:.75rem">${ui.dlg.d.json}</textarea>`,
+    <textarea id="exp" class="finance-export-json" readonly rows="8">${ui.dlg.d.json}</textarea>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="copy-export">Copiar</button>`);
 }
 function dlgImport() {
@@ -4637,6 +4484,7 @@ function renderDialog() {
   if (afSel) target = (afSel.id && document.getElementById(afSel.id)) || (afSel.data && el.querySelector(`[data-dlg="${afSel.data}"]`)) || (afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`));
   if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('.dlg');
   if ((opening || typeChanged) && !afSel) target = el.querySelector('.dlg');
+  if ((opening || typeChanged) && ui.dlg.type === 'search') target = el.querySelector('[data-dlg="query"]');
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -6164,6 +6012,7 @@ const FORMS = {
     rules.unshift({ id: newId(), phrase, category, kind });
     if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a regra de categoria')) return;
     ui.dlg.d.ruleCategory = category;
+    ui.dlg.dirty = false;
     render();
     toast('Regra automática adicionada.', 'success');
   },
@@ -6867,8 +6716,10 @@ document.addEventListener('keydown', (e) => {
       return;
     }
   }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-    if (ui.dlg?.type === 'onboard') return;
+  const searchShortcut = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
+  const editable = e.target instanceof Element && (e.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || e.target.isContentEditable);
+  const slashShortcut = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !editable;
+  if (!e.isComposing && !ui.dlg && (searchShortcut || slashShortcut)) {
     e.preventDefault();
     dlgOpen('search', { query: '' });
     return;
@@ -7326,14 +7177,24 @@ function finRel() {
 }
 
 function viewFinancas() {
-  const g = gate('finances', 'Finanças'); if (g) return h`${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
-  const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
-  const noAcc = !S.finance.accounts.length;
-  const visibilityAction = h`<button type="button" class="ibtn finance-visibility-toggle" data-action="finance-values-toggle" aria-pressed="${String(ui.financeValuesHidden)}" aria-label="${ui.financeValuesHidden ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}" title="${ui.financeValuesHidden ? 'Mostrar valores' : 'Ocultar valores'}">${icon(ui.financeValuesHidden ? 'eyeOff' : 'eye', 18)}</button>`;
-  const createAction = h`<span class="finance-page-actions">${visibilityAction}${noAcc ? '' : h`<button type="button" class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>${fab()}`}</span>`;
-  const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
-  return h`${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
-    <div class="fin-section-content">${finSectionPicker()}<div id="fin-panel" role="tabpanel" aria-labelledby="fin-tab-${ui.finTab}">${noAcc ? (ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts) : panel()}</div></div>`;
+  return renderFinanceView({
+    S,
+    ui,
+    gate,
+    areaPageTitle,
+    empty,
+    financePrivacyNotice,
+    finSectionPicker,
+    panels: {
+      resumo: finResumo,
+      lancamentos: finLanc,
+      contas: finContas,
+      cartoes: finCartoes,
+      orcamento: finOrc,
+      relatorios: finRel,
+    },
+    fab,
+  });
 }
 
 /* ========== Diálogos de Finanças ========== */
@@ -8303,8 +8164,10 @@ function finCal() {
   const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
   for (let d = 1; d <= n; d++) {
     const k = `${ym}-${pad(d)}`, ts = by[k] || [], dots = [];
-    if (ts.some((t) => t.type === 'out' && !isPaid(t))) dots.push('var(--bad)'); if (ts.some((t) => t.type === 'in' && !isPaid(t))) dots.push('var(--ok)'); if (ts.some(isPaid)) dots.push('var(--line2)');
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.finDay ? 's' : ''}" data-action="fin-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${ts.length} lançamentos"><b>${d}</b><i>${dots.map((c) => `<u style="background:${c}"></u>`).join('')}</i></button>`);
+    if (ts.some((t) => t.type === 'out' && !isPaid(t))) dots.push('finance-day-dot--out');
+    if (ts.some((t) => t.type === 'in' && !isPaid(t))) dots.push('finance-day-dot--in');
+    if (ts.some(isPaid)) dots.push('finance-day-dot--settled');
+    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.finDay ? 's' : ''}" data-action="fin-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${ts.length} lançamentos"><b>${d}</b><i>${dots.map((dot) => `<u class="${dot}"></u>`).join('')}</i></button>`);
   }
   const day = (by[ui.finDay] || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), tot = day.reduce((s, t) => s + (t.type === 'in' ? t.cents : -t.cents), 0);
   return h`<div class="tcal-wrap"><div class="tcal" role="group" aria-label="Calendário financeiro">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div>

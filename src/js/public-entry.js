@@ -132,6 +132,7 @@ function observeLandingScroll() {
 let applicationLoaded = false;
 let publicAccountNavigationPending = false;
 async function loadApplication(mode = 'login') {
+  root.removeAttribute('aria-busy');
   publicPwaCleanup();
   publicConnectionCleanup();
   mobileCtaCleanup();
@@ -171,6 +172,15 @@ function startPublicPwaSupport() {
     if (!active) return;
     let announcedWorker = null;
     const installingWorkers = [];
+    const prepareOfflineStyles = () => {
+      const stylesheet = document.querySelector('meta[name="aurora-app-css"]')?.content;
+      if (!stylesheet || !active) return;
+      void navigator.serviceWorker.ready.then((readyRegistration) => {
+        if (active) readyRegistration.active?.postMessage({ type: 'CACHE_PUBLIC_STYLES', url: stylesheet });
+      }).catch((error) => {
+        console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
+      });
+    };
 
     const renderUpdateNotice = () => {
       const waiting = registration.waiting;
@@ -233,14 +243,17 @@ function startPublicPwaSupport() {
 
     registration.addEventListener('updatefound', onUpdateFound);
     window.addEventListener('focus', checkForUpdate);
+    window.addEventListener('online', prepareOfflineStyles);
     document.addEventListener('visibilitychange', checkForUpdate);
     cleanupRegistration = () => {
       registration.removeEventListener('updatefound', onUpdateFound);
       window.removeEventListener('focus', checkForUpdate);
+      window.removeEventListener('online', prepareOfflineStyles);
       document.removeEventListener('visibilitychange', checkForUpdate);
       installingWorkers.forEach(([worker, listener]) => worker.removeEventListener('statechange', listener));
       document.getElementById('pwa-update-notice')?.remove();
     };
+    prepareOfflineStyles();
     renderUpdateNotice();
   }).catch((error) => {
     if (active) console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
@@ -285,9 +298,23 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     renderedPublicPath = `${location.pathname}${location.search}`;
     if (isDemoLocation(location)) {
       mobileCtaCleanup();
-      renderLandingDemo(root);
-      document.title = 'Demonstração | aurora.';
+      root.setAttribute('aria-busy', 'true');
+      const requestedPath = renderedPublicPath;
+      void import('../css/main.css').then(() => {
+        if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
+        renderLandingDemo(root);
+        root.removeAttribute('aria-busy');
+        document.title = 'Demonstração | aurora.';
+        updatePublicConnectionNotice();
+      }).catch((error) => {
+        if (`${location.pathname}${location.search}` !== requestedPath) return;
+        console.error('Aurora: não foi possível carregar os estilos da demonstração.', error);
+        root.removeAttribute('aria-busy');
+        showEntryError(root);
+      });
+      return;
     } else {
+      root.removeAttribute('aria-busy');
       renderLanding(root);
       document.title = 'aurora. - rotinas';
       observeLandingScroll();
@@ -322,11 +349,12 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
 
   const sessionRestore = isPublicLandingLocation(location) && !isDemoLocation(location) ? (async () => {
     try {
-      const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
-        import('./services/account-auth.js'),
-        import('./data/supabase-client.js'),
-      ]);
-      if (!hasSupabaseConfig()) return false;
+      const { hasSupabaseConfig, hasStoredAuthSession } = await import('./data/supabase-client.js');
+      const query = new URLSearchParams(location.search);
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const hasAuthCallback = [query, hash].some((params) => params.has('access_token') || params.has('error_description'));
+      if (!hasSupabaseConfig() || (!hasAuthCallback && !hasStoredAuthSession(window))) return false;
+      const { getAccountClient } = await import('./services/account-auth.js');
       const client = await getAccountClient();
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
@@ -427,11 +455,8 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       url.pathname = '/demonstracao';
       url.hash = '';
       history.pushState(null, '', `${url.pathname}${url.search}`);
-      renderLandingDemo(root);
-      renderedPublicPath = `${location.pathname}${location.search}`;
-      document.title = 'Demonstração | aurora.';
+      renderPublicRoute();
       window.scrollTo(0, 0);
-      updatePublicConnectionNotice();
       return;
     }
     if (action !== 'login' && action !== 'signup') return;
