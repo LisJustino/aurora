@@ -1,4 +1,5 @@
 import { isDay, isoDay } from '../../utils/dates.js';
+import { weekDays } from '../planning/week.js';
 
 export function parseWaterWeightKg(value) {
   const text = String(value ?? '').trim();
@@ -71,4 +72,17 @@ export function waterGoalReached(total, target) {
   return Number.isFinite(total) && total >= 0
     && Number.isInteger(target) && target >= 500 && target <= 10000
     && total >= target;
+}
+
+export function waterWeekProgress(entries, target, day, weekStart = 1) {
+  const validTarget = isValidWaterGoalMl(target) ? target : 0;
+  return weekDays(day, weekStart).map((entryDay) => {
+    const total = waterMlForDay(entries, entryDay);
+    return {
+      day: entryDay,
+      total,
+      progress: validTarget ? Math.min(total, validTarget) / validTarget : 0,
+      goalReached: waterGoalReached(total, validTarget),
+    };
+  });
 }

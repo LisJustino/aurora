@@ -137,6 +137,13 @@ self.addEventListener('push', (event) => {
           tag: 'aurora-tasks',
           route: 'planejar',
         }
+        : payload.kind === 'weekly-review'
+          ? {
+            title: 'aurora. · Sua semana',
+            body: 'Um convite gentil para olhar sua semana, quando for um bom momento.',
+            tag: 'aurora-weekly-review',
+            route: 'planejar?revisao=semana',
+          }
         : null;
     if (!notification) return;
     await self.registration.showNotification(notification.title, {
@@ -154,7 +161,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const route = event.notification.data?.route;
-    if (!['habitos', 'planejar'].includes(route)) return;
+    if (!['habitos', 'planejar', 'planejar?revisao=semana'].includes(route)) return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
     const targetUrl = new URL(`./${route}`, self.registration.scope).href;

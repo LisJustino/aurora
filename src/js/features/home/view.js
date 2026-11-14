@@ -7,6 +7,7 @@ export function renderHomeView(model, renderers) {
     profileAppearance,
     greeting,
     dateLabel,
+    daySummary,
     homeMessage,
     lead,
     tt,
@@ -41,9 +42,26 @@ export function renderHomeView(model, renderers) {
 
   return h`
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    <section class="home-day-summary" aria-labelledby="home-day-summary-title">
+      <h2 id="home-day-summary-title">Seu dia</h2>
+      <div class="home-day-chips" role="group" aria-label="Resumo das áreas de hoje">
+        <a class="home-day-chip home-day-chip--plan" href="/planejar" aria-label="Tarefas, ${daySummary.tasks.done} de ${daySummary.tasks.total} feitas">
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.tasks.done}</span><span class="home-day-chip-copy">Tarefas</span>
+        </a>
+        <a class="home-day-chip home-day-chip--habits" href="/habitos" aria-label="Hábitos, ${daySummary.habits.done} de ${daySummary.habits.total} feitos">
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.habits.done}</span><span class="home-day-chip-copy">Hábitos</span>
+        </a>
+        <a class="home-day-chip home-day-chip--water" href="/agua" aria-label="Água, ${daySummary.water.total.toLocaleString('pt-BR')} de ${daySummary.water.goal.toLocaleString('pt-BR')} mililitros">
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.water.percent}%</span><span class="home-day-chip-copy">Água <small>${daySummary.water.total.toLocaleString('pt-BR')} / ${daySummary.water.goal.toLocaleString('pt-BR')} mL</small></span>
+        </a>
+        ${daySummary.cycle ? h`<a class="home-day-chip home-day-chip--cycle" href="/ciclo" aria-label="${daySummary.cycle.day === null ? 'Ciclo, dia não calculado' : `Ciclo, dia ${daySummary.cycle.day} do ciclo`}">
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.cycle.day ?? '—'}</span><span class="home-day-chip-copy">Ciclo</span>
+        </a>` : ''}
+      </div>
+    </section>
     ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title">
       <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Use “amanhã 14h” ou um dia da semana para escolher o prazo.</p></div></div>
-      <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar apresentação amanhã 14h" aria-describedby="home-quick-date-preview" required><span id="home-quick-date-preview" class="home-quick-date badge" aria-live="polite">Hoje</span><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
+      <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar apresentação amanhã 14h" aria-describedby="home-quick-date-preview" required><span id="home-quick-date-preview" class="home-quick-date badge" aria-live="polite">Hoje</span></form>
     </section>` : ''}
     ${sampleBanner()}
     <div class="home-dashboard no-optional-areas">
@@ -66,10 +84,11 @@ export function renderHomeView(model, renderers) {
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(false)}</div>` : ''}
       </div>
     </div>
+    ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · sua semana</span><h2 id="home-weekly-review-title">Um momento para olhar com carinho</h2><p>Veja um retrato simples de tarefas, água e hábitos.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Ver minha semana</button></section>` : ''}
+    ${homeFirstSteps()}
     <details class="home-extras" id="d-home-extras" ${openExtras ? raw('open') : ''}>
       <summary>Mais do Início ${icon('chevDown', 18)}</summary>
       <div class="home-extras-content">
-        ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">${icon('chart', 16)}Fazer revisão</button></section>` : ''}
         <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
         <div class="home-primary">
         ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
@@ -81,7 +100,6 @@ export function renderHomeView(model, renderers) {
       </div>
       ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     </div>
-    ${homeFirstSteps()}
     ${backupReminder()}
         ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
       <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>

@@ -1,5 +1,5 @@
 import { iconSvg as demoIcon } from '../../utils/icons.js';
-import { prefersReducedMotion } from '../../utils/motion.js';
+import { animateProgressRing, playMotion, prefersReducedMotion } from '../../utils/motion.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
 import { timeBasedGreeting } from '../profile/model.js';
 
@@ -59,7 +59,7 @@ function renderPageHeading(eyebrow, title, description = '') {
 }
 
 function demoNotice() {
-  return `<div class="notice sample-banner" role="note">${demoIcon('info', 18)}<div class="grow"><strong>Demonstração interativa</strong><span>Dados fictícios. Adicione tarefas e marque hábitos; suas mudanças ficam só nesta visita e não são salvas.</span></div><a class="btn sm" href="/criar-conta" data-public-action="signup">Criar minha conta</a></div>`;
+  return `<div class="notice sample-banner" role="note"><span class="sample-banner-copy">Demonstração com dados fictícios.</span><a class="btn sm" href="/criar-conta" data-public-action="signup">Criar conta</a></div>`;
 }
 
 function renderHomeTask(task) {
@@ -79,6 +79,7 @@ function renderToday(state) {
   const lead = open.length ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.';
   const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).format(new Date()).replace(/[.,]/g, '').replace(/^(\S+) /, '$1, ');
   return `
+    ${demoNotice()}
     <header class="home-head" aria-labelledby="demo-greeting">
       <div>
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
@@ -88,7 +89,6 @@ function renderToday(state) {
       </div>
       <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
     </header>
-    ${demoNotice()}
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         <section class="card home-today-card" aria-labelledby="demo-today-tasks-title">
@@ -178,6 +178,17 @@ function updateDemoView(root, state, focusHeading = false) {
   const screen = root.querySelector('[data-demo-screen]');
   if (!(screen instanceof HTMLElement)) return;
   screen.innerHTML = renderDemoScreen(state);
+  const ring = screen.querySelector('.home-head .ring-fg');
+  if (ring) {
+    const progress = state.tasks.length
+      ? state.tasks.filter((task) => task.done).length / state.tasks.length
+      : 0;
+    const circumference = Number(ring.getAttribute('stroke-dasharray'));
+    if (Number.isFinite(state.displayedHomeProgress)) {
+      animateProgressRing(ring, circumference * (1 - state.displayedHomeProgress));
+    }
+    state.displayedHomeProgress = progress;
+  }
   root.querySelectorAll('[data-demo-view]').forEach((item) => {
     const active = item.dataset.demoView === state.view;
     item.classList.toggle('is-current', active);
@@ -198,6 +209,7 @@ export function renderLandingDemo(root) {
       { id: 'read', title: 'Ler por alguns minutos', done: false },
     ],
     nextTaskId: 0,
+    displayedHomeProgress: null,
     habitDays: [true, true, false, false, false, false, false],
     cycleDay: 12,
     financeMonth: 0,
@@ -240,9 +252,13 @@ export function renderLandingDemo(root) {
       if (!task) return;
       task.done = !task.done;
       updateDemoView(root, state);
-      [...root.querySelectorAll('[data-demo-action="task-toggle"]')]
-        .find((item) => item.dataset.taskId === task.id)
-        ?.focus({ preventScroll: true });
+      const updatedButton = [...root.querySelectorAll('[data-demo-action="task-toggle"]')]
+        .find((item) => item.dataset.taskId === task.id);
+      if (task.done) {
+        playMotion(updatedButton?.querySelector('span'), 'is-task-check-popping');
+        playMotion(updatedButton?.closest('.task')?.querySelector('.ttl'), 'is-task-completing');
+      }
+      updatedButton?.focus({ preventScroll: true });
     } else if (action === 'habit-toggle') {
       const index = Number(button.dataset.dayIndex);
       if (!Number.isInteger(index) || index < 0 || index >= state.habitDays.length) return;

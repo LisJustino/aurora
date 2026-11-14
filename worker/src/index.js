@@ -160,12 +160,25 @@ function validTaskReminders(value) {
     || value.reminders.length > MAX_TASK_REMINDERS) return false;
   const ids = new Set();
   return value.reminders.every((reminder) => {
-    if (!hasExactKeys(reminder, ['id', 'at'])
-      || typeof reminder.id !== 'string'
+    if (typeof reminder?.id !== 'string'
       || !/^[A-Za-z0-9_-]{1,48}$/.test(reminder.id)
       || ids.has(reminder.id)
       || !Number.isSafeInteger(reminder.at)
       || reminder.at <= 0) return false;
+    if (reminder.id === 'weekly-review') {
+      if (!hasExactKeys(reminder, ['id', 'at', 'repeat', 'time', 'timeZone'])
+        || reminder.repeat !== 'weekly'
+        || reminder.time !== '18:00'
+        || typeof reminder.timeZone !== 'string'
+        || reminder.timeZone.length > 100) return false;
+      try {
+        timeZoneFormatter(reminder.timeZone);
+      } catch {
+        return false;
+      }
+    } else if (!hasExactKeys(reminder, ['id', 'at'])) {
+      return false;
+    }
     ids.add(reminder.id);
     return true;
   });
@@ -418,6 +431,10 @@ function taskReminderNotification() {
   return { kind: 'task-reminder' };
 }
 
+function weeklyReviewNotification() {
+  return { kind: 'weekly-review' };
+}
+
 function constantTimeEqual(left, right) {
   if (left.length !== right.length) return false;
   let difference = 0;
@@ -582,14 +599,34 @@ export class PomodoroAlarm {
     const taskReminderDue = taskReminders.length > 0
       && Number.isSafeInteger(taskReminderAt)
       && taskReminderAt <= now;
+    let taskDue = false;
+    let weeklyReviewDue = false;
     if (taskReminderDue) {
-      taskReminders = taskReminders.filter((reminder) => reminder.at > now);
+      const dueReminders = taskReminders.filter((reminder) => reminder.at <= now);
+      weeklyReviewDue = dueReminders.some((reminder) => reminder.id === 'weekly-review');
+      taskDue = dueReminders.some((reminder) => reminder.id !== 'weekly-review');
+      taskReminders = taskReminders.flatMap((reminder) => {
+        if (reminder.at > now) return [reminder];
+        if (reminder.id !== 'weekly-review') return [];
+        const nextAt = nextHabitReminderAt([{
+          id: 'weekly-review',
+          days: [0],
+          time: reminder.time,
+          timeZone: reminder.timeZone,
+          skipDate: null,
+        }], now);
+        if (!Number.isSafeInteger(nextAt)) throw new Error('weekly-review-reminder-unscheduled');
+        return [{ ...reminder, at: nextAt }];
+      });
       await this.storage.put('taskReminders', taskReminders);
     }
     await this.refreshAlarm(now);
     if (reminderDue) await this.sendNotification(habitReminderNotification(), subscription);
-    if (taskReminderDue && now - taskReminderAt <= 2 * 60 * 60 * 1000) {
+    if (taskDue && now - taskReminderAt <= 2 * 60 * 60 * 1000) {
       await this.sendNotification(taskReminderNotification(), subscription);
+    }
+    if (weeklyReviewDue && now - taskReminderAt <= 2 * 60 * 60 * 1000) {
+      await this.sendNotification(weeklyReviewNotification(), subscription);
     }
   }
 }

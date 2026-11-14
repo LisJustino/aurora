@@ -87,8 +87,10 @@ async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const supabaseSdkRequests = [];
+  const mainModuleRequests = [];
   page.on('request', (request) => {
     if (request.url().includes('@supabase_supabase-js')) supabaseSdkRequests.push(request.url());
+    if (new URL(request.url()).pathname.endsWith('/src/js/main.js')) mainModuleRequests.push(request.url());
   });
   const errors = [];
   const externalRequests = [];
@@ -110,6 +112,9 @@ async function main() {
   let manyTasks = false;
   let manyTransactions = false;
   let homeFixtures = false;
+  let emptyHomeTasks = false;
+  let homeOnboardingComplete = false;
+  let dismissedHomeFirstSteps = false;
   let habitFixtures = false;
   const assertAccountCardDoesNotScrollInternally = async (label) => {
     const dimensions = await page.locator('.account-card').evaluate((card) => ({
@@ -210,9 +215,14 @@ async function main() {
     const endpoint = `${request.method()} ${requestUrl.pathname}`;
     if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
       if ((homeFixtures || habitFixtures) && requestUrl.pathname === '/rest/v1/user_settings') {
-        return jsonResponse(route, 200, [{ enabled_areas: { habits: true }, preferences: {} }], corsOrigin);
+        const preferences = {
+          ...(homeOnboardingComplete ? { onboardingComplete: true, introSeen: true } : {}),
+          ...(dismissedHomeFirstSteps ? { firstStepsDismissed: true } : {}),
+        };
+        return jsonResponse(route, 200, [{ enabled_areas: { habits: true }, preferences }], corsOrigin);
       }
       if (homeFixtures && requestUrl.pathname === '/rest/v1/tasks') {
+        if (emptyHomeTasks) return jsonResponse(route, 200, [], corsOrigin);
         const now = new Date();
         const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         return jsonResponse(route, 200, [{
@@ -386,6 +396,25 @@ async function main() {
     await page.goto(BASE);
     await page.waitForLoadState('networkidle');
     assert.equal(supabaseSdkRequests.length, 0, 'landing sem sessão não deve baixar o SDK Supabase');
+    const mainRequestsBeforeDirectLogin = mainModuleRequests.length;
+    await page.goto(`${BASE}/entrar`);
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    await assertAuthLayout('login direto');
+    assert.equal(
+      mainModuleRequests.length,
+      mainRequestsBeforeDirectLogin,
+      'a tela de login deve aparecer sem carregar o módulo completo do aplicativo',
+    );
+    await page.goto(BASE);
+    await page.locator('.public-topbar [data-public-action="login"]').click();
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    await assertAuthLayout('login pela landing');
+    assert.equal(
+      mainModuleRequests.length,
+      mainRequestsBeforeDirectLogin,
+      'o link de login da landing também deve abrir sem carregar o módulo completo do aplicativo',
+    );
+    await page.goto(BASE);
     await page.evaluate(() => {
       sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
     });
@@ -476,7 +505,7 @@ async function main() {
         await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
         await page.waitForFunction(() => !document.querySelector('.save-indicator'));
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
-          await page.locator('#dlg [data-action="dlg-close"]').click();
+          await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }
         await page.locator('.profile-menu-trigger').click();
         await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
@@ -499,32 +528,53 @@ async function main() {
         assert.equal(await page.locator('.profile-menu-control').getAttribute('open'), null,
           'menu da conta fecha ao pressionar Escape');
         const firstSteps = page.locator('.home-first-steps');
-        await firstSteps.locator('summary').evaluate((element) => element.click());
-        await page.waitForTimeout(0);
-        assert.equal(await firstSteps.evaluate((element) => element.open), true);
+        assert.equal(await firstSteps.count(), 0,
+          'cartão de primeiro acesso não aparece quando já existem tarefas');
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
-        assert.equal(await firstSteps.evaluate((element) => element.open), true,
-          'Primeiros passos deve permanecer aberto após renderização');
-        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
-        await firstSteps.locator('summary').evaluate((element) => element.click());
-        await page.waitForTimeout(0);
-        assert.equal(await firstSteps.evaluate((element) => element.open), false);
-        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
-        assert.equal(await firstSteps.evaluate((element) => element.open), false,
-          'Primeiros passos deve permanecer fechado após renderização');
+        assert.equal(await firstSteps.count(), 0,
+          'cartão continua oculto após renderização quando já existem tarefas');
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         const completed = page.locator('.home-completed');
         await completed.locator('summary').evaluate((element) => element.click());
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await completed.evaluate((element) => element.open), true,
           'Tarefas concluídas deve permanecer aberto após renderização');
+
+        emptyHomeTasks = true;
+        homeOnboardingComplete = true;
+        await page.reload();
+        await firstSteps.waitFor({ state: 'visible' });
+        const firstStepLabels = await firstSteps.locator('.home-first-steps-list li b').allTextContents();
+        assert.deepEqual(firstStepLabels, ['Escolher sua cor', 'Criar sua primeira tarefa', 'Marcar um hábito']);
+        assert.equal(await firstSteps.getByRole('progressbar').getAttribute('aria-valuemax'), '3');
+        assert.equal(await firstSteps.locator('a[href="/config?section=personalization"]').count(), 1);
+        assert.equal(await firstSteps.locator('button[data-action="task-new"]').count(), 1);
+        assert.equal(await firstSteps.locator('a[href="/habitos"]').count(), 1);
+        await firstSteps.locator('button[data-action="task-new"]').evaluate((element) => element.click());
+        await page.locator('#dlg[data-dialog-type="task"]').waitFor({ state: 'visible' });
+        await page.locator('#dlg [data-dlg="title"]').fill('Minha primeira tarefa');
+        await page.locator('#dlg button[form="dlgform"]').click();
+        await page.waitForFunction(() => document.querySelector('.home-first-steps [role="progressbar"]')?.getAttribute('aria-valuenow') === '1');
+        assert.equal(await firstSteps.locator('.home-first-steps-progress').innerText(), '1 de 3 feitos');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.isVisible(), true,
+          'cartão de primeiro acesso permanece visível após renderização');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.locator('.home-first-steps-list li').count(), 3,
+          'cartão mantém as três etapas após renderização');
         for (const width of [375, 1280]) {
           await page.setViewportSize({ width, height: 850 });
-          for (const theme of ['light', 'dark']) {
-            const result = await page.evaluate((selectedTheme) => {
+          for (const [theme, highContrast] of [['light', false], ['dark', false], ['light', true], ['dark', true]]) {
+            const result = await page.evaluate(async ([selectedTheme, selectedContrast]) => {
               document.documentElement.dataset.theme = selectedTheme;
+              if (selectedContrast) document.documentElement.dataset.contrast = 'high';
+              else delete document.documentElement.dataset.contrast;
+              await new Promise((resolve) => setTimeout(resolve, 300));
               const hero = document.querySelector('.main[data-route="inicio"] > .home-head');
               const title = hero.querySelector('h1');
+              const onboarding = document.querySelector('.home-first-steps');
+              const onboardingText = onboarding.querySelector('.home-first-steps-copy small');
+              const onboardingAction = onboardingText.closest('.home-first-steps-action');
               const canvas = document.createElement('canvas');
               const context = canvas.getContext('2d', { willReadFrequently: true });
               const color = (value) => {
@@ -539,19 +589,46 @@ async function main() {
               }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
               const foreground = luminance(color(getComputedStyle(title).color));
               const background = luminance(color(getComputedStyle(hero).backgroundColor));
+              const stepForeground = luminance(color(getComputedStyle(onboardingText).color));
+              const stepBackground = luminance(color(getComputedStyle(onboardingAction).backgroundColor));
+              const cardBackground = luminance(color(getComputedStyle(onboarding).backgroundColor));
+              const headingForeground = luminance(color(getComputedStyle(onboarding.querySelector('h2')).color));
               return {
                 documentWidth: document.documentElement.scrollWidth,
                 viewportWidth: innerWidth,
                 titleWidth: title.getBoundingClientRect().width,
                 contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+                stepContrast: (Math.max(stepForeground, stepBackground) + .05) / (Math.min(stepForeground, stepBackground) + .05),
+                headingContrast: (Math.max(headingForeground, cardBackground) + .05) / (Math.min(headingForeground, cardBackground) + .05),
+                stepForegroundColor: getComputedStyle(onboardingText).color,
+                stepBackgroundColor: getComputedStyle(onboardingAction).backgroundColor,
               };
-            }, theme);
+            }, [theme, highContrast]);
             assert.ok(result.documentWidth <= result.viewportWidth, `Início ${width}px/${theme}: sem overflow`);
             assert.ok(result.titleWidth > 0, `Início ${width}px/${theme}: saudação visível`);
             assert.ok(result.contrast >= 4.5, `Início ${width}px/${theme}: contraste ${result.contrast.toFixed(2)}`);
+            assert.ok(result.stepContrast >= 4.5,
+              `Primeiros passos ${width}px/${theme}/${highContrast ? 'alto contraste' : 'padrão'}: contraste ${result.stepContrast.toFixed(2)} (${result.stepForegroundColor} em ${result.stepBackgroundColor})`);
+            assert.ok(result.headingContrast >= 4.5,
+              `Título dos primeiros passos ${width}px/${theme}/${highContrast ? 'alto contraste' : 'padrão'}: contraste ${result.headingContrast.toFixed(2)}`);
           }
         }
         await page.setViewportSize({ width: 390, height: 844 });
+        await firstSteps.locator('.home-first-steps-dismiss').evaluate((element) => element.click());
+        const confirmation = page.locator('#dlg[data-dialog-type="confirmation"]');
+        await confirmation.waitFor({ state: 'visible' });
+        assert.match(await confirmation.innerText(), /Ele não aparecerá novamente/);
+        await confirmation.locator('[data-action="confirmation-cancel"]').click();
+        await confirmation.waitFor({ state: 'detached' });
+        assert.equal(await firstSteps.isVisible(), true, 'cancelar a confirmação mantém o cartão');
+        await firstSteps.locator('.home-first-steps-dismiss').evaluate((element) => element.click());
+        await confirmation.waitFor({ state: 'visible' });
+        await confirmation.locator('[data-action="confirmation-accept"]').click();
+        await firstSteps.waitFor({ state: 'detached' });
+        dismissedHomeFirstSteps = true;
+        await page.reload();
+        assert.equal(await page.locator('.home-first-steps').count(), 0,
+          'cartão dispensado permanece oculto após recarregar');
       } else if (destination === '/planejar') {
         const results = page.locator('#task-results');
         assert.equal(await results.locator('.task').count(), 10);
@@ -634,8 +711,9 @@ async function main() {
     assert.equal(await page.locator('.account-form input[name="email"]').getAttribute('autocomplete'), 'email');
     assert.equal(await page.locator('.account-form input[name="password"]').getAttribute('autocomplete'), 'current-password');
     assert.equal(await page.locator('.account-site-header .public-brand-link').count(), 1, 'login iniciado pela landing deve manter a marca no header');
-    assert.equal(await page.locator('.account-site-header .account-home-link').count(), 1, 'login deve oferecer botão de retorno ao início');
+    assert.equal(await page.locator('.account-site-header .public-header-nav a').count(), 3, 'login deve exibir a navegação pública');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'login deve manter os controles de autenticação e aparência');
+    assert.equal(await page.locator('.account-auth-header-actions [data-public-control="refresh"]').count(), 0, 'cabeçalho de autenticação deve manter os controles da landing');
     await assertAccountCardDoesNotScrollInternally('login em desktop');
     await assertAuthLayout('login em desktop');
     await page.setViewportSize({ width: 390, height: 844 });

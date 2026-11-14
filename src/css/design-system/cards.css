@@ -5,15 +5,15 @@
   gap: var(--card-content-gap);
   padding: var(--card-padding);
   border: 1px solid var(--line);
-  border-radius: var(--r-group);
+  border-radius: var(--r-card);
   background: var(--surface-strong);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--elev-1);
   transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 
 .card.flat {
   background: var(--surface-soft);
-  box-shadow: none;
+  box-shadow: var(--elev-0);
 }
 
 .head, .row {
@@ -170,8 +170,9 @@
   gap: var(--space-5);
   padding: var(--card-padding);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
-  border-radius: var(--r-control);
+  border-radius: var(--r-hero);
   background: var(--hero);
+  box-shadow: var(--elev-2);
   color: var(--on-hero);
 }
 

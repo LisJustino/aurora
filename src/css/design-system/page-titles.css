@@ -1,5 +1,5 @@
 .main[data-route] {
-  --area-heading-surface: color-mix(in srgb, var(--area-tone, var(--accent)) 2%, var(--surface));
+  --area-heading-surface: var(--surface);
 }
 
 .main > .page-title {
@@ -9,7 +9,7 @@
   align-items: center;
   overflow: hidden;
   padding: var(--space-5) var(--space-5);
-  border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 20%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line));
   border-radius: var(--r-control);
   background: linear-gradient(120deg, var(--area-heading-surface), var(--surface));
   box-shadow: var(--card-shadow);
@@ -21,11 +21,11 @@
   right: var(--space-5);
   width: 72px;
   height: 72px;
-  border: 1px solid color-mix(in srgb, var(--area-tone, var(--accent)) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--area, var(--accent)) 28%, transparent);
   border-radius: 50%;
   box-shadow:
-    0 0 0 12px color-mix(in srgb, var(--area-tone, var(--accent)) 5%, transparent),
-    0 0 0 24px color-mix(in srgb, var(--area-tone, var(--accent)) 3%, transparent);
+    0 0 0 12px color-mix(in srgb, var(--area, var(--accent)) 5%, transparent),
+    0 0 0 24px color-mix(in srgb, var(--area, var(--accent)) 3%, transparent);
   content: "";
   transform: translateY(-50%);
 }
@@ -39,7 +39,7 @@
 }
 
 .main > .page-title .page-title-eyebrow {
-  color: var(--area-tone, var(--accent));
+  color: var(--area, var(--accent));
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: .1em;
@@ -54,7 +54,7 @@
 
 .main h1[tabindex="-1"]:focus { outline: none; }
 
-.main > .page-title h1 i { color: var(--area-tone, var(--accent)); }
+.main > .page-title h1 i { color: var(--area, var(--accent)); }
 
 .main > .page-title p {
   color: var(--muted);

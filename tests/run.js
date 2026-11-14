@@ -38,6 +38,7 @@ import {
   installmentSummary,
   reportMonthStats,
   recurringBillsDueOn,
+  expenseWeekTotals,
 } from '../src/js/features/finance/calculations.js';
 import {
   ACCOUNT_TYPES,
@@ -59,7 +60,10 @@ import {
 import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
-import { buildTaskPushReminders } from '../src/js/features/push/task-reminders.js';
+import {
+  buildTaskPushReminders,
+  buildWeeklyReviewPushReminder,
+} from '../src/js/features/push/task-reminders.js';
 import { matchCategoryRule, normalizeCategoryRules } from '../src/js/features/finance/category-rules.js';
 import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
@@ -87,6 +91,8 @@ import {
   SUGGESTED_HABIT_CATEGORIES,
   SUGGESTED_HABIT_TAGS,
   habitStats,
+  habitDayOverview,
+  habitWeekDailyProgress,
   habitWeekReview,
   habitWeekOverview,
   habitWeeklyTarget,
@@ -103,6 +109,7 @@ import {
   waterGoalForHabit,
   waterGoalReached,
   waterMlForDay,
+  waterWeekProgress,
 } from '../src/js/features/habits/water-goal.js';
 import { filterWeightInput } from '../src/js/features/profile/weight.js';
 import {
@@ -131,6 +138,7 @@ import {
   normalizeHomeModes,
   normalizeHomeShortcuts,
   defaultHomeShortcuts,
+  homeFirstStepsProgress,
   homeAreaColorValue,
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
@@ -160,8 +168,11 @@ import {
 } from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
 import { renderHomeView } from '../src/js/features/home/view.js';
+import { renderCycleView } from '../src/js/features/cycle/view.js';
 import { createToastController } from '../src/js/features/feedback/toast.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
+import { emptyState } from '../src/js/utils/empty-state.js';
+import { h } from '../src/js/utils/dom.js';
 
 const results = [];
 
@@ -178,13 +189,49 @@ const test = (name, run) => {
   }
 };
 
+test('estado vazio preserva semântica, ação e escape de texto', () => {
+  const markup = emptyState({
+    title: 'Nada <por aqui',
+    description: 'Uma frase de apoio.',
+    action: h`<button type="button" class="btn primary">Começar</button>`,
+    headingLevel: 'h4',
+    className: 'state-test',
+    hidden: true,
+  }).s;
+  if (!markup.includes('class="empty empty-state state-test"')
+    || !markup.includes('<h4 class="empty-state-title">Nada &lt;por aqui.</h4>')
+    || !markup.includes('<p class="empty-state-description">Uma frase de apoio.</p>')
+    || !markup.includes('<button type="button" class="btn primary">Começar</button>')
+    || !markup.includes('hidden>')) {
+    throw new Error('O estado vazio deve manter o heading, a ação e o texto escapado.');
+  }
+});
+
+test('Ciclo não renderiza o estado vazio antes do controle de consentimento', () => {
+  const html = renderCycleView({
+    S: {},
+    ui: {},
+    gate: () => '<section>Consentimento necessário</section>',
+    areaPageTitle: () => h`<header>Ciclo</header>`,
+  }).s;
+  if (!html.includes('Consentimento necessário') || html.includes('Seu ciclo começa no seu tempo')) {
+    throw new Error('O estado inicial do Ciclo não deve aparecer antes do consentimento.');
+  }
+});
+
 test('Início prioriza a captura rápida e o estado vazio não duplica a ação principal', () => {
   let emptyArgs;
-  const html = renderHomeView({
+  const model = {
     name: '',
     profileAppearance: {},
     greeting: 'Bom dia',
     dateLabel: 'Hoje',
+    daySummary: {
+      tasks: { done: 2, total: 3 },
+      habits: { done: 1, total: 2 },
+      water: { total: 750, goal: 2000, percent: 38 },
+      cycle: null,
+    },
     homeMessage: '',
     lead: '',
     tt: [],
@@ -202,7 +249,8 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     financeAccountsCount: 0,
     showHomeBlock: () => true,
     homeBlockStyle: () => '',
-  }, {
+  };
+  const renderers = {
     areaGuideButton: () => '',
     backupReminder: () => '',
     empty: (...args) => {
@@ -217,13 +265,31 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     profileAvatarMarkup: () => '',
     sampleBanner: () => '',
     taskRow: () => '',
-  }).s;
+  };
+  const html = renderHomeView(model, renderers).s;
   const quickIndex = html.indexOf('class="card home-quick-card"');
   const todayIndex = html.indexOf('class="home-today-card"');
   const habitsIndex = html.indexOf('HABITS');
-  if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0
-    || !(quickIndex < todayIndex && todayIndex < habitsIndex)) {
+  const summaryIndex = html.indexOf('class="home-day-summary"');
+  if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0 || summaryIndex < 0
+    || !(html.indexOf('class="home-head"') < summaryIndex
+      && summaryIndex < quickIndex && quickIndex < todayIndex && todayIndex < habitsIndex)) {
     throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
+  }
+  if (!html.includes('aria-label="Tarefas, 2 de 3 feitas"')
+    || !html.includes('aria-label="Hábitos, 1 de 2 feitos"')
+    || !html.includes('aria-label="Água, 750 de 2.000 mililitros"')
+    || !html.includes('home-day-chip-count" aria-hidden="true">38%')
+    || html.includes('href="/ciclo"')) {
+    throw new Error('A faixa deve apresentar contagens acessíveis e ocultar Ciclo sem consentimento.');
+  }
+  const cycleHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, cycle: { day: 12 } },
+  }, renderers).s;
+  if (!cycleHtml.includes('href="/ciclo" aria-label="Ciclo, dia 12 do ciclo"')
+    || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
+    throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
   }
   if (emptyArgs?.[0] !== 'Seu Início começa aqui'
     || emptyArgs[2] !== ''
@@ -349,8 +415,8 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Criar conta',
     'Explorar demonstração',
     'Abrir demonstração',
-    'Grátis e sem cadastro.',
-    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.',
+    'A demonstração usa dados fictícios e não salva suas mudanças.',
+    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.',
     'totalmente grátis',
     'preview-area-cycle',
     'Ciclo',
@@ -358,6 +424,9 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Posso experimentar sem criar conta?',
     'data-footer-suggestion',
     'Leve sua rotina com você',
+    'Sua experiência pode ajudar o Aurora a evoluir.',
+    'Ainda não temos avaliações ou números públicos para compartilhar.',
+    'Compartilhar uma sugestão',
     'Adicione o Aurora à tela inicial do celular',
     'O Aurora não se conecta a bancos',
     'href="/privacy"',
@@ -395,6 +464,14 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     || root.innerHTML.includes('gestora de rotina')) {
     throw new Error('A landing não deve apresentar depoimentos ou perfis fictícios como prova social.');
   }
+  const communityStart = root.innerHTML.indexOf('class="public-community"');
+  const featuresEnd = root.innerHTML.indexOf('</section>', root.innerHTML.indexOf('class="public-features"'));
+  const faqStart = root.innerHTML.indexOf('class="public-faq"');
+  if (communityStart < featuresEnd || communityStart > faqStart
+    || !root.innerHTML.includes('href="#public-suggestion"')
+    || !root.innerHTML.includes('id="public-suggestion"')) {
+    throw new Error('O convite da comunidade deve aparecer entre as áreas e o FAQ e levar ao formulário de sugestões.');
+  }
   if (root.innerHTML.includes('não são criptografados')
     || root.innerHTML.includes('Preciso confirmar meu e-mail?')
     || root.innerHTML.includes('O que acontece sem conexão?')) {
@@ -406,11 +483,18 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const heroStart = root.innerHTML.indexOf('class="public-hero');
   const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
   const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
-  if (!heroMarkup.includes('href="/demonstracao"')
-    || !heroMarkup.includes('class="public-account-note"><a href="#public-features">Ver áreas</a></p>')
-    || heroMarkup.includes('data-public-action="signup"')
-    || heroMarkup.includes('data-public-action="login"')) {
-    throw new Error('O hero deve convidar a experimentar o produto sem repetir ações de conta.');
+  if (!heroMarkup.includes('href="/criar-conta" data-public-action="signup">Criar conta grátis</a>')
+    || !heroMarkup.includes('href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>')
+    || !heroMarkup.includes('class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>')
+    || (heroMarkup.match(/class="public-subtitle"/g) || []).length !== 1
+    || heroMarkup.includes('class="public-lead"')) {
+    throw new Error('O hero deve mostrar uma chamada de cadastro, uma de demonstração e apenas uma frase de apoio.');
+  }
+  const phoneNavigation = heroMarkup.match(/class="preview-phone-nav"[\s\S]*?<\/div>/)?.[0] || '';
+  if (!['preview-nav-home', 'preview-nav-planner', 'preview-nav-habits', 'preview-nav-cycle', 'preview-nav-finances']
+    .every((area) => phoneNavigation.includes(area))
+    || !['planner', 'habits', 'finances'].every((area) => heroMarkup.includes(`data-preview-area="${area}"`))) {
+    throw new Error('A prévia do celular deve exibir cinco áreas e distinguir as cores dos três itens.');
   }
   if (!root.innerHTML.includes('role="group" aria-label="Demonstração visual das quatro áreas"')) {
     throw new Error('A apresentação nomeada das áreas deve ter semântica de grupo compatível.');
@@ -540,6 +624,20 @@ test('Push de tarefas envia apenas horários futuros sem título e limita o lote
     dueDate: '2026-11-27', time: '12:00', remind: 0, title: `Privada ${index}`,
   }));
   equal(buildTaskPushReminders(manyTasks, now).length, 100);
+});
+
+test('lembrete semanal fica desligado por padrão e agenda o próximo domingo às 18h', () => {
+  const sunday = new Date(2026, 10, 15, 17, 0).getTime();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  equal(buildWeeklyReviewPushReminder(false, sunday, timeZone).length, 0);
+  const [reminder] = buildWeeklyReviewPushReminder(true, sunday, timeZone);
+  equal(reminder.id, 'weekly-review');
+  equal(reminder.at, new Date(2026, 10, 15, 18, 0).getTime());
+  equal(reminder.repeat, 'weekly');
+  equal(reminder.time, '18:00');
+  equal(reminder.timeZone, timeZone);
+  const [nextReminder] = buildWeeklyReviewPushReminder(true, new Date(2026, 10, 15, 19, 0).getTime(), timeZone);
+  equal(nextReminder.at, new Date(2026, 10, 22, 18, 0).getTime());
 });
 
 test('regras de categoria são validadas e aplicadas por primeira correspondência sem diferenciar acentos', () => {
@@ -1377,6 +1475,23 @@ test('resume mensal distingue transferência e compra no cartão', () => {
   equal(summary.tx.length, 3);
 });
 
+test('despesas da semana somam somente saídas e respeitam o início preferido', () => {
+  const transactions = [
+    { type: 'out', date: '2026-10-19', cents: 1000, paid: true },
+    { type: 'out', date: '2026-10-19', cents: 250, paid: false },
+    { type: 'out', date: '2026-10-20', cents: 800, paid: false },
+    { type: 'in', date: '2026-10-21', cents: 5000 },
+    { type: 'tr', date: '2026-10-21', cents: 6000 },
+    { type: 'out', date: '2026-10-25', cents: 450 },
+    { type: 'out', date: '2026-10-18', cents: 900 },
+  ];
+  const mondayStart = expenseWeekTotals(transactions, '2026-10-21', 1);
+  equal(mondayStart.length, 7);
+  equal(mondayStart.map(({ cents }) => cents).join(','), '1250,800,0,0,0,0,450');
+  const sundayStart = expenseWeekTotals(transactions, '2026-10-21', 0);
+  equal(sundayStart.map(({ cents }) => cents).join(','), '900,1250,800,0,0,0,0');
+});
+
 test('fechamento mensal resume pendências, fixas e cartão em centavos', () => {
   const accounts = [
     { id: 'checking', type: 'checking' },
@@ -1579,6 +1694,48 @@ test('panorama semanal conta somente dias programados até hoje e oferece pausad
   equal(overview.paused.length, 1);
 });
 
+test('panorama diário exclui pulos da meta e ignora hábitos pausados', () => {
+  const completed = { ...habitBase, completions: ['2026-10-21'] };
+  const skipped = { ...habitBase, id: 'h2', skipped: ['2026-10-21'] };
+  const paused = { ...habitBase, id: 'h3', status: 'paused' };
+  const overview = habitDayOverview(
+    [completed, skipped, paused],
+    '2026-10-21',
+    (habit, day) => habit.completions.includes(day),
+    (habit, day) => habitIsSkipped(habit, day, '2026-10-21'),
+  );
+  equal(overview.scheduled.length, 2);
+  equal(overview.completed, 1);
+  equal(overview.planned, 1);
+  equal(overview.skipped, 1);
+  equal(habitDayOverview([completed], 'not-a-day').planned, 0);
+});
+
+test('progresso diário dos hábitos segue a semana preferida e ignora dias pulados', () => {
+  const habits = [
+    { ...habitBase, id: 'h1', days: [1, 3, 4], completions: ['2026-10-19', '2026-10-21'] },
+    { ...habitBase, id: 'h2', days: [3], completions: [] },
+    { ...habitBase, id: 'h3', days: [3], completions: [], skipped: ['2026-10-21'] },
+  ];
+  const week = habitWeekDailyProgress(
+    habits,
+    '2026-10-21',
+    1,
+    (habit, day) => habit.completions.includes(day),
+    (habit, day) => habitIsSkipped(habit, day, '2026-10-21'),
+  );
+  equal(week.length, 7);
+  equal(week[0].day, '2026-10-19');
+  equal(week[0].progress, 1);
+  equal(week[2].planned, 2);
+  equal(week[2].completed, 1);
+  equal(week[2].progress, 0.5);
+  equal(week[3].progress, 0);
+  const sundayStart = habitWeekDailyProgress(habits, '2026-10-21', 0);
+  equal(sundayStart[0].day, '2026-10-18');
+  equal(sundayStart[1].day, '2026-10-19');
+});
+
 test('pular um dia exclui a data das metas e não interrompe sequência', () => {
   const habit = {
     ...habitBase,
@@ -1621,6 +1778,32 @@ test('revisão semanal não inclui dias pulados na taxa de hábitos', () => {
   equal(review.habits.completed, 1);
 });
 
+test('resumo semanal conta metas de água e hábitos em dia somente até hoje', () => {
+  const habits = [
+    { ...habitBase, id: 'on-track', completions: ['2026-10-19', '2026-10-20', '2026-10-21'] },
+    { ...habitBase, id: 'behind', completions: ['2026-10-19'] },
+    { ...habitBase, id: 'paused', status: 'paused', completions: ['2026-10-19'] },
+  ];
+  const review = weeklyReview(
+    [
+      { done: true, dueDate: '2026-10-19', doneAt: '2026-10-18T12:00:00.000Z' },
+      { done: false, dueDate: '2026-10-20' },
+      { done: true, dueDate: '2026-10-25', doneAt: '2026-10-21T12:00:00.000Z' },
+      { done: true, dueDate: '2026-10-20' },
+    ],
+    habits,
+    '2026-10-21',
+    1,
+    (habit, day) => habit.completions.includes(day),
+    () => false,
+    (day) => day === '2026-10-20' || day === '2026-10-21',
+  );
+  equal(review.tasks.completed, 2);
+  equal(review.waterDays, 2);
+  equal(review.habits.count, 2);
+  equal(review.habits.onTrack, 1);
+});
+
 test('sugestão de água cria um hábito comum e evita duplicatas', () => {
   let count = 0;
   const created = createSuggestedHabits(['reading', 'water'], [{ ...habitBase, name: 'LER POR 10 MINUTOS' }], () => `id-${++count}`);
@@ -1661,6 +1844,23 @@ test('registros de água aceitam mililitros inteiros e somam somente o dia local
   equal(waterGoalReached(todayTotal, 750), true);
   equal(waterGoalReached(todayTotal, 751), false);
   equal(waterMlForDay([], '2026-02-30'), 0);
+});
+
+test('progresso semanal da água compara cada dia com a meta definida', () => {
+  const entries = [
+    ...['19', '20', '21', '22', '23'].map((day) => ({
+      ml: 1000,
+      at: `2026-10-${day}T12:00:00`,
+    })),
+    { ml: 500, at: '2026-10-24T12:00:00' },
+  ];
+  const week = waterWeekProgress(entries, 1000, '2026-10-21', 1);
+  equal(week.length, 7);
+  equal(week[0].day, '2026-10-19');
+  equal(week.filter(({ goalReached }) => goalReached).length, 5);
+  equal(week[5].progress, 0.5);
+  equal(week[6].progress, 0);
+  equal(waterWeekProgress(entries, 1000, '2026-10-21', 0)[0].day, '2026-10-18');
 });
 
 test('hábito aceita ícone e cor opcionais e rejeita valores inválidos', () => {
@@ -1829,6 +2029,17 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
   }));
   equal(normalizeHomeMessage(`  mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH)}  `), `mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH - 9)}`);
   equal(normalizeHomeMessage(null), '');
+  equal(JSON.stringify(homeFirstStepsProgress({
+    theme: 'rose',
+    tasks: [],
+    habits: [{ completions: [] }, { completions: ['2026-10-20'] }],
+  })), JSON.stringify([false, false, true]));
+  equal(JSON.stringify(homeFirstStepsProgress({
+    theme: 'coral',
+    tasks: [{ id: 'task', done: true }],
+    habits: [{ completions: [] }],
+  })), JSON.stringify([true, true, false]));
+  equal(JSON.stringify(homeFirstStepsProgress(null)), JSON.stringify([false, false, false]));
   equal(JSON.stringify(normalizeHomeAreaColors({ planning: 'coral', water: '#ffffff', unknown: 'rose' })), JSON.stringify({ planning: 'coral' }));
   truthy(HOME_AREA_COLORS.length >= 5);
 });

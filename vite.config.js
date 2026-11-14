@@ -19,17 +19,17 @@ const pageEntries = [
   'terms.html',
 ];
 
-// Expõe o chunk do app na landing para pré-carregá-lo sem executá-lo.
-function appChunkHint() {
+// Expõe o chunk de autenticação para aquecer o formulário sem baixar o app.
+function accountChunkHint() {
   return {
-    name: 'aurora-app-chunk-hint',
+    name: 'aurora-account-chunk-hint',
     transformIndexHtml: {
       order: 'post',
       handler(html, ctx) {
         if (!ctx.bundle || !ctx.filename?.endsWith('index.html')) return html;
-        const chunk = Object.values(ctx.bundle).find((item) => item.type === 'chunk' && item.name === 'main');
+        const chunk = Object.values(ctx.bundle).find((item) => item.type === 'chunk' && item.name === 'account-entry');
         if (!chunk) return html;
-        const tag = `<meta name="aurora-app-chunk" content="/${chunk.fileName}">`;
+        const tag = `<meta name="aurora-account-chunk" content="/${chunk.fileName}">`;
         return html.replace('</head>', `${tag}\n</head>`);
       },
     },
@@ -125,7 +125,7 @@ export default defineConfig({
   define: {
     __AURORA_RELEASE_METADATA__: JSON.stringify(releaseMetadata),
   },
-  plugins: [appChunkHint(), cloudflareHeadersForLocalTests(), pagesPreviewNotFound()],
+  plugins: [accountChunkHint(), cloudflareHeadersForLocalTests(), pagesPreviewNotFound()],
   build: {
     rollupOptions: {
       input: ['index.html', ...pageEntries].map((path) => resolve(root, path)),

@@ -1,3 +1,59 @@
+:root {
+  --motion-glow-duration: calc(var(--duration-fast) + var(--duration-fast) + var(--duration-fast) + var(--duration-fast) + var(--duration-fast) + var(--duration-fast) + var(--duration-fast) + var(--duration-fast));
+}
+
+@property --annual-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+.chk.pop span,
+.chk span.is-task-check-popping {
+  animation: task-check-pop var(--duration-base) var(--ease-standard);
+}
+
+.task .ttl.is-task-completing {
+  animation: task-title-complete var(--duration-base) var(--ease-standard) both;
+}
+
+.ringw .ring-fg.is-progress-animating {
+  animation: progress-ring-fill var(--duration-base) var(--ease-standard) both;
+}
+
+.annual-plan-progress-ring.is-progress-animating {
+  animation: annual-progress-fill var(--duration-base) var(--ease-standard) both;
+}
+
+.home-head.is-day-completion {
+  animation: home-completion-glow var(--motion-glow-duration) var(--ease-standard) both;
+}
+
+@keyframes task-check-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@keyframes task-title-complete {
+  from { color: var(--ink); text-decoration-color: transparent; }
+  to { color: var(--muted); text-decoration-color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+}
+
+@keyframes progress-ring-fill {
+  from { stroke-dashoffset: var(--motion-progress-from); }
+  to { stroke-dashoffset: var(--motion-progress-to); }
+}
+
+@keyframes annual-progress-fill {
+  from { --annual-progress: var(--motion-progress-from); }
+  to { --annual-progress: var(--motion-progress-to); }
+}
+
+@keyframes home-completion-glow {
+  0%, 100% { box-shadow: var(--card-shadow); }
+  24%, 64% { box-shadow: var(--card-shadow), 0 0 24px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root:root:root *,
   :root:root:root *::before,
@@ -16,4 +72,17 @@
   animation-duration: .01ms;
   animation-iteration-count: 1;
   transition-duration: .01ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:root:root :is(.chk span, .task .ttl, .ringw .ring-fg, .annual-plan-progress-ring, .home-head) {
+    animation: none;
+    transition: none;
+  }
+}
+
+:root[data-motion="reduce"]:root:root :is(.chk span, .task .ttl, .home-head .ring-fg, .annual-plan-progress-ring, .home-head),
+:root[data-reduce-motion]:not([data-reduce-motion="false"]):not([data-reduce-motion="0"]):root:root :is(.chk span, .task .ttl, .home-head .ring-fg, .annual-plan-progress-ring, .home-head) {
+  animation: none;
+  transition: none;
 }

@@ -52,6 +52,9 @@ function createNotice(messageText, actionText, onAction, onDismiss) {
 let installPromptStarted = false;
 let deferredPrompt = null;
 let installNotice = null;
+let automaticPromptEligible = false;
+let automaticPromptSuppressed = false;
+let stopWaitingForEngagement = () => {};
 
 function showInstallNotice(messageText, canInstall) {
   if (installNotice?.isConnected || document.getElementById('pwa-update-notice')) return;
@@ -77,6 +80,7 @@ function showInstallNotice(messageText, canInstall) {
   } : null;
   notice = createNotice(messageText, canInstall ? 'Instalar' : null, onAction, () => {
     if (installNotice === notice) installNotice = null;
+    automaticPromptSuppressed = true;
   });
   installNotice = notice;
 }
@@ -86,17 +90,41 @@ export function startPwaInstallPrompt() {
   installPromptStarted = true;
   if (isNativeApp() || isAppInstalled()) return;
 
+  const allowAutomaticPrompt = () => {
+    automaticPromptEligible = true;
+    stopWaitingForEngagement();
+    if (deferredPrompt && !automaticPromptSuppressed) {
+      showInstallNotice('Instale o Aurora para abrir como um aplicativo.', true);
+    }
+  };
+  const onScroll = () => {
+    const hero = document.querySelector('.public-hero');
+    if (hero && hero.getBoundingClientRect().bottom <= 0) allowAutomaticPrompt();
+  };
+  const timer = window.setTimeout(allowAutomaticPrompt, 15000);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  stopWaitingForEngagement = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener('scroll', onScroll);
+  };
+  onScroll();
+
   const onBeforeInstallPrompt = (event) => {
     event.preventDefault();
     deferredPrompt = event;
-    if (installNotice && !installNotice.querySelector('button.btn.primary')) {
+    const requestedNotice = installNotice?.isConnected && !installNotice.querySelector('button.btn.primary');
+    if (requestedNotice) {
       installNotice.remove();
       installNotice = null;
     }
-    showInstallNotice('Instale o Aurora para abrir como um aplicativo.', true);
+    if (requestedNotice || (automaticPromptEligible && !automaticPromptSuppressed)) {
+      showInstallNotice('Instale o Aurora para abrir como um aplicativo.', true);
+    }
   };
   const onAppInstalled = () => {
     deferredPrompt = null;
+    automaticPromptSuppressed = true;
+    stopWaitingForEngagement();
     installNotice?.remove();
     installNotice = null;
   };
@@ -108,6 +136,8 @@ export function startPwaInstallPrompt() {
 export function showPwaInstallPrompt() {
   if (isNativeApp() || isAppInstalled()) return;
   startPwaInstallPrompt();
+  automaticPromptSuppressed = true;
+  stopWaitingForEngagement();
   if (isIosSafari()) {
     showInstallNotice('No Safari, toque em Compartilhar > Adicionar à Tela de Início para instalar o Aurora.', false);
     return;

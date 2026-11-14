@@ -45,7 +45,7 @@
   border-radius: var(--r-control);
   border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   background: linear-gradient(145deg, var(--soft2), color-mix(in srgb, var(--surface) 82%, var(--soft)));
-  box-shadow: 0 10px 20px -18px color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: var(--elev-1);
 }
 .empty-copy { display: grid; justify-items: center; gap: var(--space-1); }
 .empty b { color: var(--ink); font-size: var(--text-lg); letter-spacing: -.02em; }
@@ -59,8 +59,49 @@
   .empty-action, .empty-action > .btn { width: 100%; }
 }
 
+.empty-state {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) max-content;
+  align-items: center;
+  justify-content: stretch;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-card);
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+}
+.empty-state[hidden] { display: none; }
+.empty-state .empty-state-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  border-color: color-mix(in srgb, var(--area, var(--accent)) 22%, var(--line));
+  background: color-mix(in srgb, var(--area, var(--accent)) 10%, var(--surface));
+  box-shadow: none;
+  color: var(--area, var(--accent));
+}
+.empty-state .empty-copy { min-width: 0; justify-items: start; gap: var(--space-1); }
+.empty-state-title { margin: 0; color: var(--ink); font-size: var(--text-base); font-weight: var(--weight-bold); letter-spacing: -.02em; }
+.empty-state-description { max-width: 48ch; margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+.empty-state .empty-action { justify-content: flex-end; margin: 0; }
+.empty-state .empty-action > .btn { min-width: 0; white-space: normal; }
+.empty-state .empty-action > .btn:focus-visible { outline-offset: 3px; }
+@media (width <= 700px) {
+  .empty-state { grid-template-columns: 48px minmax(0, 1fr); }
+  .empty-state .empty-action { grid-column: 1 / -1; width: 100%; }
+  .empty-state .empty-action,
+  .empty-state .empty-action > .btn { width: 100%; }
+}
+@media (width <= 480px) {
+  .empty-state { flex-direction: initial; align-items: start; padding: var(--space-3); }
+  .empty-state .empty-copy { width: auto; }
+}
+
 /* Progresso fala a mesma linguagem em todas as áreas, preservando a cor de cada contexto. */
-.main[data-route] { --progress-tone: var(--area-tone, var(--accent)); }
+.main[data-route] { --progress-tone: var(--area, var(--accent)); }
 .bar {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--progress-tone) 14%, transparent);

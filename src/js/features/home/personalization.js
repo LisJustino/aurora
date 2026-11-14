@@ -47,6 +47,17 @@ export const HOME_BLOCK_IDS = HOME_BLOCKS.map(([id]) => id);
 export const HOME_SHORTCUT_IDS = HOME_SHORTCUTS.map(({ id }) => id);
 export const HOME_AREA_COLOR_IDS = HOME_AREA_COLORS.map(({ id }) => id);
 
+export function homeFirstStepsProgress(value = {}) {
+  const { theme, tasks, habits } = value && typeof value === 'object' ? value : {};
+  return [
+    typeof theme === 'string' && theme !== 'rose',
+    Array.isArray(tasks) && tasks.length > 0,
+    Array.isArray(habits) && habits.some((habit) => (
+      Array.isArray(habit?.completions) && habit.completions.length > 0
+    )),
+  ];
+}
+
 export function defaultHomeLayout() {
   return { order: [...HOME_BLOCK_IDS], visible: [...HOME_BLOCK_IDS] };
 }

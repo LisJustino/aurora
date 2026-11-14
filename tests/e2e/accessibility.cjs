@@ -4,6 +4,57 @@ const { completeProfile } = require('./setup.cjs');
 
 const BASE = process.argv[2] || 'http://127.0.0.1:5173';
 
+async function checkLandingInstallAndContrast(page) {
+  const link = page.locator('.public-hero .public-account-note a');
+  const instructions = page.locator('.public-install-note > li');
+  assert.equal(await instructions.count(), 2, 'instalação apresenta uma instrução por plataforma');
+  assert.match(await instructions.nth(0).innerText(), /^Android:/);
+  assert.match(await instructions.nth(1).innerText(), /^iPhone:/);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await link.scrollIntoViewIfNeeded();
+      const foreground = await link.evaluate((element) => getComputedStyle(element).color);
+      const bounds = await link.boundingBox();
+      await link.evaluate((element) => { element.style.visibility = 'hidden'; });
+      const background = await page.screenshot({ clip: bounds });
+      await link.evaluate((element) => { element.style.visibility = ''; });
+      const minimum = await page.evaluate(async ({ image, foregroundColor }) => {
+        const bitmap = new Image();
+        bitmap.src = `data:image/png;base64,${image}`;
+        await bitmap.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.drawImage(bitmap, 0, 0);
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const luminance = (rgb) => rgb.map((value) => {
+          const channel = value / 255;
+          return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+        }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+        const text = luminance(foregroundColor.match(/\d+/g).slice(0, 3).map(Number));
+        let lowest = Infinity;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const surface = luminance(Array.from(pixels.slice(index, index + 3)));
+          lowest = Math.min(lowest, (Math.max(text, surface) + .05) / (Math.min(text, surface) + .05));
+        }
+        return lowest;
+      }, { image: background.toString('base64'), foregroundColor: foreground });
+      assert.ok(minimum >= 4.5, `contraste do link em ${theme}/${width}px: ${minimum.toFixed(2)}:1`);
+      assert.ok(await instructions.evaluateAll((items) => items.every((item) =>
+        parseFloat(getComputedStyle(item).fontSize) >= 14 && item.scrollWidth <= item.clientWidth)),
+      `instruções legíveis e sem corte em ${theme}/${width}px`);
+      assert.ok(await instructions.evaluateAll((items) =>
+        items[0].getBoundingClientRect().bottom <= items[1].getBoundingClientRect().top),
+      `instruções em linhas separadas em ${theme}/${width}px`);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        `landing sem overflow em ${theme}/${width}px`);
+    }
+  }
+}
+
 async function checkContrast(page) {
   await page.goto(new URL('/tests/component-fixture.html', BASE).toString());
   const failures = await page.evaluate(async () => {
@@ -104,6 +155,7 @@ async function checkContrast(page) {
     publicPage.on('pageerror', (error) => errors.push(error.message));
     await publicPage.goto(BASE);
     await publicPage.emulateMedia({ reducedMotion: 'no-preference' });
+    await checkLandingInstallAndContrast(publicPage);
 
     const trigger = publicPage.getByRole('button', { name: 'Abrir acessibilidade' });
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');

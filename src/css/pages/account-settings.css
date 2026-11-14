@@ -300,7 +300,6 @@
 }
 .main[data-route="config"] .profile-settings-actions,
 .main[data-route="config"] .settings-save-actions { margin-top: 2px; padding-top: 16px; border-top: 1px solid var(--line); }
-.main[data-route="config"] { --area-tone: var(--accent); }
 
 /* Contraste dedicado ao modo escuro para superfícies e controles frequentes. */
 :root[data-theme="dark"] .settings-menu { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }

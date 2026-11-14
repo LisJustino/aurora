@@ -23,9 +23,9 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  border-radius: var(--r-hero);
   background: var(--surface-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-2);
   color: var(--ink);
 }
 .dlg * { min-width: 0; }
@@ -266,7 +266,7 @@
   border-radius: var(--r-control);
   background: linear-gradient(145deg, color-mix(in srgb, var(--bad) 18%, var(--bad-soft)), var(--bad-soft));
   color: var(--bad);
-  box-shadow: 0 10px 22px -18px color-mix(in srgb, var(--bad) 82%, transparent);
+  box-shadow: var(--elev-1);
 }
 .destructive-heading .ibtn { align-self: start; }
 .destructive-eyebrow {
@@ -317,7 +317,7 @@
   border-color: color-mix(in srgb, var(--bad) 74%, transparent);
   background: linear-gradient(135deg, color-mix(in srgb, var(--bad) 90%, var(--on-solid)), var(--bad));
   color: var(--on-solid);
-  box-shadow: 0 12px 22px -15px color-mix(in srgb, var(--bad) 98%, transparent);
+  box-shadow: var(--elev-1);
 }
 .dlg-body.destructive-dialog + .dlg-foot .btn.danger:hover {
   border-color: var(--bad);
@@ -341,7 +341,7 @@
   border-radius: var(--r-group);
   background: color-mix(in srgb, var(--ok-soft) 78%, var(--surface));
   color: var(--ok);
-  box-shadow: 0 14px 26px -20px color-mix(in srgb, var(--ok) 88%, transparent);
+  box-shadow: var(--elev-1);
 }
 .wipe-complete .wiz-h { gap: var(--space-2); }
 .wipe-complete .wiz-h h2 { font-size: var(--text-section); }
@@ -664,7 +664,7 @@
   border-radius: var(--r-group);
   background: var(--ink);
   color: var(--bg);
-  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--ink) 40%, transparent);
+  box-shadow: var(--elev-1);
   transform: translateX(-50%);
   animation: toast-in .28s var(--ease-standard) both;
 }
@@ -739,9 +739,9 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 /* Estrutura visual compartilhada por todos os modais comuns. Variantes por
    conteúdo podem alterar largura e espaçamento interno, mas não o idioma visual. */
 .dlg:not(.intro-dialog) {
-  border-radius: var(--r-control);
+  border-radius: var(--r-hero);
   background: var(--surface-strong);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-2);
 }
 .dlg:not(.intro-dialog) .dlg-body {
   gap: var(--space-4);

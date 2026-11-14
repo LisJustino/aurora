@@ -207,6 +207,28 @@ export function habitIsSkipped(habit, day, today = day) {
       && (!Array.isArray(habit.pausedDays) || habit.pausedDays.includes(pk(day).getDay())));
 }
 
+export function habitDayOverview(
+  habits,
+  day,
+  completedFor = (habit, targetDay) => habitIsComplete(habit, targetDay),
+  skippedFor = (habit, targetDay) => habitIsSkipped(habit, targetDay, day),
+) {
+  if (!isDay(day)) return { scheduled: [], completed: 0, planned: 0, skipped: 0 };
+  const scheduled = (Array.isArray(habits) ? habits : []).filter((habit) => (
+    (habit.status || 'active') === 'active'
+    && habit.days.includes(pk(day).getDay())
+  ));
+  const skipped = scheduled.filter((habit) => skippedFor(habit, day));
+  const skippedHabits = new Set(skipped);
+  const eligible = scheduled.filter((habit) => !skippedHabits.has(habit));
+  return {
+    scheduled,
+    completed: eligible.filter((habit) => completedFor(habit, day)).length,
+    planned: eligible.length,
+    skipped: skipped.length,
+  };
+}
+
 export function createSuggestedHabits(selectedIds, existingHabits, createId) {
   const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
   const existingNames = new Set(existingHabits.map((habit) => normalizeHabitText(habit.name)));
@@ -267,6 +289,31 @@ export function habitWeekOverview(habits, day, weekStart, completedFor, skippedF
     planned,
     paused: habits.filter((habit) => habit.status === 'paused'),
   };
+}
+
+export function habitWeekDailyProgress(habits, day, weekStart, completedFor, skippedFor) {
+  return weekDays(day, weekStart).map((entry) => {
+    const overview = habitDayOverview(
+      habits,
+      entry,
+      completedFor,
+      (habit, targetDay) => skippedFor
+        ? skippedFor(habit, targetDay)
+        : habitIsSkipped(habit, targetDay, entry),
+    );
+    const completed = entry <= day ? overview.completed : 0;
+    const progress = entry <= day && overview.planned
+      ? completed / overview.planned
+      : 0;
+    return {
+      day: entry,
+      completed,
+      planned: overview.planned,
+      skipped: overview.skipped,
+      progress,
+      complete: overview.planned > 0 && progress === 1,
+    };
+  });
 }
 
 export function habitWeekReview(habits, day, weekStart, completedFor, skippedFor) {

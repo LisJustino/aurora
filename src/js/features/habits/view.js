@@ -1,9 +1,10 @@
 import { DIAS, longDate, pk, today } from '../../utils/dates.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
+import { emptyState } from '../../utils/empty-state.js';
 import {
-  featuredHabitSuggestions, filterSuggestedHabits, habitIsSkipped,
-  habitSuggestionTags, habitWeekOverview, habitWeekReview,
+  featuredHabitSuggestions, filterSuggestedHabits, habitDayOverview, habitIsSkipped,
+  habitSuggestionTags, habitWeekDailyProgress, habitWeekOverview, habitWeekReview,
   remainingHabitSuggestions, SUGGESTED_HABIT_CATEGORIES, SUGGESTED_HABIT_TAGS,
 } from './model.js';
 
@@ -12,7 +13,7 @@ export function renderHabitsView(dependencies) {
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
     weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
-    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate, empty,
+    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
   } = dependencies;
 
   if (!areaOn('habits')) return h`${areaPageTitle('habitos', 'Hábitos')}${gate('habits', 'Hábitos')}`;
@@ -32,31 +33,47 @@ export function renderHabitsView(dependencies) {
     && !String(ui.habitIdeaQuery || '').trim();
   const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
   const archived = S.habits.filter((habit) => habit.status === 'archived');
+  const currentDay = today();
+  const weekStart = weekStartDay();
+  const skippedForDay = (habit, day) => habitIsSkipped(habit, day, currentDay);
+  const dailyProgress = habitWeekDailyProgress(
+    live,
+    currentDay,
+    weekStart,
+    habitCompletedFor,
+    skippedForDay,
+  );
+  const completeDays = dailyProgress.filter(({ day, complete }) => day <= currentDay && complete).length;
   const overview = habitWeekOverview(
     live,
-    today(),
-    weekStartDay(),
+    currentDay,
+    weekStart,
     habitCompletedFor,
-    (habit, day) => habitIsSkipped(habit, day, today()),
+    skippedForDay,
   );
   const weekReview = habitWeekReview(
     live,
-    today(),
-    weekStartDay(),
+    currentDay,
+    weekStart,
     habitCompletedFor,
-    (habit, day) => habitIsSkipped(habit, day, today()),
+    skippedForDay,
   );
   const hasTaskReminders = S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null);
   const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind) || hasTaskReminders;
   const pushStatus = hasReminders ? getPushNotificationStatus() : null;
   const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
     && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
-  const dow = pk(today()).getDay();
-  const todays = live.filter((habit) => (habit.status || 'active') === 'active' && habit.days.includes(dow));
+  const todayOverview = habitDayOverview(
+    live,
+    today(),
+    habitCompletedFor,
+    (habit, day) => habitIsSkipped(habit, day, today()),
+  );
+  const todays = todayOverview.scheduled;
   const others = live.filter((habit) => !todays.includes(habit));
-  const skippedN = todays.filter((habit) => habitIsSkipped(habit, today(), today())).length;
-  const eligibleToday = todays.length - skippedN;
-  const doneN = todays.filter((habit) => !habitIsSkipped(habit, today(), today()) && habitCompletedFor(habit, today())).length;
+  const skippedN = todayOverview.skipped;
+  const eligibleToday = todayOverview.planned;
+  const doneN = todayOverview.completed;
   const pct = eligibleToday ? Math.round(doneN / eligibleToday * 100) : 0;
   const todaySummary = eligibleToday
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
@@ -89,7 +106,16 @@ export function renderHabitsView(dependencies) {
       : '',
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
-      : empty('Dia livre', 'Crie um hábito ou escolha uma ideia abaixo.', h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`, 'check').s,
+      : emptyState({
+        title: firstUse ? 'Seu primeiro hábito começa pequeno.' : 'Hoje pode ser um dia de pausa.',
+        description: firstUse
+          ? 'Escolha uma ideia que combine com você ou crie seu próprio hábito.'
+          : 'Se quiser, ajuste sua rotina ou escolha outra ideia para começar.',
+        action: h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}${firstUse ? 'Criar primeiro hábito' : 'Criar um hábito'}</button>`,
+        iconName: 'check',
+        headingLevel: 'h3',
+        className: 'habit-today-empty',
+      }).s,
     'reminder-note': hasReminders
       ? h`<div class="habit-reminder-note">
         <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${icon('bell', 16)}${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
@@ -101,6 +127,24 @@ export function renderHabitsView(dependencies) {
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
         : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
       ${overview.planned ? h`<progress value="${overview.completed}" max="${overview.planned}" aria-label="Consistência dos hábitos nesta semana"></progress>` : ''}
+      <div class="habit-week-chart">
+        <h3>Ritmo diário</h3>
+        <div class="habit-week-chart-grid">${dailyProgress.map(({ day, completed, planned, progress }) => {
+          const percentage = Math.round(progress * 100);
+          const label = day > currentDay
+            ? `${longDate(day)}: dia futuro`
+            : planned
+              ? `${longDate(day)}: ${completed} de ${planned} hábitos concluídos`
+              : `${longDate(day)}: nenhum hábito programado`;
+          return h`<div class="habit-week-chart-column">
+            <div class="habit-week-chart-bar${day === currentDay ? ' is-today' : ''}" role="img" aria-label="${label}">
+              <span style="--week-fill:${percentage}%"></span>
+            </div>
+            <span class="habit-week-chart-day" aria-hidden="true">${DIAS[pk(day).getDay()]}</span>
+          </div>`;
+        })}</div>
+        <span class="sr">Hábitos: ${completeDays} de 7 dias com todos os hábitos programados concluídos.</span>
+      </div>
       ${weekReview.length ? h`<details class="habit-review" id="d-habit-review" ${ui.openDetails['habit-review'] ? raw('open') : ''}>
         <summary><span><b>Revisar cada hábito</b><small>Veja seu ritmo e ajuste o plano quando precisar.</small></span><span class="habit-count">${weekReview.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
         <ul aria-label="Resumo semanal por hábito">${weekReview.map(({ habit, completed, planned, weeklyTarget, goalMet }) => {
@@ -142,9 +186,17 @@ export function renderHabitsView(dependencies) {
             </select></label>
           </div>
           <p class="small muted">Busque por palavra ou combine categoria e contexto.</p>
-          <div class="habit-idea-filter-status"><p class="small muted" data-habit-idea-count role="status" aria-live="polite">${matchingIdeaIds.size} ${plural(matchingIdeaIds.size, 'ideia encontrada', 'ideias encontradas')}</p><button type="button" class="btn ghost sm" data-action="habit-ideas-clear" ${ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all' || ui.habitIdeaQuery ? '' : raw('hidden')}>Limpar filtros</button></div>
+          <div class="habit-idea-filter-status"><p class="small muted" data-habit-idea-count role="status" aria-live="polite">${matchingIdeaIds.size} ${plural(matchingIdeaIds.size, 'ideia encontrada', 'ideias encontradas')}</p><button type="button" class="btn ghost sm" data-action="habit-ideas-clear" ${matchingIdeaIds.size && (ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all' || ui.habitIdeaQuery) ? '' : raw('hidden')}>Limpar filtros</button></div>
         </div>
-        <p class="habit-idea-empty small muted" data-habit-idea-empty ${matchingIdeaIds.size ? raw('hidden') : ''}>Nenhuma ideia encontrada. Ajuste os filtros.</p>
+        ${emptyState({
+          title: 'Nenhuma ideia encontrada.',
+          description: 'Tente outra palavra ou limpe os filtros para ver outras opções.',
+          action: h`<button type="button" class="btn primary" data-action="habit-ideas-clear">Limpar filtros</button>`,
+          iconName: 'search',
+          headingLevel: 'h3',
+          className: 'habit-idea-empty',
+          hidden: matchingIdeaIds.size > 0,
+        })}
         <div class="habit-idea-categories${initialIdeaPreview ? ' is-preview' : ''}" id="habit-idea-categories">${suggestionGroups.map((category) => h`<section class="habit-idea-section" aria-labelledby="habit-ideas-${category.id}" ${category.habits.some((idea) => matchingIdeaIds.has(idea.id)) ? '' : raw('hidden')}><h3 id="habit-ideas-${category.id}">${category.title}</h3><div class="habit-idea-grid">${category.habits.map((idea) => h`<button type="button" class="habit-idea" data-habit-idea data-preview="${previewIdeas.has(idea.id) ? 'false' : 'true'}" data-action="habit-idea" data-id="${idea.id}" data-tags="${idea.tags.map(({ id }) => id).join(' ')}" ${!matchingIdeaIds.has(idea.id) || (!ui.habitIdeasExpanded && ui.habitIdeaCategory === 'all' && ui.habitIdeaTag === 'all' && !String(ui.habitIdeaQuery || '').trim() && !previewIdeas.has(idea.id)) ? raw('hidden') : ''} style="--hc:${habitColor(idea)}"><span class="habit-idea-icon">${icon(habitIconKey(idea), 22)}</span><span class="habit-idea-copy"><b>${idea.name}</b><small>${idea.description}</small>${idea.tags.length ? h`<span class="habit-idea-tags" aria-label="Características">${idea.tags.map((tag) => h`<span class="habit-idea-tag">${tag.title}</span>`)}</span>` : ''}<span class="habit-idea-cta">${icon('plus', 14)}Personalizar</span></span></button>`)}</div></section>`)}</div>
         <button type="button" class="btn ghost sm habit-ideas-expand" data-action="habit-ideas-expand" aria-controls="habit-idea-categories" aria-expanded="${String(ui.habitIdeasExpanded)}" ${suggestions.length <= 4 || (ui.habitIdeaCategory !== 'all' || ui.habitIdeaTag !== 'all' || ui.habitIdeaQuery) ? raw('hidden') : ''}>${ui.habitIdeasExpanded ? 'Mostrar menos ideias' : `Ver todas as ${suggestions.length} ideias`}</button>
       </details>`.s

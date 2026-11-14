@@ -8,7 +8,63 @@ const phoneBrandLogo = new URL('../../../../icons/favicon.svg', import.meta.url)
 export { renderLandingDemo };
 
 const landingControllers = new WeakMap();
-const landingState = { tasks: null, area: 0, suggestion: {} };
+const landingState = { tasks: null, area: 0, tutorialArea: 'inicio', suggestion: {} };
+const LANDING_TUTORIALS = [
+  {
+    id: 'inicio',
+    title: 'Início',
+    description: 'Veja o resumo do dia, os atalhos e os próximos passos na tela inicial.',
+  },
+  {
+    id: 'planejar',
+    title: 'Planejar',
+    description: 'Acompanhe tarefas por prazo e alterne entre lista, calendário e semana.',
+  },
+  {
+    id: 'habitos',
+    title: 'Hábitos',
+    description: 'Marque seus hábitos, revise a sequência e acompanhe a meta de água.',
+  },
+  {
+    id: 'ciclo',
+    title: 'Ciclo',
+    description: 'Registre períodos e sintomas e consulte a visão do calendário.',
+  },
+  {
+    id: 'financas',
+    title: 'Finanças',
+    description: 'Cadastre contas e lançamentos manuais para acompanhar suas movimentações.',
+  },
+];
+const LANDING_VIDEO_POSTER = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#29233a"/><stop offset="1" stop-color="#76506b"/></linearGradient></defs><rect width="960" height="540" fill="url(#g)"/><circle cx="480" cy="270" r="52" fill="#fff"/><path d="M466 242v56l48-28z" fill="#57405d"/></svg>',
+)}`;
+
+function landingTutorialSources() {
+  if (typeof window === 'undefined') return {};
+  return {
+    inicio: {
+      mp4: new URL('../../../assets/tutorials/inicio.mp4', import.meta.url).href,
+      webm: new URL('../../../assets/tutorials/inicio.webm', import.meta.url).href,
+    },
+    planejar: {
+      mp4: new URL('../../../assets/tutorials/planejar.mp4', import.meta.url).href,
+      webm: new URL('../../../assets/tutorials/planejar.webm', import.meta.url).href,
+    },
+    habitos: {
+      mp4: new URL('../../../assets/tutorials/habitos.mp4', import.meta.url).href,
+      webm: new URL('../../../assets/tutorials/habitos.webm', import.meta.url).href,
+    },
+    ciclo: {
+      mp4: new URL('../../../assets/tutorials/ciclo.mp4', import.meta.url).href,
+      webm: new URL('../../../assets/tutorials/ciclo.webm', import.meta.url).href,
+    },
+    financas: {
+      mp4: new URL('../../../assets/tutorials/financas.mp4', import.meta.url).href,
+      webm: new URL('../../../assets/tutorials/financas.webm', import.meta.url).href,
+    },
+  };
+}
 
 function publicHeader() {
   return renderPublicHeader();
@@ -25,6 +81,7 @@ export function renderLanding(root) {
   if (!root.querySelector?.('.public-site[data-prerendered]')) root.innerHTML = landingMarkup();
   initializeLandingTaskMock(root);
   initializeAreaSelector(root);
+  initializeLandingTutorials(root);
   initializeFaqDisclosure(root);
 }
 
@@ -64,6 +121,120 @@ function initializeAreaSelector(root) {
   update();
 }
 
+function initializeLandingTutorials(root) {
+  const section = root.querySelector('[data-landing-tutorials]');
+  if (!section) return;
+  const tabs = [...section.querySelectorAll('[data-landing-tutorial-tab]')];
+  const panels = [...section.querySelectorAll('[data-landing-tutorial-panel]')];
+  if (!tabs.length || tabs.length !== panels.length) return;
+  let sources = null;
+  const prepareVideo = (panel) => {
+    if (!panel) return;
+    if (!sources) sources = landingTutorialSources();
+    const areaSources = sources[panel.dataset.landingTutorialPanel];
+    const video = panel.querySelector('video');
+    if (!areaSources || !video || video.dataset.tutorialLoaded === 'true') return;
+    panel.querySelectorAll('[data-tutorial-source]').forEach((source) => {
+      const url = areaSources[source.dataset.tutorialSource];
+      if (url) source.src = url;
+    });
+    video.dataset.tutorialLoaded = 'true';
+    video.load();
+  };
+  const selectArea = (area, loadVideo = false) => {
+    const activeTab = tabs.find((tab) => tab.dataset.landingTutorialTab === area);
+    if (!activeTab) return;
+    tabs.forEach((tab) => {
+      const selected = tab === activeTab;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.landingTutorialPanel !== area;
+      const video = panel.querySelector('video');
+      if (panel.hidden && video && !video.paused) video.pause();
+    });
+    if (loadVideo) prepareVideo(panels.find((panel) => panel.dataset.landingTutorialPanel === area));
+    landingState.tutorialArea = area;
+  };
+  const playVideo = async (button) => {
+    const panel = button.closest('[data-landing-tutorial-panel]');
+    const video = panel?.querySelector('video');
+    const status = panel?.querySelector('[data-landing-tutorial-status]');
+    if (!panel || !video || !status) return;
+    prepareVideo(panel);
+    status.hidden = true;
+    try {
+      await video.play();
+    } catch {
+      status.textContent = 'Não foi possível iniciar o vídeo. Tente novamente pelos controles.';
+      status.hidden = false;
+    }
+  };
+  const onClick = (event) => {
+    if (!(event.target instanceof Element)) return;
+    const playButton = event.target.closest('[data-landing-tutorial-play]');
+    if (playButton && section.contains(playButton)) {
+      void playVideo(playButton);
+      return;
+    }
+    const tab = event.target.closest('[data-landing-tutorial-tab]');
+    if (tab && tabs.includes(tab)) selectArea(tab.dataset.landingTutorialTab, true);
+  };
+  const onKeyDown = (event) => {
+    if (!(event.target instanceof Element)) return;
+    const tab = event.target.closest('[data-landing-tutorial-tab]');
+    const index = tabs.indexOf(tab);
+    if (index < 0) return;
+    const nextIndex = event.key === 'ArrowRight'
+      ? (index + 1) % tabs.length
+      : event.key === 'ArrowLeft'
+        ? (index - 1 + tabs.length) % tabs.length
+        : event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? tabs.length - 1
+            : -1;
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    selectArea(nextTab.dataset.landingTutorialTab, true);
+    nextTab.focus();
+  };
+  const videoListeners = [];
+  panels.forEach((panel) => {
+    const video = panel.querySelector('video');
+    const playButton = panel.querySelector('[data-landing-tutorial-play]');
+    const status = panel.querySelector('[data-landing-tutorial-status]');
+    if (!video || !playButton || !status) return;
+    const showPlayButton = () => { playButton.hidden = false; };
+    const hidePlayButton = () => { playButton.hidden = true; };
+    const showVideoError = () => {
+      status.textContent = 'Este vídeo não pode ser reproduzido neste navegador.';
+      status.hidden = false;
+    };
+    video.addEventListener('playing', hidePlayButton);
+    video.addEventListener('pause', showPlayButton);
+    video.addEventListener('error', showVideoError);
+    videoListeners.push(
+      [video, 'playing', hidePlayButton],
+      [video, 'pause', showPlayButton],
+      [video, 'error', showVideoError],
+    );
+  });
+  section.addEventListener('click', onClick);
+  section.addEventListener('keydown', onKeyDown);
+  const previousCleanup = landingControllers.get(root);
+  landingControllers.set(root, () => {
+    previousCleanup?.();
+    section.removeEventListener('click', onClick);
+    section.removeEventListener('keydown', onKeyDown);
+    section.querySelectorAll('video').forEach((video) => video.pause());
+    videoListeners.forEach(([video, type, listener]) => video.removeEventListener(type, listener));
+  });
+  selectArea(landingState.tutorialArea);
+}
+
 function initializeLandingTaskMock(root) {
   if (typeof root.addEventListener !== 'function') return;
   const tasks = [...root.querySelectorAll('[data-landing-task]')];
@@ -78,10 +249,8 @@ function initializeLandingTaskMock(root) {
       completed += Number(done);
       task.classList.toggle('is-done', done);
       task.classList.toggle('is-current', !done && task === nextTask);
-      const title = task.querySelector('b')?.textContent?.trim() || 'Tarefa';
       const status = task.querySelector('small');
       if (status) status.textContent = done ? 'Concluída' : task === nextTask ? 'Seu próximo passo' : 'Hoje';
-      task.setAttribute('aria-label', `${done ? 'Marcar como pendente' : 'Marcar como concluída'}: ${title}`);
     });
 
     const summary = root.querySelector('[data-preview-task-summary]');
@@ -127,6 +296,9 @@ function initializeLandingTaskMock(root) {
 }
 
 export function landingMarkup() {
+  const activeTutorialArea = LANDING_TUTORIALS.some(({ id }) => id === landingState.tutorialArea)
+    ? landingState.tutorialArea
+    : 'inicio';
   return `
     <div class="public-site">
       <a class="skip" href="#landing-main" data-public-action="skip">Pular para o conteúdo principal</a>
@@ -136,13 +308,13 @@ export function landingMarkup() {
           <div class="public-copy">
             <p class="public-eyebrow"><span aria-hidden="true"></span> Um planner independente para a vida real</p>
             <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
-            <p class="public-subtitle">Organize tarefas, hábitos, finanças e ciclo no seu ritmo.</p>
-            <p class="public-lead">Veja o que importa hoje e dê o próximo passo, sem lista infinita e sem culpa.</p>
+            <p class="public-subtitle">Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.</p>
             <div class="public-actions">
-              <a class="btn primary large" href="/demonstracao" data-public-action="demo">Abrir demonstração</a>
+              <a class="btn primary large" href="/criar-conta" data-public-action="signup">Criar conta grátis</a>
+              <a class="btn large" href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>
             </div>
-            <p class="public-account-note"><a href="#public-features">Ver áreas</a></p>
-            <p class="public-price-note"><strong>Grátis e sem cadastro.</strong> A demonstração usa dados fictícios.</p>
+            <p class="public-price-note">A demonstração usa dados fictícios e não salva suas mudanças.</p>
+            <p class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>
           </div>
           <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
             <div class="preview-phone">
@@ -160,16 +332,16 @@ export function landingMarkup() {
                 <div class="preview-tasks" role="group" data-landing-task-group aria-label="2 de 3 tarefas de exemplo concluídas">
                   <span class="preview-task-heading">Para hoje <b data-preview-task-count>3</b><small data-preview-task-summary aria-live="polite">2 de 3 feitas</small></span>
                   <span class="preview-task-progress"><i></i></span>
-                  <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Organizar a semana"><i aria-hidden="true">✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></button>
-                  <button type="button" class="preview-task-row is-done" data-landing-task aria-pressed="true" aria-label="Marcar como pendente: Responder uma mensagem"><i aria-hidden="true">✓</i><span><b>Responder uma mensagem</b><small>Concluída</small></span></button>
-                  <button type="button" class="preview-task-row is-current" data-landing-task aria-pressed="false" aria-label="Marcar como concluída: Ler por alguns minutos"><i aria-hidden="true"></i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></button>
+                  <button type="button" class="preview-task-row is-done" data-landing-task data-preview-area="planner" aria-pressed="true" aria-label="Organizar a semana"><i aria-hidden="true">✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></button>
+                  <button type="button" class="preview-task-row is-done" data-landing-task data-preview-area="habits" aria-pressed="true" aria-label="Responder mensagem"><i aria-hidden="true">✓</i><span><b>Responder mensagem</b><small>Concluída</small></span></button>
+                  <button type="button" class="preview-task-row is-current" data-landing-task data-preview-area="finances" aria-pressed="false" aria-label="Ler por alguns minutos"><i aria-hidden="true">✓</i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></button>
                 </div>
                 <div class="preview-phone-nav" aria-hidden="true">
-                  <span class="is-current">${demoIcon('home', 15)}Início</span>
-                  <span>${demoIcon('calendarCheck', 15)}Planejar</span>
-                  <span>${demoIcon('leaf', 15)}Hábitos</span>
-                  <span>${demoIcon('heart', 15)}Ciclo</span>
-                  <span>${demoIcon('wallet', 15)}Finanças</span>
+                  <span class="is-current preview-nav-home">${demoIcon('home', 15)}Início</span>
+                  <span class="preview-nav-planner">${demoIcon('calendarCheck', 15)}Planejar</span>
+                  <span class="preview-nav-habits">${demoIcon('leaf', 15)}Hábitos</span>
+                  <span class="preview-nav-cycle">${demoIcon('heart', 15)}Ciclo</span>
+                  <span class="preview-nav-finances">${demoIcon('wallet', 15)}Finanças</span>
                 </div>
               </div>
             </div>
@@ -228,11 +400,51 @@ export function landingMarkup() {
           </article>
           </div>
         </section>
+        <section class="public-tutorials" aria-labelledby="public-tutorials-title" data-landing-tutorials>
+          <div class="public-section-heading">
+            <p class="public-eyebrow">Veja por dentro</p>
+            <h2 id="public-tutorials-title">Veja cada área funcionando</h2>
+            <p class="public-section-lead">Escolha uma área para conhecer o Aurora em ação.</p>
+          </div>
+          <div class="landing-tutorial-tabs" role="tablist" aria-label="Áreas do Aurora">
+            ${LANDING_TUTORIALS.map((area) => {
+              const selected = area.id === activeTutorialArea;
+              return `<button type="button" class="landing-tutorial-tab" role="tab" id="landing-tutorial-tab-${area.id}" aria-controls="landing-tutorial-panel-${area.id}" aria-selected="${selected}" tabindex="${selected ? '0' : '-1'}" data-landing-tutorial-tab="${area.id}" data-area="${area.id}">${area.title}</button>`;
+            }).join('')}
+          </div>
+          <div class="landing-tutorial-panels">
+            ${LANDING_TUTORIALS.map((area) => {
+              const selected = area.id === activeTutorialArea;
+              return `<section class="landing-tutorial-panel" role="tabpanel" id="landing-tutorial-panel-${area.id}" aria-labelledby="landing-tutorial-tab-${area.id}" tabindex="0" data-landing-tutorial-panel="${area.id}" data-area="${area.id}"${selected ? '' : ' hidden'}>
+                <div class="landing-tutorial-frame">
+                <video class="landing-tutorial-video" controls preload="none" muted playsinline poster="${LANDING_VIDEO_POSTER}" aria-label="Demonstração em vídeo: ${area.title}">
+                  <source data-tutorial-source="mp4" type="video/mp4">
+                  <source data-tutorial-source="webm" type="video/webm">
+                </video>
+                <button type="button" class="landing-tutorial-play" data-landing-tutorial-play aria-label="Carregar e reproduzir o vídeo de ${area.title}">${demoIcon('play', 24)}<span>Reproduzir vídeo</span></button>
+                </div>
+                <p class="landing-tutorial-status" data-landing-tutorial-status role="status" aria-live="polite" hidden></p>
+                <p class="landing-tutorial-description">${area.description}</p>
+              </section>`;
+            }).join('')}
+          </div>
+        </section>
+        <section class="public-community" aria-labelledby="public-community-title">
+          <div class="public-community-copy">
+            <p class="public-eyebrow">Convite aberto</p>
+            <h2 id="public-community-title">Sua experiência pode ajudar o Aurora a evoluir.</h2>
+            <p>Ainda não temos avaliações ou números públicos para compartilhar. Enquanto isso, conheça a demonstração e envie uma sugestão baseada na sua rotina.</p>
+          </div>
+          <a class="btn primary large public-community-link" href="#public-suggestion">Compartilhar uma sugestão</a>
+        </section>
         <section class="public-cta-panel" aria-labelledby="public-cta-title">
           <div class="public-cta-copy">
             <h2 id="public-cta-title">Leve sua rotina com você</h2>
             <p>Adicione o Aurora à tela inicial do celular e tenha seu espaço à mão quando precisar.</p>
-            <p class="public-install-note"><span>Android: toque para instalar. iPhone: no Safari, toque em Compartilhar → Adicionar à Tela de Início.</span></p>
+            <ul class="public-install-note">
+              <li><strong>Android:</strong> toque em “Instalar no celular” e siga as instruções.</li>
+              <li><strong>iPhone:</strong> no Safari, toque em Compartilhar → Adicionar à Tela de Início.</li>
+            </ul>
           </div>
           <div class="public-actions">
             <button class="btn primary" type="button" data-action="pwa-install">${demoIcon('download', 16)}Instalar no celular</button>
@@ -244,7 +456,7 @@ export function landingMarkup() {
             <h2 id="public-faq-title">Perguntas frequentes</h2>
           </div>
           <div class="public-faq-list compact-card-grid">
-            <details class="card public-faq-item">
+            <details class="card public-faq-item" open>
               <summary>O Aurora é grátis?${demoIcon('chevDown', 16)}</summary>
               <p>Sim. O Aurora é totalmente grátis e não pede cartão de crédito.</p>
             </details>
@@ -264,7 +476,7 @@ export function landingMarkup() {
               <summary>O que posso fazer em Ciclo?${demoIcon('chevDown', 16)}</summary>
               <p>Acompanhe datas e sintomas com seu consentimento específico. As informações são gerais e não substituem orientação profissional.</p>
             </details>
-            <details class="card public-faq-item" data-suggestion-disclosure>
+            <details class="card public-faq-item" id="public-suggestion" data-suggestion-disclosure>
               <summary>Envie uma sugestão${demoIcon('chevDown', 16)}</summary>
               ${renderSuggestionForm()}
             </details>

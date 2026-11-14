@@ -69,6 +69,11 @@
   border-color: var(--accent);
 }
 
+:is(.main, .dlg-back):is([data-route="planejar"], [data-route="habitos"], [data-route="agua"], [data-route="financas"], [data-route="ciclo"]) .chip:not(.cycle-choice, .cycle-intimacy-choice):is([aria-pressed="true"], .on) {
+  border-color: var(--area, var(--accent));
+  background: var(--surface);
+  color: var(--area, var(--accent));
+}
 
 .seg { min-width: 0; }
 .appearance-settings-option .seg button { min-width: 0; padding-inline: 8px; }

@@ -14,11 +14,6 @@
       "count": 2
     }
   },
-  "src/js/features/habits/view.js": {
-    "no-unused-vars": {
-      "count": 2
-    }
-  },
   "src/js/main.js": {
     "no-unused-vars": {
       "count": 20

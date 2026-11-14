@@ -1844,22 +1844,29 @@
   .account-gate.is-public-account .account-password-checklist { grid-template-columns: 1fr; }
 }
 
-/* Autenticação: header com marca e retorno ao início */
+/* Autenticação: o cabeçalho compartilha a navegação pública da landing. */
 .account-site-header {
   box-sizing: border-box;
+  position: sticky;
+  z-index: var(--z-header);
+  top: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
-  width: min(100%, var(--content-width));
-  margin: 0 auto var(--space-3);
-  padding: var(--space-1) var(--space-2);
+  width: 100%;
+  min-height: var(--topbar-height);
+  margin: 0;
+  padding: var(--space-1) var(--gut-l) var(--space-1) var(--gut-r);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .account-site-header .public-brand-link {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-right: auto;
+  flex: none;
   color: var(--ink);
   text-decoration: none;
 }
@@ -1868,28 +1875,13 @@
 .account-site-header .wordmark { color: var(--ink); font-size: var(--text-2xl); font-weight: var(--weight-bold); }
 .account-site-header .wordmark span { color: var(--accent); }
 
-.account-site-header .account-home-link {
-  min-height: var(--control-sm);
-  padding-inline: var(--space-4);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--button-radius);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  text-decoration: none;
-}
-
-.account-site-header .account-home-link:hover { background: var(--soft); }
-
 .account-site-header .account-auth-header-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.account-site-header .public-account-action[disabled] { display: none; }
-.account-site-header .public-account-action:not([disabled]) {
+.account-site-header .public-account-action {
   min-height: var(--control-sm);
   padding-inline: var(--space-4);
   border-color: var(--line-strong);
@@ -1900,24 +1892,36 @@
   font-weight: var(--weight-semibold);
 }
 
+.account-site-header .public-account-action[aria-current="page"] {
+  cursor: default;
+  opacity: 1;
+}
+
 .account-site-header .public-header-tools { display: flex; gap: var(--space-1); }
 
 .account-page:has(.account-site-header) > .account-gate { flex: 1; }
 
 :root[data-theme="dark"] .account-site-header .public-brand-link,
 :root[data-theme="dark"] .account-site-header .wordmark,
-:root[data-theme="dark"] .account-site-header .account-home-link,
-:root[data-theme="dark"] .account-site-header .public-account-action:not([disabled]) { color: var(--ink); }
-:root[data-theme="dark"] .account-site-header .account-home-link,
-:root[data-theme="dark"] .account-site-header .public-account-action:not([disabled]) { border-color: var(--line-strong); background: var(--surface); }
+:root[data-theme="dark"] .account-site-header .public-account-action { color: var(--ink); }
+:root[data-theme="dark"] .account-site-header .public-account-action { border-color: var(--line-strong); background: var(--surface); }
 
 @media (width <= 700px) {
-  .account-site-header { flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-4) 0; }
-  .account-site-header .account-home-link { order: 3; flex: 1 1 100%; justify-content: center; }
+  .account-site-header { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-4); }
   .account-site-header .account-auth-header-actions { margin-left: auto; }
   .account-gate.is-public-account > .account-card > .account-brand { display: none; }
   .account-gate.is-public-account > .account-card { margin-block: var(--space-2) var(--space-4); padding-top: var(--space-5); }
 }
+
+@media (width >= 900px) {
+  .account-site-header { padding-inline: clamp(20px, 4vw, 52px); }
+}
+
+@media (width <= 900px) {
+  .account-site-header .wordmark { display: none; }
+}
+
+.account-page:has(.account-gate.is-public-account):has(.account-site-header) { padding: 0; }
 
 /* Autenticação: estado de sucesso dedicado */
 .account-success-hero {
@@ -2042,7 +2046,7 @@
   border-color: color-mix(in srgb, var(--plum) 25%, var(--line));
   border-radius: var(--r-public-hero);
   background: var(--surface);
-  box-shadow: 0 30px 72px -42px rgb(53 32 29 / 45%);
+  box-shadow: var(--elev-2);
 }
 .account-gate.is-public-account > .account-intro {
   background:
@@ -2095,7 +2099,7 @@
   background: linear-gradient(90deg, var(--accent), var(--public-art-rose));
 }
 .account-gate.is-public-account .account-actions .btn.primary {
-  box-shadow: 0 14px 24px -16px color-mix(in srgb, var(--accent) 75%, transparent);
+  box-shadow: var(--elev-1);
 }
 
 @media (width <= 700px) {

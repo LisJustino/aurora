@@ -158,6 +158,7 @@ async function main() {
   runSuite('habits-app-experience.cjs', DEV_URL);
   runSuite('dashboard-hierarchy.cjs', DEV_URL);
   runSuite('backup-export-import.cjs', DEV_URL);
+  runSuite('pwa-install.cjs', DEV_URL);
   runSuite('pwa-update.cjs', PREVIEW_URL);
   runSuite('auth-callback-loading.cjs', PREVIEW_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);

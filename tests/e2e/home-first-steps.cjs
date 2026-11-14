@@ -24,17 +24,7 @@ const check = (passed, name, detail = '') => {
   check(await quickCard.evaluate((element) => !element.closest('.home-extras')), 'captura rápida fica fora do conteúdo secundário');
   check(await page.locator('.home-extras').getAttribute('open') === null, 'Mais do Início começa recolhido');
   const card = page.locator('.home-first-steps');
-  check(await card.count() === 1, 'primeiros passos ficam no conteúdo secundário');
-  check(await card.getByRole('link').count() === 0, 'ações iniciais ficam recolhidas por padrão');
-  await page.locator('.home-extras > summary').click();
-  await card.waitFor({ state: 'visible' });
-  check(await card.locator('summary').innerText().then((text) => text.includes('Primeiros passos')), 'primeiros passos aparecem ao expandir Mais do Início');
-  await card.locator('summary').click();
-  check(await card.getByRole('link').count() === 3, 'ações iniciais podem ser expandidas');
-  check(await card.locator('ol > li').count() === 3, 'cartão lista as três ações iniciais');
-  check((await card.locator('a').evaluateAll((links) => links.map((link) => link.getAttribute('href')))).join(',') === '/planejar,/habitos,/financas', 'ações iniciais usam rotas canônicas');
-  check(await card.locator('.home-first-steps-progress').innerText().then((text) => /\d+ de 3 ações concluídas/.test(text)), 'cartão informa o progresso das ações iniciais');
-  check(await card.locator('li.is-next').count() === 1 && await card.locator('li.is-next small').innerText() === 'Sugestão para você', 'cartão destaca uma próxima ação personalizada');
+  check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração com tarefas fictícias');
   check(await page.locator('#dlg').count() === 0, 'tutorial não abre automaticamente');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Início não tem overflow horizontal em 390 px');
   await page.setViewportSize({ width: 1366, height: 768 });
@@ -67,14 +57,12 @@ const check = (passed, name, detail = '') => {
       guideAlignedRight,
       guideMatchesGhostStyle,
       stepsColumn: getComputedStyle(document.querySelector('.home-extras')).gridColumn,
-      stepsWidth: steps.getBoundingClientRect().width,
-      actionColumns: getComputedStyle(steps.querySelector('.home-first-steps-list')).gridTemplateColumns.split(' ').length,
+      stepsPresent: Boolean(steps),
     };
   });
-  check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1', 'atalho do tutorial fica no cabeçalho e primeiros passos ocupam a largura total no desktop');
+  check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1' && !desktopLayout.stepsPresent, 'atalho do tutorial fica no cabeçalho e cartão de primeiro acesso não aparece na demonstração');
   check(desktopLayout.guideAlignedRight, 'atalho “Como usar?” fica alinhado à direita no cabeçalho do Início');
   check(desktopLayout.guideMatchesGhostStyle, 'atalho do Início mantém o estilo compartilhado dos botões “Como usar?”');
-  check(desktopLayout.stepsWidth >= desktopLayout.heroWidth * 0.95 && desktopLayout.actionColumns === 3, 'ações iniciais ficam em três colunas no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
 
   for (const route of ['planejar', 'financas', 'habitos', 'ciclo']) {
@@ -88,9 +76,6 @@ const check = (passed, name, detail = '') => {
     }), `atalho de ${route} cabe na largura móvel`);
   }
   await page.goto(`${BASE}/?preview#inicio`);
-  await page.locator('.home-extras > summary').click();
-  await card.waitFor({ state: 'visible' });
-
   check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
   await page.locator('.profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
@@ -99,7 +84,7 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
   check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo ao navegar para Ajustes');
   await page.locator('.nav a[href="/inicio"]').click();
-  await card.waitFor({ state: 'visible' });
+  check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração');
 
   await page.locator('.profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
@@ -111,21 +96,18 @@ const check = (passed, name, detail = '') => {
   await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a.nav-item').length === 2);
   await page.locator('.nav a[href="/inicio"]').click();
-  check(await card.count() === 0, 'primeiros passos oculta ações de áreas desativadas e some quando a tarefa restante já está concluída');
+  check(await card.count() === 0, 'cartão de primeiro acesso permanece oculto na demonstração');
 
   await page.reload();
-  await page.locator('.home-extras > summary').click();
-  await card.waitFor({ state: 'visible' });
   check(await page.evaluate(() => new URLSearchParams(location.search).has('preview')), 'modo de prévia continua ativo após recarregar');
-  await card.locator('summary').click();
-  await card.getByRole('button', { name: 'Dispensar' }).click();
-  check(await card.count() === 0, 'cartão pode ser dispensado');
 
   const quickInput = page.locator('#home-quick-title-input');
   await quickInput.fill('Revisar relatório amanhã 14h #trabalho');
   check((await page.locator('#home-quick-date-preview').innerText()).includes('14:00'),
     'captura rápida mostra a prévia do horário antes de salvar');
-  await page.locator('.home-quick-form button[type="submit"]').click();
+  check(await page.locator('.home-quick-form button[type="submit"]').count() === 0,
+    'captura rápida não duplica a ação de criação do header');
+  await quickInput.press('Enter');
   await page.locator('.nav a[href="/planejar"]').click();
   const createdTask = page.locator('.task').filter({ hasText: 'Revisar relatório' });
   check(await page.getByText('Revisar relatório', { exact: true }).count() >= 1
