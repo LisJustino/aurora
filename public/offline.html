@@ -3,31 +3,139 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1c1b19">
+  <meta name="theme-color" content="#f8f8f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
   <title>Sem conexão | aurora.</title>
   <style>
-    :root { color-scheme: light dark; font-family: "DM Sans", system-ui, sans-serif; background: #1c1b19; color: #f5f2ee; }
-    * { box-sizing: border-box; }
-    body { display: grid; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 24px; place-items: center; }
-    main { width: min(100%, 520px); padding: clamp(24px, 7vw, 48px); border: 1px solid #62504c; border-radius: 24px; background: #2a2523; }
-    .brand { display: inline-flex; align-items: center; gap: 8px; color: #f5f2ee; font-size: 1.25rem; font-weight: 700; text-decoration: none; }
-    .brand-mark { display: grid; width: 36px; height: 36px; border-radius: 12px; background: #c8a19e; color: #1c1b19; place-items: center; }
-    h1 { margin: 40px 0 12px; font-size: clamp(1.75rem, 7vw, 2.5rem); line-height: 1.1; }
-    p { color: #c9c1bb; line-height: 1.6; }
-    a.action { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; margin-top: 16px; padding: 0 20px; border-radius: 12px; background: #c8a19e; color: #1c1b19; font-weight: 700; text-decoration: none; }
-    a:focus-visible { outline: 3px solid #f1c8d4; outline-offset: 3px; }
+    :root {
+      color-scheme: light;
+      --bg: #f7f0ea;
+      --surface: #fffdfa;
+      --surface-strong: #fcf8f5;
+      --ink: #252321;
+      --muted: #625f5b;
+      --line: rgb(91 81 73 / 14%);
+      --accent: #ab4e69;
+      --btn: #ab4e69;
+      --on-btn: #fff;
+      --focus: #68423e;
+      --font: "DM Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #1c1b19;
+        --surface: #272522;
+        --surface-strong: #272522;
+        --ink: #f2efeb;
+        --muted: #c8c2bb;
+        --line: rgb(205 196 186 / 17%);
+        --accent: color-mix(in srgb, #c65a79 72%, #fff);
+        --focus: #edc6bc;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--bg); }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 1rem/1.5 var(--font);
+      letter-spacing: -.008em;
+    }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .public-error {
+      display: grid;
+      min-height: 100vh;
+      min-height: 100dvh;
+      grid-template-rows: auto 1fr;
+      gap: 48px;
+      width: min(100%, 1200px);
+      margin-inline: auto;
+      padding: 24px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      justify-self: start;
+      gap: 8px;
+      color: var(--ink);
+      font-size: 1.375rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .brand img { width: 36px; height: 36px; }
+    .wordmark i, h1 i { color: var(--accent); font-style: normal; }
+    .public-error-card {
+      display: grid;
+      width: min(100%, 560px);
+      justify-self: center;
+      align-self: center;
+      justify-items: center;
+      align-content: center;
+      gap: 16px;
+      padding: clamp(24px, 7vw, 48px);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface-strong);
+      box-shadow: 0 10px 24px -20px rgb(74 37 52 / 36%), 0 1px 3px rgb(74 37 52 / 7%);
+      text-align: center;
+    }
+    .public-error-code {
+      color: var(--accent);
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.45rem, 5vw, 1.9rem);
+      font-weight: 700;
+      letter-spacing: -.035em;
+      line-height: 1.2;
+      text-wrap: balance;
+    }
+    p { max-width: 42ch; margin: 0; color: var(--muted); line-height: 1.6; }
+    .action {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+      padding: 0 20px;
+      border: 1px solid var(--btn);
+      border-radius: 12px;
+      background: var(--btn);
+      color: var(--on-btn);
+      font-weight: 700;
+      text-decoration: none;
+    }
+    @media (max-width: 480px) {
+      .public-error { padding: 16px; }
+      .action { width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <main>
+  <main class="public-error" aria-labelledby="offline-title">
     <a class="brand" href="/" aria-label="aurora., página inicial">
-      <span class="brand-mark" aria-hidden="true">a.</span>
-      <span>aurora.</span>
+      <img src="/icons/favicon.svg" alt="" width="36" height="36">
+      <span class="wordmark">aurora<i>.</i></span>
     </a>
-    <h1>Você está sem conexão<i>.</i></h1>
-    <p>O Aurora precisa da internet para entrar na conta e sincronizar seus dados. Confira sua conexão e tente novamente; alterações offline não serão salvas.</p>
-    <a class="action" href="/">Tentar novamente</a>
+    <section class="public-error-card">
+      <span class="public-error-code" aria-hidden="true">offline</span>
+      <h1 id="offline-title">Você está sem conexão<i>.</i></h1>
+      <p>O Aurora precisa da internet para entrar na conta e sincronizar seus dados. Confira sua conexão e tente novamente; alterações offline não serão salvas.</p>
+      <a class="action" href="/">Tentar novamente</a>
+    </section>
   </main>
+  <script>window.addEventListener('online',()=>window.location.reload());</script>
 </body>
 </html>

@@ -1,11 +1,13 @@
 export const FINANCE_PRIVACY_NOTICE = 'O Aurora não se conecta a bancos nem solicita sua senha bancária. Você escolhe o que cadastrar ou importar; esses registros ficam associados à sua conta Aurora e são tratados conforme a Política de Privacidade.';
 
+const tutorialAsset = (name) => `/src/assets/tutorials/${name}`;
+
 export const AREA_GUIDES = {
   inicio: {
     title: 'Início',
     summary: 'Acompanhe o dia e encontre atalhos para suas áreas.',
-    video: new URL('../../assets/tutorials/inicio.mp4', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/inicio.webm', import.meta.url).href,
+    video: tutorialAsset('inicio.mp4'),
+    poster: tutorialAsset('inicio.webp'),
     steps: [
       { title: 'Comece pelo que importa', text: 'Confira as tarefas de hoje e os avisos que pedem sua atenção. Abra uma tarefa para ver detalhes ou atualizar o andamento.' },
       { title: 'Use os atalhos do painel', text: 'Crie uma tarefa sem sair de Início. Os atalhos levam você direto à ação.' },
@@ -15,8 +17,8 @@ export const AREA_GUIDES = {
   planejar: {
     title: 'Planejar',
     summary: 'Organize tarefas por prazo e escolha a visualização que ajuda você.',
-    video: new URL('../../assets/tutorials/planejar.mp4', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/planejar.webm', import.meta.url).href,
+    video: tutorialAsset('planejar.mp4'),
+    poster: tutorialAsset('planejar.webp'),
     steps: [
       { title: 'Transforme planos em tarefas', text: 'Adicione um título e, se ajudar, escolha prazo, prioridade e lista. Você pode começar sem preencher tudo.' },
       { title: 'Escolha como visualizar', text: 'Use a lista para acompanhar itens, o calendário ou a semana para ver datas e a revisão para retomar o que ficou pendente.' },
@@ -27,8 +29,8 @@ export const AREA_GUIDES = {
   financas: {
     title: 'Finanças',
     summary: 'Monte um retrato financeiro manual: você decide quais contas e lançamentos registrar.',
-    video: new URL('../../assets/tutorials/financas.mp4', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/financas.webm', import.meta.url).href,
+    video: tutorialAsset('financas.mp4'),
+    poster: tutorialAsset('financas.webp'),
     steps: [
       { title: 'Comece pelas contas', text: 'Cadastre manualmente uma conta ou carteira e informe o saldo inicial que deseja acompanhar. O Aurora não importa saldos bancários por conta própria.' },
       { title: 'Registre cada movimentação', text: 'Adicione receitas e despesas com valor, data, categoria e conta. Os valores são aqueles que você informar.' },
@@ -40,8 +42,8 @@ export const AREA_GUIDES = {
   habitos: {
     title: 'Hábitos',
     summary: 'Monte rotinas possíveis e acompanhe os registros dia a dia.',
-    video: new URL('../../assets/tutorials/habitos.mp4', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/habitos.webm', import.meta.url).href,
+    video: tutorialAsset('habitos.mp4'),
+    poster: tutorialAsset('habitos.webp'),
     steps: [
       { title: 'Escolha algo possível', text: 'Crie um hábito com um nome claro e selecione os dias em que pretende praticá-lo. Você pode ajustar a rotina depois.' },
       { title: 'Registre sem cobrança', text: 'Marque os dias em que concluiu. Se não aconteceu, registre como pulado quando quiser manter esse contexto no histórico.' },
@@ -52,8 +54,8 @@ export const AREA_GUIDES = {
   ciclo: {
     title: 'Ciclo',
     summary: 'Registre períodos e, se quiser, sintomas e outras observações.',
-    video: new URL('../../assets/tutorials/ciclo.mp4', import.meta.url).href,
-    fallbackVideo: new URL('../../assets/tutorials/ciclo.webm', import.meta.url).href,
+    video: tutorialAsset('ciclo.mp4'),
+    poster: tutorialAsset('ciclo.webp'),
     steps: [
       { title: 'Registre o que aconteceu', text: 'Adicione o início e o fim do período conforme seus registros. Você pode corrigir datas quando precisar.' },
       { title: 'Use o calendário', text: 'Selecione um dia para consultar ou adicionar sintomas e observações. Compartilhe apenas o que se sentir confortável em registrar.' },

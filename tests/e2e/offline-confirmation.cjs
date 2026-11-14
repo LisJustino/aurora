@@ -17,6 +17,25 @@ const check = (passed, name, detail = '') => {
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
+
+  const offlinePage = await page.goto(`${BASE}/offline.html`);
+  check(offlinePage?.status() === 200, '/offline.html responde HTTP 200');
+  for (const [colorScheme, expectedBackground] of [
+    ['light', 'rgb(247, 240, 234)'],
+    ['dark', 'rgb(28, 27, 25)'],
+  ]) {
+    await page.emulateMedia({ colorScheme });
+    const background = await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+    check(background === expectedBackground, `/offline.html aplica tema ${colorScheme}`, background);
+  }
+  await page.goto(`${BASE}/offline.html`);
+  await page.getByRole('link', { name: 'Tentar novamente' }).waitFor();
+  const [offlineReload] = await Promise.all([
+    page.waitForNavigation(),
+    page.evaluate(() => window.dispatchEvent(new Event('online'))),
+  ]);
+  check(offlineReload?.status() === 200, 'a página offline recarrega quando a conexão volta');
+
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('#app .app-definitions').waitFor({ state: 'attached' });
 

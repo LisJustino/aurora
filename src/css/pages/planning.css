@@ -69,7 +69,7 @@
   flex: none;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(var(--accent) var(--annual-progress), var(--surface-soft) 0);
+  background: conic-gradient(var(--area, var(--accent)) var(--annual-progress), var(--surface-soft) 0);
 }
 .annual-plan-progress-ring::before {
   position: absolute;
@@ -233,7 +233,7 @@
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
 }
-.annual-ideas-empty {
+.annual-ideas-empty:not(.empty-state) {
   grid-column: 1 / -1;
   margin: 0;
   padding: var(--space-4);
@@ -305,16 +305,16 @@
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
-.annual-quarter-empty {
+.annual-quarter .empty-state {
   min-height: var(--row-height-standard);
-  display: grid;
-  margin: 0;
-  place-items: center;
-  color: var(--muted);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  text-align: center;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-content: center;
+  padding: var(--space-3);
 }
+.annual-quarter .empty-state .empty-state-title { font-size: var(--text-sm); }
+.annual-quarter .empty-state .empty-state-description { font-size: var(--text-xs); }
+.annual-quarter .empty-state .empty-action,
+.annual-quarter .empty-state .empty-action > .btn { grid-column: 1 / -1; width: 100%; }
 .annual-goal-list {
   display: grid;
   flex: 1;

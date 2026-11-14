@@ -45,7 +45,7 @@
   text-decoration: line-through;
   text-decoration-color: transparent;
   text-decoration-thickness: 2px;
-  transition: color var(--duration-fast) var(--ease-standard), text-decoration-color 220ms var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard), text-decoration-color var(--duration-base) var(--ease-standard);
 }
 .task.done .ttl { color: var(--muted); text-decoration-color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
 .task.is-swiping { transition: none; transform: translateX(var(--task-swipe-x, 0)); }
@@ -100,11 +100,9 @@
   border-radius: 50%;
   background: var(--surface-strong);
   color: transparent;
-  transition: background-color .15s ease, border-color .15s ease;
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
 .chk[aria-checked="true"] span { border-color: var(--btn); background: var(--btn); color: var(--on-btn); }
-.chk.pop span { animation: pop .22s ease; }
-@keyframes pop { 50% { transform: scale(1.18); } }
 .chk.p-high:not([aria-checked="true"]) span { border-color: var(--bad); }
 .chk.p-low:not([aria-checked="true"]) span { border-color: var(--priority-low); }
 
@@ -399,7 +397,7 @@ details.card:not([open]) { gap: 0; }
   background: var(--soft2);
   color: var(--ink);
 }
-.task .chk span { box-shadow: 0 2px 6px -5px var(--ink); }
+.task .chk span { box-shadow: var(--elev-1); }
 
 @media (width <= 700px) {
   .task > .ibtn[data-action="del-task"] { display: none; }

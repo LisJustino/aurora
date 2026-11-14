@@ -15,6 +15,7 @@ const context = {
   ui: { persistFailed: new Set(), route: 'inicio' },
   toast: (message) => messages.push(message),
   purgeExpiredTrash() {},
+  preloadEnabledRouteModules() {},
   reconcileRecurringTransactions: () => false,
   genRecurring: () => false,
   saveSlices() {},
@@ -29,7 +30,7 @@ const context = {
   isNativeApp: () => false,
   initializePushNotifications: async () => {
     initialized += 1;
-    for (const kind of ['habit-reminder', 'task-reminder']) {
+    for (const kind of ['habit-reminder', 'task-reminder', 'weekly-review']) {
       const event = new Event('aurora:push-notification');
       event.detail = { kind };
       listeners.dispatchEvent(event);
@@ -47,15 +48,16 @@ assert.equal(initialized, 1);
 assert.deepEqual(messages, [
   'Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.',
   'Um lembrete de tarefa chegou. Abra Planejar para conferir sua lista.',
+  'Sua semana está disponível em Planejar, quando quiser.',
 ]);
 const ignored = new Event('aurora:push-notification');
 ignored.detail = { kind: 'other' };
 listeners.dispatchEvent(ignored);
-assert.equal(messages.length, 2);
+assert.equal(messages.length, 3);
 
 await start();
 assert.equal(initialized, 2);
-assert.equal(messages.length, 4, 'A reinicialização não deve duplicar o listener.');
+assert.equal(messages.length, 6, 'A reinicialização não deve duplicar o listener.');
 assert.equal((source.match(/addEventListener\('aurora:push-notification'/g) || []).length, 1);
 assert.ok(source.indexOf('const toast = setToast;') < source.indexOf("addEventListener('aurora:push-notification'"));
 console.log('push-notification-startup: all checks passed');

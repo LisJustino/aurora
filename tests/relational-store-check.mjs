@@ -231,6 +231,7 @@ const state = {
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
+      firstStepsStarted: true,
       profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
       annualPlans: {
         2027: {
@@ -399,6 +400,7 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
 });
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
+assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsStarted, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, {
   2027: {
@@ -491,6 +493,7 @@ for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {
   assert.equal(Object.hasOwn(loadedInvestment, field), false, `Campo opcional ${field} deve ficar ausente quando o banco retorna null`);
 }
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.equal(loadedState.settings.prefs.firstStepsStarted, true);
 assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
 assert.deepEqual(loadedState.checkins, [{
   date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],

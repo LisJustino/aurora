@@ -686,22 +686,19 @@ export function createAccountForm(root, {
     header.innerHTML = renderPublicHeader({ authMode: mode.startsWith('signup-') ? 'signup' : mode });
     const publicHeader = header.content.firstElementChild;
     publicBrand = publicHeader.querySelector('.public-brand-link');
+    const publicNav = publicHeader.querySelector('.public-header-nav');
     publicActions = publicHeader.querySelector('.public-header-actions');
     page.classList.add('is-public-account');
+    if (publicBrand && publicNav && publicActions) {
+      publicActions.classList.add('account-auth-header-actions');
+      const siteHeader = create('header', 'account-site-header');
+      siteHeader.append(publicBrand, publicNav, publicActions);
+      layout.insertBefore(siteHeader, page);
+    }
   }
   page.append(createAccountIntro(mode, null));
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
-  if (publicBrand && publicActions) {
-    publicActions.classList.add('account-auth-header-actions');
-    const home = create('a', 'btn account-home-link');
-    home.href = '/';
-    home.dataset.publicAction = 'landing';
-    home.innerHTML = '<span aria-hidden="true">←</span> Voltar ao início';
-    const siteHeader = create('header', 'account-site-header');
-    siteHeader.append(publicBrand, home, publicActions);
-    layout.insertBefore(siteHeader, page);
-  }
   const brand = create('p', 'account-brand', 'aurora');
   const heading = create('h1', '', title);
   heading.id = 'account-title';
@@ -1401,6 +1398,7 @@ export async function requireAccount(root, initialMode = 'login', {
   onAccountDeleted,
   initialNotice = '',
   initialNoticeTone = '',
+  authStylesReady = Promise.resolve(),
 } = {}) {
   const callbackErrorMessage = authCallbackErrorMessage(location);
   if (callbackErrorMessage) {
@@ -1436,6 +1434,7 @@ export async function requireAccount(root, initialMode = 'login', {
   }
 
   const authPage = async (mode, email = '', notice = '', signupProfile = null, noticeTone = '') => {
+    await authStylesReady;
     const copy = {
       login: ['Entrar na sua conta', 'Entre para continuar com seus registros.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
       'signup-profile': ['Seu perfil', 'Comece com seus dados básicos.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],

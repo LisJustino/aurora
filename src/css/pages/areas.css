@@ -1,7 +1,9 @@
 /* Page-specific hierarchy layered on shared components */
 .main[data-route="habitos"] .habit-water-area {
-  --water-accent: var(--area-water);
-  --water-soft: color-mix(in srgb, var(--area-water) 9%, var(--surface-strong));
+  --area: var(--area-water);
+  --progress-tone: var(--area);
+  --water-accent: var(--area);
+  --water-soft: color-mix(in srgb, var(--area) 9%, var(--surface-strong));
 }
 .habit-water-area { display: grid; gap: var(--space-3); scroll-margin-top: var(--space-4); }
 .habit-water-area > .head { margin: 0; }
@@ -63,11 +65,11 @@
 .water-actions .chip {
   min-width: 104px;
   justify-content: center;
-  border-color: color-mix(in srgb, var(--water-accent) 28%, var(--line));
-  background: var(--water-soft);
-  color: var(--water-accent);
+  border-color: var(--area);
+  background: var(--surface);
+  color: var(--area);
 }
-.water-actions .chip:hover { border-color: var(--water-accent); background: color-mix(in srgb, var(--water-accent) 15%, var(--surface)); }
+.water-actions .chip:hover { border-color: var(--area); background: var(--surface); color: var(--area); }
 .water-actions .chip:active { transform: translateY(1px); }
 .water-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-xs); }
 .water-divider::before, .water-divider::after { height: 1px; flex: 1; background: var(--line); content: ""; }
@@ -103,8 +105,8 @@
 .cycle-overview-stats { align-items: center; gap: var(--space-3); }
 .cycle-overview-stats .stat { padding: 14px; border-color: color-mix(in srgb, var(--area-cycle) 18%, var(--line)); background: color-mix(in srgb, var(--surface) 82%, var(--soft)); }
 .cycle-overview-stats .stat b { color: var(--ink); font-size: var(--text-xl); }
-.cycle-day-ring { position: relative; display: grid; width: 118px; height: 118px; flex: none; justify-self: center; place-items: center; border-radius: 50%; background: conic-gradient(var(--area-cycle) var(--cycle-progress), color-mix(in srgb, var(--area-cycle) 13%, var(--surface)) 0); }
-.cycle-day-ring.is-unestimated { background: color-mix(in srgb, var(--area-cycle) 13%, var(--surface)); }
+.cycle-day-ring { position: relative; display: grid; width: 118px; height: 118px; flex: none; justify-self: center; place-items: center; border-radius: 50%; background: conic-gradient(var(--area, var(--area-cycle)) var(--cycle-progress), color-mix(in srgb, var(--area, var(--area-cycle)) 13%, var(--surface)) 0); }
+.cycle-day-ring.is-unestimated { background: color-mix(in srgb, var(--area, var(--area-cycle)) 13%, var(--surface)); }
 .cycle-day-ring::before { position: absolute; inset: 9px; border-radius: inherit; background: var(--surface-strong); content: ""; }
 .cycle-day-ring > span { position: relative; z-index: 1; display: grid; justify-items: center; gap: var(--space-1); }
 .cycle-day-ring b { color: var(--area-cycle); font: var(--weight-bold) var(--text-4xl)/1 var(--font-h); font-variant-numeric: tabular-nums; }
@@ -140,7 +142,9 @@
   border-color: color-mix(in srgb, var(--area-cycle) 25%, var(--line));
   background: linear-gradient(145deg, color-mix(in srgb, var(--area-cycle) 7%, var(--surface-strong)), var(--surface-strong) 62%);
 }
-.cycle-start-empty .empty { flex-direction: column; }
+.cycle-start-empty .empty-state { grid-template-columns: 48px minmax(0, 1fr); }
+.cycle-start-empty .empty-state .empty-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
+.cycle-start-empty .empty-state .empty-action > .btn { width: auto; min-width: 188px; }
 .cycle-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
 .cycle-empty-actions > .btn { min-width: 0; }
 .cycle-day-entry > .head { align-items: flex-start; }
@@ -192,7 +196,7 @@
 .cycle-intimacy-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .cycle-log-dialog .cycle-intimacy-choice { min-height: var(--control-field); }
 .cycle-log-dialog .cycle-intimacy-group .cycle-intimacy-choices .cycle-intimacy-choice { display: inline-flex; width: auto; min-width: 0; max-width: 100%; flex: none; grid-template-columns: none; justify-content: center; white-space: nowrap; }
-.cycle-log-dialog .cycle-intimacy-choice[aria-pressed="true"] { border-color: var(--area-cycle); background: color-mix(in srgb, var(--area-cycle) 9%, var(--surface-strong)); color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area-cycle) 30%, transparent); }
+.cycle-log-dialog .cycle-intimacy-choice[aria-pressed="true"] { border-color: var(--area, var(--area-cycle)); background: color-mix(in srgb, var(--area, var(--area-cycle)) 9%, var(--surface-strong)); color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area, var(--area-cycle)) 30%, transparent); }
 .cycle-intimacy-methods { padding-top: 10px; border-top: 1px solid var(--line); }
 .cycle-log-dialog .cycle-intimacy-group .cycle-contraception-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .cycle-log-dialog .cycle-intimacy-group .cycle-contraception-options .chip { display: inline-flex; width: auto; min-width: 0; min-height: var(--control-field); }
@@ -324,6 +328,7 @@
   .cycle-overview-actions > .btn { width: 100%; }
   .cycle-empty-actions { width: 100%; flex-direction: column; }
   .cycle-empty-actions > .btn { width: 100%; }
+  .cycle-start-empty .empty-state .empty-action > .btn { width: 100%; min-width: 0; }
   .cycle-period-tools { align-items: stretch; flex-direction: column; }
   .cycle-period-tools > div { display: grid; grid-template-columns: minmax(0, 1fr); }
   .cycle-period-tools .btn { width: 100%; }
@@ -409,13 +414,12 @@
 }
 .main[data-route="agua"] .card,
 .main[data-route="ciclo"] .card {
-  border-radius: var(--r);
+  border-radius: var(--r-card);
 }
 
 @media (width <= 480px) {
   .page-title h1 { font-size: var(--text-page-title); }
 }
-.main[data-route="agua"] { --progress-tone: var(--area-water); }
 .water-progress {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--progress-tone) 14%, transparent);
@@ -430,9 +434,6 @@
   box-shadow: inset -1px 0 0 color-mix(in srgb, white 34%, transparent);
   transition: width var(--duration-base) var(--ease-standard);
 }
-.main[data-route="agua"] { --area-tone: var(--area-water); }
-.main[data-route="ciclo"] { --area-tone: var(--area-cycle); }
-
 .main[data-route="agua"] > .lead,
 .main[data-route="ciclo"] > .lead {
   max-width: 68ch;

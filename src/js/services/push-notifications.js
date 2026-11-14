@@ -132,14 +132,16 @@ async function ensureNativePushListeners() {
     await plugin.addListener('registrationError', nativePushError);
     await plugin.addListener('pushNotificationReceived', (notification) => {
       const kind = notification.data?.kind;
-      if (kind === 'habit-reminder' || kind === 'task-reminder') {
+      if (kind === 'habit-reminder' || kind === 'task-reminder' || kind === 'weekly-review') {
         window.dispatchEvent(new CustomEvent('aurora:push-notification', { detail: { kind } }));
       }
     });
     await plugin.addListener('pushNotificationActionPerformed', ({ notification }) => {
       const route = notification.data?.kind === 'habit-reminder'
         ? '/habitos'
-        : notification.data?.kind === 'task-reminder' ? '/planejar' : '';
+        : notification.data?.kind === 'weekly-review'
+          ? '/planejar?revisao=semana'
+          : notification.data?.kind === 'task-reminder' ? '/planejar' : '';
       if (route) window.location.assign(route);
     });
     if (Capacitor.getPlatform() === 'ios') {

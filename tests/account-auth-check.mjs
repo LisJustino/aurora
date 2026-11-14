@@ -240,6 +240,17 @@ const landingSource = readFileSync(new URL('../src/js/features/landing/view.js',
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
 assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.9">/);
 assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.0">/);
+const analyticsSection = privacyDocument.match(/<section id="privacy-analytics">([\s\S]*?)<\/section>/)?.[1];
+assert.ok(analyticsSection, 'A política deve explicar a medição de acessos da Cloudflare.');
+assert.match(analyticsSection, /Cloudflare Web Analytics/);
+assert.match(analyticsSection, /acessos agregados/);
+assert.match(analyticsSection, /sem identificar as pessoas/);
+assert.match(analyticsSection, /melhorias/);
+assert.match(analyticsSection, /cookies de publicidade/);
+assert.match(analyticsSection, /href="https:\/\/developers\.cloudflare\.com\/web-analytics\/"/);
+assert.match(analyticsSection, /href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/);
+assert.match(privacyDocument, /última atualização: 14 de novembro de 2026/);
+assert.doesNotMatch(privacyDocument, /11 de novembro de 2026/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);

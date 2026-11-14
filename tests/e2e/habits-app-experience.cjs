@@ -142,20 +142,41 @@ const check = (passed, name, detail = '') => {
   await page.locator('.habit-today [data-action="habit-new"]').click();
   await page.locator('#dlgform [data-dlg="name"]').fill('Alongar por cinco minutos');
   await page.locator('#dlgform [data-dlg="remind"]').fill('09:00');
+  for (const day of await page.locator('#dlgform [name="days"]').all()) {
+    if (!await day.isChecked()) await day.check();
+  }
   await page.locator('button[form="dlgform"][type="submit"]').click();
   const row = page.locator('.habit-row[data-habit-id]').first();
   await row.waitFor({ state: 'visible' });
   check(await row.locator('.habit-week').isVisible()
     && await row.locator('.habit-dot').count() === 7, 'semana fica visível no cartão sem abrir detalhes');
+  check(await page.locator('.habit-week-overview .habit-week-chart-column').count() === 7
+    && await page.locator('.habit-week-chart-bar.is-today').count() === 1,
+  'panorama diário exibe sete barras e contorna o dia atual');
   check(await row.locator('.habit-more').evaluate((details) => !details.open), 'detalhes do hábito começam recolhidos');
   const reminderNote = page.locator('.habit-reminder-note');
   check(await reminderNote.getByRole('switch', { name: 'Avisos fora do app' }).count() === 1
     && await reminderNote.locator('summary').count() === 0,
   'controle de notificações apresenta o interruptor sem explicações extensas');
+  const yesterday = await page.evaluate(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
+  const yesterdayDot = row.locator(`.habit-dot[data-d="${yesterday}"]`);
+  const hasYesterdayInWeek = await yesterdayDot.count() === 1;
+  if (hasYesterdayInWeek) {
+    await yesterdayDot.click();
+    check(await row.locator('.habit-streak').count() === 0, 'um dia concluído ainda não mostra o selo de sequência');
+  }
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
-  check(await row.locator('.habit-more > summary .habit-streak').textContent() === 'Sequência: 1 dia programado',
-    'sequência individual fica visível sem abrir os detalhes');
+  check(hasYesterdayInWeek
+    ? await row.locator('.habit-more > summary .habit-streak').textContent() === '2 dias seguidos'
+    : await row.locator('.habit-streak').count() === 0,
+  hasYesterdayInWeek
+    ? 'selo aparece após dois check-ins programados consecutivos'
+    : 'um único check-in não mostra selo no início da semana');
   check(await page.getByRole('status').filter({ hasText: 'Dia concluído!' }).count() === 1,
     'concluir o último hábito do dia mostra o estado de dia concluído');
   check(await page.locator('#toast').getByText('Hábito marcado como concluído.').count() === 1, 'marcação de hábito oferece desfazer');
@@ -212,6 +233,112 @@ const check = (passed, name, detail = '') => {
   check(darkLayout.theme === 'dark' && !darkLayout.overflow && darkLayout.surface !== lightSurface,
     'cartões e filtros permanecem utilizáveis em tema escuro', JSON.stringify(darkLayout));
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
+
+  const navPage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+  await navPage.emulateMedia({ reducedMotion: 'reduce' });
+  const navErrors = [];
+  navPage.on('pageerror', (error) => navErrors.push(error.message));
+  const session = await navPage.context().newCDPSession(navPage);
+  await navPage.goto(`${BASE}/?preview#planejar`);
+  await navPage.locator('.main[data-route="planejar"]').waitFor({ state: 'visible' });
+  await navPage.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
+  for (const width of [360, 390, 430]) {
+    await navPage.setViewportSize({ width, height: 844 });
+    for (const inset of [0, 34]) {
+      await session.send('Emulation.setSafeAreaInsetsOverride', { insets: { bottom: inset } });
+      for (const route of ['planejar', 'habitos', 'financas', 'ciclo']) {
+        await navPage.evaluate((value) => { location.hash = value; }, route);
+        await navPage.locator(`.main[data-route="${route}"]`).waitFor({ state: 'visible' });
+        for (const [theme, contrast] of [['light', 'normal'], ['dark', 'normal'], ['light', 'high'], ['dark', 'high']]) {
+          const layout = await navPage.evaluate(({ theme, contrast }) => {
+            document.documentElement.dataset.theme = theme;
+            document.documentElement.dataset.contrast = contrast;
+            const nav = document.querySelector('.topbar .nav');
+            const item = nav.querySelector('[aria-current="page"]');
+            const icon = item.querySelector('.ni');
+            const label = item.querySelector('.tab-label');
+            const main = document.querySelector('.app > .main');
+            const navStyle = getComputedStyle(nav);
+            const itemStyle = getComputedStyle(item);
+            const iconStyle = getComputedStyle(icon);
+            const gradient = getComputedStyle(nav, '::before');
+            const sample = document.createElement('span');
+            sample.style.color = 'var(--area, var(--accent))';
+            sample.style.backgroundColor = 'color-mix(in srgb, var(--area, var(--accent)) 2%, var(--surface))';
+            sample.style.backgroundImage = 'linear-gradient(to bottom, transparent, var(--bg))';
+            item.append(sample);
+            const expected = getComputedStyle(sample);
+            const matches = itemStyle.backgroundColor === expected.backgroundColor
+              && iconStyle.backgroundColor === expected.backgroundColor
+              && itemStyle.color === expected.color
+              && itemStyle.color === iconStyle.color
+              && itemStyle.color === getComputedStyle(label).color
+              && gradient.backgroundImage === expected.backgroundImage;
+            sample.remove();
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            context.fillStyle = navStyle.backgroundColor;
+            context.fillRect(0, 0, 1, 1);
+            const alpha = context.getImageData(0, 0, 1, 1).data[3] / 255;
+            const bounds = nav.getBoundingClientRect();
+            return {
+              matches, alpha, blur: navStyle.backdropFilter,
+              gradientHeight: parseFloat(gradient.height),
+              gradientWidth: parseFloat(gradient.width),
+              gradientPointer: gradient.pointerEvents,
+              padding: parseFloat(getComputedStyle(main).paddingBottom),
+              height: bounds.height,
+              bottom: innerHeight - bounds.bottom,
+              overflow: document.documentElement.scrollWidth > innerWidth,
+            };
+          }, { theme, contrast });
+          const valid = layout.matches && Math.abs(layout.alpha - .92) < .005
+            && layout.blur.includes('blur(') && layout.gradientHeight === 24
+            && layout.gradientWidth === width && layout.gradientPointer === 'none'
+            && layout.bottom >= inset + 8 && layout.padding >= layout.height + layout.bottom
+            && !layout.overflow;
+          check(valid, `barra móvel em ${width}px, área ${route}, ${theme}/${contrast}, área segura ${inset}px`,
+            valid ? '' : JSON.stringify(layout));
+        }
+      }
+      await navPage.evaluate(() => { window.scrollTo(0, document.documentElement.scrollHeight); });
+      const footerVisible = await navPage.evaluate(() => {
+        const footer = document.querySelector('.app-footer .site-footer-content').getBoundingClientRect();
+        const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+        return footer.bottom <= nav.top;
+      });
+      check(footerVisible, `rodapé fica acima da barra em ${width}px com área segura de ${inset}px`);
+      await navPage.locator('.nav-item[data-route="habitos"]').click();
+      await navPage.locator('.main[data-route="habitos"]').waitFor({ state: 'visible' });
+      await navPage.evaluate(() => {
+        document.documentElement.dataset.fs = 'l';
+        document.documentElement.dataset.readable = 'true';
+        document.querySelector('.app-footer')?.remove();
+        const marker = document.createElement('button');
+        marker.textContent = 'Último item';
+        marker.id = 'last-content-check';
+        document.querySelector('.app > .main').append(marker);
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      const lastVisible = await navPage.evaluate(() => {
+        const item = document.getElementById('last-content-check').getBoundingClientRect();
+        const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+        const padding = parseFloat(getComputedStyle(document.querySelector('.app > .main')).paddingBottom);
+        return item.bottom <= nav.top && item.top >= 0 && padding >= nav.height + innerHeight - nav.bottom;
+      });
+      check(lastVisible, `último item fica acima da barra em ${width}px com área segura de ${inset}px e texto ampliado`);
+      await navPage.evaluate(() => {
+        delete document.documentElement.dataset.fs;
+        delete document.documentElement.dataset.readable;
+      });
+    }
+  }
+  await navPage.setViewportSize({ width: 1280, height: 844 });
+  check(await navPage.locator('.topbar .nav').evaluate((nav) =>
+    getComputedStyle(nav).position === 'static' && getComputedStyle(nav, '::before').content === 'none'),
+  'barra inferior e degradê não aparecem no desktop');
+  check(navErrors.length === 0, 'barra móvel sem erros de execução', navErrors.slice(0, 3).join(' | '));
+  await navPage.close();
 
   await browser.close();
   process.exit(results.every(Boolean) ? 0 : 1);

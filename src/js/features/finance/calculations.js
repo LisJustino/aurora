@@ -1,5 +1,20 @@
+import { weekDays } from '../planning/week.js';
+
 export const isPaid = (transaction) => transaction.paid !== false;
 export const isCreditAccount = (account) => account && account.type === 'credit';
+
+export function expenseWeekTotals(transactions, day, weekStart = 1) {
+  const days = weekDays(day, weekStart);
+  const totals = new Map(days.map((date) => [date, 0]));
+  for (const transaction of transactions) {
+    if (transaction?.type !== 'out'
+      || !Number.isSafeInteger(transaction.cents)
+      || transaction.cents < 0
+      || !totals.has(transaction.date)) continue;
+    totals.set(transaction.date, totals.get(transaction.date) + transaction.cents);
+  }
+  return days.map((date) => ({ day: date, cents: totals.get(date) }));
+}
 
 export function installmentSummary(transactions, transactionId, accountForId, currentMonth) {
   const selected = transactions.find((transaction) => transaction.id === transactionId);
