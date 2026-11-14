@@ -19,14 +19,20 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('.preview-shell .main').waitFor();
-  const quickTrigger = page.locator('.nav-quick-trigger');
+  check(await page.locator('.global-quick-actions, .global-quick-fab').count() === 0, 'não há botão flutuante de criação duplicado');
+  const quickTrigger = () => page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first();
   const quickMenu = page.locator('#quick-actions-menu');
   const openQuickActions = async () => {
     if (await quickMenu.isVisible()) return;
-    await quickTrigger.click();
+    await quickTrigger().click();
     await quickMenu.waitFor({ state: 'visible' });
   };
+  await openQuickActions();
+  check(await quickMenu.getByRole('button', { name: 'Beber água', exact: true }).count() === 1,
+    'atalho de água permanece no menu do header');
+  await page.keyboard.press('Escape');
   const shortcutPage = await browser.newPage();
+  await shortcutPage.emulateMedia({ reducedMotion: 'reduce' });
   const shortcutErrors = [];
   shortcutPage.on('pageerror', (error) => shortcutErrors.push(error.message));
   await shortcutPage.goto(`${BASE}/?preview#inicio`);
@@ -45,12 +51,93 @@ const check = (passed, name, detail = '') => {
     ), taskId);
   }
   await shortcutPage.locator('.home-day-complete').waitFor({ state: 'visible' });
-  check(await shortcutPage.locator('.home-day-complete').isVisible(), 'dia concluído aparece após terminar as tarefas de hoje e atrasadas');
+  const reducedCompletion = await shortcutPage.locator('.home-head').evaluate((header) => ({
+    hasMotionClass: header.classList.contains('is-day-completion'),
+    animationName: getComputedStyle(header).animationName,
+    lead: header.querySelector('.lead').textContent,
+  }));
+  check(await shortcutPage.locator('.home-day-complete').isVisible()
+    && !reducedCompletion.hasMotionClass
+    && reducedCompletion.animationName === 'none'
+    && reducedCompletion.lead.includes('Tudo concluído por hoje.'),
+  'dia concluído atualiza a mensagem sem animação quando o movimento é reduzido');
   await shortcutPage.locator('.home-completed > summary').click();
   await shortcutPage.locator('.home-completed [data-action="toggle"]').first().click();
   await shortcutPage.locator('.home-day-complete').waitFor({ state: 'detached' });
   check(await shortcutPage.locator('.home-day-complete').count() === 0, 'reabrir uma tarefa remove a conclusão do dia');
   await shortcutPage.close();
+  const motionPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await motionPage.emulateMedia({ reducedMotion: 'no-preference' });
+  await motionPage.goto(`${BASE}/?preview#inicio`);
+  await motionPage.locator('.home-today-card').waitFor();
+  const firstMotionTask = motionPage.locator('.home-today-card .home-task-group [data-action="toggle"][aria-checked="false"]').first();
+  const firstMotionTaskId = await firstMotionTask.getAttribute('data-id');
+  const taskMotion = await firstMotionTask.evaluate((button) => {
+    button.click();
+    return {
+      check: getComputedStyle(button.querySelector('span')).animationName,
+      title: getComputedStyle(button.closest('.task').querySelector('.ttl')).animationName,
+    };
+  });
+  check(taskMotion.check === 'task-check-pop' && taskMotion.title === 'task-title-complete',
+    'concluir uma tarefa anima o círculo e a cor do texto riscado');
+  await motionPage.waitForFunction((id) => !document.querySelector(
+    `.home-today-card .home-task-group .task[data-k="${id}"]`,
+  ), firstMotionTaskId);
+  const remainingMotionTasks = motionPage.locator('.home-today-card .home-task-group [data-action="toggle"][aria-checked="false"]');
+  while (await remainingMotionTasks.count()) {
+    const taskId = await remainingMotionTasks.first().getAttribute('data-id');
+    await remainingMotionTasks.first().click();
+    await motionPage.waitForFunction((id) => !document.querySelector(
+      `.home-today-card .home-task-group .task[data-k="${id}"]`,
+    ), taskId);
+  }
+  await motionPage.waitForFunction(() => document.querySelector('.home-head.is-day-completion'));
+  const completedDayMotion = await motionPage.locator('.home-head').evaluate((header) => ({
+    animationName: getComputedStyle(header).animationName,
+    duration: getComputedStyle(header).animationDuration,
+    lead: header.querySelector('.lead').textContent,
+  }));
+  check(completedDayMotion.animationName === 'home-completion-glow'
+    && completedDayMotion.duration === '1.2s'
+    && completedDayMotion.lead.includes('Tudo concluído por hoje.'),
+  'última tarefa destaca o cartão por 1,2 s e atualiza a mensagem');
+  const annualRingMotion = await motionPage.evaluate(async () => {
+    const { animateProgressRings, captureProgressRings } = await import('/src/js/utils/motion.js');
+    const container = document.createElement('div');
+    const ring = document.createElement('span');
+    ring.className = 'annual-plan-progress-ring';
+    ring.style.setProperty('--annual-progress', '25');
+    container.append(ring);
+    document.body.append(container);
+    const previous = captureProgressRings(container);
+    ring.style.setProperty('--annual-progress', '50');
+    animateProgressRings(container, previous);
+    const result = {
+      animationName: getComputedStyle(ring).animationName,
+      from: ring.style.getPropertyValue('--motion-progress-from'),
+      to: ring.style.getPropertyValue('--motion-progress-to'),
+    };
+    document.documentElement.setAttribute('data-reduce-motion', 'true');
+    const reducedRing = document.createElement('span');
+    reducedRing.className = 'annual-plan-progress-ring';
+    reducedRing.style.setProperty('--annual-progress', '20');
+    container.append(reducedRing);
+    const reducedPrevious = captureProgressRings(container);
+    reducedRing.style.setProperty('--annual-progress', '40');
+    animateProgressRings(container, reducedPrevious);
+    result.reducedMotion = !reducedRing.classList.contains('is-progress-animating')
+      && getComputedStyle(reducedRing).animationName === 'none';
+    document.documentElement.removeAttribute('data-reduce-motion');
+    container.remove();
+    return result;
+  });
+  check(annualRingMotion.animationName === 'annual-progress-fill'
+    && annualRingMotion.from === '25%'
+    && annualRingMotion.to === '50%'
+    && annualRingMotion.reducedMotion,
+  'anel de progresso anima do valor anterior ao novo e respeita movimento reduzido');
+  await motionPage.close();
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'shell não tem overflow horizontal em 320 px');
   check(await page.evaluate(() => (
     document.querySelector('#app > .app-definitions')?.getBoundingClientRect().height === 0
@@ -93,8 +180,14 @@ const check = (passed, name, detail = '') => {
       directNavigation: (() => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
+        const items = [...nav.children].filter((child) => getComputedStyle(child).display !== 'none');
+        const create = nav.querySelector('.mobile-nav-create-trigger');
+        const navBounds = nav.getBoundingClientRect();
+        const createBounds = create.getBoundingClientRect();
         return !nav.querySelector('.nav-more-trigger')
-          && links.length === 5 && links.every((link) => getComputedStyle(link).display !== 'none');
+          && links.length === 5 && items.length === 6 && items[2] === create
+          && Math.abs((createBounds.left + createBounds.right) / 2 - (navBounds.left + navBounds.right) / 2) <= navBounds.width / 6 + 1
+          && links.every((link) => getComputedStyle(link).display !== 'none');
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
     })));
@@ -105,7 +198,7 @@ const check = (passed, name, detail = '') => {
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ directNavigation }) => directNavigation),
-    'dock mostra cinco destinos sem Mais', JSON.stringify(mobileNavLabels));
+    'dock mostra cinco destinos e o botão de criação centralizado', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ brandVisible }) => brandVisible),
     'nome da marca permanece visível no cabeçalho móvel', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ collapseToggleHidden }) => collapseToggleHidden),
@@ -122,7 +215,7 @@ const check = (passed, name, detail = '') => {
     summary: document.querySelector('.home-primary > .strip')?.getBoundingClientRect().top,
     sampleNotice: [...document.querySelectorAll('.main > .notice')].find((item) => item.textContent.includes('dados de exemplo'))?.getBoundingClientRect().top,
   }));
-  check(homeOrder.plan < homeOrder.onboarding, 'plano de hoje aparece antes dos primeiros passos');
+  check(homeOrder.onboarding === undefined, 'cartão de primeiro acesso não aparece na demonstração com tarefas fictícias');
   check(homeOrder.summary === undefined || homeOrder.plan < homeOrder.summary, 'plano de hoje aparece antes dos resumos no layout padrão');
   check(homeOrder.areas === undefined || homeOrder.areas >= homeOrder.primaryBottom, 'atalhos das áreas ficam depois do plano e dos resumos');
   check(await page.locator('.home-head .home-action[href="/planejar"]').count() === 1, 'cabeçalho oferece uma ação direta para planejar o dia');
@@ -301,7 +394,7 @@ const check = (passed, name, detail = '') => {
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).evaluate((button) => button === document.activeElement), 'abrir ações rápidas posiciona o foco no primeiro item');
   await page.keyboard.press('Escape');
   check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas');
-  check(await page.locator('.nav-quick-trigger').evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador de ações rápidas');
+  check(await quickTrigger().evaluate((button) => button === document.activeElement), 'Esc devolve o foco ao acionador de ações rápidas');
 
   await openQuickActions();
   await page.locator('.main').click({ position: { x: 10, y: 10 } });
@@ -356,7 +449,10 @@ const check = (passed, name, detail = '') => {
           }),
           activeCircle: active && getComputedStyle(active.querySelector('.ni')).backgroundColor !== 'rgba(0, 0, 0, 0)',
           noMore: !document.querySelector('.nav-more-trigger, .nav-more-menu, .sidebar-toggle'),
-          headerCreate: Boolean(document.querySelector('.header-actions .nav-quick-trigger')),
+          headerCreate: Boolean(document.querySelector('.mobile-nav-create-trigger')?.getClientRects().length)
+            === (innerWidth < 900)
+            && Boolean(document.querySelector('.header-actions .nav-quick-trigger')?.getClientRects().length)
+              === (innerWidth >= 900),
         };
       }));
     }
@@ -505,36 +601,39 @@ const check = (passed, name, detail = '') => {
   check(settingsState.background === 'rgba(0, 0, 0, 0)' && settingsState.iconBackground !== 'rgba(0, 0, 0, 0)',
     'ajustes usa círculo no ícone sem fundo no item', JSON.stringify(settingsState));
   const searchTrigger = page.locator('.app > .topbar .global-search-trigger');
-  check(await searchTrigger.isVisible(), 'busca global aparece no cabeçalho');
-  await searchTrigger.click();
+  check(await searchTrigger.count() === 0, 'busca não aparece no cabeçalho');
+  await page.keyboard.press('Control+k');
   await page.waitForFunction(() => document.activeElement?.matches('#dlg input[data-dlg="query"]'));
   await page.locator('#dlg input[data-dlg="query"]').fill('termo sem correspondência 94735');
   check((await page.locator('#global-search-results').textContent()).includes('Tente outra palavra')
     && (await page.locator('#global-search-results').textContent()).includes('Áreas pesquisadas'),
   'busca sem resultados oferece sugestões e informa as áreas');
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement?.matches('.global-search-trigger'));
-  check(await searchTrigger.evaluate((button) => document.activeElement === button), 'Esc devolve o foco ao botão da busca');
-  await searchTrigger.focus();
+  check(await page.locator('#dlg').count() === 0, 'Esc fecha a busca aberta pelo atalho de teclado');
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press('/');
   await page.waitForFunction(() => document.activeElement?.matches('#dlg input[data-dlg="query"]'));
   await page.keyboard.type('/');
   check(await page.locator('#dlg input[data-dlg="query"]').inputValue() === '/',
-    'barra abre a busca fora dos campos e pode ser digitada no campo');
+    'barra continua abrindo a busca fora dos campos');
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement?.matches('.global-search-trigger'));
-  await page.keyboard.press('Control+k');
-  check(await page.locator('#dlg').getByRole('heading', { name: 'Buscar no Aurora.' }).count() === 1, 'acionador abre a busca global');
-  await page.keyboard.press('Escape');
-  check(await page.locator('#dlg').count() === 0, 'Esc fecha a busca aberta pelo atalho de teclado');
+  const refreshTrigger = page.locator('.app > .topbar .mobile-refresh-trigger');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  check(!(await refreshTrigger.isVisible()), 'atualizar app fica oculto em desktop');
+  check(await page.locator('.app > .topbar .header-actions').evaluate((actions) => parseFloat(getComputedStyle(actions).gap) >= 8),
+    'ações do cabeçalho têm espaçamento confortável em desktop');
   await page.setViewportSize({ width: 320, height: 720 });
-  check(await searchTrigger.isVisible()
-    && await searchTrigger.evaluate((button) => {
+  check(await refreshTrigger.isVisible()
+    && await refreshTrigger.evaluate((button) => {
       const bounds = button.getBoundingClientRect();
       return bounds.left >= 0 && bounds.right <= innerWidth && bounds.width >= 44 && bounds.height >= 44;
-    }), 'busca permanece visível e acessível no celular');
+    }), 'atualizar app aparece com alvo acessível no celular');
+  check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
+    'busca não aparece no celular');
+  check(await page.locator('.app > .topbar .header-actions').evaluate((actions) => parseFloat(getComputedStyle(actions).gap) >= 4),
+    'ações do cabeçalho mantêm espaçamento entre botões no celular');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    'cabeçalho com busca não causa overflow no celular');
+    'cabeçalho não causa overflow no celular');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

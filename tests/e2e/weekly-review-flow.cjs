@@ -19,56 +19,39 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#planejar`);
   await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
   check(await page.locator('.weekly-review').count() === 1
-    && await page.locator('#weekly-reflection').count() === 1,
-  'revisão semanal combina resumo e reflexão opcional');
+    && await page.locator('.weekly-review-hero').getByText('Sua semana.').count() === 1
+    && await page.locator('.weekly-review .review-stats .stat').count() === 3
+    && await page.locator('.weekly-review textarea').count() === 0,
+  'revisão mostra o período e exatamente três números, sem campo para guardar respostas');
+  check(await page.locator('.weekly-review').getByText(/Ciclo|Finanças|peso/i).count() === 0,
+    'a revisão não exibe dados de Ciclo, finanças ou peso');
 
-  await page.locator('.weekly-review [data-action="task-new"]').first().click();
-  const due = new Date();
-  due.setHours(12, 0, 0, 0);
-  due.setDate(due.getDate() + 7);
-  const dueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
-  const taskTitle = 'Prioridade da próxima semana';
-  await page.locator('#dlg [data-dlg="title"]').fill(taskTitle);
-  await page.locator('#dlg [data-dlg="due"]').fill(dueDate);
-  await page.getByRole('button', { name: 'Adicionar tarefa', exact: true }).click();
+  await page.locator('.weekly-review [data-action="weekly-note"][data-v="Mais pausas"]').click();
+  check((await page.locator('#toast').textContent()).includes('Anotação adicionada à sua lista de tarefas'),
+    'resposta rápida cria somente uma anotação na lista de tarefas');
+  await page.locator('[data-action="plan-view"][data-v="lista"]').click();
+  check(await page.locator('#task-results li.task').filter({ hasText: 'Mais pausas' }).count() === 1,
+    'a anotação aparece na lista de tarefas');
+  await page.locator('[data-action="weekly-open-review"]').click();
+  check(await page.locator('.weekly-review').count() === 1,
+    'Planejar oferece um atalho para abrir Sua semana');
 
-  const task = page.locator('.weekly-review li.task').filter({ hasText: taskTitle });
-  const actions = task.locator('.weekly-plan-actions');
-  check(await actions.count() === 1
-    && await actions.getByRole('button', { name: 'Manter' }).count() === 1
-    && await actions.getByRole('button', { name: 'Ajustar' }).count() === 1
-    && await actions.getByRole('button', { name: 'Adiar uma semana' }).count() === 1,
-  'cada prioridade oferece manter, ajustar ou adiar');
-
-  await actions.getByRole('button', { name: 'Adiar uma semana' }).click();
-  check(await page.locator('.weekly-review li.task').filter({ hasText: taskTitle }).count() === 0
-    && (await page.locator('#toast').textContent()).includes('Tarefa adiada por uma semana'),
-  'adiar move a tarefa para a semana seguinte e informa o resultado');
-  await page.locator('#toast [data-action="undo"]').click();
-  const restoredTask = page.locator('.weekly-review li.task').filter({ hasText: taskTitle });
-  check(await restoredTask.locator('.weekly-plan-actions').count() === 1,
-    'desfazer restaura a tarefa à semana originalmente planejada');
-  await restoredTask.locator('.weekly-plan-actions').getByRole('button', { name: 'Manter' }).click();
-  check(await page.locator('.weekly-review li.task').filter({ hasText: taskTitle }).count() === 1,
-    'manter conserva a tarefa sem alterar sua data');
   const mobileLayout = await page.evaluate(() => ({
     width: innerWidth,
     scrollWidth: document.documentElement.scrollWidth,
-    overflowing: [...document.querySelectorAll('body *')].map((element) => ({
-      name: `${element.tagName.toLowerCase()}.${String(element.className).replace(/\s+/g, '.')}`,
-      left: Math.round(element.getBoundingClientRect().left),
-      right: Math.round(element.getBoundingClientRect().right),
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    })).filter((element) => element.scrollWidth > element.clientWidth + 2
-      || element.right > innerWidth + 1).slice(0, 8),
   }));
   check(mobileLayout.scrollWidth <= mobileLayout.width,
-    'ações da revisão não criam rolagem horizontal em largura móvel', JSON.stringify(mobileLayout));
-  await restoredTask.locator('.weekly-plan-actions').getByRole('button', { name: 'Ajustar' }).click();
-  check((await page.locator('#dlg h2').textContent()).includes('Editar tarefa'),
-    'ajustar abre o formulário existente da tarefa');
-  await page.locator('#dlg').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    'a revisão não cria rolagem horizontal em largura móvel', JSON.stringify(mobileLayout));
+
+  await page.goto(`${BASE}/?preview#config?section=home`);
+  const reminder = page.locator('[data-change="weekly-review-reminder"]');
+  await reminder.waitFor();
+  check(!(await reminder.isChecked()),
+    'o lembrete semanal começa desligado');
+  await reminder.click();
+  await page.waitForTimeout(350);
+  check(await reminder.isChecked(),
+    'a opção de lembrete pode ser ativada sem solicitar permissão Push');
   check(errors.length === 0, 'sem erros no console', errors.join(' | '));
 
   await browser.close();

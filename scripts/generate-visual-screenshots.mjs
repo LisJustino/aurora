@@ -20,16 +20,26 @@ try {
   if (!address || typeof address === 'string') throw new Error('Could not determine the visual capture server address.');
   const baseUrl = `http://127.0.0.1:${address.port}`;
   browser = await chromium.launch();
+  const landingCaptures = [360, 768, 1024, 1440].flatMap((width) => ['light', 'dark'].map((colorScheme) => ({
+    path: ['docs', 'visual-captures', `landing-${width}-${colorScheme}.png`],
+    route: '/',
+    selector: '.public-hero',
+    width,
+    height: 900,
+    colorScheme,
+    fullPage: true,
+  })));
   const captures = [
     { path: ['public', 'screenshots', 'demo-wide.png'], route: '/demonstracao', selector: '[data-demo-screen]', width: 1280, height: 720 },
     { path: ['public', 'screenshots', 'demo-mobile.png'], route: '/demonstracao', selector: '[data-demo-screen]', width: 390, height: 844 },
     { path: ['docs', 'landing-shot.png'], route: '/', selector: '.public-hero', width: 1440, height: 900, fullPage: true },
     { path: ['docs', 'landing-shot-updated.png'], route: '/', selector: '.public-hero', width: 1440, height: 900, fullPage: true },
+    ...landingCaptures,
   ];
   for (const capture of captures) {
     const context = await browser.newContext({
       viewport: { width: capture.width, height: capture.height },
-      colorScheme: 'light',
+      colorScheme: capture.colorScheme || 'light',
       reducedMotion: 'reduce',
       deviceScaleFactor: 1,
     });

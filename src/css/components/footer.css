@@ -40,7 +40,7 @@
   width: 36px;
   height: 36px;
   border-radius: var(--r-control);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: var(--elev-1);
 }
 
 .footer-brand-mark .wordmark {

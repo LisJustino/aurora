@@ -219,27 +219,6 @@
   font-variant-numeric: tabular-nums;
 }
 .settings-trash-expiry.is-urgent { background: var(--warn-soft); color: var(--warn); }
-.settings-trash-empty {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--r-group);
-  background: var(--surface);
-}
-.settings-trash-empty > span {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: none;
-  place-items: center;
-  border-radius: var(--r-control);
-  background: var(--soft2);
-  color: var(--muted);
-}
-.settings-trash-empty p { display: grid; gap: var(--space-1); margin: 0; }
-.settings-trash-empty small { color: var(--muted); line-height: 1.4; }
 .settings-data-migration > summary {
   display: flex;
   min-width: 0;

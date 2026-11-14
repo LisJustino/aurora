@@ -1,4 +1,5 @@
 import {
+  accountModeFromLocation,
   accountPathForMode,
   canonicalPublicPath,
   isDemoLocation,
@@ -9,7 +10,7 @@ import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } 
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { createSuggestionMailto } from './features/footer/suggestions.js';
+import { CONTACT_EMAIL, createSuggestionMailto } from './features/footer/suggestions.js';
 import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
 import { isNativeApp } from './utils/platform.js';
 
@@ -98,14 +99,14 @@ function showEntryError(rootElement) {
   rootElement.append(page);
 }
 
-let appWarmed = false;
-function warmApplication() {
-  if (appWarmed || isDemoLocation(location)) return;
+let accountEntryWarmed = false;
+function warmAccountEntry() {
+  if (accountEntryWarmed || isDemoLocation(location)) return;
   const href = import.meta.env.DEV
-    ? '/src/js/main.js'
-    : document.querySelector('meta[name="aurora-app-chunk"]')?.content;
+    ? '/src/js/account-entry.js'
+    : document.querySelector('meta[name="aurora-account-chunk"]')?.content;
   if (!href) return;
-  appWarmed = true;
+  accountEntryWarmed = true;
   const link = document.createElement('link');
   link.rel = 'modulepreload';
   link.href = href;
@@ -131,6 +132,7 @@ function observeLandingScroll() {
 
 let applicationLoaded = false;
 let publicAccountNavigationPending = false;
+let returnToPublicLanding = () => {};
 async function loadApplication(mode = 'login') {
   root.removeAttribute('aria-busy');
   publicPwaCleanup();
@@ -151,8 +153,11 @@ async function loadApplication(mode = 'login') {
     const { startAuthenticatedAurora } = await import('./main.js');
     await startAuthenticatedAurora(root, mode, true);
   } else {
-    await import('./main.js');
-    applicationLoaded = true;
+    const { startAccountEntry } = await import('./account-entry.js');
+    applicationLoaded = await startAccountEntry(root, mode, {
+      allowPublicReturn: true,
+      onPublicReturn: returnToPublicLanding,
+    });
   }
 }
 
@@ -321,9 +326,20 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     }
     updatePublicConnectionNotice();
   };
+  returnToPublicLanding = () => {
+    renderPublicRoute();
+    window.dispatchEvent(new Event('aurora:public-return'));
+  };
   if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
-    import('./main.js').catch((error) => {
+    import('./account-entry.js').then(({ startAccountEntry }) => startAccountEntry(
+      root,
+      accountModeFromLocation(location) || 'login',
+      {
+        allowPublicReturn: true,
+        onPublicReturn: returnToPublicLanding,
+      },
+    )).catch((error) => {
       console.error('Aurora: não foi possível carregar a tela da conta.', error);
       showEntryError(root);
     });
@@ -334,7 +350,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     startPublicPwaSupport();
     ['focusin', 'touchstart'].forEach((type) => {
       root.addEventListener(type, (event) => {
-        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmApplication();
+        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmAccountEntry();
       }, { passive: true });
     });
     window.addEventListener('online', updatePublicConnectionNotice);
@@ -409,7 +425,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       const fallback = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-fallback]');
       try {
         if (!navigator.clipboard?.writeText) throw new Error('A área de transferência não está disponível.');
-        await navigator.clipboard.writeText('lisjustino@gmail.com');
+        await navigator.clipboard.writeText(CONTACT_EMAIL);
         if (status) status.textContent = 'E-mail copiado.';
         if (fallback) fallback.hidden = true;
       } catch (error) {

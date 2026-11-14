@@ -78,7 +78,7 @@
 .main[data-route="config"] .settings-content > .card {
   max-width: none;
   border-color: var(--settings-edge);
-  border-radius: var(--r-control);
+  border-radius: var(--r-card);
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--accent) 2.5%, var(--surface-strong)), var(--surface-strong) 38%);
   box-shadow: var(--card-shadow);
@@ -182,7 +182,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--r);
-  box-shadow: 0 8px 18px -18px var(--ink);
+  box-shadow: var(--elev-1);
 }
 
 .main[data-route="config"] .areas-navigation-settings { gap: var(--settings-card-gap); }
@@ -333,7 +333,7 @@
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {
     --settings-card-padding: var(--space-3);
-    border-radius: var(--r);
+    border-radius: var(--r-card);
   }
   .main[data-route="config"] .settings-section-heading > p { font-size: var(--text-sm); }
   .main[data-route="config"] .appearance-settings-heading { grid-template-columns: minmax(0, 1fr); align-items: start; }

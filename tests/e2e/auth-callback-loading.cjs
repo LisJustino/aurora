@@ -62,7 +62,8 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
       assert.equal(await landingPage.locator('.public-main').evaluate((main) => getComputedStyle(main).animationName), 'none');
       releaseScripts();
       const task = landingPage.locator('[data-landing-task]').last();
-      await landingPage.waitForFunction(() => document.querySelector('[data-public-control="theme-cycle"]')?.getAttribute('aria-label') === 'Tema claro');
+      await landingPage.waitForFunction(() => document.documentElement.dataset.theme === 'light'
+        && document.querySelector('[data-public-control="theme-cycle"]')?.getAttribute('aria-label') === 'Alternar para tema escuro');
       assert.equal(await title.evaluate((element, original) => element === original, originalTitle), true, 'o título pré-renderizado deve ser preservado');
       await task.click();
       assert.equal(await task.getAttribute('aria-pressed'), 'true', 'a landing hidratada deve continuar interativa');

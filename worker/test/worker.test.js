@@ -360,6 +360,57 @@ test('lembretes de tarefas aceitam somente identificador e instante e enviam pay
   }
 });
 
+test('lembrete da revisão se repete aos domingos e usa payload sem dados pessoais', async () => {
+  const env = await environment();
+  const client = await register(env);
+  const pushSubscription = await createSubscription();
+  await call(env, '/api/subscription', {
+    method: 'POST',
+    headers: authHeaders(client),
+    body: { subscription: pushSubscription },
+  });
+  const now = Date.parse('2026-11-15T17:00:00.000Z');
+  const reminder = {
+    id: 'weekly-review',
+    at: Date.parse('2026-11-15T18:00:00.000Z'),
+    repeat: 'weekly',
+    time: '18:00',
+    timeZone: 'UTC',
+  };
+  const originalNow = Date.now;
+  const object = env.POMODORO_ALARMS.get(client.clientId);
+  const sent = [];
+  Date.now = () => now;
+  try {
+    const invalid = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [{ ...reminder, title: 'Resposta privada' }] },
+    });
+    assert.equal(invalid.response.status, 400);
+
+    const scheduled = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [reminder] },
+    });
+    assert.equal(scheduled.response.status, 200);
+    assert.equal(scheduled.body.scheduledAt, reminder.at);
+
+    object.instance.sendNotification = async (payload) => sent.push(payload);
+    Date.now = () => reminder.at;
+    await object.instance.alarm();
+    assert.deepEqual(sent, [{ kind: 'weekly-review' }]);
+    const [nextReminder] = await object.state.storage.get('taskReminders');
+    assert.equal(nextReminder.id, 'weekly-review');
+    assert.equal(nextReminder.at, Date.parse('2026-11-22T18:00:00.000Z'));
+    assert.equal(object.state.storage.alarm, nextReminder.at);
+    assert.equal(JSON.stringify(nextReminder).includes('Resposta privada'), false);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test('horário local inexistente no início do horário de verão é ignorado até a próxima ocorrência', async () => {
   const env = await environment();
   const client = await register(env);

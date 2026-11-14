@@ -55,6 +55,24 @@
       "short_name": "Tarefas",
       "url": "./planejar",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Hábitos",
+      "short_name": "Hábitos",
+      "url": "/habitos",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Água",
+      "short_name": "Água",
+      "url": "/agua",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Finanças",
+      "short_name": "Finanças",
+      "url": "/financas",
+      "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -15,46 +15,31 @@ const VIDEO_FRAME_RATE = 30;
 const VIDEO_BITRATE = 2_800_000;
 const VIDEO_WIDTH = 1280;
 const VIDEO_HEIGHT = 720;
+const MAX_POSTER_BYTES = 180_000;
 const FOCUS_SAFE_MARGIN = 32;
 const FOCUS_HORIZONTAL_MARGIN = 16;
 const CAPTION_HEIGHT = 176;
 const focusSteps = {
   inicio: ['.home-today-card > .head', '.home-head-actions', '.profile-link'],
   planejar: [
-    '.planning-overview',
-    { select: '[data-change="plan-view"]', value: 'semana', target: '[data-change="plan-view"]' },
-    { select: '[data-change="plan-view"]', value: 'lista', target: '.grp .gh' },
+    '.plan-view-segments',
+    { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },
+    { open: '[data-action="plan-view"][data-v="lista"]', target: '.grp .gh' },
     '.task',
   ],
   financas: [
     { open: '[data-action="fin-tab"][data-t="contas"]', target: '.fin-section-content .acc' },
-    { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '[data-action="tx-new"]' },
-    { open: '[data-action="fin-tab"][data-t="lancamentos"]', target: '.fin-section-content .fr-main' },
-    { open: '[data-action="fin-tab"][data-t="relatorios"]', target: '.fin-section-content .card svg' },
+    { open: '[data-action="fin-tab"][data-t="resumo"]', target: '.fin-hero-actions [data-action="tx-new"]' },
+    { open: '.fin-hero-actions [data-action="tx-new"]', target: '.finance-transaction-type' },
+    { close: true, open: '[data-action="fin-tab"][data-t="relatorios"]', target: '.fin-section-content .card svg' },
   ],
-  habitos: ['.habit-today', '[data-action="habit-new"]', '.habit-ideas > summary', '[data-habit-idea]'],
+  habitos: [
+    '.habit-today',
+    '[data-action="habit-new"]',
+    { open: '.habit-ideas > summary', target: '.habit-ideas > summary' },
+    { open: '[data-action="habit-ideas-expand"]', target: '[data-habit-idea][data-id="water"]' },
+  ],
   ciclo: ['.cycle-day-entry', '.cycle-calendar-card .cal', '.cycle-overview'],
-};
-const readVint = (buffer, offset, includeMarker) => {
-  const first = buffer[offset];
-  let width = 1;
-  for (let marker = 0x80; width <= 8 && !(first & marker); marker >>= 1) width++;
-  if (width > 8 || offset + width > buffer.length) throw new Error('Invalid EBML variable integer.');
-  let value = BigInt(includeMarker ? first : first & (0xff >> width));
-  for (let index = 1; index < width; index++) value = (value << 8n) | BigInt(buffer[offset + index]);
-  return {
-    value,
-    width,
-    unknown: !includeMarker && value === (1n << BigInt(width * 7)) - 1n,
-  };
-};
-const readElement = (buffer, offset) => {
-  const id = readVint(buffer, offset, true);
-  const size = readVint(buffer, offset + id.width, false);
-  const dataStart = offset + id.width + size.width;
-  const dataEnd = size.unknown ? buffer.length : dataStart + Number(size.value);
-  if (dataEnd > buffer.length) throw new Error('EBML element exceeds the video file.');
-  return { id: id.value, offset, idWidth: id.width, sizeWidth: size.width, dataStart, dataEnd };
 };
 async function copyTutorialOutput(source, destination) {
   const retryableErrors = new Set(['EACCES', 'EBUSY', 'EPERM', 'UNKNOWN']);
@@ -68,67 +53,6 @@ async function copyTutorialOutput(source, destination) {
       await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 400));
     }
   }
-}
-const encodeEbmlSize = (size, preferredWidth) => {
-  for (let width = preferredWidth; width <= 8; width++) {
-    const value = BigInt(size);
-    if (value > (1n << BigInt(width * 7)) - 2n) continue;
-    let encoded = value | (1n << BigInt(width * 7));
-    const result = Buffer.alloc(width);
-    for (let index = width - 1; index >= 0; index--) {
-      result[index] = Number(encoded & 0xffn);
-      encoded >>= 8n;
-    }
-    return result;
-  }
-  throw new Error('EBML element is too large to encode.');
-};
-async function addSeekableDuration(path, durationMilliseconds) {
-  const source = await readFile(path);
-  const header = readElement(source, 0);
-  const segment = readElement(source, header.dataEnd);
-  if (segment.id !== 0x18538067n) throw new Error('Generated video is missing its EBML Segment.');
-  let info;
-  for (let offset = segment.dataStart; offset < segment.dataEnd;) {
-    const element = readElement(source, offset);
-    if (element.id === 0x1549a966n) {
-      info = element;
-      break;
-    }
-    if (element.dataEnd <= offset) throw new Error('Invalid EBML element boundary.');
-    offset = element.dataEnd;
-  }
-  if (!info) throw new Error('Generated video is missing its Info element.');
-  const timecodeScaleElement = (() => {
-    for (let offset = info.dataStart; offset < info.dataEnd;) {
-      const element = readElement(source, offset);
-      if (element.id === 0x2ad7b1n) return element;
-      offset = element.dataEnd;
-    }
-    return null;
-  })();
-  let timecodeScale = 1_000_000n;
-  if (timecodeScaleElement) {
-    timecodeScale = 0n;
-    for (let offset = timecodeScaleElement.dataStart; offset < timecodeScaleElement.dataEnd; offset++) {
-      timecodeScale = (timecodeScale << 8n) | BigInt(source[offset]);
-    }
-  }
-  const duration = Buffer.alloc(8);
-  duration.writeDoubleBE(durationMilliseconds * 1_000_000 / Number(timecodeScale));
-  const durationElement = Buffer.concat([Buffer.from([0x44, 0x89, 0x88]), duration]);
-  const infoPayload = Buffer.concat([source.subarray(info.dataStart, info.dataEnd), durationElement]);
-  const infoHeader = Buffer.concat([
-    source.subarray(info.offset, info.offset + info.idWidth),
-    encodeEbmlSize(infoPayload.length, info.sizeWidth),
-  ]);
-  const updated = Buffer.concat([
-    source.subarray(0, info.offset),
-    infoHeader,
-    infoPayload,
-    source.subarray(info.dataEnd),
-  ]);
-  await writeFile(path, updated);
 }
 const entries = Object.entries(AREA_GUIDES);
 const requestedId = process.argv[2];
@@ -184,6 +108,11 @@ try {
     }
 
     await appPage.goto(`${baseUrl}/?preview#${id}`);
+    await appPage.waitForFunction(
+      (route) => document.querySelector('.main')?.dataset.route === route,
+      id,
+      { timeout: 45_000 },
+    );
     await appPage.locator('.area-guide-button').waitFor({ state: 'visible', timeout: 45_000 });
     await appPage.evaluate(() => document.fonts.ready);
     const accent = await appPage.evaluate(() => {
@@ -236,8 +165,9 @@ try {
     const stepScreens = [];
     for (const step of steps) {
       if (typeof step === 'object') {
+        if (step.close) await appPage.keyboard.press('Escape');
         if (step.select) await appPage.locator(step.select).selectOption(step.value);
-        else await appPage.locator(step.open).first().click();
+        else if (step.open) await appPage.locator(step.open).first().click();
         await appPage.waitForTimeout(180);
       }
       const selector = typeof step === 'string' ? step : step.target;
@@ -274,12 +204,17 @@ try {
         ...titleScreen,
       },
     ];
-    const durationMilliseconds = slides.length * slideDuration + 100;
-    const formats = ['webm', 'mp4'];
-    const downloadEvents = formats.map((format) => videoPage.waitForEvent('download', {
-      timeout: 300_000,
-      predicate: (download) => download.suggestedFilename().endsWith(`.${format}`),
-    }));
+    const formats = ['mp4'];
+    const downloadEvents = [
+      videoPage.waitForEvent('download', {
+        timeout: 300_000,
+        predicate: (download) => download.suggestedFilename().endsWith('.mp4'),
+      }),
+      videoPage.waitForEvent('download', {
+        timeout: 300_000,
+        predicate: (download) => download.suggestedFilename().endsWith('.webp'),
+      }),
+    ];
     const reportPromise = videoPage.evaluate(async ({
       id: videoId,
       accent,
@@ -290,12 +225,14 @@ try {
       height,
       slideDurationMs,
       captionHeight,
+      maxPosterBytes,
     }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       document.body.replaceChildren(canvas);
       const context = canvas.getContext('2d');
+      let posterPromise = null;
       const screens = await Promise.all(videoSlides.map(({ image }) => new Promise((resolve, reject) => {
         const screen = new Image();
         screen.onload = () => resolve(screen);
@@ -303,7 +240,6 @@ try {
         screen.src = `data:image/png;base64,${image}`;
       })));
       const supportedTypes = {
-        webm: ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
         mp4: ['video/mp4;codecs=avc1.42E01E', 'video/mp4'],
       };
       const formats = Object.entries(supportedTypes).map(([format, candidates]) => {
@@ -316,6 +252,7 @@ try {
       for (const { format, mimeType } of formats) {
         const stream = canvas.captureStream(frameRate);
         const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: videoBitrate });
+        if (!recorder.mimeType.includes('avc1')) throw new Error('The MP4 tutorial encoder did not select H.264.');
         const chunks = [];
         let frameCount = 0;
         const completed = new Promise((resolve, reject) => {
@@ -402,6 +339,31 @@ try {
           context.fillRect(66, height - 12, width - 132, 3);
           context.fillStyle = accent;
           context.fillRect(66, height - 12, progressWidth, 3);
+          if (slideIndex === 1 && !posterPromise) {
+            const posterCanvas = document.createElement('canvas');
+            posterCanvas.width = width;
+            posterCanvas.height = height;
+            posterCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            posterPromise = (async () => {
+              let blob;
+              for (const quality of [0.82, 0.68, 0.54]) {
+                blob = await new Promise((resolve) => posterCanvas.toBlob(resolve, 'image/webp', quality));
+                if (!blob || blob.type !== 'image/webp') throw new Error(`Could not encode the ${videoId} WebP poster.`);
+                if (blob.size <= maxPosterBytes) break;
+              }
+              if (!blob || blob.size > maxPosterBytes) {
+                throw new Error(`The ${videoId} WebP poster exceeds ${maxPosterBytes} bytes.`);
+              }
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${videoId}.webp`;
+              link.click();
+              await new Promise((resolve) => setTimeout(resolve, 50));
+              URL.revokeObjectURL(url);
+              return { format: 'webp', size: blob.size };
+            })();
+          }
           if (elapsed < duration) requestAnimationFrame((nextTimestamp) => draw(nextTimestamp, startedAt));
         };
         recorder.start(250);
@@ -412,7 +374,7 @@ try {
         }, duration + 150);
         files.push(await completed);
       }
-      return { files };
+      return { files, poster: await posterPromise };
     }, {
       id,
       accent,
@@ -423,26 +385,33 @@ try {
       height: VIDEO_HEIGHT,
       slideDurationMs: slideDuration,
       captionHeight: CAPTION_HEIGHT,
+      maxPosterBytes: MAX_POSTER_BYTES,
     });
 
     const [report, downloads] = await Promise.all([reportPromise, Promise.all(downloadEvents)]);
-    const generatedFiles = [];
-    for (const [index, download] of downloads.entries()) {
-      const format = formats[index];
+    const generatedFiles = [
+      { format: 'mp4', download: downloads[0], result: report.files.find((file) => file.format === 'mp4') },
+      { format: 'webp', download: downloads[1], result: report.poster },
+    ];
+    for (const file of generatedFiles) {
+      const { format, download, result } = file;
       const output = join(outputDirectory, `${id}.${format}`);
       const tempOutput = join(tempDirectory, `${id}.${format}`);
       await download.saveAs(tempOutput);
-      if (format === 'webm') await addSeekableDuration(tempOutput, durationMilliseconds);
-      const result = report.files.find((file) => file.format === format);
-      if (!result || result.size < 10_000 || result.frames < slides.length * 2) {
+      if (!result || (format === 'mp4' && (result.size < 10_000 || result.frames < slides.length * 2))
+        || (format === 'webp' && (result.size < 1_000 || result.size > MAX_POSTER_BYTES))) {
         throw new Error(`Tutorial ${id} ${format} is incomplete (${result?.frames ?? 0} frames, ${result?.size ?? 0} bytes).`);
       }
-      generatedFiles.push({ format, output, tempOutput, result });
+      file.output = output;
+      file.tempOutput = tempOutput;
     }
     if (pageErrors.length) throw new AggregateError(pageErrors.splice(0), `Failed to render ${id}.`);
     for (const { format, output, tempOutput, result } of generatedFiles) {
       await copyTutorialOutput(tempOutput, output);
       console.log(`Created ${output} (${result.size} bytes)`);
+    }
+    if (!process.env.AURORA_TUTORIAL_OUTPUT_DIR) {
+      await rm(join(outputDirectory, `${id}.webm`), { force: true });
     }
   }
 } finally {

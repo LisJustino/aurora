@@ -1,4 +1,5 @@
 const { spawn, spawnSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const { existsSync } = require('node:fs');
 const { createServer } = require('node:net');
 const path = require('node:path');
@@ -81,6 +82,7 @@ async function verifyPreviewMissingFiles() {
     ['/pages/inicio.html', 200],
     ['/inicio', 200],
   ];
+  let notFoundHtml = '';
   for (const [pathname, expectedStatus] of cases) {
     const response = await fetch(`${PREVIEW_URL}${pathname}`);
     const body = await response.text();
@@ -90,6 +92,36 @@ async function verifyPreviewMissingFiles() {
     if (expectedStatus === 404 && !body.includes('Esta página não existe')) {
       throw new Error(`Preview não serviu 404.html para ${pathname}.`);
     }
+    if (pathname === '/pages/__aurora_missing_page__.html') notFoundHtml = body;
+  }
+
+  const notFoundStyles = notFoundHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1];
+  if (!notFoundStyles?.trim() || /<link\b[^>]*rel=["']stylesheet["']/i.test(notFoundHtml)) {
+    throw new Error('404 precisa conter CSS inline e não depender de uma folha externa.');
+  }
+  const offlineResponse = await fetch(`${PREVIEW_URL}/offline.html`);
+  const offlineHtml = await offlineResponse.text();
+  const offlineStyles = offlineHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1];
+  if (offlineResponse.status !== 200 || offlineStyles !== notFoundStyles) {
+    throw new Error('A página offline deve responder 200 e compartilhar o CSS inline do 404.');
+  }
+  for (const html of [notFoundHtml, offlineHtml]) {
+    if (!html.includes('href="/"')
+      || !html.includes('src="/icons/favicon.svg"')
+      || !html.includes('rel="icon" type="image/svg+xml" href="/icons/favicon.svg"')) {
+      throw new Error('As páginas de erro devem usar caminhos absolutos para início e logo.');
+    }
+  }
+  const favicon = await fetch(`${PREVIEW_URL}/icons/favicon.svg`);
+  if (favicon.status !== 200) throw new Error('O logo real do Aurora deve responder HTTP 200.');
+
+  const offlineScript = offlineHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  const scriptHash = offlineScript
+    ? `sha256-${createHash('sha256').update(offlineScript).digest('base64')}`
+    : '';
+  const offlinePolicy = offlineResponse.headers.get('content-security-policy') || '';
+  if (!scriptHash || !offlinePolicy.includes(`'${scriptHash}'`)) {
+    throw new Error('O listener online da página offline deve estar autorizado pela CSP.');
   }
 }
 
@@ -158,6 +190,7 @@ async function main() {
   runSuite('habits-app-experience.cjs', DEV_URL);
   runSuite('dashboard-hierarchy.cjs', DEV_URL);
   runSuite('backup-export-import.cjs', DEV_URL);
+  runSuite('pwa-install.cjs', DEV_URL);
   runSuite('pwa-update.cjs', PREVIEW_URL);
   runSuite('auth-callback-loading.cjs', PREVIEW_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);

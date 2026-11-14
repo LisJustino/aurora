@@ -1,11 +1,12 @@
 import { addDays, DIAS, longDate, MESES_L, pad, pk, shortDate, today } from '../../utils/dates.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
+import { emptyState } from '../../utils/empty-state.js';
 
 export function renderCycleView({
   S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
   hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, weekStartDay, clamp,
-  plural, empty, cycleLogSummary, CYC_ICON, cap, ymLabel,
+  plural, cycleLogSummary, CYC_ICON, cap, ymLabel,
 }) {
   const g = gate('cycle', 'Ciclo');   if (g) return h`${areaPageTitle('ciclo', 'Ciclo')}${g}`;
   const tdy = today(), st = cycleStats(S.cycleLog, S.cycle, tdy), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
@@ -51,7 +52,13 @@ export function renderCycleView({
   return h`${areaPageTitle('ciclo', 'Ciclo')}
     <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
     ${!hasCycleHistory && !hasCycleRecords
-      ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
+      ? h`<section class="card cycle-start-empty">${emptyState({
+        title: 'Seu ciclo começa no seu tempo.',
+        description: 'Quando quiser, registre um período ou uma anotação. Você pode acompanhar sem pressa.',
+        action: h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`,
+        iconName: 'calendar',
+        headingLevel: 'h2',
+      })}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
       : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`      <div class="stat"><b>${st.avg} dias</b><span>Média dos ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo recente', 'intervalos recentes')} · variação de ${cycleRange}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
     <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}

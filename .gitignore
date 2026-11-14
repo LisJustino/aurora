@@ -43,4 +43,3 @@ supabase/.temp/
 docs/
 *.md
 *.mdx
-!.github/copilot-instructions.md

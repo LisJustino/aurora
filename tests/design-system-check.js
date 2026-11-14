@@ -193,7 +193,8 @@ const scale = new Set([...allText.matchAll(/--text-(xs|meta|sm|md|base|lg|xl|tit
 check(scale.size === 11, 'A escala de tipografia tem 11 degraus distintos', [...scale].join(', '));
 for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
-  '--r-control', '--r-group', '--r', '--r-pill', '--on-solid',
+  '--r-sm', '--r-card', '--r-hero', '--r-pill', '--r-control', '--r-group', '--r', '--on-solid',
+  '--elev-0', '--elev-1', '--elev-2',
   '--icon-box-sm', '--icon-box-md', '--icon-box-lg',
   '--row-height-compact', '--row-height-standard', '--row-height-card',
   '--priority-low',
@@ -208,7 +209,7 @@ for (const name of [
 }
 const buttonRadius = allText.match(/--button-radius\s*:\s*var\((--[\w-]+)\)/);
 check(buttonRadius?.[1] === '--r-group', 'Botões usam o raio arredondado --r-group');
-const retiredTokens = ['--r-xs', '--r-sm', '--r-large', '--r-detail', '--r-detail-sm', '--text-2xs', '--weight-strong'];
+const retiredTokens = ['--r-xs', '--r-large', '--r-detail', '--r-detail-sm', '--text-2xs', '--weight-strong'];
 check(!retiredTokens.some((name) => defined.has(name) || allText.includes(`var(${name})`)), 'Tokens duplicados foram removidos');
 
 const failed = results.filter((item) => !item.passed).length;
