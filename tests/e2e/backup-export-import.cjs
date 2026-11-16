@@ -18,6 +18,9 @@ let temporaryDirectory;
   await page.goto(`${BASE}/?preview#config?section=data`);
   const backupInput = page.locator('input[data-change="import"]');
   const backupCardText = await page.locator('.settings-backup-card').innerText();
+  if (await page.locator('[data-action="load-sample"]').count()) {
+    throw new Error('A conta não deve oferecer carregamento de exemplos em Ajustes.');
+  }
   if (/\bjson\b/i.test(backupCardText)) {
     throw new Error('A área de backup ainda mostra o termo técnico JSON.');
   }
@@ -52,12 +55,79 @@ let temporaryDirectory;
   if (plainBackup.app !== 'aurora' || plainBackup.version !== 2) {
     throw new Error('A exportação JSON antiga deixou de preservar o formato Aurora v2.');
   }
+  if (plainBackup.extras?.prefs?.financeValuesHidden !== false) {
+    throw new Error('A preferência de ocultar valores financeiros não foi exportada como booleano.');
+  }
   await backupInput.setInputFiles(await plainDownload.path());
   await page.locator('#dlg').getByRole('heading', { name: 'Importar este backup?' }).waitFor();
+  if (!(await page.locator('#dlg').innerText()).includes('Esta opção não mescla os dados.')) {
+    throw new Error('A prévia deve informar que a restauração substitui os dados, sem mesclar.');
+  }
+  for (const label of ['Contas financeiras', 'Registros de hidratação', 'Itens na lixeira']) {
+    if (!(await page.locator('#dlg .backup-preview').innerText()).includes(label)) {
+      throw new Error(`O resumo da cópia não mostra ${label}.`);
+    }
+  }
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await page.locator('#dlg').waitFor({ state: 'detached' });
 
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'aurora-backup-check-'));
+  const hiddenPreferencePath = path.join(temporaryDirectory, 'backup-hidden-preference.json');
+  await writeFile(hiddenPreferencePath, JSON.stringify({
+    ...plainBackup,
+    extras: {
+      ...plainBackup.extras,
+      prefs: { ...plainBackup.extras.prefs, financeValuesHidden: true },
+    },
+  }));
+  await backupInput.setInputFiles(hiddenPreferencePath);
+  await page.locator('#dlg').getByRole('heading', { name: 'Importar este backup?' }).waitFor();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+
+  const invalidPreferencePath = path.join(temporaryDirectory, 'backup-invalid-preference.json');
+  await writeFile(invalidPreferencePath, JSON.stringify({
+    ...plainBackup,
+    extras: {
+      ...plainBackup.extras,
+      prefs: { ...plainBackup.extras.prefs, financeValuesHidden: 'true' },
+    },
+  }));
+  await backupInput.setInputFiles(invalidPreferencePath);
+  await page.waitForFunction(() => (
+    document.querySelector('#imperr')?.textContent.includes('configurações do backup contêm dados inválidos')
+  ));
+  if (!(await page.locator('#imperr').innerText()).includes('configurações do backup contêm dados inválidos')) {
+    throw new Error('A importação aceitou um valor não booleano para a preferência financeira.');
+  }
+
+  const intimacyBackupPath = path.join(temporaryDirectory, 'backup-cycle-intimacy.json');
+  await writeFile(intimacyBackupPath, JSON.stringify({
+    ...plainBackup,
+    extras: {
+      ...plainBackup.extras,
+      cycleLog: {
+        ...(plainBackup.extras.cycleLog || {}),
+        '2026-03-01': {
+          sexualActivity: false,
+          sexToysUsed: true,
+          libido: 'low',
+          orgasmOccurred: false,
+          mood: ['concentration', 'memory'],
+          social: ['interaction', 'interaction-helped'],
+          weightKg: 65.5,
+          ovulationTestResult: 'positive',
+          pregnancyTestResult: 'negative',
+          medicationTaken: false,
+        },
+      },
+    },
+  }));
+  await backupInput.setInputFiles(intimacyBackupPath);
+  await page.locator('#dlg').getByRole('heading', { name: 'Importar este backup?' }).waitFor();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+
   const versionOnePath = path.join(temporaryDirectory, 'backup-v1.json');
   await writeFile(versionOnePath, JSON.stringify({ ...plainBackup, version: 1 }));
   await backupInput.setInputFiles(versionOnePath);

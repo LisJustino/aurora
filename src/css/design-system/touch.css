@@ -8,7 +8,6 @@
 .pk::after, button.habit-dot::after { content: ""; position: absolute; inset: -5px; }
 a.inline-link { position: relative; }
 a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
-.planning-shortcuts button, .planning-shortcuts a { min-height: var(--control-md); }
 .ibtn, .iconbtn { min-width: var(--control-sm); min-height: var(--control-sm); }
 
 /* Destaques das rotas compartilham superfície e elevação; a área continua identificada pelos detalhes. */
@@ -16,9 +15,9 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .cycle-overview,
 .weekly-review-hero,
 .profile-intro {
-  border-radius: var(--r-large);
+  border-radius: var(--r-hero);
   background: var(--hero);
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--elev-2);
 }
 .fin-hero { border-inline-start-width: 1px; }
 
@@ -27,9 +26,9 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
   box-shadow: none;
 }
-@media (max-width: 640px) {
+@media (width < 700px) {
   .home-quick-copy p { display: none; }
-  .home-quick-card { gap: 12px; padding-block: 16px; }
+  .home-quick-card { gap: var(--space-3); padding-block: 16px; }
 }
 
 /* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
@@ -41,58 +40,22 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
 /* ---- Calendário anual: células maiores e fim da fileira sempre à vista ---- */
-.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; }
+.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: var(--space-1); }
 .habit-year-cell { width: 14px; height: 14px; }
 
 /* ---- Finanças: valores alinhados à direita, tabulares ---- */
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
-/* ---- Tema escuro: cartões se destacam do fundo ---- */
+/* ---- Tema escuro: cartões se destacam pelo contorno ---- */
 :root[data-theme="dark"] .card {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 7%, transparent), var(--card-shadow);
+  box-shadow: var(--elev-1);
 }
 
 /* ---- Erro ao lado do campo ---- */
 .field-err { display: block; margin-top: 2px; }
 .f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
-.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--bad); }
-
-/* ---- Finanças no celular: seções em uma única fileira rolável (antes quebrava em três linhas) ---- */
-@media (max-width: 700px) {
-  .main[data-route="financas"] .fin-section-menu { flex-wrap: nowrap; border-radius: var(--r-pill); }
-  .main[data-route="financas"] .fin-section-option { white-space: nowrap; }
-}
-
-/* ---- Menu "Mais": fundo escurecido e painel opaco (antes dava para ler o conteúdo atrás) ---- */
-.nav-scrim { display: none; }
-@media (max-width: 899px) {
-  .nav-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: calc(var(--z-nav) - 1);
-    display: block;
-    background: color-mix(in srgb, var(--ink) 52%, transparent);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-  }
-  :root[data-theme="dark"] .nav-scrim { background: color-mix(in srgb, #000 62%, transparent); }
-  .nav-more-menu {
-    background: var(--surface-raised);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    box-shadow: 0 24px 48px -12px color-mix(in srgb, #000 55%, transparent);
-  }
-}
-
-/* ---- Diálogos com campos no celular: ficam presos ao topo, então o teclado não faz o painel pular ---- */
-.dlg:focus { outline: none; }
-@media (pointer: coarse), (max-width: 640px) {
-  .dlg-back:has(.dlg-body :is(textarea, select, input:not([type="checkbox"], [type="radio"], [type="button"], [type="range"]))) {
-    align-items: start;
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-  }
-}
+.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
 
 /* ---- Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas ---- */
 /* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
@@ -106,7 +69,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   background: linear-gradient(to top, var(--surface-strong), transparent);
   pointer-events: none;
 }
-@media (max-width: 640px) {
+@media (width < 700px) {
   .dlg-body { padding-inline: 16px; padding-bottom: 24px; }
   .dlg-foot { padding-inline: 16px; }
 }
@@ -125,3 +88,28 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   cursor: pointer;
 }
 .habit-weekday-picker label, .habit-icon-picker label, .habit-color-picker label { position: relative; }
+
+.dlg-handle { display: none; }
+@media (width < 900px) {
+  .dlg-back {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  .dlg-back:has(.dlg.intro-dialog) { align-items: center; padding: var(--space-3); }
+  .dlg:not(.intro-dialog) {
+    width: 100%;
+    max-height: min(92dvh, 820px);
+    margin: 0;
+    border-radius: var(--r-hero) var(--r-hero) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .dlg:not(.intro-dialog) .dlg-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    background: var(--surface-strong);
+  }
+}

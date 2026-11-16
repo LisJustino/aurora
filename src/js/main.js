@@ -1,11 +1,13 @@
+import '../css/main.css';
 import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
-import { brl, formatMoneyInput, parseMoney } from './utils/currency.js';
+import { brl as formatBRL, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
   addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
+import { emptyState } from './utils/empty-state.js';
 import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
 import {
@@ -21,6 +23,7 @@ import {
 } from './core/router.js';
 import {
   accountBalance as balanceForAccount,
+  accountBalanceOn,
   netAccountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
@@ -32,25 +35,34 @@ import {
   netAccountBalance,
   reportMonthStats,
   recurringBillsDueOn,
+  linkedGoalProgressCents,
+  projectedNetAccountBalance,
   signedAmount,
+  installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
   ACCOUNT_TYPES,
   isValidAccountType,
   normalizeAccountType,
 } from './features/finance/accounts.js';
+import { createToastController } from './features/feedback/toast.js';
 import {
   AREA_GUIDES,
-  FINANCE_PRIVACY_NOTICE,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
 } from './features/area-guides.js';
-import { loadHabitsTemplate, renderHabitsTemplate } from './features/habits/template.js';
-import { renderHabitsView } from './features/habits/view.js';
 import { isTaskIconKey, TASK_ICONS, taskIconKey } from './features/planning/task-icons.js';
-import { createCycleDialogViews } from './features/cycle/dialogs.js';
+import { filteredTasks as selectFilteredTasks, todayTasks as selectTodayTasks } from './features/planning/task-selection.js';
+import {
+  ANNUAL_PLAN_IDEA_CATEGORIES,
+  ANNUAL_PLAN_IDEAS,
+  ANNUAL_PLAN_LIMITS,
+  filterAnnualPlanIdeas,
+  isValidAnnualPlans,
+  normalizeAnnualPlans,
+} from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
-import { createFinanceDialogViews } from './features/finance/dialogs.js';
+import { cycleDayNumber, cycleStats } from './features/cycle/calculations.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -59,6 +71,12 @@ import {
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
 import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
+import {
+  buildTaskPushReminders,
+  buildWeeklyReviewPushReminder,
+  MAX_TASK_REMINDERS,
+} from './features/push/task-reminders.js';
+import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
 import {
   cancelHabitPushReminders,
   clearPushNotificationState,
@@ -69,6 +87,8 @@ import {
   initializePushNotifications,
   pushNotificationErrorMessage,
   scheduleHabitPushReminders,
+  scheduleTaskPushReminders,
+  cancelTaskPushReminders,
 } from './services/push-notifications.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
@@ -90,10 +110,6 @@ function loadGoogleCalendarServiceFactory() {
       .catch((error) => {
         googleCalendarServicePromise = null;
         throw error;
-      });
-      window.addEventListener('aurora:push-notification', (event) => {
-        const kind = event.detail?.kind;
-        if (kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.');
       });
   }
   return googleCalendarServicePromise;
@@ -121,18 +137,22 @@ const googleCalendar = {
   getEvents: async (account, ...args) => account.service.getEvents(...args),
 };
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { createSuggestionMailto } from './features/footer/suggestions.js';
+import { CONTACT_EMAIL, createSuggestionMailto } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
 import {
   createCycleDataConsentMetadata,
   createCycleDataConsentRevocationMetadata,
   hasCurrentCycleDataConsent,
 } from './services/account-auth.js';
-import { prefersReducedMotion } from './utils/motion.js';
+import {
+  animateProgressRings,
+  captureProgressRings,
+  playMotion,
+  prefersReducedMotion,
+} from './utils/motion.js';
 import {
   createCyclePeriod,
   cycleLogDays,
-  cyclePeriodDays,
   mergeCycleLogSymptoms,
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
@@ -168,12 +188,14 @@ import {
   normalizeHomeMode,
   normalizeHomeModes,
   normalizeHomeShortcuts,
+  homeFirstStepsProgress,
   homeAreaColorValue,
 } from './features/home/personalization.js';
 import { initializeCustomSelects } from './features/selects/custom-select.js';
 import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
 import { isNativeApp } from './utils/platform.js';
 import {
+  habitDayOverview,
   habitWeeklyTarget,
   habitWeekReview,
   habitIsComplete,
@@ -208,6 +230,7 @@ import {
   waterGoalForHabit,
   waterGoalReached,
   waterMlForDay,
+  waterWeekProgress,
 } from './features/habits/water-goal.js';
 import { APPEARANCE_PRESETS, hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
 import {
@@ -225,9 +248,24 @@ import {
   normalizeVisibleMenuItems,
   orderMenuItems,
 } from './features/navigation/menu.js';
-import { tasksForWeek, weekDays, weeklyReview } from './features/planning/week.js';
-import { nextDue } from './features/planning/recurrence.js';
+import { weekDays, weeklyReview } from './features/planning/week.js';
+import { nextDue, REPEATS } from './features/planning/recurrence.js';
+import { renderTaskRow } from './features/planning/task-row.js';
+import { renderHomeView } from './features/home/view.js';
+import {
+  renderGoogleCalendarPlanPanel,
+  renderPlanningView,
+  renderPlansView,
+  renderTaskCalendar,
+  renderTaskWeek,
+} from './features/planning/view.js';
+import {
+  renderSettingsSegment as settingsSegment,
+  renderSettingsStorageNotice,
+  renderSettingsView,
+} from './features/settings/view.js';
 import { searchRecords } from './features/search/search.js';
+import { parseQuickDate } from './features/planning/quick-date.js';
 import {
   isTrashExpired,
   isValidTrashEntry as isValidTrashEntryModel,
@@ -235,8 +273,14 @@ import {
   sortTrashEntriesByExpiry,
   trashDaysRemaining,
 } from './features/trash/model.js';
-import { estimatedCyclePhase } from './features/cycle/phases.js';
-import { CYCLE_CONTRACEPTION_METHODS, isValidCycleSexualLog } from './features/cycle/log.js';
+import {
+  CYCLE_CONTRACEPTION_METHODS,
+  CYCLE_SOCIAL_OPTIONS,
+  CYCLE_TEST_RESULTS,
+  isValidCycleSexualLog,
+  isValidCycleSocialLog,
+  isValidCycleTrackingLog,
+} from './features/cycle/log.js';
 'use strict';
 
 function setupKeyboardViewportSafety() {
@@ -249,7 +293,7 @@ function setupKeyboardViewportSafety() {
     document.documentElement.style.setProperty('--keyboard-offset', `${keyboardInset}px`);
 
     const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return;
+    if (!(active instanceof HTMLElement) || active.closest('#dlg')) return;
     if (!active.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (keyboardInset > 100) {
       active.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -260,7 +304,7 @@ function setupKeyboardViewportSafety() {
   window.visualViewport.addEventListener('scroll', updateKeyboardInset);
   document.addEventListener('focusin', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
     if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -273,7 +317,6 @@ setupKeyboardViewportSafety();
 
 /* ========== Núcleo: templates, datas, estado e persistência ========== */
 const weekStartDay = () => { try { return settingsView().look.weekStart === 0 ? 0 : 1; } catch (e) { return 1; } };
-const REPEATS = { none: 'Nunca', day: 'Todo dia', weekday: 'Dias úteis', week: 'Toda semana', month: 'Todo mês', year: 'Todo ano' };
 const REMINDS = [['', 'Sem lembrete'], ['0', 'Na hora'], ['10', '10 min antes'], ['30', '30 min antes'], ['60', '1 hora antes'], ['1440', '1 dia antes']];
 const isTime = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 const orderOf = (t) => (t.order != null ? t.order : t.createdAt || 0);
@@ -299,6 +342,10 @@ const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
+const DEFAULT_CATEGORY_STYLES = Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
+  kind,
+  new Map(categories.map(([name, color, iconName]) => [norm(name), { color, icon: iconName }])),
+]));
 const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
 const categoryLeafName = (category) => {
   if (typeof category === 'string') return category.trim();
@@ -312,25 +359,35 @@ const categoryPathParts = (value) => {
   if (parts.length === 1) return { parent: '', child: parts[0] };
   return { parent: parts[0], child: parts.slice(1).join(' > ') };
 };
-const normalizeCategoryEntry = (category) => {
+const normalizeCategoryEntry = (category, kind, inherited = {}) => {
   if (typeof category === 'string') {
     const name = category.trim();
-    return name ? { name: name.slice(0, 30), color: '#8b8b95', icon: 'tag', subcategories: [] } : null;
+    if (!name) return null;
+    const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
+    return {
+      name: name.slice(0, 30),
+      color: inherited.color || defaults?.color || '#8b8b95',
+      icon: inherited.icon || defaults?.icon || 'tag',
+      subcategories: [],
+    };
   }
   if (!isPlainObject(category) || typeof category.name !== 'string') return null;
   const name = category.name.trim();
   if (!name) return null;
+  const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
+  const color = hexOk(category.color) ? category.color : inherited.color || defaults?.color || '#8b8b95';
+  const iconName = CAT_ICONS.includes(category.icon) ? category.icon : defaults?.icon || inherited.icon || 'tag';
   const subcategories = Array.isArray(category.subcategories)
-    ? category.subcategories.map((item) => normalizeCategoryEntry(item)).filter(Boolean)
+    ? category.subcategories.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName })).filter(Boolean)
     : [];
   return {
     name: name.slice(0, 30),
-    color: hexOk(category.color) ? category.color : '#8b8b95',
-    icon: CAT_ICONS.includes(category.icon) ? category.icon : 'tag',
+    color,
+    icon: iconName,
     subcategories: subcategories.slice(0, 20),
   };
 };
-const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean);
+const categoryEntries = (kind) => (Array.isArray(S.settings.cats?.[kind]) ? S.settings.cats[kind] : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean);
 const topCategoryNames = (kind) => categoryEntries(kind).map((category) => category.name);
 const categoryMatch = (kind, value) => {
   const target = String(value ?? '').trim();
@@ -410,7 +467,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, lastBackup: null, sample: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -419,23 +476,32 @@ let accountSession = null;
 let releaseNoticePending = false;
 let pwaRegistration = null;
 let pwaReloading = false;
+let pwaApplying = false;
+let pwaUpdateAutoBlocked = false;
 let pwaSupportPromise = null;
 const syncState = {
   pending: new Set(),
   failed: new Set(),
   conflicts: new Set(),
 };
-const SIDEBAR_COLLAPSED_KEY = 'aurora.ui.sidebar-collapsed';
-const readSidebarCollapsed = () => {
-  try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch { return false; }
-};
-const writeSidebarCollapsed = (collapsed) => {
-  try {
-    if (collapsed) localStorage.setItem(SIDEBAR_COLLAPSED_KEY, '1');
-    else localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
-  } catch { /* storage indisponível */ }
-};
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, navigationOpen: false, quickActionsOpen: false, sidebarCollapsed: readSidebarCollapsed(), planView: 'lista', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+ui.habitCelebrationDay = '';
+const toastController = createToastController({
+  readToast: () => ui.toast,
+  writeToast: (toast) => { ui.toast = toast; },
+  getContext: () => ({ top: Boolean(ui.dlg || ui.quickActionsOpen) }),
+  getOverride: () => {
+    if (Object.keys(ui.integrityIssues).length) {
+      const slices = Object.keys(ui.integrityIssues).join(', ');
+      return `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
+    }
+    if (ui.persistFailed.size) {
+      return { message: 'Não foi possível salvar as alterações. Confira sua conexão e tente novamente.', details: ui.persistError };
+    }
+    return null;
+  },
+  normalizeMessage: preserveCopyTerms,
+});
 ui.cycleConsentBusy = false;
 ui.cycleConsentError = '';
 const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
@@ -504,17 +570,30 @@ function refreshSettingsSaveControls() {
 }
 function refreshUnsavedSettingsBanner() {
   const banner = document.querySelector('.settings-unsaved-bar');
-  if (!banner) return;
-  const dirty = Boolean(ui.profileDraft || settingsDraftDirty());
-  const saving = ui.profileSaving || ui.settingsSaving;
-  banner.hidden = !dirty;
-  const discardButton = banner.querySelector('[data-action="profile-discard"]');
-  if (discardButton) discardButton.disabled = !dirty || saving;
-  const saveButton = banner.querySelector('[data-action="profile-save"]');
+  const dirty = Boolean(ui.profileDraft);
+  const saving = ui.profileSaving;
+  if (banner) {
+    banner.hidden = !dirty;
+    const discardButton = banner.querySelector('[data-action="profile-discard"]');
+    if (discardButton) discardButton.disabled = !dirty || saving;
+  }
+  const saveButton = banner?.querySelector('[data-action="profile-save"]');
   if (saveButton) {
     saveButton.disabled = !dirty || saving;
     saveButton.textContent = saving ? 'Salvando...' : 'Salvar alterações';
     saveButton.setAttribute('aria-busy', String(saving));
+  }
+  const profileActions = document.querySelector('.profile-settings-actions');
+  if (profileActions) {
+    const profileDirty = Boolean(ui.profileDraft);
+    const discardProfile = profileActions.querySelector('[data-action="profile-discard"]');
+    const saveProfile = profileActions.querySelector('[data-action="profile-save"]');
+    if (discardProfile) discardProfile.disabled = !profileDirty || saving;
+    if (saveProfile) {
+      saveProfile.disabled = !profileDirty || saving;
+      saveProfile.textContent = saving ? 'Salvando...' : 'Salvar alterações';
+      saveProfile.setAttribute('aria-busy', String(saving));
+    }
   }
 }
 function updateSettingsDraft(update, shouldRender = true) {
@@ -525,38 +604,64 @@ function updateSettingsDraft(update, shouldRender = true) {
   update(ui.settingsDraft);
   if (shouldRender) render();
   else refreshSettingsSaveControls();
+  scheduleSettingsAutosave();
 }
 function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
+let settingsAutosaveTimer = null;
+function scheduleSettingsAutosave() {
+  clearTimeout(settingsAutosaveTimer);
+  settingsAutosaveTimer = setTimeout(() => {
+    settingsAutosaveTimer = null;
+    void saveSettingsDraft();
+  }, 250);
+}
 async function saveSettingsDraft() {
-  if (!settingsDraftDirty() || ui.settingsSaving || ui.profileSaving) return;
+  if (!settingsDraftDirty()) return true;
+  if (ui.settingsSaving || ui.profileSaving) return false;
   const previousSettings = cloneSettings(S.settings);
   const draft = settingsView();
+  const weeklyReminderChanged = previousSettings.prefs.weeklyReviewReminder !== draft.prefs.weeklyReviewReminder;
+  let saveAgain = false;
   ui.settingsSaving = true;
   render();
   try {
     S.settings = normalizeSettings(draft);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
-      return;
+      return false;
     }
     if (!ui.preview && !(await Persist.flush())) {
       S.settings = previousSettings;
-      return;
+      return false;
     }
-    ui.settingsDraft = null;
-    ui.settingsDraftBase = null;
-    toast(ui.preview
-      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
-      : 'Configurações salvas.');
+    const latestDraft = settingsView();
+    if (sameJsonValue(latestDraft, S.settings)) {
+      ui.settingsDraft = null;
+      ui.settingsDraftBase = null;
+    } else {
+      ui.settingsDraftBase = cloneSettings(S.settings);
+      ui.settingsDraft = cloneSettings(latestDraft);
+      saveAgain = true;
+    }
+    if (!saveAgain) toast(ui.preview ? 'Salvo nesta demonstração.' : 'Salvo.', 'success');
+    if (weeklyReminderChanged && !ui.preview) {
+      const remindersUpdated = await syncHabitReminderSchedule();
+      if (!remindersUpdated && getPushNotificationStatus().enabled) {
+        toast('Ajustes salvos, mas o lembrete semanal não foi atualizado. Confira a conexão e tente novamente.', 'error');
+      }
+    }
+    return !saveAgain;
   } catch (error) {
     console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
     S.settings = previousSettings;
-    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.');
+    toast('Não foi possível salvar os ajustes. Suas alterações continuam na tela; tente novamente.', 'error');
+    return false;
   } finally {
     ui.settingsSaving = false;
     render();
+    if (saveAgain) scheduleSettingsAutosave();
   }
 }
 async function saveProfileDraft() {
@@ -564,11 +669,11 @@ async function saveProfileDraft() {
   const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
   const ageInput = String(draft.age ?? '').trim();
   const age = ageInput ? Number(ageInput) : null;
-  if (!draft.name.trim()) { toast('Informe seu nome.'); $('#pname')?.focus(); return; }
-  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).'); $('#ppreferred')?.focus(); return; }
-  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.'); $('#psex')?.focus(); return; }
+  if (!draft.name.trim()) { toast('Informe seu nome.', 'error'); $('#pname')?.focus(); return; }
+  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).', 'error'); $('#ppreferred')?.focus(); return; }
+  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.', 'error'); $('#psex')?.focus(); return; }
   if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
-    toast('A idade deve ser um número inteiro entre 0 e 120 anos.');
+    toast('A idade deve ser um número inteiro entre 0 e 120 anos.', 'error');
     $('#page')?.focus();
     return;
   }
@@ -585,7 +690,7 @@ async function saveProfileDraft() {
     S.settings.prefs.profileAppearance = normalizeProfileAppearance(draft.appearance);
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
-      toast('Não foi possível salvar as alterações. Tente novamente.');
+      toast('Não foi possível salvar as alterações. Tente novamente.', 'error');
       return;
     }
     if (!ui.preview && !(await Persist.flush())) {
@@ -595,24 +700,30 @@ async function saveProfileDraft() {
     ui.profileDraft = null;
     toast(ui.preview
       ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
-      : 'Perfil salvo.');
+      : 'Perfil salvo.', 'success');
   } catch (error) {
     S.settings = previousSettings;
     console.error('Aurora: não foi possível salvar o perfil.', error);
-    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.');
+    toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.', 'error');
   } finally {
     ui.profileSaving = false;
     render();
   }
 }
-function settingsSaveButton(label = 'Salvar alterações') {
-  const dirty = settingsDraftDirty();
-  const saving = ui.settingsSaving || ui.profileSaving;
-  return h`<div class="row settings-save-actions${dirty ? ' is-dirty' : ''}"><button class="btn back" type="button" data-settings-discard-button data-action="discard-settings" ${dirty && !saving ? '' : raw('disabled hidden')}>Descartar alterações</button><button class="btn primary" type="submit" data-settings-save-button data-settings-save-label="${label}" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : label}</button></div>`;
-}
 let habitsTemplate = null;
 let habitsTemplatePromise = null;
 let habitsTemplateError = false;
+let renderHabitsView = null;
+let loadHabitsTemplate = null;
+let renderHabitsTemplate = null;
+let estimatedCyclePhase = null;
+let renderCycleView = null;
+let cycleDialogViews = null;
+let cycleModulesPromise = null;
+let financeDialogViews = null;
+let financePrivacyNotice = null;
+let renderFinanceView = null;
+let financeModulesPromise = null;
 let renderedRoute = null;
 const routeScrollPositions = new Map();
 
@@ -634,6 +745,7 @@ function normalizeSettings(s) {
   o.profile.heightCm = Number.isInteger(profile.heightCm) && profile.heightCm >= 80 && profile.heightCm <= 250 ? profile.heightCm : null;
   o.areas = Object.fromEntries(Object.keys(d.areas).map((key) => [key, typeof areas[key] === 'boolean' ? areas[key] : d.areas[key]]));
   o.prefs = { ...d.prefs, ...prefs };
+  o.prefs.annualPlans = normalizeAnnualPlans(prefs.annualPlans);
   delete o.prefs.studyGoalMin;
   o.prefs.trash = withoutRemovedStudyTrash(o.prefs.trash);
   o.prefs.menuOrder = normalizeMenuOrder(prefs.menuOrder);
@@ -652,6 +764,7 @@ function normalizeSettings(s) {
   o.prefs.homeMessage = normalizeHomeMessage(prefs.homeMessage);
   o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
   o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
+  o.prefs.financeCategoryRules = normalizeCategoryRules(prefs.financeCategoryRules);
   o.prefs.waterGoalMl = Number.isInteger(prefs.waterGoalMl) && prefs.waterGoalMl >= 500 && prefs.waterGoalMl <= 10000 ? prefs.waterGoalMl : d.prefs.waterGoalMl;
   o.prefs.habitWaterGoals = Object.fromEntries(
     Object.entries(isPlainObject(prefs.habitWaterGoals) ? prefs.habitWaterGoals : {})
@@ -659,8 +772,11 @@ function normalizeSettings(s) {
   );
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
+  o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
+  o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
+  o.prefs.weeklyReviewReminder = prefs.weeklyReviewReminder === true;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
     && isDay(prefs.weeklyReflection.weekOf)
@@ -688,9 +804,9 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
-  const cleanCategoryGroup = (a) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category)).filter(Boolean).slice(0, 60);
+  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean).slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
-  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out), in: cleanCategoryGroup(s?.cats?.in) };
+  const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out, 'out'), in: cleanCategoryGroup(s?.cats?.in, 'in') };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
   if (!PALETTES[o.theme] && o.theme !== 'custom') o.theme = 'rose';
   delete o.accountTypes;
@@ -769,7 +885,8 @@ const isValidGoal = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && isNonEmptyText(record.name) && record.name.length <= 50
   && isSafeInteger(record.targetCents) && record.targetCents > 0
   && isSafeInteger(record.savedCents) && record.savedCents >= 0
-  && optional(record, 'deadline', (value) => value === '' || value === null || isDay(value));
+  && optional(record, 'deadline', (value) => value === '' || value === null || isDay(value))
+  && optional(record, 'linkedAccountId', isNonEmptyText);
 const isValidRecurring = (record) => isPlainObject(record)
   && isNonEmptyText(record.id) && ['in', 'out'].includes(record.type)
   && isNonEmptyText(record.accountId) && isText(record.category)
@@ -783,6 +900,8 @@ const isValidRecurring = (record) => isPlainObject(record)
 const isValidCycleLog = (record) => isPlainObject(record)
   && ['flow', 'energy', 'sleep', 'discharge', 'note'].every((key) => optional(record, key, isText))
   && ['pain', 'mood', 'digestion', 'skin'].every((key) => optional(record, key, (value) => Array.isArray(value) && value.every(isText)))
+  && isValidCycleSocialLog(record)
+  && isValidCycleTrackingLog(record)
   && optional(record, 'orgasmCount', (value) => Number.isInteger(value) && value >= 0 && value <= 99)
   && isValidCycleSexualLog(record);
 const isValidCycleEntry = (record) => isPlainObject(record)
@@ -842,10 +961,14 @@ function settingsIssueCount(value) {
   }
   if (isPlainObject(value.prefs)) {
     const prefs = value.prefs;
+    if (Object.hasOwn(prefs, 'annualPlans') && !isValidAnnualPlans(prefs.annualPlans)) issues++;
     if (Object.hasOwn(prefs, 'birthday') && prefs.birthday !== null
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'weeklyReviewReminder') && typeof prefs.weeklyReviewReminder !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
       && !isValidMenuOrder(prefs.menuOrder)) issues++;
     if (Object.hasOwn(prefs, 'visibleMenuItems') && prefs.visibleMenuItems !== undefined
@@ -1029,16 +1152,6 @@ function normalizeSlice(k, v) {
 
 /* ---------- Persistência local ---------- */
 /* ---------- Persistencia relacional ---------- */
-function cacheLoadingAppearance(settings) {
-  const [primary, accent] = paletteColors(settings.theme, settings.look);
-  window.auroraLoadingAppearance?.save({
-    palette: settings.theme === 'rose' ? 'rose' : 'customized',
-    mode: settings.look.mode,
-    reduceMotion: settings.look.reduceMotion,
-    primary,
-    accent,
-  });
-}
 const Persist = {
   userId: '',
   store: null,
@@ -1062,7 +1175,7 @@ const Persist = {
     if (this.replacing || !this.store || slices.some((slice) => !SLICES.includes(slice))) return false;
     if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
       slices.forEach((slice) => ui.persistFailed.add(slice));
-      toast('Há dados que precisam de revisão antes de salvar. Nenhuma área foi enviada para a nuvem.');
+      toast('Há dados que precisam de revisão antes de salvar. Nenhuma área foi enviada para a nuvem.', 'error');
       return false;
     }
     if (navigator.onLine === false) {
@@ -1072,7 +1185,7 @@ const Persist = {
         ui.persistFailed.add(slice);
         syncState.failed.add(slice);
       });
-      toast('Sem conexão: a alteração foi desfeita e não foi salva. Conecte-se e tente novamente.');
+      toast('Sem conexão: a alteração foi desfeita e não foi salva. Conecte-se e tente novamente.', 'error');
       return false;
     }
     ui.persistError = '';
@@ -1116,7 +1229,6 @@ const Persist = {
             clearTimeout(saveTimer);
           }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
-          cacheLoadingAppearance(snapshot.settings);
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
@@ -1139,10 +1251,10 @@ const Persist = {
             : '';
           if (isVersionConflict) {
             syncState.conflicts.add('account');
-            toast('Os dados da conta foram alterados em outro dispositivo. Recarregue os dados da conta para continuar.');
+            toast('Os dados da conta foram alterados em outro dispositivo. Recarregue os dados da conta para continuar.', 'info');
           } else {
             console.error('Aurora: a gravação relacional não foi confirmada.', error);
-            toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.');
+            toast(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente quando a conexão estiver estável.', 'error');
           }
           return false;
         }
@@ -1159,7 +1271,7 @@ const Persist = {
   },
   retryPending() {
     if (navigator.onLine === false) {
-      toast('Ainda sem conexão. As alterações não foram enviadas.');
+      toast('Ainda sem conexão. As alterações não foram enviadas.', 'info');
       return;
     }
     if (this.pendingSnapshot) {
@@ -1181,7 +1293,6 @@ const Persist = {
     if (this.inFlight) await this.inFlight;
     await this.store.save(JSON.parse(JSON.stringify(S)));
     this.confirmedState = JSON.parse(JSON.stringify(S));
-    cacheLoadingAppearance(S.settings);
     this.pendingSnapshot = null;
     syncState.pending.clear();
     syncState.failed.clear();
@@ -1196,13 +1307,11 @@ const Persist = {
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.confirmedState = JSON.parse(JSON.stringify(defaults()));
-    cacheLoadingAppearance(this.confirmedState.settings);
     syncState.pending.clear();
     syncState.failed.clear();
     syncState.conflicts.clear();
   },
   wipe() {
-    window.auroraLoadingAppearance?.clear();
     this.pendingSnapshot = null;
     this.rawTables = null;
     this.store = null;
@@ -1229,6 +1338,7 @@ async function loadAccountData() {
     }
   }
   Object.assign(S, next);
+  ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
   Persist.rawTables = Persist.store.rawTables;
   for (const slice of SLICES) stamps[slice] = Date.now();
   ui.integrityIssues = integrityIssues;
@@ -1237,7 +1347,6 @@ async function loadAccountData() {
   syncState.failed.clear();
   persistFailed.forEach((slice) => syncState.failed.add(slice));
   Persist.confirmedState = JSON.parse(JSON.stringify(S));
-  if (!persistBlocked.has('settings')) cacheLoadingAppearance(S.settings);
 }
 function initializeBirthdayFromMetadata(user) {
   const prefs = S.settings.prefs;
@@ -1257,9 +1366,9 @@ const saveSlices = (...ks) => {
   if (ui.preview) return true;
   const saved = Persist.saveMany([...new Set(ks)]);
   if (!saved && navigator.onLine !== false) {
-    toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.');
+    toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.', 'error');
   }
-  if (saved && ks.includes('habits')) syncHabitReminderSchedule();
+  if (saved && ks.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   return saved;
 };
 const commit = (...ks) => { if (saveSlices(...ks)) render(); };
@@ -1274,17 +1383,17 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
   const blocked = slices.filter((slice) => ui.persistBlocked.has(slice));
   if (blocked.length) {
     restoreSliceSnapshot(snapshot);
-    toast(`Não foi possível salvar ${context} porque os dados de ${blocked.join(', ')} estão bloqueados para gravação.`);
+    toast(`Não foi possível salvar ${context} porque os dados de ${blocked.join(', ')} estão bloqueados para gravação.`, 'error');
     if (shouldRender) render();
     return false;
   }
   if (!ui.preview && !Persist.saveMany(slices)) {
     restoreSliceSnapshot(snapshot);
-    toast(`Não foi possível preparar ${context} para salvar; os dados originais foram mantidos.`);
+    toast(`Não foi possível preparar ${context} para salvar; os dados originais foram mantidos.`, 'error');
     if (shouldRender) render();
     return false;
   }
-  if (!ui.preview && slices.includes('habits')) syncHabitReminderSchedule();
+  if (!ui.preview && slices.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   if (shouldRender) render();
   return true;
 }
@@ -1299,7 +1408,7 @@ function moveRecordsToTrash(label, records, sourceSlices, removeRecords) {
   if (!records.length) return null;
   const slices = [...new Set([...sourceSlices, 'settings'])];
   if (slices.some((slice) => ui.persistBlocked.has(slice))) {
-    toast('Não foi possível usar a lixeira porque os dados desta área estão bloqueados para gravação.');
+    toast('Não foi possível usar a lixeira porque os dados desta área estão bloqueados para gravação.', 'error');
     return null;
   }
   const snapshot = snapshotSlices(slices);
@@ -1326,18 +1435,19 @@ function restoreTrashEntry(id) {
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
     saveSlicesWithRollback(['settings'], snapshot);
-    toast('O prazo de 30 dias terminou; o item foi removido da lixeira.');
+    toast('O prazo de 30 dias terminou; o item foi removido da lixeira.', 'success');
     return false;
   }
   if (!isValidTrashEntry(entry)) {
     console.error('Aurora: o item da lixeira não passou pela validação antes da restauração.', id);
-    toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.');
+    toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.', 'error');
     return false;
   }
   const dataSlices = [...new Set(entry.records.map((record) => trashSlice(record.collection)))];
-  const slices = [...new Set([...dataSlices, 'settings'])];
+  const restoresCycleWeight = entry.records.some((record) => record.collection === 'cycleLog' && Number.isFinite(record.value.weightKg));
+  const slices = [...new Set([...dataSlices, 'settings', ...(restoresCycleWeight ? ['habits'] : [])])];
   if (slices.some((slice) => ui.persistBlocked.has(slice))) {
-    toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.');
+    toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.', 'error');
     return false;
   }
   const snapshot = snapshotSlices(slices);
@@ -1355,13 +1465,13 @@ function restoreTrashEntry(id) {
         ? target.some((item) => cyclePeriodKey(item) === record.key)
         : target.some((item) => item.id === record.key);
       if (alreadyExists) {
-        toast('Um registro com o mesmo identificador já existe. O item continua na lixeira.');
+        toast('Um registro com o mesmo identificador já existe. O item continua na lixeira.', 'info');
         return false;
       }
       target.splice(Math.min(record.index, target.length), 0, record.value);
     } else if (isPlainObject(target)) {
       if (Object.hasOwn(target, record.key)) {
-        toast('Já existe um registro com a mesma chave. O item continua na lixeira.');
+        toast('Já existe um registro com a mesma chave. O item continua na lixeira.', 'info');
         return false;
       }
       Object.defineProperty(target, record.key, {
@@ -1372,7 +1482,7 @@ function restoreTrashEntry(id) {
       });
     } else {
       console.error('Aurora: destino inválido para restauração da lixeira.', record.collection);
-      toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.');
+      toast('Este item não pode ser restaurado com segurança. Ele continua na lixeira.', 'error');
       return false;
     }
   }
@@ -1382,19 +1492,30 @@ function restoreTrashEntry(id) {
       const transaction = record.value;
       if (!accounts.has(transaction.accountId)
         || (transaction.type === 'tr' && !accounts.has(transaction.toAccountId))) {
-        toast('Restaure primeiro a conta vinculada. O item continua na lixeira.');
+        toast('Restaure primeiro a conta vinculada. O item continua na lixeira.', 'info');
         return false;
       }
     }
     if (record.collection === 'finance.recurring' && !accounts.has(record.value.accountId)) {
-      toast('Restaure primeiro a conta vinculada. O item continua na lixeira.');
+      toast('Restaure primeiro a conta vinculada. O item continua na lixeira.', 'info');
       return false;
+    }
+    if (record.collection === 'finance.goals' && record.value.linkedAccountId) {
+      if (!accounts.has(record.value.linkedAccountId)) {
+        toast('Restaure primeiro a conta vinculada. O objetivo continua na lixeira.', 'info');
+        return false;
+      }
+      if (drafts.finance.goals.some((goal) => goal.linkedAccountId === record.value.linkedAccountId)) {
+        toast('A conta já acompanha outro objetivo. Desvincule-a primeiro; o item continua na lixeira.', 'info');
+        return false;
+      }
     }
   }
   dataSlices.forEach((slice) => { S[slice] = drafts[slice]; });
   S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
+  if (restoresCycleWeight) syncLatestCycleWeight();
   if (!saveSlicesWithRollback(slices, snapshot)) return false;
-  toast(`${entry.label} restaurado.`);
+  toast(`${entry.label} restaurado.`, 'success');
   requestAnimationFrame(() => {
     const heading = $('#trash-title');
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
@@ -1418,7 +1539,10 @@ const configLink = () => h`<a class="inline-link" href="/config?weight" aria-lab
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-const money = (cents) => h`<span class="money">${brl(cents)}</span>`;
+const brl = (cents) => ui.route === 'financas' && ui.financeValuesHidden ? '••••' : formatBRL(cents);
+const money = (cents) => ui.route === 'financas' && ui.financeValuesHidden
+  ? h`<span class="money" aria-label="Valor oculto">••••</span>`
+  : h`<span class="money">${formatBRL(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
 const brandLink = h`<a class="brand" href="/inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
@@ -1430,7 +1554,7 @@ function updateDocumentTitle() {
 }
 function notificationButton(cls, id) {
   const count = notificationCount();
-  return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
+  return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Lembretes e notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Lembretes e notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Lembretes e notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
 }
 const agoLabel = (at) => {
   if (!at) return '';
@@ -1473,6 +1597,7 @@ function notificationsHtml() {
   const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
+    <p class="small muted">Este painel reúne lembretes de tarefas e hábitos enquanto o Aurora está aberto. Configure horários em Planejar ou Hábitos. Para receber avisos com o app fechado — de hábitos, tarefas ou da revisão semanal — ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo.</p>
     ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
@@ -1502,7 +1627,7 @@ function acquireActiveScrollLocks() {
    Só mexe no DOM do diálogo aberto; some quando a pessoa volta a digitar. Cai para o aviso se não achar o campo. */
 function fieldError(message, selector) {
   const field = selector ? document.querySelector(`#dlg ${selector}`) : null;
-  if (!field) return toast(message);
+  if (!field) return toast(message, 'info');
   const label = field.type === 'checkbox' ? field.closest('fieldset') : field.closest('label') || field.parentElement;
   label.querySelector('.field-err')?.remove();
   const note = document.createElement('span');
@@ -1551,13 +1676,9 @@ function shell(body) {
             : '';
   const menuAreas = { ...S.settings.areas, cycle: areaOn('cycle') };
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
-  const compactItems = ['inicio', 'planejar', 'habitos'].map((id) => menuItems.find((item) => item.id === id)).filter(Boolean);
-  const secondaryItems = menuItems.filter((item) => !compactItems.includes(item));
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }, className = '') => h`<a class="${area ? 'nav-area ' : ''}${className}" href="/${id}" data-tip="${label}" title="${ui.sidebarCollapsed ? '' : label}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
-  const currentInMore = ui.route === 'config' || secondaryItems.some(({ id }) => isCurrent(id));
-  const currentSecondaryItem = secondaryItems.find(({ id }) => isCurrent(id));
+  const navLink = ({ id, label, icon: iconName, area }) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
     ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
     : ui.route === 'financas'
@@ -1573,16 +1694,27 @@ function shell(body) {
     : h`
       <button type="button" data-action="quick-action-task"><span class="ni">${icon('calendarCheck', 18)}</span><span>Nova tarefa</span></button>
       ${areaOn('habits') ? h`<button type="button" data-action="quick-action-habit"><span class="ni">${icon('check', 18)}</span><span>Novo hábito</span></button>` : ''}
-      ${financeQuickActions}`;
+      <button type="button" data-action="quick-action-water"><span class="ni">${icon('water', 18)}</span><span>Beber água</span></button>
+      ${financeQuickActions}
+      ${!areaOn('finances') || !S.finance.accounts.length ? h`<button type="button" data-action="quick-action-expense"><span class="ni">${icon('arrowDown', 18)}</span><span>Lançar despesa</span></button>` : ''}`;
   const quickActionsHeading = isFinanceRoute ? 'Ações de Finanças' : 'Criar rapidamente';
   const quickActions = h`<div class="nav-quick-control">
-    <button type="button" class="nav-quick-trigger" data-action="quick-actions-toggle" data-tip="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="tab-label-group"><span class="tab-label">Criar</span></span></button>
+    <button type="button" class="nav-quick-trigger iconbtn" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const navItems = h`${menuItems.map((item) => navLink(item, compactItems.includes(item) ? 'nav-primary' : 'nav-secondary'))}<button type="button" class="nav-more-trigger" data-action="nav-more-toggle" title="${currentSecondaryItem ? `Mais áreas · atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-label="${currentSecondaryItem ? `Mais áreas; rota atual: ${currentSecondaryItem.label}` : 'Mais áreas'}" aria-expanded="${String(ui.navigationOpen)}" aria-controls="nav-more-menu" ${currentInMore ? raw('aria-current="page"') : ''}><span class="ni">${icon('more', 22)}</span><span>Mais</span></button><div class="nav-more-menu" id="nav-more-menu" ${ui.navigationOpen ? '' : raw('hidden')}>${secondaryItems.map((item) => navLink(item, 'nav-more-link'))}${navLink({ id: 'config', label: 'Ajustes', icon: 'user' }, 'nav-more-link')}<button type="button" class="nav-more-create" data-action="quick-actions-toggle" aria-label="Criar" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span>Criar</span></button></div>${quickActions}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
-  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}${ui.sidebarCollapsed ? ' sidebar-collapsed' : ''}">
-    <!-- aria-expanded and aria-controls announce the popover state and its relationship to assistive technology. -->
-    ${ui.navigationOpen || ui.quickActionsOpen ? h`<div class="nav-scrim" data-action="${ui.quickActionsOpen ? 'quick-actions-toggle' : 'nav-more-toggle'}" aria-hidden="true"></div>` : ''}<header class="topbar"><div class="sidebar-brand-row">${brandLink}<button type="button" class="sidebar-toggle" data-action="sidebar-toggle" aria-label="${ui.sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}" aria-expanded="${String(!ui.sidebarCollapsed)}" aria-controls="primary-navigation" title="${ui.sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}">${icon(ui.sidebarCollapsed ? 'chevRight' : 'chevLeft', 18)}</button></div><nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><span class="header-actions">${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button><a class="profile-link iconbtn" href="/config" ${ui.route === 'config' ? raw('aria-current="page"') : ''} aria-label="Perfil e configurações" title="Perfil e configurações">${icon('user', 20)}</a></span></header>
+  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">Criar</span></button>`;
+  const profileMenu = h`<details class="profile-menu-control">
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu"><span class="ni">${icon('user', 20)}</span><span class="mobile-nav-label">Conta</span></summary>
+    <div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Menu da conta">
+      <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
+      ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
+    </div>
+  </details>`;
+  const navMenuItems = [...menuItems.map(navLink), profileMenu];
+  const navMiddle = Math.floor(navMenuItems.length / 2);
+  const navItems = h`${navMenuItems.slice(0, navMiddle)}${mobileQuickActionsTrigger}${navMenuItems.slice(navMiddle)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn mobile-refresh-trigger" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button></div></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
       ${notificationsHtml()}
@@ -1603,7 +1735,7 @@ function persistenceNotice() {
     action = h`<a class="btn sm" href="/config?section=data">Revisar dados</a>`;
   } else if (syncState.conflicts.size) {
     message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
-    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar app</button>`;
+    action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar dados da conta</button>`;
   } else if (Persist.pendingSnapshot) {
     message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
     action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
@@ -1614,6 +1746,7 @@ function persistenceNotice() {
   return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
 function weeklyReviewView() {
+  const waterGoal = waterGoalForHabit(S.habits.find(isWaterHabit), S.settings.prefs.waterGoalMl);
   const review = weeklyReview(
     S.tasks,
     S.habits,
@@ -1621,46 +1754,29 @@ function weeklyReviewView() {
     weekStartDay(),
     (habit, day) => habitCompletedFor(habit, day),
     (habit, day) => habitIsSkipped(habit, day, today()),
+    (day) => waterGoalReached(waterMlForDay(S.water, day), waterGoal),
   );
   const week = weekDays(today(), weekStartDay());
-  const first = pk(week[0]), last = pk(week[6]);
-  const nextFirst = pk(review.nextWeek.start), nextLast = pk(review.nextWeek.end);
-  const completion = review.habits.scheduled
-    ? Math.round(review.habits.completed / review.habits.scheduled * 100)
-    : 0;
-  const weekTx = S.finance.tx.filter((transaction) => transaction.date >= week[0] && transaction.date <= week[6] && transaction.type !== 'tr');
-  const weekIncome = weekTx.filter((transaction) => transaction.type === 'in').reduce((total, transaction) => total + transaction.cents, 0);
-  const weekOut = weekTx.filter((transaction) => transaction.type === 'out').reduce((total, transaction) => total + transaction.cents, 0);
-  const reflection = S.settings.prefs.weeklyReflection?.weekOf === week[0]
-    ? S.settings.prefs.weeklyReflection.text
-    : '';
-  const overdue = S.tasks.filter((task) => !task.done && task.dueDate && task.dueDate < today()).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const formatDay = (day) => {
+    const [year, month, date] = day.split('-').map(Number);
+    return `${date} de ${MESES_L[month - 1]} de ${year}`;
+  };
   return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Fechamento semanal</span><h2>Veja o que avançou<i>.</i></h2><p>${first.getDate()} ${MESES_L[first.getMonth()]}–${last.getDate()} ${MESES_L[last.getMonth()]} · Use este retrato para ajustar a próxima semana.</p></div><div class="weekly-review-actions"><button class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button><button class="btn" data-action="weekly-open-finances">${icon('wallet', 16)}Ver finanças</button></div></section>
-    <section class="card weekly-review-main"><div class="head"><div><p class="section-kicker">Seu ritmo</p><h2>Revisão da semana<i>.</i></h2></div><span class="small muted">Atualizada hoje</span></div>
+    <section class="weekly-review-hero"><div><span>Revisão gentil</span><h2>Sua semana<i>.</i></h2><p>De ${formatDay(week[0])} a ${formatDay(week[6])}. Cada passo conta, no seu tempo.</p></div></section>
+    <section class="card weekly-review-main" aria-label="Resumo da semana">
       <div class="review-stats">
         <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
-        <div class="stat"><b>${completion}%</b><span>Hábitos concluídos</span></div>
-        <div class="stat"><b>${money(weekOut)}</b><span>Gastos nesta semana</span><small>Entradas ${brl(weekIncome)} · resultado ${brl(weekIncome - weekOut)}</small></div>
+        <div class="stat"><b>${review.waterDays}</b><span>Dias com meta de água</span></div>
+        <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
       </div>
-      <section class="review-habits" aria-labelledby="review-habits-title"><h3 id="review-habits-title">Hábitos</h3>
-        ${review.habits.count
-          ? h`<p>${review.habits.completed} de ${review.habits.scheduled} check-ins previstos concluídos (${completion}%). Em ${review.habits.count} ${plural(review.habits.count, 'hábito ativo', 'hábitos ativos')}.</p>`
-          : h`<p class="small muted">Nenhum hábito ativo para esta revisão.</p>`}
-      </section>
     </section>
     <section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
-      <div class="head"><div><p class="section-kicker">Um minuto para você</p><h2 id="weekly-reflection-title">O que vale repetir ou ajustar?</h2></div><span class="small muted">Opcional</span></div>
-      <label class="f"><span class="sr">Reflexão da semana</span><textarea id="weekly-reflection" data-keep maxlength="500" rows="3" placeholder="Uma pequena vitória, algo que aprendeu ou uma mudança para a próxima semana…">${reflection}</textarea></label>
-      <div class="row"><button type="button" class="btn primary sm" data-action="weekly-save-reflection">Salvar reflexão</button></div>
+      <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
+      <p class="small muted">Se quiser, escolha uma opção. Ela será adicionada somente como anotação à sua lista de tarefas.</p>
+      <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
+        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-note" data-v="${choice}">${choice}</button>`)}
+      </div>
     </section>
-    <div class="weekly-review-grid">${overdue.length ? h`<section class="card weekly-review-alert"><div class="head"><div><p class="section-kicker">Precisa de atenção</p><h2>${overdue.length} ${plural(overdue.length, 'tarefa atrasada', 'tarefas atrasadas')}<i>.</i></h2></div><button class="btn ghost sm" data-action="weekly-open-overdue">Organizar</button></div><ul class="list">${overdue.slice(0, 3).map(taskRow)}</ul></section>` : h`<section class="card weekly-review-clear"><span>${icon('check', 20)}</span><div><h2>Sem tarefas atrasadas<i>.</i></h2><p>Você pode entrar na próxima semana com mais clareza.</p></div></section>`}
-    <section class="card"><div class="head"><div><p class="section-kicker">Olhando à frente</p><h2>Prioridades da próxima semana<i>.</i></h2></div><span class="small muted">${nextFirst.getDate()}–${nextLast.getDate()} ${MESES_L[nextLast.getMonth()]}</span></div>
-      ${review.nextWeek.tasks.length
-        ? h`<p class="small muted weekly-plan-guidance">Para cada tarefa, mantenha a data, ajuste os detalhes ou adie por uma semana. O adiamento pode ser desfeito.</p><ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
-        : empty('Semana livre por enquanto', 'Adicione uma tarefa para organizar a próxima semana.', h`<button class="btn" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`, 'calendar')}
-    </section></div>
-    <section class="review-discovery" aria-label="Atalhos úteis"><span>Próximos passos</span><button type="button" data-action="weekly-open-habits">${icon('check', 16)}Revisar hábitos</button><button type="button" data-action="weekly-open-finances">${icon('wallet', 16)}Conferir gastos</button></section>
   </div>`;
 }
 
@@ -1686,7 +1802,14 @@ const pageTitle = (title, action = '') => {
   return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
 const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
-const ring = (done, total) => { const c = 2 * Math.PI * 32, pc = total ? done / total : 0; return h`<div class="ringw" role="img" aria-label="${done} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pc)).toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${done}/${total}</div></div>`; };
+const areaEmpty = (title, description, action, iconName = 'sparkles', headingLevel = 'h3', className = '') => emptyState({
+  title,
+  description,
+  action,
+  iconName,
+  headingLevel,
+  className,
+});
 const areaOn = (a) => Boolean(S.settings.areas[a])
   && (a !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
 function setAreaEnabled(settings, area, enabled) {
@@ -1708,12 +1831,6 @@ function gate(area, name) {
   if (areaOn(area)) return null;
   return h`<div class="card">${empty(name + ' está desligado', 'Esta área é opcional. Ative quando quiser; você pode desligar depois sem perder o que registrou.', h`<button class="btn primary" data-action="enable-area" data-area="${area}">Ativar ${name}</button>`)}</div>`;
 }
-function areaNav(cur) {
-  const areas = { ...S.settings.areas, cycle: areaOn('cycle') };
-  const items = orderMenuItems(S.settings.prefs.menuOrder, areas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS).filter(({ area }) => area);
-  if (items.length < 2) return '';
-  return h`<nav class="areanav scroll-x" aria-label="Áreas">${items.map(({ id, label, icon: iconName }) => h`<a href="/${id}" ${id === cur ? raw('aria-current="page"') : ''}>${icon(iconName, 16)}${tabLabel(label)}</a>`)}</nav>`;
-}
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
   return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}Como usar?</button>`;
@@ -1721,12 +1838,7 @@ function areaGuideButton(route) {
 function areaPageTitle(route, title, action = '') {
   return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
 }
-function financePrivacyNotice() {
-  return h`<aside class="notice finance-privacy-note" role="note"><span><strong>Sem conexão bancária</strong><span>${FINANCE_PRIVACY_NOTICE}</span></span></aside>`;
-}
-
 /* ---------- Tarefas (reuso) ---------- */
-const taskVisible = (t) => !t.done || (t.doneAt && isoDay(t.doneAt) === today());
 function dueBadge(t) {
   if (!t.dueDate) return '';
   const d = dayDiff(t.dueDate, today());
@@ -1736,20 +1848,7 @@ function dueBadge(t) {
   return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
 }
 function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
-  const isReviewNextWeek = reviewNextWeek === true;
-  const isHomeNextStep = homeNextStep === true;
-  const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
-  const tm = t.time ? ' ' + t.time : '', subs = t.subtasks || [], sd = subs.filter((x) => x.done).length;
-  const due = !t.dueDate ? '' : (!t.done && d < 0) ? h`<span class="m-bad">Atrasada · ${shortDate(t.dueDate)}${tm}</span>` : d === 0 ? (isHomeNextStep ? (t.time ? h`<span>${t.time}</span>` : '') : h`<span class="m-warn">Hoje${tm}</span>`) : d === 1 ? h`<span>Amanhã${tm}</span>` : h`<span>${shortDate(t.dueDate)}${tm}</span>`;
-  const man = ui.route === 'planejar' && ui.filters.sort === 'manual' && !t.done;
-  const taskIcon = taskIconKey(t.icon);
-  return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}" data-k="${t.id}" ${man ? raw('draggable="true"') : ''}>${man ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
-    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
-    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
-      <span class="meta">${due}${t.priority === 'high' ? h`<span class="m-hi">${icon('flag', 12)}Alta</span>` : t.priority === 'low' ? h`<span>Prioridade baixa</span>` : ''}${t.repeat && t.repeat !== 'none' ? h`<span class="mi" title="${REPEATS[t.repeat]}">${icon('repeat', 12)}${REPEATS[t.repeat]}</span>` : ''}${t.remind != null && t.time ? h`<span class="mi" title="Lembrete">${icon('bell', 12)}</span>` : ''}${subs.length ? h`<span class="mi">${icon('list', 12)}${sd}/${subs.length}</span>` : ''}${t.notes ? h`<span class="mi" title="Tem notas">${icon('note', 12)}</span>` : ''}${(t.tags || []).map((g) => h`<span class="tgx">#${g}</span>`)}${t.groupTitle ? h`<span>${icon('list', 12)} <span class="user-value">${t.groupTitle}</span></span>` : ''}${t.sample ? h`<span>Exemplo</span>` : ''}</span></button>
-    <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
-    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
-  </li>`;
+  return renderTaskRow(t, reviewNextWeek, homeNextStep, { route: ui.route, sort: ui.filters.sort });
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
 
@@ -1773,6 +1872,7 @@ function applyTheme(theme) {
   r.setAttribute('data-palette', th); r.style.setProperty('--p', p); r.style.setProperty('--pd', pd);
   const effectiveMode = L.mode === 'auto' ? (systemThemeQuery?.matches ? 'dark' : 'light') : L.mode;
   r.setAttribute('data-theme', effectiveMode);
+  window.auroraManifestTheme?.setMode(L.mode);
   const areaColors = normalizeHomeAreaColors(settings.prefs.areaColors);
   HOME_AREA_COLORS.forEach(({ id, css }) => {
     const color = areaColors[id] ? homeAreaColorValue(areaColors[id], effectiveMode) : '';
@@ -1855,7 +1955,7 @@ function restoreDialogOpener(opener) {
   target?.focus({ preventScroll: true });
 }
 function cycleDataConsentGate() {
-  return h`${areaNav('ciclo')}${pageTitle('Ciclo')}
+  return h`${pageTitle('Ciclo')}
     <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
       <span class="section-kicker">Consentimento específico</span>
       <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
@@ -1870,10 +1970,21 @@ function cycleDataConsentGate() {
     </section>`;
 }
 function render() {
+  const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
+  const reducedMotion = prefersReducedMotion(settingsView().look.reduceMotion);
+  if (routeChanged && !reducedMotion && typeof document.startViewTransition === 'function') {
+    document.startViewTransition(() => renderApp(true, true));
+    return;
+  }
+  renderApp(routeChanged, false);
+}
+function renderApp(routeChanged, viewTransition) {
   acquireActiveScrollLocks();
   ui.dirty = false;
   applyTheme();
-  const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
+  document.querySelectorAll('#app details[id^="d-"]').forEach((details) => {
+    ui.openDetails[details.id.slice(2)] = details.open;
+  });
   const keep = {};
   $$('[data-keep]').forEach((el) => { if (el.id) keep[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
   const active = document.activeElement;
@@ -1885,9 +1996,11 @@ function render() {
     && !hasCurrentCycleDataConsent(accountSession?.user);
   const page = needsCycleConsent ? cycleDataConsentGate() : (ROUTES[ui.route] || ROUTES.inicio)();
   const app = $('#app');
+  const previousProgressRings = routeChanged ? [] : captureProgressRings(app);
   app.innerHTML = shell(page).s;
+  if (!routeChanged) animateProgressRings(app, previousProgressRings);
   initializeFaqDisclosure(app);
-  if (routeChanged) {
+  if (routeChanged && !viewTransition) {
     const main = app.querySelector('.main');
     if (main) main.classList.add('route-enter');
   }
@@ -1901,7 +2014,16 @@ function render() {
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
   renderPwaUpdateNotice();
+  if (ui.pwaUpdateAvailable && !pwaUpdateAutoBlocked && !hasUnsavedPwaChanges()) {
+    void applyPwaUpdate({ automatic: true });
+  }
   tick();
+}
+function hasUnsavedPwaChanges() {
+  return settingsDraftDirty()
+    || Boolean(ui.profileDraft)
+    || Boolean(ui.dlg)
+    || ui.persistFailed.size > 0;
 }
 function renderPwaUpdateNotice() {
   let notice = $('#pwa-update-notice');
@@ -1942,7 +2064,9 @@ function watchPwaRegistration(registration) {
     announcedWorker = waiting;
     ui.pwaUpdateAvailable = true;
     ui.pwaUpdateDismissed = false;
+    pwaUpdateAutoBlocked = false;
     renderPwaUpdateNotice();
+    void applyPwaUpdate({ automatic: true });
   };
   registration.addEventListener('updatefound', () => {
     const installing = registration.installing;
@@ -1984,63 +2108,43 @@ function registerPwaSupport() {
   }
   return pwaSupportPromise;
 }
-async function applyPwaUpdate() {
+async function applyPwaUpdate({ automatic = false } = {}) {
+  if (pwaReloading || pwaApplying) return;
+  if (!automatic) pwaUpdateAutoBlocked = false;
   const waiting = pwaRegistration?.waiting;
   if (!waiting) {
     ui.pwaUpdateAvailable = false;
     renderPwaUpdateNotice();
-    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.');
+    if (!automatic) toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.', 'info');
     return;
   }
-  const hasUnsavedChanges = settingsDraftDirty()
-    || Boolean(ui.profileDraft)
-    || Boolean(ui.dlg)
-    || ui.persistFailed.size > 0;
-  if (hasUnsavedChanges
-    && !await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
-  if (Persist.store && !await Persist.flush()) {
-    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.');
-    return;
+  if (hasUnsavedPwaChanges()) {
+    if (automatic) return;
+    if (!await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
   }
-  if (pwaReloading) return;
-  pwaReloading = true;
-  const button = $('[data-action="pwa-update-apply"]');
-  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  }, { once: true });
-  waiting.postMessage({ type: 'SKIP_WAITING' });
+  pwaApplying = true;
+  try {
+    if (Persist.store && !await Persist.flush()) {
+      pwaUpdateAutoBlocked = true;
+      toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.', 'error');
+      return;
+    }
+    pwaReloading = true;
+    const button = $('[data-action="pwa-update-apply"]');
+    if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    }, { once: true });
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+  } finally {
+    pwaApplying = false;
+  }
 }
-function setToast(msg, undo) {
-  clearTimeout(ui.toastT);
-  if (Object.keys(ui.integrityIssues).length) {
-    const slices = Object.keys(ui.integrityIssues).join(', ');
-    msg = `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
-    undo = null;
-  } else if (ui.persistFailed.size) {
-    msg = `Não foi possível salvar as alterações. Confira sua conexão e tente novamente.${ui.persistError ? ` Detalhe técnico: ${ui.persistError}` : ''}`;
-    undo = null;
-  }
-  const text = String(msg?.s || msg).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
-  const tone = undo ? 'action'
-    : /não foi|falha|inválid|não puderam|indisponível|erro|não consegui/.test(text) ? 'error'
-      : /selecione|informe|escolha|revise|dê um nome|pause|conclua ou descarte|máx\.|deve/.test(text) ? 'warning'
-        : /salv|adicion|concluíd|baixad|atualiz|registrad|sincroniz|enviad|importad|copiad|conectad|restaurad/.test(text) ? 'success'
-          : 'info';
-  ui.toast = { msg, undo, tone };
-  ui.toastT = setTimeout(() => { ui.toast = null; renderToast(); }, undo ? 9000 : 5000);
-  renderToast();
+function setToast(msg, tone, undo) {
+  toastController.show(msg, tone, undo);
 }
 function renderToast() {
-  let el = $('#toast');
-  if (!ui.toast) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
-  const icons = { success: 'check', warning: 'alert', error: 'alert', action: 'repeat', info: 'info' };
-  const labels = { success: 'Concluído', warning: 'Atenção', error: 'Não foi possível concluir', action: 'Alteração feita', info: 'Informação' };
-  el.className = `toast toast-${ui.toast.tone}${ui.dlg || ui.navigationOpen || ui.quickActionsOpen ? ' toast-top' : ''}`;
-  el.setAttribute('role', ui.toast.tone === 'error' ? 'alert' : 'status');
-  const toastMessage = typeof ui.toast.msg === 'string' ? preserveCopyTerms(ui.toast.msg) : ui.toast.msg;
-  el.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[ui.toast.tone], 18)}</span><span class="toast-content"><span class="toast-label">${labels[ui.toast.tone]}</span><span class="toast-message">${toastMessage}</span></span>${ui.toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
+  toastController.render();
 }
 function resetSettingsTabBeforeLeaving() {
   const path = settingsRootPath(location);
@@ -2070,7 +2174,7 @@ function scheduleRouteRender() {
   });
 }
 function hasUnsavedSettingsChanges() {
-  return Boolean(ui.profileDraft || settingsDraftDirty());
+  return Boolean(ui.profileDraft);
 }
 async function confirmLeavingSettingsRoute(route) {
   if (!hasUnsavedSettingsChanges()) return true;
@@ -2085,7 +2189,7 @@ function nav(route) {
   if (ui.route === 'config' && nextRoute !== 'config') resetSettingsTabBeforeLeaving();
   const destinationUrl = new URL(requestedPath, location.href);
   const preservedParams = new URLSearchParams(location.search);
-  ['section', 'weight', 'etapa'].forEach((key) => preservedParams.delete(key));
+  ['section', 'weight', 'etapa', 'revisao'].forEach((key) => preservedParams.delete(key));
   new URLSearchParams(destinationUrl.search).forEach((value, key) => preservedParams.set(key, value));
   destinationUrl.search = preservedParams.toString();
   const destination = `${destinationUrl.pathname}${destinationUrl.search}${destinationUrl.hash}`;
@@ -2128,11 +2232,97 @@ function focusRouteTarget(id) {
   target.focus({ preventScroll: true });
   target.scrollIntoView({ block: 'start' });
 }
+function loadFinanceModules() {
+  if (financeDialogViews) return Promise.resolve();
+  financeModulesPromise ||= Promise.all([
+    import('./features/finance/dialogs.js'),
+    import('./features/finance/view.js'),
+  ]).then(([dialogs, view]) => {
+    financeDialogViews = dialogs.createFinanceDialogViews({
+      ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+      accountOptionLabel, accById, isCredit, expenseTitle,
+      categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
+      anticipationCandidates,
+    });
+    financePrivacyNotice = view.financePrivacyNotice;
+    renderFinanceView = view.renderFinanceView;
+  }).catch((error) => {
+    financeModulesPromise = null;
+    throw error;
+  });
+  return financeModulesPromise;
+}
+function loadCycleModules() {
+  if (cycleDialogViews) return Promise.resolve();
+  cycleModulesPromise ||= Promise.all([
+    import('./features/cycle/phases.js'),
+    import('./features/cycle/dialogs.js'),
+    import('./features/cycle/view.js'),
+  ]).then(([phases, dialogs, view]) => {
+    estimatedCyclePhase = phases.estimatedCyclePhase;
+    renderCycleView = view.renderCycleView;
+    cycleDialogViews = dialogs.createCycleDialogViews({
+      ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS,
+      CYCLE_TEST_RESULTS, cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
+    });
+  }).catch((error) => {
+    cycleModulesPromise = null;
+    throw error;
+  });
+  return cycleModulesPromise;
+}
+function preloadInitialRouteModule() {
+  const route = routeFromLocation(location, new Set(Object.keys(ROUTES))).route;
+  if (route === 'financas') {
+    void loadFinanceModules().catch((error) => {
+      console.warn('Aurora: não foi possível antecipar o carregamento de Finanças.', error);
+    });
+  } else if (route === 'ciclo') {
+    void loadCycleModules().catch((error) => {
+      console.warn('Aurora: não foi possível antecipar o carregamento de Ciclo.', error);
+    });
+  } else if (route === 'habitos') {
+    requestHabitsTemplate();
+  }
+}
+function preloadEnabledRouteModules() {
+  const preload = () => {
+    if (!accountSession || navigator.onLine === false) return;
+    if (areaOn('finances')) {
+      void loadFinanceModules().catch((error) => {
+        console.warn('Aurora: não foi possível preparar Finanças para a próxima navegação.', error);
+      });
+    }
+    if (areaOn('cycle')) {
+      void loadCycleModules().catch((error) => {
+        console.warn('Aurora: não foi possível preparar Ciclo para a próxima navegação.', error);
+      });
+    }
+    if (areaOn('habits')) requestHabitsTemplate();
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(preload, { timeout: 1500 });
+  } else {
+    window.setTimeout(preload, 300);
+  }
+}
+function openFinanceQuickAction(action) {
+  ui.quickActionsOpen = false;
+  if (financeDialogViews) { action(); return; }
+  const opener = ui.lastFocus;
+  render();
+  void loadFinanceModules().then(() => {
+    ui.lastFocus = opener;
+    action();
+  }, (error) => {
+    console.error('Aurora: não foi possível carregar as ações de Finanças.', error);
+    toast('Não foi possível carregar Finanças. Atualize a página e tente novamente.', 'error');
+  });
+}
 function onRoute() {
   const wasBooted = ui.booted;
   const previousRoute = ui.route;
   const previousScroll = window.scrollY;
-  ui.navigationOpen = false;
   ui.quickActionsOpen = false;
   const fallbackRoute = document.querySelector('meta[name="aurora-route"]')?.content || 'inicio';
   const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
@@ -2145,15 +2335,51 @@ function onRoute() {
     resolved.replacePath = null;
     toast(hasProfileSex
       ? 'Ciclo está disponível apenas para mulheres.'
-      : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.');
+      : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.', 'info');
+  }
+  if (resolved.route === 'ciclo' && !cycleDialogViews) {
+    void loadCycleModules().then(() => {
+      if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'ciclo') onRoute();
+    }).catch((error) => {
+      console.error('Aurora: não foi possível carregar a área de Ciclo.', error);
+      history.replaceState(null, '', '/inicio');
+      toast('Não foi possível carregar Ciclo. Atualize a página e tente novamente.', 'error');
+    });
+    return;
+  }
+  if (resolved.route === 'financas' && !financeDialogViews) {
+    void loadFinanceModules().then(() => {
+      if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'financas') onRoute();
+    }).catch((error) => {
+      console.error('Aurora: não foi possível carregar a área de Finanças.', error);
+      history.replaceState(null, '', '/inicio');
+      toast('Não foi possível carregar Finanças. Atualize a página e tente novamente.', 'error');
+    });
+    return;
   }
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
+  if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
+    const destination = `${location.pathname}${location.search}${location.hash}`;
+    history.replaceState(history.state, '', `${routePathFor('config')}?section=${encodeURIComponent(ui.settingsTab)}`);
+    void confirmLeavingSettingsRoute(destination).then((confirmed) => {
+      if (!confirmed) return;
+      ui.profileDraft = null;
+      ui.settingsDraft = null;
+      ui.settingsDraftBase = null;
+      history.replaceState(history.state, '', destination);
+      onRoute();
+    });
+    return;
+  }
   const routeLocationKey = `${resolved.route}?${resolved.query}`;
   if (wasBooted && routeLocationKey === activeRouteLocationKey) return;
   activeRouteLocationKey = routeLocationKey;
   ui.booted = true;
   const { query } = resolved;
   ui.route = resolved.route;
+  if (ui.route === 'planejar' && new URLSearchParams(query).get('revisao') === 'semana') {
+    ui.planView = 'revisao';
+  }
   const routeChanged = wasBooted && previousRoute !== ui.route;
   if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
   const targetFocus = query === 'weight' ? 'pk' : null;
@@ -2188,12 +2414,13 @@ function onRoute() {
 }
 
 /* ========== Páginas: Início, Planejar, Foco ========== */
-const todayTasks = () => S.tasks.filter((t) => t.dueDate && t.dueDate <= today() && taskVisible(t)).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.time || '99:99').localeCompare(b.time || '99:99'));
+const todayTasks = () => selectTodayTasks(S.tasks, today());
 async function syncHabitReminderSchedule() {
   const status = getPushNotificationStatus();
   if (!status.enabled) return false;
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const now = Date.now();
     const reminders = S.habits
       .filter((habit) => habit.status === 'active' && habit.remind && isTime(habit.remind))
       .map((habit, index) => ({
@@ -2203,11 +2430,24 @@ async function syncHabitReminderSchedule() {
         timeZone,
         skipDate: habitCompletedFor(habit, today()) || habitIsSkipped(habit, today(), today()) ? today() : null,
       }));
+    const weeklyReviewReminders = buildWeeklyReviewPushReminder(
+      S.settings.prefs.weeklyReviewReminder,
+      now,
+      timeZone,
+    );
+    const taskReminders = buildTaskPushReminders(
+      S.tasks,
+      now,
+      MAX_TASK_REMINDERS - weeklyReviewReminders.length,
+    );
+    const allTaskReminders = [...taskReminders, ...weeklyReviewReminders].sort((left, right) => left.at - right.at);
     if (reminders.length) await scheduleHabitPushReminders(reminders);
     else await cancelHabitPushReminders();
-    ui.habitPushNotice = reminders.length
+    if (allTaskReminders.length) await scheduleTaskPushReminders(allTaskReminders);
+    else await cancelTaskPushReminders();
+    ui.habitPushNotice = reminders.length || allTaskReminders.length
       ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPushNotificationStatus().native ? 'do dispositivo' : 'do navegador'}.`
-      : 'Não há horários de lembrete ativos para enviar ao serviço.';
+      : 'Não há lembretes de hábitos, tarefas ou da revisão semanal para agendar.';
     return true;
   } catch (error) {
     ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pushNotificationErrorMessage(error)}`;
@@ -2313,7 +2553,7 @@ function homeUpcomingTasks() {
   </section>`;
 }
 
-function homeHabitCheckins(highlightNext = false) {
+function homeHabitCheckins(highlightNext = false, onlyNext = false) {
   if (!areaOn('habits')) return '';
   const scheduled = S.habits.filter((habit) => (
     (habit.status || 'active') === 'active'
@@ -2323,9 +2563,10 @@ function homeHabitCheckins(highlightNext = false) {
   const nextHabit = highlightNext ? scheduled.find((habit) => (
     !habitCompletedFor(habit, today()) && !habitIsSkipped(habit, today(), today())
   )) : null;
-  return h`<section class="card home-habit-checkins" aria-labelledby="home-habits-title">
-    <div class="head"><h2 id="home-habits-title">Hábitos de hoje<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
-    <ul class="list">${scheduled.map((habit) => {
+  if (onlyNext && !nextHabit) return '';
+  return h`<section class="card home-habit-checkins" aria-label="${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}">
+    <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
+    <ul class="list">${(onlyNext ? [nextHabit] : scheduled).map((habit) => {
       const completed = habitCompletedFor(habit, today());
       const skipped = habitIsSkipped(habit, today(), today());
       return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
@@ -2337,212 +2578,241 @@ function homeHabitCheckins(highlightNext = false) {
   </section>`;
 }
 
+let homeFirstStepsSessionKey = '';
+let homeFirstStepsRendered = false;
+function homeFirstTaskSlices() {
+  const slices = ['tasks'];
+  if (!S.tasks.length && homeFirstStepsRendered && !S.settings.prefs.firstStepsStarted) {
+    S.settings.prefs.firstStepsStarted = true;
+    slices.push('settings');
+  }
+  return slices;
+}
 function homeFirstSteps() {
-  if (S.settings.prefs.firstStepsDismissed) return '';
-  const hasActiveHabit = S.habits.some((habit) => (habit.status || 'active') === 'active');
+  const sessionKey = accountSession?.user?.id || 'local';
+  if (sessionKey !== homeFirstStepsSessionKey) {
+    homeFirstStepsSessionKey = sessionKey;
+    homeFirstStepsRendered = false;
+  }
+  const prefs = S.settings.prefs;
+  if (ui.preview || prefs.sample || prefs.firstStepsDismissed) return '';
+  if (S.tasks.length && !prefs.firstStepsStarted && !homeFirstStepsRendered) return '';
+  if (!S.tasks.length && !prefs.firstStepsStarted && !homeFirstStepsRendered) {
+    homeFirstStepsRendered = true;
+    const snapshot = snapshotSlices(['settings']);
+    prefs.firstStepsStarted = true;
+    saveSlicesWithRollback(['settings'], snapshot, false, 'o início do cartão de primeiros passos');
+  }
+  homeFirstStepsRendered = true;
+
+  const [colorComplete, taskComplete, habitComplete] = homeFirstStepsProgress({
+    theme: S.settings.theme,
+    tasks: S.tasks,
+    habits: S.habits,
+  });
+  const complete = [colorComplete, taskComplete, habitComplete];
+  const completedCount = complete.filter(Boolean).length;
+  if (completedCount === 3) {
+    const snapshot = snapshotSlices(['settings']);
+    prefs.firstStepsDismissed = true;
+    if (saveSlicesWithRollback(['settings'], snapshot, false, 'a conclusão dos primeiros passos')) return '';
+  }
   const steps = [
-    ['Criar uma tarefa', '/planejar', 'calendarCheck', S.tasks.length > 0],
-    ...(areaOn('habits') ? [[
-      hasActiveHabit ? 'Marcar um hábito' : 'Criar seu primeiro hábito',
-      '/habitos',
-      'leaf',
-      hasActiveHabit
-        ? S.habits.some((habit) => habitCompletedFor(habit, today()))
-        : false,
-    ]] : []),
-    ...(areaOn('finances') ? [['Cadastrar uma conta financeira', '/financas', 'wallet', S.finance.accounts.length > 0]] : []),
+    {
+      label: 'Escolher sua cor',
+      actionLabel: 'Abrir preferências de aparência',
+      href: '/config?section=personalization',
+      icon: 'sun',
+    },
+    {
+      label: 'Criar sua primeira tarefa',
+      actionLabel: 'Abrir diálogo de nova tarefa',
+      action: 'task-new',
+      icon: 'calendarCheck',
+    },
+    {
+      label: 'Marcar um hábito',
+      actionLabel: 'Abrir Hábitos',
+      href: '/habitos',
+      icon: 'leaf',
+    },
   ];
-  if (steps.every(([, , , complete]) => complete)) return '';
-  const completedSteps = steps.filter(([, , , complete]) => complete).length;
-  const nextStepIndex = steps.findIndex(([, , , complete]) => !complete);
-  return h`<details class="card home-first-steps" aria-labelledby="home-first-steps-title">
-    <summary class="home-first-steps-summary"><span><span class="section-kicker">Comece com uma ação pequena</span><h2 id="home-first-steps-title">Primeiros passos<i>.</i></h2><small class="home-first-steps-progress">${completedSteps} de ${steps.length} ações concluídas</small></span><span class="home-first-steps-toggle" aria-hidden="true">${icon('chevDown', 18)}</span></summary>
-    <div class="home-first-steps-content">
-      <ol class="home-first-steps-list">${steps.map(([label, href, iconName, complete], index) => h`<li class="${complete ? 'is-complete' : ''}${index === nextStepIndex ? ' is-next' : ''}">
-      <a href="${href}"><span class="home-first-steps-mark" aria-hidden="true">${icon(complete ? 'check' : iconName, 18)}</span><span class="home-first-steps-copy"><b>${label}</b><small>${complete ? 'Concluído' : index === nextStepIndex ? 'Sugestão para você' : 'Começar'}</small></span>${icon('chevRight', 16, 'home-first-steps-arrow')}</a>
-      </li>`)}</ol>
-      <button type="button" class="btn ghost sm home-first-steps-dismiss" data-action="first-steps-dismiss">Dispensar</button>
+  return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
+    <div class="home-first-steps-heading">
+      <h2 id="home-first-steps-title">Comece em 3 passos</h2>
+      <span class="home-first-steps-progress" role="status" aria-live="polite">${completedCount} de 3 feitos</span>
     </div>
-  </details>`;
+    <div class="home-first-steps-progress-track" role="progressbar" aria-label="Progresso dos primeiros passos" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${completedCount}" aria-valuetext="${completedCount} de 3 feitos">
+      <span class="home-first-steps-progress-fill" style="width: ${completedCount / 3 * 100}%"></span>
+    </div>
+    <ol class="home-first-steps-list" aria-label="Passos do primeiro acesso">${steps.map((step, index) => {
+      const stepComplete = complete[index];
+      const content = h`<span class="home-first-steps-mark" aria-hidden="true">${icon(stepComplete ? 'check' : step.icon, 18)}</span>
+        <span class="home-first-steps-copy"><b>${step.label}</b><small>${stepComplete ? 'Feito' : step.actionLabel}</small></span>`;
+      return h`<li class="${stepComplete ? 'is-complete' : ''}">${stepComplete
+        ? h`<div class="home-first-steps-action" aria-label="${step.label}: feito">${content}</div>`
+        : step.href
+          ? h`<a class="home-first-steps-action" href="${step.href}">${content}</a>`
+          : h`<button type="button" class="home-first-steps-action" data-action="${step.action}">${content}</button>`}</li>`;
+    })}</ol>
+    <button type="button" class="btn ghost sm home-first-steps-dismiss" data-action="first-steps-dismiss">Dispensar</button>
+  </section>`;
 }
 
 function viewInicio() {
+  const todayKey = today();
   const name = (S.settings.profile.preferredName || S.settings.profile.name).trim();
   const profileAppearance = normalizeProfileAppearance(settingsView().prefs.profileAppearance);
   const greeting = profileGreeting(profileAppearance.greeting);
-  const tt = todayTasks(), pend = tt.filter((t) => !t.done), doneN = tt.length - pend.length;
-  const overdue = pend.filter((t) => t.dueDate < today());
-  const dueToday = pend.filter((t) => t.dueDate === today());
-  const todayCount = S.tasks.filter((task) => task.dueDate === today()).length;
+  const tt = todayTasks(), pend = tt.filter((t) => !t.done);
+  const todayPlanTasks = tt.filter((task) => task.dueDate === todayKey);
+  const overdue = pend.filter((t) => t.dueDate < todayKey);
+  const dueToday = pend.filter((t) => t.dueDate === todayKey);
   const completed = tt.filter((t) => t.done);
   const inbox = S.tasks.filter((t) => !t.dueDate && !t.done);
   const optionalAreas = areaTiles();
   const homePrefs = settingsView().prefs;
   const homeLayout = homePrefs.homeLayout;
   const homeMessage = homePrefs.homeMessage;
-  const sundayReview = pk(today()).getDay() === 0;
+  const sundayReview = pk(todayKey).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
-  const taskShortcutVisible = homePrefs.homeShortcuts.includes('task');
   const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => (
     homePrefs.homeShortcuts.includes(id)
     && (!area || areaOn(area))
     && !(id === 'task' && showHomeBlock('quick'))
   ));
+  const emptyWorkspace = !S.tasks.length
+    && !S.habits.some((habit) => (habit.status || 'active') === 'active')
+    && !S.finance.accounts.length;
   const nextTask = showHomeBlock('today') ? overdue[0] || dueToday[0] : null;
-  const habitsToday = areaOn('habits') ? S.habits.filter((hb) => (hb.status || 'active') === 'active' && hb.days.includes(pk(today()).getDay())) : [];
-  const habitsLeft = habitsToday.filter((hb) => !habitCompletedFor(hb, today())
-    && !habitIsSkipped(hb, today(), today())).length;
+  const habitsOverview = habitDayOverview(
+    areaOn('habits') ? S.habits : [],
+    todayKey,
+    habitCompletedFor,
+    (habit, day) => habitIsSkipped(habit, day, todayKey),
+  );
+  const habitsToday = habitsOverview.scheduled;
+  const habitsLeft = habitsOverview.planned - habitsOverview.completed;
   const habitNote = habitsToday.length ? (habitsLeft ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.` : ' Hábitos de hoje em dia.') : '';
-  const lead = (!tt.length ? 'Seu dia está livre por enquanto. Que tal planejar algo?' : pend.length ? `Você tem ${pend.length} ${plural(pend.length, 'tarefa pendente', 'tarefas pendentes')} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.') + habitNote;
-  return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${cap(longDate(today()))}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions">${!showHomeBlock('quick') && !taskShortcutVisible ? h`<button type="button" class="home-action" data-action="home-quick-focus">${icon('plus', 18)}Nova tarefa${icon('chevRight', 16)}</button>` : ''}${areaGuideButton('inicio')}</div></div>${tt.length ? ring(doneN, tt.length) : ''}</header>
-    ${sampleBanner()}
-    ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · revisão da semana</span><h2 id="home-weekly-review-title">Um minuto para reconhecer seu progresso</h2><p>Veja hábitos, tarefas concluídas e gastos antes de começar uma nova semana.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Fazer revisão</button></section>` : ''}
-    <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
-      <div class="home-primary">
-        ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
-          <a href="/planejar"><b>${todayCount}</b><span>Tarefas hoje</span></a>
-          <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
-        </section>` : ''}
-        ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title" ${raw(homeBlockStyle('quick'))}>
-          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p>Registre uma tarefa para hoje sem sair da sua rotina.</p></div></div>
-          <form class="home-quick-form" data-form="home-quick-task"><label class="sr" for="home-quick-title-input">Nova tarefa para hoje</label><input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" placeholder="Ex.: revisar a apresentação" required><button class="btn primary" type="submit">${icon('plus', 16)}Adicionar</button></form>
-        </section>` : ''}
-        ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(!nextTask)}</div>` : ''}
-        ${showHomeBlock('today') ? h`        <section class="home-today-card" aria-labelledby="th" ${raw(homeBlockStyle('today'))}><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje</h2></div><div class="row"><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div></div>
-          ${tt.length ? h`<div class="home-task-groups">
-            ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
-            ${dueToday.length ? h`<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${icon('calendarCheck', 15)}Para hoje <span>${dueToday.length}</span></h3><ul class="list">${dueToday.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
-            ${completed.length ? h`<details class="home-completed"><summary>${icon('check', 15)}Concluídas hoje <span class="home-completed-count">${completed.length}</span><span class="home-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary><ul class="list">${completed.map(taskRow)}</ul></details>` : ''}
-          </div>` : empty('Seu dia está aberto', 'Inclua a primeira prioridade acima ou crie uma tarefa completa.', h`<a class="btn" href="/planejar">Ver tarefas no Planejar</a>`, 'calendarCheck')}
-        </section>` : ''}
-        ${homeUpcomingTasks()}
-        ${homeInboxReminder(inbox)}
-        ${homeUpcomingBill()}
-      </div>
-      ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
-    </div>
-    ${homeFirstSteps()}
-    ${backupReminder()}
-    ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
-      <div class="home-tool-grid compact-card-grid">
-        ${homeShortcuts.map((shortcut) => {
-          const action = shortcut.id === 'finance' && !S.finance.accounts.length ? 'quick-action-account' : shortcut.action;
-          const label = shortcut.id === 'finance'
-            ? S.finance.accounts.length ? 'Novo lançamento' : 'Criar conta financeira'
-            : shortcut.label;
-          return h`<button class="home-tool" type="button" data-action="${action}"><span class="home-tool-icon">${icon(shortcut.icon, 20)}</span><span><b>${label}</b><small>${shortcut.description}</small></span>${icon('chevRight', 18, 'home-tool-go')}</button>`;
-        })}
-      </div>
-    </section>` : ''}`;
+  const taskSummary = [
+    overdue.length ? `${overdue.length} ${plural(overdue.length, 'tarefa atrasada', 'tarefas atrasadas')}` : '',
+    dueToday.length ? `${dueToday.length} ${plural(dueToday.length, 'tarefa para hoje', 'tarefas para hoje')}` : '',
+  ].filter(Boolean).join(' · ');
+  const lead = (taskSummary || (!tt.length
+    ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
+    : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
+  const waterTotal = waterMlForDay(S.water, todayKey);
+  const waterGoal = waterGoalForHabit(S.habits.find(isWaterHabit), S.settings.prefs.waterGoalMl);
+  const showCycleSummary = !ui.preview
+    && !S.settings.prefs.sample
+    && areaOn('cycle')
+    && hasCurrentCycleDataConsent(accountSession?.user);
+  const daySummary = {
+    tasks: {
+      done: todayPlanTasks.filter((task) => task.done).length,
+      total: todayPlanTasks.length,
+    },
+    habits: { done: habitsOverview.completed, total: habitsOverview.planned },
+    water: {
+      total: waterTotal,
+      goal: waterGoal,
+      percent: Math.min(100, Math.round(waterTotal / waterGoal * 100)),
+    },
+    cycle: showCycleSummary
+      ? { day: cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
+      : null,
+  };
+  return renderHomeView({
+    name,
+    profileAppearance,
+    greeting,
+    dateLabel: cap(longDate(today())),
+    daySummary,
+    homeMessage,
+    lead,
+    tt,
+    sundayReview,
+    optionalAreas,
+    overdue,
+    dueToday,
+    completed,
+    nextTask,
+    inbox,
+    homeShortcuts,
+    emptyWorkspace,
+    openCompleted: ui.openDetails['home-completed'],
+    financeAccountsCount: S.finance.accounts.length,
+    showHomeBlock,
+    homeBlockStyle,
+  }, {
+    areaGuideButton,
+    backupReminder,
+    empty,
+    homeFirstSteps,
+    homeHabitCheckins,
+    homeInboxReminder,
+    homeUpcomingBill,
+    homeUpcomingTasks,
+    profileAvatarMarkup,
+    sampleBanner,
+    taskRow,
+  });
 }
 
 const FILTERS = [['todas', 'Todas'], ['pendentes', 'Pendentes'], ['atrasadas', 'Atrasadas'], ['proximas', 'Próximos 7 dias'], ['caixa', 'Sem data'], ['concluidas', 'Concluídas']];
+const LIST_PAGE_SIZE = 10;
+const listPages = {
+  tasks: { key: '', limit: LIST_PAGE_SIZE },
+  transactions: { key: '', limit: LIST_PAGE_SIZE },
+};
+function listPage(name, key) {
+  const page = listPages[name];
+  if (page.key !== key) {
+    page.key = key;
+    page.limit = LIST_PAGE_SIZE;
+  }
+  return page;
+}
+function showMoreResults(name, selector, renderResults) {
+  const results = document.querySelector(selector);
+  if (!results) return;
+  const previousCount = results.querySelectorAll('li.task, li.fr').length;
+  listPages[name].limit += LIST_PAGE_SIZE;
+  results.innerHTML = renderResults().s;
+  const firstNewRow = results.querySelectorAll('li.task, li.fr')[previousCount];
+  const next = firstNewRow?.querySelector('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  (next || results.querySelector('[data-action$="-show-more"]') || results).focus();
+}
 function filteredTasks() {
-  const { f, q, sort } = ui.filters, tdy = today(), nq = norm(q.trim());
-  const nextWeek = addDays(tdy, 7);
-  let r = S.tasks.filter((t) => {
-    if (f === 'pendentes' && t.done) return false;
-    if (f === 'concluidas' && !t.done) return false;
-    if (f === 'atrasadas' && (t.done || !t.dueDate || t.dueDate >= tdy)) return false;
-    if (f === 'proximas' && (t.done || !t.dueDate || t.dueDate <= tdy || t.dueDate > nextWeek)) return false;
-    if (f === 'caixa' && (t.done || t.dueDate)) return false;
-    if (f.startsWith('etq:') && !(t.tags || []).includes(f.slice(4))) return false;
-    return !nq || norm(t.title).includes(nq) || (t.tags || []).some((g) => norm(g).includes(nq)) || norm(t.notes || '').includes(nq) || norm(t.groupTitle || '').includes(nq);
-  });
-  const pr = { high: 0, normal: 1, low: 2 };
-  r.sort((a, b) => a.done - b.done || (sort === 'manual' ? orderOf(a) - orderOf(b) : sort === 'prioridade' ? pr[a.priority] - pr[b.priority] : sort === 'recentes' ? (b.createdAt || 0) - (a.createdAt || 0) : (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.time || '99:99').localeCompare(b.time || '99:99')));
-  return r;
+  return selectFilteredTasks(S.tasks, ui.filters, today(), { normalize: norm, orderOf });
 }
 function taskListHtml() {
-  const r = filteredTasks(), { f, sort } = ui.filters, tdy = today();
+  const all = filteredTasks(), { f, sort } = ui.filters, tdy = today();
+  const page = listPage('tasks', JSON.stringify([f, ui.filters.q, sort]));
+  const r = all.slice(0, page.limit);
   if (!r.length) {
     const hasTasks = S.tasks.length > 0;
-      const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
+    const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
     const actions = hasTasks
-      ? hasFilters ? h`<button type="button" class="btn" data-action="task-filters-clear">Limpar filtros</button>` : ''
+      ? hasFilters ? h`<button type="button" class="btn primary" data-action="task-filters-clear">Limpar filtros</button>` : h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Criar a primeira tarefa</button>`
       : hasFilters
-        ? h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
-        : h`<button type="button" class="btn" data-action="task-new">${icon('plus', 16)}Criar tarefa</button>`;
-    return empty(
-      hasTasks ? 'Nenhuma tarefa nesse filtro' : 'Ainda não há tarefas',
-      hasTasks ? 'Troque o filtro ou limpe a busca.' : 'Crie sua primeira tarefa com prazo, horário e prioridade.',
+        ? h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Criar a primeira tarefa</button><button type="button" class="btn ghost" data-action="task-filters-clear">Limpar filtros</button>`
+        : h`<button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Criar a primeira tarefa</button>`;
+    return areaEmpty(
+      hasTasks ? 'Nenhuma tarefa encontrada.' : 'Nada por aqui ainda.',
+      hasTasks ? 'Nenhuma tarefa combina com estes filtros. Você pode ajustar a busca.' : 'Comece com uma tarefa pequena e organize os próximos passos no seu ritmo.',
       actions,
       hasTasks ? 'search' : 'calendarCheck',
+      'h3',
     );
   }
-  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>`;
+  const more = all.length > r.length
+    ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} tarefas</p><button type="button" class="btn" data-action="tasks-show-more">Mostrar mais tarefas</button>`
+    : '';
+  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>${more}`;
   const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
-  return raw('<div class="task-results-groups">' + G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${it.length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>`.s : ''; }).join('') + '</div>');
-}
-function plansHtml() {
-  const g = {};
-  S.tasks.forEach((t) => { if (t.groupId) (g[t.groupId] ||= { title: t.groupTitle, items: [] }).items.push(t); });
-  const plans = Object.entries(g); if (!plans.length) return '';
-  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, p]) => { const d = p.items.filter((t) => t.done).length, pc = Math.round(d / p.items.length * 100); return h`<li><div class="grow"><div class="ttl">${p.title}</div><div class="bar plan-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${p.title}"><span style="width:${pc}%"></span></div><span class="small muted">${d} de ${p.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${p.title}">${icon('trash', 18)}</button></li>`; })}</ul></section>`;
-}
-function taskCalendar() {
-  const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
-  const eventsByDay = new Map();
-  connectedGoogleCalendarAccounts().forEach((account) => account.events.forEach((event) => {
-    const dayEvents = eventsByDay.get(event.day) || [];
-    dayEvents.push(event);
-    eventsByDay.set(event.day, dayEvents);
-  }));
-  const wd = Array.from({ length: 7 }, (_, i) => DIAS[(ws + i) % 7]);
-  const by = {}; S.tasks.forEach((t) => { if (t.dueDate && t.dueDate.startsWith(ym) && !(t.done && ui.filters.f === 'pendentes')) (by[t.dueDate] = by[t.dueDate] || []).push(t); });
-  const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
-  for (let d = 1; d <= n; d++) {
-    const k = `${ym}-${pad(d)}`, ts = by[k] || [], pend = ts.filter((t) => !t.done), dayEvents = eventsByDay.get(k) || [];
-    const labels = [
-      `${pend.length} ${pend.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
-      ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} das agendas conectadas`] : []),
-    ];
-    const markers = [
-      pend.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pend.length, 3)) : ts.length ? '<u class="dn"></u>' : '',
-      dayEvents.length ? '<u class="google-event-dot"></u>' : '',
-    ].join('');
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.taskDay ? 's' : ''} ${pend.some((t) => k < tdy) ? 'od' : ''}" data-action="tcal-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${d}</b><i>${markers}</i></button>`);
-  }
-  const day = S.tasks.filter((t) => t.dueDate === ui.taskDay).sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
-  const selectedEvents = eventsByDay.get(ui.taskDay) || [];
-  return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    ${googleCalendarPlanPanel()}
-    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div></div>
-    ${connectedGoogleCalendarAccounts().length ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
-      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
-      ${selectedEvents.length
-        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`
-        : h`<p class="small muted">Nenhum evento das agendas conectadas neste dia.</p>`}
-    </section>` : ''}
-    <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((t) => !t.done).length} pendente(s)</span></div>
-      ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul><button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>` : empty('Dia livre', 'Nada marcado para este dia.', h`<button type="button" class="btn primary" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>`, 'calendarCheck')}</section>`;
-}
-function taskWeek() {
-  const days = weekDays(ui.taskWeek, weekStartDay());
-  const entries = tasksForWeek(S.tasks, days);
-  const first = pk(days[0]), last = pk(days[6]);
-  const label = first.getMonth() === last.getMonth()
-    ? `${first.getDate()}–${last.getDate()} ${MESES_L[last.getMonth()]} ${last.getFullYear()}`
-    : `${shortDate(days[0])}–${shortDate(days[6])}`;
-  return h`<div class="week-planner">
-    <div class="mnav"><button class="ibtn" data-action="tweek-nav" data-n="-1" aria-label="Semana anterior">${icon('chevLeft', 20)}</button><b>${label}</b><button class="ibtn" data-action="tweek-nav" data-n="1" aria-label="Próxima semana">${icon('chevRight', 20)}</button><button class="btn sm" data-action="tweek-today">Esta semana</button></div>
-    <div class="week-days">${entries.map(({ day, tasks }) => h`<section class="week-day${day === today() ? ' is-today' : ''}" aria-labelledby="week-${day}">
-      <div class="head"><h3 id="week-${day}">${cap(DIAS[pk(day).getDay()])} <span>${shortDate(day)}</span>${day === today() ? h` <span class="badge">Hoje</span>` : ''}</h3><span class="small muted">${tasks.filter((task) => !task.done).length} pendente(s)</span></div>
-      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>` : empty('Dia livre', 'Nada marcado.', h`<button type="button" class="btn primary" data-action="week-add" data-d="${day}">Adicionar tarefa</button>`, 'calendarCheck')}
-    </section>`)}</div>
-  </div>`;
-}
-function googleCalendarPlanPanel() {
-  const accounts = connectedGoogleCalendarAccounts();
-  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
-    <div class="head"><div><h3 id="google-calendar-title">Agendas conectadas</h3><span class="badge">Somente leitura</span></div><a class="btn sm" href="/config?section=calendars">Gerenciar agendas</a></div>
-    <p class="small muted">${accounts.length
-      ? `${accounts.length} ${accounts.length === 1 ? 'conta Google conectada' : 'contas Google conectadas'}. Os eventos ficam disponíveis junto às tarefas enquanto esta aba estiver aberta.`
-      : 'Conecte uma ou mais contas Google em Ajustes para ver os eventos junto às suas tarefas.'}</p>
-  </section>`;
+  return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>` : ''; })}</div>${more}`;
 }
 function googleCalendarSettingsPanel() {
   const state = ui.googleCalendar;
@@ -2700,7 +2970,7 @@ async function loadGoogleCalendarList() {
   }
 }
 function prepareGoogleCalendar() {
-  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.');
+  if (!googleCalendar.isConfigured()) return toast('A conexão com o Google Calendar ainda não foi configurada neste ambiente.', 'info');
   const state = ui.googleCalendar;
   state.status = 'loading-sdk';
   state.error = '';
@@ -2757,53 +3027,56 @@ function disconnectGoogleCalendar(accountId) {
   ui.googleCalendar.requestId += 1;
   render();
   void loadGoogleCalendarEvents();
-  toast('A conta foi desconectada desta aba.');
+  toast('A conta foi desconectada desta aba.', 'success');
 }
 function viewPlanejar() {
-  const f = ui.filters;
-  const todayKey = today();
-  const nextWeek = addDays(todayKey, 7);
-  const pendingTasks = S.tasks.filter((task) => !task.done);
-  const todayPending = pendingTasks.filter((task) => task.dueDate === todayKey).length;
-  const overdueCount = pendingTasks.filter((task) => task.dueDate && task.dueDate < todayKey).length;
-  const upcomingCount = pendingTasks.filter((task) => task.dueDate > todayKey && task.dueDate <= nextWeek).length;
-  const inboxCount = pendingTasks.filter((task) => !task.dueDate).length;
-  const todaySummary = todayPending
-    ? `${todayPending} ${plural(todayPending, 'tarefa marcada', 'tarefas marcadas')} para hoje`
-    : 'Nenhuma tarefa com prazo para hoje';
-  const overdueSummary = overdueCount
-    ? `${overdueCount} ${plural(overdueCount, 'tarefa atrasada', 'tarefas atrasadas')}`
-    : 'Nenhuma tarefa atrasada';
-  const planningSummary = overdueCount
-    ? `${overdueSummary}. Comece pelo que já passou do prazo.`
-    : todayPending
-      ? `${todaySummary}. Veja o que vem depois e ajuste sua semana.`
-      : upcomingCount
-        ? `${upcomingCount} ${plural(upcomingCount, 'tarefa nos próximos dias', 'tarefas nos próximos dias')}. Seu dia está livre para organizar.`
-        : 'Seu plano está em dia. Adicione uma tarefa ou organize os próximos dias.';
-  return h`${areaPageTitle('planejar', 'Planejar')}
-    <section class="card qa-card planning-overview" aria-labelledby="planning-overview-title">
-      <div class="planning-overview-copy">
-        <span class="section-kicker">Seu próximo passo</span>
-        <h2 id="planning-overview-title">${overdueCount ? 'Vamos reorganizar o que passou.' : 'Seu plano, com clareza.'}<i>.</i></h2>
-        <p>${planningSummary}</p>
-        <div class="planning-overview-actions"><button type="button" class="btn primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button></div>
-      </div>
-      <div class="planning-overview-stats" role="group" aria-label="Filtrar tarefas por prazo">
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="pendentes" aria-pressed="${ui.planView === 'lista' && f.f === 'pendentes' && !f.q}"><span>Pendentes</span><b>${pendingTasks.length}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="atrasadas" aria-pressed="${ui.planView === 'lista' && f.f === 'atrasadas' && !f.q}"><span>Atrasadas</span><b>${overdueCount}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="proximas" aria-pressed="${ui.planView === 'lista' && f.f === 'proximas' && !f.q}"><span>Próximos 7 dias</span><b>${upcomingCount}</b></button>
-        <button type="button" class="planning-overview-stat" data-action="planning-filter" data-f="caixa" aria-pressed="${ui.planView === 'lista' && f.f === 'caixa' && !f.q}"><span>Sem data</span><b>${inboxCount}</b></button>
-      </div>
-    </section>
-    <section class="planning-shortcuts" aria-label="Atalhos de planejamento"><span>Atenção ao seu plano</span><button type="button" data-action="plan-view" data-v="semana">${icon('calendarCheck', 16)}Organizar a semana</button><button type="button" data-action="plan-view" data-v="revisao">${icon('chart', 16)}Fazer revisão semanal</button></section>
-    <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">Minhas tarefas</h2>
-      <label class="plan-view-select"><span>Ver como</span><select data-change="plan-view" aria-label="Modo de visualização">${[['lista', 'Lista'], ['calendario', 'Calendário'], ['semana', 'Semana'], ['revisao', 'Revisão']].map(([value, label]) => h`<option value="${value}" ${ui.planView === value ? raw('selected') : ''}>${label}</option>`)}</select></label>
-      ${ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${f.f === k}" data-action="set-filter" data-f="${k}">${l}</button>`)}${allTags().map((g) => h`<button class="chip" aria-pressed="${f.f === 'etq:' + g}" data-action="set-filter" data-f="${'etq:' + g}">#${g}</button>`)}</div>
-      <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${f.q}" placeholder="Buscar tarefas" data-input="search"></label>
-        <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([k, l]) => h`<option value="${k}" ${f.sort === k ? raw('selected') : ''}>${l}</option>`)}</select></label></div>
-      <div id="task-results" aria-live="polite">${taskListHtml()}</div>`}</section>
-    ${plansHtml()}`;
+  return renderPlanningView({
+    S,
+    ui,
+    filterOptions: FILTERS,
+    allTags,
+    areaPageTitle,
+    plural,
+    today,
+    taskCalendar: () => renderTaskCalendar({
+      S,
+      ui,
+      weekStartDay,
+      today,
+      connectedGoogleCalendarAccounts,
+      cap,
+      ymLabel,
+      taskRow,
+      googleCalendarPlanPanel: () => renderGoogleCalendarPlanPanel(connectedGoogleCalendarAccounts()),
+    }),
+    taskWeek: () => renderTaskWeek({
+      S,
+      ui,
+      weekStartDay,
+      today,
+      cap,
+      taskRow,
+    }),
+    weeklyReviewView,
+    taskListHtml,
+    plansHtml: () => renderPlansView(S.tasks),
+  });
+}
+
+function updateAnnualIdeaFilters() {
+  const visibleIds = new Set(filterAnnualPlanIdeas(ui.annualIdeaCategory, ui.annualIdeaQuery).map((idea) => idea.id));
+  document.querySelectorAll('[data-annual-idea]').forEach((card) => {
+    card.hidden = !visibleIds.has(card.dataset.annualIdea);
+  });
+  document.querySelectorAll('[data-action="annual-idea-category"]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.category === ui.annualIdeaCategory));
+  });
+  const count = document.querySelector('[data-annual-ideas-count]');
+  if (count) count.textContent = `${visibleIds.size} ${plural(visibleIds.size, 'ideia', 'ideias')}`;
+  const empty = document.querySelector('.annual-ideas-empty');
+  if (empty) empty.hidden = visibleIds.size > 0;
+  const clear = document.querySelector('.annual-ideas-filter-status [data-action="annual-ideas-clear"]');
+  if (clear) clear.hidden = visibleIds.size === 0 || (ui.annualIdeaCategory === 'all' && !String(ui.annualIdeaQuery || '').trim());
 }
 
 function habitDaysLabel(habit) {
@@ -2814,7 +3087,7 @@ function habitDaysLabel(habit) {
 function habitMonthlyHistory(habit) {
   const days = habitMonthDays(ui.habitMonth, weekStartDay());
   const stats = habitMonthStats(habit, ui.habitMonth, today(), (day) => habitCompletedFor(habit, day));
-  return h`<details class="habit-month">
+  return h`<details class="habit-month" id="d-month-${habit.id}" ${ui.openDetails[`month-${habit.id}`] ? raw('open') : ''}>
     <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
     <div class="mnav"><button class="ibtn" type="button" data-action="habit-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 18)}</button><b>${cap(ymLabel(ui.habitMonth))}</b><button class="ibtn" type="button" data-action="habit-month" data-n="1" aria-label="Próximo mês" ${ui.habitMonth >= today().slice(0, 7) ? raw('disabled') : ''}>${icon('chevRight', 18)}</button></div>
     <p class="small muted">${stats.completed} de ${stats.scheduled} dias programados concluídos até hoje neste mês.</p>
@@ -2884,10 +3157,10 @@ function updateHabitIdeaFilters() {
   });
   const count = document.querySelector('[data-habit-idea-count]');
   if (count) count.textContent = `${suggestions.length} ${plural(suggestions.length, 'ideia encontrada', 'ideias encontradas')}`;
-  const emptyState = document.querySelector('[data-habit-idea-empty]');
-  if (emptyState) emptyState.hidden = suggestions.length > 0;
+  const empty = document.querySelector('.habit-idea-empty');
+  if (empty) empty.hidden = suggestions.length > 0;
   const clearButton = document.querySelector('[data-action="habit-ideas-clear"]');
-  if (clearButton) clearButton.hidden = defaultView;
+  if (clearButton) clearButton.hidden = defaultView || suggestions.length === 0;
   const expandButton = document.querySelector('[data-action="habit-ideas-expand"]');
   if (expandButton) {
     expandButton.hidden = !defaultView || suggestions.length <= 4;
@@ -2898,12 +3171,30 @@ function updateHabitIdeaFilters() {
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
 function habitWaterTracker(habit) {
   if (!isWaterHabit(habit)) return '';
-  const total = waterMlForDay(S.water, today());
+  const currentDay = today();
+  const total = waterMlForDay(S.water, currentDay);
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
+  const week = waterWeekProgress(S.water, target, currentDay, weekStartDay());
+  const goalDays = week.filter(({ goalReached }) => goalReached).length;
   return h`<section class="water-tracker" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
+    <div class="water-week-chart">
+      <div class="water-week-chart-grid">${week.map(({ day, total: dayTotal, progress, goalReached }) => {
+        const percentage = Math.round(progress * 100);
+        const label = day > currentDay
+          ? `${longDate(day)}: dia futuro`
+          : `${longDate(day)}: ${dayTotal.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL, ${goalReached ? 'meta batida' : 'meta não batida'}`;
+        return h`<div class="water-week-chart-column">
+          <div class="water-week-chart-bar${day === currentDay ? ' is-today' : ''}" role="img" aria-label="${label}">
+            <span style="--week-fill:${percentage}%"></span>
+          </div>
+          <span class="water-week-chart-day" aria-hidden="true">${DIAS[pk(day).getDay()]}</span>
+        </div>`;
+      })}</div>
+      <span class="sr">Água: ${goalDays} de 7 dias com meta batida.</span>
+    </div>
     ${habit.status === 'active' ? h`<form class="water-add-form" data-form="water-add" data-id="${habit.id}">
       <label for="water-amount-${habit.id}">Quantidade consumida (mL)</label>
       <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="Ex.: 250" required><button type="submit" class="btn sm">Adicionar</button></div>
@@ -2936,7 +3227,7 @@ function habitRow(habit) {
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span class="habit-circle-check">${icon('check', 22)}</span>
     </button>
     <details class="habit-more" id="d-hab-${habit.id}" ${open}>
-      <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span></span>${icon('chevDown', 18, 'chev')}</summary>
+      <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span>${stats.streak >= 2 ? h`<span class="habit-streak">${stats.streak} dias seguidos</span>` : ''}</span>${icon('chevDown', 18, 'chev')}</summary>
       <div class="habit-more-body">
         ${habitWaterTracker(habit)}
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
@@ -2952,18 +3243,30 @@ function habitRow(habit) {
   </li>`;
 }
 function viewHabits() {
+  if (!renderHabitsView) {
+    requestHabitsTemplate();
+    return h`${areaPageTitle('habitos', 'Hábitos')}<section class="card habit-loading" role="status" aria-label="Carregando Hábitos"><span class="sr">Carregando Hábitos…</span><div aria-hidden="true"><span></span><span></span><span></span></div></section>`;
+  }
   return renderHabitsView({
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
     weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
-    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate, empty,
+    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
   });
 }
 
 function requestHabitsTemplate() {
   if (habitsTemplate || habitsTemplatePromise) return;
   habitsTemplateError = false;
-  habitsTemplatePromise = loadHabitsTemplate().then(
+  habitsTemplatePromise = Promise.all([
+    import('./features/habits/view.js'),
+    import('./features/habits/template.js'),
+  ]).then(([viewModule, templateModule]) => {
+    renderHabitsView = viewModule.renderHabitsView;
+    loadHabitsTemplate = templateModule.loadHabitsTemplate;
+    renderHabitsTemplate = templateModule.renderHabitsTemplate;
+    return loadHabitsTemplate();
+  }).then(
     (template) => {
       habitsTemplate = template;
       habitsTemplatePromise = null;
@@ -2988,18 +3291,19 @@ function areaTiles() {
 const CYC = [
   { id: 'flow', title: 'Fluxo', single: true, opts: [['spot', 'Escape'], ['light', 'Leve'], ['medium', 'Médio'], ['heavy', 'Intenso']] },
   { id: 'pain', title: 'Dor', opts: [['cramp', 'Cólica'], ['head', 'Dor de cabeça'], ['back', 'Dor nas costas'], ['breast', 'Seios sensíveis'], ['joint', 'Dor nas articulações'], ['ovary', 'Dor no ovário']] },
-  { id: 'mood', title: 'Humor', opts: [['happy', 'Feliz'], ['calm', 'Em paz'], ['energized', 'Com energia'], ['sensitive', 'Sensível'], ['irritated', 'Irritação'], ['anxious', 'Ansiedade'], ['sad', 'Triste'], ['stressed', 'Estresse']] },
+  { id: 'mood', title: 'Mente e sentimentos', opts: [['happy', 'Feliz'], ['calm', 'Tranquila'], ['energized', 'Com energia'], ['sensitive', 'Sensível'], ['irritated', 'Irritada'], ['anxious', 'Ansiosa'], ['sad', 'Triste'], ['stressed', 'Sobrecarregada'], ['concentration', 'Dificuldade de concentração'], ['memory', 'Esquecimentos ou lapsos de memória']] },
+  { id: 'social', title: 'Vida social', opts: CYCLE_SOCIAL_OPTIONS },
   { id: 'energy', title: 'Energia', single: true, opts: [['exhausted', 'Exausta'], ['low', 'Baixa'], ['normal', 'Normal'], ['high', 'Alta']] },
   { id: 'digestion', title: 'Digestão e apetite', opts: [['bloat', 'Inchaço'], ['nausea', 'Enjoo'], ['constip', 'Prisão de ventre'], ['diarrhea', 'Diarreia'], ['sweet', 'Vontade de doce'], ['salt', 'Vontade de salgado'], ['hungry', 'Muito apetite']] },
   { id: 'sleep', title: 'Sono', single: true, opts: [['great', 'Dormiu bem'], ['restless', 'Sono agitado'], ['insomnia', 'Insônia'], ['sleepy', 'Muito sono']] },
   { id: 'skin', title: 'Pele e cabelo', opts: [['acne', 'Acne'], ['oilyskin', 'Pele oleosa'], ['dryskin', 'Pele seca'], ['oilyhair', 'Cabelo oleoso']] },
   { id: 'discharge', title: 'Corrimento', single: true, opts: [['none', 'Nenhum'], ['sticky', 'Pegajoso'], ['creamy', 'Cremoso'], ['watery', 'Aquoso'], ['eggwhite', 'Clara de ovo']] },
 ];
-const CYC_ICON = { flow: 'droplet', pain: 'alert', mood: 'heart', energy: 'sparkles', digestion: 'stomach', sleep: 'moon', skin: 'user', discharge: 'flower' };
+const CYC_ICON = { flow: 'droplet', pain: 'alert', mood: 'heart', social: 'user', energy: 'sparkles', digestion: 'stomach', sleep: 'moon', skin: 'user', discharge: 'flower' };
 const CYC_OPTION_ICON = {
   flow: { spot: 'spot', light: 'droplet', medium: 'water', heavy: 'blood' },
   pain: { cramp: 'activity', head: 'sun', back: 'spine', breast: 'heart', joint: 'bone', ovary: 'ovaries' },
-  mood: { happy: 'smile', calm: 'meditate', energized: 'sparkles', sensitive: 'heart', irritated: 'alert', anxious: 'activity', sad: 'moon', stressed: 'target' },
+  mood: { happy: 'smile', calm: 'meditate', energized: 'sparkles', sensitive: 'heart', irritated: 'alert', anxious: 'activity', sad: 'moon', stressed: 'target', concentration: 'target', memory: 'clock' },
   energy: { exhausted: 'moon', low: 'coffee', normal: 'activity', high: 'arrowUp' },
   digestion: { bloat: 'wind', nausea: 'activity', constip: 'inbox', diarrhea: 'droplet', sweet: 'candy', salt: 'utensils', hungry: 'apple' },
   sleep: { great: 'bed', restless: 'activity', insomnia: 'clock', sleepy: 'coffee' },
@@ -3013,141 +3317,73 @@ const CYC_SHORT_LABEL = {
   skin: { oilyskin: 'Oleosa', dryskin: 'Ressecada', oilyhair: 'Cabelo oleoso' },
 };
 const cycLabel = (cat, v) => (CYC.find((c) => c.id === cat)?.opts.find((o) => o[0] === v) || [, v])[1];
+const cycleTestResultLabel = (value) => CYCLE_TEST_RESULTS.find(([id]) => id === value)?.[1] || '';
 const dayLog = (k) => S.cycleLog[k] || {};
 const isBleeding = (l) => ['light', 'medium', 'heavy'].includes(l.flow);
-const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || l.sexualActivity || l.masturbationActivity || Number.isInteger(l.orgasmCount) || ['pain', 'mood', 'digestion', 'skin'].some((c) => (l[c] || []).length));
+const hasAnyLog = (l) => !!l && (l.flow || l.energy || l.sleep || l.discharge || l.note || Number.isFinite(l.weightKg)
+  || Object.hasOwn(l, 'sexualActivity') || l.masturbationActivity || l.sexToysUsed || l.libido
+  || Object.hasOwn(l, 'orgasmOccurred') || Object.hasOwn(l, 'ovulationTestResult')
+  || Object.hasOwn(l, 'pregnancyTestResult') || Object.hasOwn(l, 'medicationTaken')
+  || Number.isInteger(l.orgasmCount)
+  || ['pain', 'mood', 'digestion', 'skin', 'social'].some((c) => (l[c] || []).length));
 function cycleLogDraft(log = {}) {
   return Object.fromEntries(Object.entries(log).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
 }
 function cycleLogSummary(log) {
   if (!hasAnyLog(log)) return 'Nenhum registro para este dia.';
-  const symptomCount = CYC.filter(({ id }) => id !== 'flow').reduce((count, { id, single }) => {
+  const orgasmOccurred = Object.hasOwn(log, 'orgasmOccurred')
+    ? log.orgasmOccurred
+    : Number.isInteger(log.orgasmCount) ? log.orgasmCount > 0 : null;
+  const symptomCount = CYC.filter(({ id }) => !['flow', 'mood', 'social'].includes(id)).reduce((count, { id, single }) => {
     const value = log[id];
     return count + (single ? Number(Boolean(value)) : Array.isArray(value) ? value.length : 0);
   }, 0);
   return [
     log.flow ? `Fluxo: ${cycLabel('flow', log.flow)}` : '',
-    log.sexualActivity ? 'Relação sexual registrada' : '',
+    Number.isFinite(log.weightKg) ? `Peso: ${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg` : '',
+    log.mood?.length ? `Mente e sentimentos: ${log.mood.map((value) => cycLabel('mood', value)).join(', ')}` : '',
+    log.social?.length ? `Vida social: ${log.social.map((value) => cycLabel('social', value)).join(', ')}` : '',
+    log.ovulationTestResult ? `Teste de ovulação: ${cycleTestResultLabel(log.ovulationTestResult)}` : '',
+    log.pregnancyTestResult ? `Teste de gravidez: ${cycleTestResultLabel(log.pregnancyTestResult)}` : '',
+    log.medicationTaken === true ? 'Tomou medicação' : log.medicationTaken === false ? 'Não tomou medicação' : '',
+    log.sexualActivity === true ? 'Relação com outra pessoa' : log.sexualActivity === false ? 'Sem relação com outra pessoa' : '',
     log.masturbationActivity ? 'Masturbação registrada' : '',
-    log.contraceptionMethods?.length ? 'método contraceptivo registrado' : '',
-    Number.isInteger(log.orgasmCount) ? `${log.orgasmCount} ${plural(log.orgasmCount, 'orgasmo', 'orgasmos')}` : '',
+    log.sexToysUsed ? 'Brinquedos registrados' : '',
+    log.contraceptionMethods?.includes('none') ? 'Sem método contraceptivo' : log.contraceptionMethods?.some((method) => !['undisclosed'].includes(method)) ? 'Método contraceptivo registrado' : log.contraceptionMethods?.includes('undisclosed') ? 'Método contraceptivo não informado' : '',
+    log.libido === 'high' ? 'Libido alta' : log.libido === 'low' ? 'Libido baixa' : '',
+    orgasmOccurred === true ? 'Orgasmo' : orgasmOccurred === false ? 'Sem orgasmo' : '',
     symptomCount ? `${symptomCount} ${plural(symptomCount, 'sintoma', 'sintomas')}` : '',
     log.note ? 'com anotação' : '',
   ].filter(Boolean).join(' · ');
 }
+function syncLatestCycleWeight() {
+  const latest = Object.entries(S.cycleLog)
+    .filter(([, log]) => Number.isFinite(log?.weightKg))
+    .sort(([dayA], [dayB]) => dayB.localeCompare(dayA))[0];
+  if (!latest) return false;
+  const [, log] = latest;
+  const estimate = estimateWaterGoal({ weightKg: log.weightKg, age: S.settings.profile.age });
+  if (!estimate) return false;
+  S.settings.profile.weightKg = log.weightKg;
+  S.habits.forEach((habit) => {
+    if (isWaterHabit(habit)) habit.waterGoalMl = estimate.ml;
+  });
+  return true;
+}
 const cyclePeriodKey = (period) => `${period.start}|${period.end || ''}`;
 const cyclePeriodEnd = (period) => period.end || period.start;
-function periodDaySet() {
-  const set = new Set();
-  Object.entries(S.cycleLog).forEach(([k, l]) => { if (isBleeding(l)) set.add(k); });
-  S.cycle.forEach((period) => {
-    cyclePeriodDays(period.start, period.end, today()).forEach((day) => set.add(day));
-  });
-  return set;
-}
-function cycleStats() {
-  const set = periodDaySet(), days = [...set].sort(), starts = [];
-  days.forEach((k) => { if (!set.has(addDays(k, -1))) starts.push(k); });
-  const lens = [];
-  for (let i = 1; i < starts.length; i++) { const d = dayDiff(starts[i], starts[i - 1]); if (d >= 15 && d <= 60) lens.push(d); }
-  const avg = lens.length ? Math.round(lens.reduce((a, b) => a + b, 0) / lens.length) : null;
-  return { set, starts, avg, observedIntervals: lens.length, next: avg && starts.length ? addDays(starts[starts.length - 1], avg) : null };
-}
-function cycleDayNumber(k, st) { const prev = [...st.starts].filter((s) => s <= k).pop(); return prev ? dayDiff(k, prev) + 1 : null; }
 function cycleCalendarPhase(day, stats) {
-  return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set);
-}
-function topSymptoms() {
-  const from = addDays(today(), -90), cnt = {};
-  Object.entries(S.cycleLog).forEach(([k, l]) => { if (k < from) return; ['pain', 'mood', 'digestion', 'skin'].forEach((c) => (l[c] || []).forEach((v) => { const key = c + ':' + v; cnt[key] = (cnt[key] || 0) + 1; })); ['energy', 'sleep'].forEach((c) => { if (l[c]) { const key = c + ':' + l[c]; cnt[key] = (cnt[key] || 0) + 1; } }); });
-  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, count]) => {
-    const [category, value] = key.split(':');
-    return { category, value, label: cycLabel(category, value), count };
-  });
+  return estimatedCyclePhase(day, stats.starts, stats.avg, stats.set, stats.canEstimateFertility);
 }
 function viewCiclo() {
-  const g = gate('cycle', 'Ciclo');   if (g) return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}${g}`;
-  const st = cycleStats(), tdy = today(), sel = ui.cycDay && ui.cycDay <= tdy ? ui.cycDay : tdy, log = dayLog(sel);
-  const ym = ui.calMonth, [y, m] = ym.split('-').map(Number), first = new Date(y, m - 1, 1), nDays = new Date(y, m, 0).getDate();
-  const strip = Array.from({ length: 14 }, (_, i) => addDays(tdy, i - 13));
-  const dn = cycleDayNumber(sel, st);
-  const hasCycleHistory = st.starts.length > 0;
-  const hasCycleRecords = Object.values(S.cycleLog).some(hasAnyLog);
-  const selectedPeriodIndex = S.cycle.findIndex((period) => period.start <= sel && cyclePeriodEnd(period) >= sel);
-  const selectedPeriod = selectedPeriodIndex >= 0 ? S.cycle[selectedPeriodIndex] : null;
-  const cycleMoment = st.set.has(sel)
-    ? ['Período registrado', 'Este dia faz parte de um período que você registrou.']
-    : st.next === sel
-      ? ['Início estimado', 'Esta é uma estimativa baseada nos seus registros anteriores.']
-      : dn
-        ? [`Dia ${dn} do ciclo`, sel === tdy ? 'Acompanhe como você se sente hoje.' : `Registro de ${shortDate(sel)}.`]
-        : hasCycleHistory
-          ? ['Sem ciclo iniciado nesta data', 'Selecione uma data a partir do início registrado para ver o dia do ciclo.']
-          : ['Comece pelo primeiro registro', 'Marque o primeiro dia do fluxo menstrual. Com dois inícios registrados, você poderá ver médias e estimativas.'];
-  const cells = []; for (let i = 0; i < (first.getDay() + 7 - weekStartDay()) % 7; i++) cells.push('<span></span>');
-  for (let d = 1; d <= nDays; d++) {
-    const k = `${ym}-${pad(d)}`, fut = k > tdy, phase = cycleCalendarPhase(k, st);
-    const phaseLabel = phase === 'menstruation' ? 'menstruação registrada'
-      : phase === 'fertile' ? 'janela fértil estimada'
-        : phase === 'ovulation' ? 'ovulação estimada' : '';
-    const phaseClass = phase ? `phase-${phase}` : '';
-    cells.push(`<button type="button" class="${phaseClass} ${st.set.has(k) ? 'm' : st.next === k ? 'p' : ''} ${k === tdy ? 't' : ''} ${k === sel ? 's' : ''} ${hasAnyLog(S.cycleLog[k]) ? 'l' : ''}" ${fut ? 'disabled' : ''} data-action="cyc-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}${phaseLabel ? ', ' + phaseLabel : st.next === k ? ', próximo início estimado' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}">${d}</button>`);
-  }
-  const top = topSymptoms();
-  const cycleProgress = st.avg && dn ? clamp(Math.round(dn / st.avg * 100), 0, 100) : 0;
-  return h`${areaNav('ciclo')}${areaPageTitle('ciclo', 'Ciclo')}
-    <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
-    ${!hasCycleHistory && !hasCycleRecords
-      ? h`<section class="card cycle-start-empty">${empty('Comece pelo primeiro registro', 'Registre o início de um período ou anote como você está para começar a acompanhar seu ciclo.', h`<button type="button" class="btn primary" data-action="cyc-period-open">${icon('calendar', 16)}Registrar primeiro período</button>`, 'calendar')}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
-      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}<i>.</i></h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`<div class="stat"><b>${st.avg} dias</b><span>Duração média · ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo observado', 'intervalos observados')}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>Próximo início estimado</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
-    <section class="card cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}<i>.</i></h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
-      ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
-      <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
-      <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
-    <section class="card cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-      <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
-      <div class="cycle-calendar-legend" role="group" aria-label="Legenda das fases do calendário">
-        <span><i class="lg m"></i>Menstruação registrada</span>
-        <span><i class="lg fertile"></i>Janela fértil estimada</span>
-        <span><i class="lg ovulation"></i>Ovulação estimada</span>
-        <span><i class="lg p"></i>Próximo início estimado</span>
-        <span><i class="lg l"></i>Dia com registro</span>
-      </div></section>
-    ${top.length ? h`<section class="card"><h2>Mais frequentes nos últimos 90 dias<i>.</i></h2><ul class="list">${top.map(({ label, count }) => h`<li><span class="grow ttl">${label}</span><span class="badge">${count} ${plural(count, 'dia', 'dias')}</span></li>`)}</ul></section>` : ''}
-    <details class="card cycle-health-card" open>
-      <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Saúde menstrual e sexual</strong><small>Entenda mudanças do ciclo, cuidados nas relações e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
-      <div class="cycle-health-content">
-        <article class="cycle-health-topic">
-          <h3>${icon('activity', 17)}O que pode explicar as mudanças?</h3>
-          <p>Os níveis hormonais mudam ao longo do ciclo e podem acompanhar cólicas, sensibilidade nas mamas e variações de humor. A cólica costuma ocorrer porque o útero se contrai para eliminar seu revestimento. Estresse, mudanças de peso ou de exercício, gravidez e alguns métodos contraceptivos também podem alterar o padrão. Uma mudança isolada não confirma uma causa: registre quando acontece e converse com uma profissional de saúde se persistir ou preocupar.</p>
-        </article>
-        <article class="cycle-health-topic">
-          <h3>${icon('heart', 17)}Sexo, menstruação e proteção</h3>
-          <p>Ter relações durante a menstruação é uma escolha; conforto e consentimento importam. Menstruar não impede gravidez: a ovulação pode variar e espermatozoides podem permanecer viáveis por alguns dias. Se não deseja uma gravidez, use um método contraceptivo. ISTs podem ser transmitidas em qualquer fase do ciclo, e algumas não dão sinais; preservativos reduzem o risco. Procure uma UBS para orientação e testagem após exposição ou se houver sintomas.</p>
-          <p>Sangramento entre menstruações ou depois da relação pode ter diferentes causas, inclusive contraceptivos, ressecamento ou infecções. Se for novo, recorrente ou vier com dor, procure avaliação — não dá para descobrir a causa apenas pelo aplicativo.</p>
-        </article>
-        <article class="cycle-health-topic">
-          <h3>${icon('alert', 17)}Dor e sinais para buscar atendimento</h3>
-          <p>Procure uma UBS ou ginecologista se a dor piorar, atrapalhar suas atividades, houver dor durante a relação, ao urinar ou evacuar, ou mudança persistente no fluxo ou intervalo. Dor pélvica muito forte, nova ou pior que o habitual merece avaliação urgente. Se houver possibilidade de gravidez ou atraso menstrual junto com sangramento fora do usual e dor abdominal, procure atendimento com urgência. Em emergência, ligue 192 (SAMU).</p>
-        </article>
-        <div class="cycle-health-sources" aria-label="Fontes de saúde">
-          <span>Fontes:</span>
-          <a href="https://www.gov.br/saude/pt-br/assuntos/saude-de-a-a-z/i/ist" target="_blank" rel="noopener noreferrer">Ministério da Saúde · ISTs</a>
-          <a href="https://www.nhs.uk/contraception/methods-of-contraception/natural-family-planning/" target="_blank" rel="noopener noreferrer">NHS · contracepção e fertilidade</a>
-          <a href="https://www.nhs.uk/conditions/periods/period-problems/" target="_blank" rel="noopener noreferrer">NHS · alterações menstruais</a>
-          <a href="https://www.nhs.uk/symptoms/period-pain/" target="_blank" rel="noopener noreferrer">NHS · dor menstrual</a>
-          <a href="https://www.nhs.uk/symptoms/vaginal-bleeding-between-periods-or-after-sex/" target="_blank" rel="noopener noreferrer">NHS · sangramento fora do período ou após sexo</a>
-          <a href="https://www.gov.br/saude/pt-br/composicao/saes/samu-192" target="_blank" rel="noopener noreferrer">Ministério da Saúde · SAMU 192</a>
-        </div>
-      </div>
-    </details>
-    <div class="notice cycle-estimate-notice">${icon('info', 18)}<span>${st.avg ? `As médias e previsões são estimativas baseadas nos inícios registrados; ovulação e janela fértil podem variar e não são confirmadas pelo app. ` : 'Ainda não há registros suficientes para estimar fases do ciclo. '}${'As previsões não substituem avaliação profissional nem servem como método contraceptivo.'}</span></div>`;
+  return renderCycleView({
+    S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
+    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, weekStartDay, clamp,
+    plural, cycleLogSummary, CYC_ICON, cap, ymLabel,
+  });
 }
 
 /* ---------- Ajustes ---------- */
-function settingsSegment(look, key, label, options, action = 'look') {
-  return h`<div class="seg" role="group" aria-label="${label}">${options.map(([value, text, ic, sample]) => h`<button type="button" aria-pressed="${String(look[key]) === String(value)}" data-action="${action}" data-k="${key}" data-v="${value}">${ic ? icon(ic, 16) : ''}${sample ? h`<span class="appearance-font-sample appearance-font-sample-${value}" aria-hidden="true">Aa</span>` : ''}<span class="appearance-segment-label">${text}</span></button>`)}</div>`;
-}
 function activeAppearancePreset(settings) {
   return Object.entries(APPEARANCE_PRESETS).find(([, preset]) => settings.theme === preset.theme
     && settings.look.density === preset.density
@@ -3182,11 +3418,10 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-area-colors-title', 'Cores por área', 'Escolha uma cor para cada área. O Aurora ajusta o tom para manter a leitura nos temas claro e escuro.', h`<div class="appearance-area-colors">${HOME_AREA_COLORS.filter(({ id }) => id !== 'cycle' || canAccessCycle(s.profile, ui.preview)).map(({ id, label }) => h`<label class="appearance-area-color"><span>${label}</span><select data-change="home-area-color" data-home-area-color="${id}" aria-label="Cor da área ${label}"><option value="">Padrão da área</option>${Object.entries(PALETTES).map(([paletteId, [name]]) => h`<option value="${paletteId}" ${s.prefs.areaColors[id] === paletteId ? raw('selected') : ''}>${name}</option>`)}</select></label>`)}</div>`) }
     ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de lembretes e hábitos do Aurora.', h`<div class="routine-settings-links">
       <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
+      <p class="small muted">Os avisos de Hábitos fora do app são opcionais e dependem da rede, das permissões e do serviço de notificações. O interruptor em Hábitos controla este dispositivo. O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
     </div>`) }
-    ${settingsSaveButton()}
   </form>`;
 }
 function firstName(value) {
@@ -3234,20 +3469,24 @@ function profileSettings(s) {
         <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
+    <div class="row settings-save-actions profile-settings-actions">
+      <button class="btn back" type="button" data-action="profile-discard" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>Descartar alterações</button>
+      <button class="btn primary" type="button" data-action="profile-save" aria-busy="${String(ui.profileSaving)}" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+    </div>
   </form>
   </div>`;
 }
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><h2 id="account-session-title">Conta e ajuda<i>.</i></h2><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div></div>
     </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
     </section>
     <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
       <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
-      <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:lisjustino@gmail.com">Falar com o Aurora</a></div>
+      <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:${CONTACT_EMAIL}">Falar com o Aurora</a></div>
     </section>
   </div>`;
 }
@@ -3268,14 +3507,15 @@ const SETTINGS_SECTIONS = [
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
-  ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
+  ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
+  ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
   { label: 'Perfil', items: ['profile'] },
   { label: 'Aplicativo', items: ['personalization', 'home', 'areas-navigation'] },
   { label: 'Dados', items: ['data'] },
   { label: 'Conexões', items: ['calendars'] },
-  { label: 'Conta', items: ['account'] },
+  { label: 'Conta', items: ['mental-health', 'account'] },
 ];
 function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
@@ -3285,7 +3525,7 @@ function homeLayoutSettings(s) {
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações que aparecem no Início. O plano de hoje fica fixo no topo.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
     <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
@@ -3331,14 +3571,19 @@ function areasNavigationSettings(s) {
         </span>
       </li>`;
     })}</ol>
-    ${settingsSaveButton()}
   </form>`;
 }
 function homeSettings(s) {
   s = settingsView();
+  const pushStatus = getPushNotificationStatus();
   return h`<form class="card home-settings" data-form="settings-save">
     ${homeLayoutSettings(s)}
-    ${settingsSaveButton()}
+    <fieldset class="home-shortcut-settings weekly-review-reminder-settings" aria-describedby="weekly-review-reminder-help">
+      <legend>Lembrete da revisão da semana</legend>
+      <label class="home-layout-toggle"><input type="checkbox" role="switch" data-change="weekly-review-reminder" aria-label="Receber um lembrete da revisão da semana aos domingos" aria-describedby="weekly-review-reminder-help" ${s.prefs.weeklyReviewReminder ? raw('checked') : ''}><span><b>Receber um lembrete aos domingos</b><small>Às 18h, no horário deste dispositivo.</small></span></label>
+      <p id="weekly-review-reminder-help" class="small muted">Desligado por padrão. Para receber o aviso com o app fechado, ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo. Esse mesmo ajuste pode avisar sobre tarefas e hábitos.</p>
+      ${pushStatus.enabled ? '' : h`<p class="small muted"><a class="inline-link" href="/habitos">Gerencie o consentimento para avisos em Hábitos.</a></p>`}
+    </fieldset>
   </form>`;
 }
 const LEGACY_IMPORT_LABELS = [
@@ -3561,7 +3806,7 @@ async function applyLegacyImport() {
     migration.completed = true;
     migration.step = 'verified';
     migration.cleanupConfirmed = false;
-    toast('Importação gravada e conferida na conta.');
+    toast('Importação gravada e conferida na conta.', 'info');
   } catch (error) {
     console.error('Aurora: a importação relacional dos dados antigos não foi confirmada.', error);
     migration.error = error instanceof Error
@@ -3690,8 +3935,8 @@ function dataSettings(p) {
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Leve seus dados para outro navegador ou recupere uma cópia salva. A restauração mostra o conteúdo para você revisar antes de substituir os dados atuais.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros e de saúde. Guarde-o em um local privado.</span></div>
+    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
+    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
     <div class="settings-data-actions">
@@ -3705,7 +3950,7 @@ function dataSettings(p) {
       <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
         <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
         <h3 id="settings-restore-title">Usar uma cópia salva</h3>
-        <p>A restauração substitui os dados atuais da conta. Você poderá conferir o conteúdo antes de confirmar.</p>
+        <p>A restauração substitui todos os dados atuais da conta; ela não mescla registros. Exporte uma cópia atual antes de continuar.</p>
         <p class="small muted">Escolha um arquivo de backup exportado pelo Aurora.</p>
         <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
         <p class="err" id="imperr" role="alert"></p>
@@ -3719,16 +3964,11 @@ function dataSettings(p) {
           const days = trashDaysRemaining(entry);
           return h`<li class="settings-trash-entry"><div class="grow"><div class="ttl">${entry.label}</div><span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span class="settings-trash-expiry${days <= 7 ? ' is-urgent' : ''}">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}" aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
         })}</ul>`
-        : h`<div class="settings-trash-empty"><span aria-hidden="true">${icon('trash', 20)}</span><p><b>A lixeira está vazia</b><small>Quando você excluir itens, eles aparecerão aqui por até 30 dias.</small></p></div>`}
+        : areaEmpty('A lixeira está vazia.', 'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.', h`<a class="btn primary" href="/inicio">Ir para o início</a>`, 'trash', 'h3', 'settings-trash-empty')}
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
-      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Gerencie dados de demonstração ou remova os dados relacionais desta conta.</p></div>
+      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Remova os dados relacionais desta conta.</p></div>
       <div class="settings-data-care-actions">
-        <section class="settings-data-action" aria-labelledby="settings-sample-title">
-          <h3 id="settings-sample-title">Explorar com exemplos</h3>
-          <p>Adicione registros fictícios para conhecer as áreas do Aurora. Eles são identificados como exemplos e não substituem seus dados pessoais.</p>
-          <button type="button" class="btn" data-action="load-sample">Carregar exemplos</button>
-        </section>
         <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
           <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
           <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
@@ -3737,58 +3977,31 @@ function dataSettings(p) {
       </div>
     </section>`;
 }
-function settingsStorageNotice(selectedTab) {
-  if (selectedTab === 'data') return '';
-  const integritySlices = Object.keys(ui.integrityIssues);
-  if (integritySlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Há dados inválidos em ${integritySlices.join(', ')}. A gravação está bloqueada para evitar perda; revise Dados e backup antes de continuar.</span><button type="button" class="btn sm" data-action="settings-section" data-settings-tab="data">Revisar dados</button></div>`;
-  }
-  const failedSlices = [...ui.persistFailed];
-  if (failedSlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Não foi possível salvar. Algumas alterações ainda não foram salvas.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>`;
-  }
-  return '';
-}
-function settingsSectionContent(s, p, selectedTab) {
-  switch (selectedTab) {
-    case 'personalization': return aparencia(s);
-    case 'home': return homeSettings(s);
-    case 'areas-navigation': return areasNavigationSettings(s);
-    case 'data': return dataSettings(p);
-    case 'calendars': return googleCalendarSettingsPanel();
-    case 'account': return accountSettings(s);
-    default: return profileSettings(s);
-  }
-}
-function unsavedSettingsBanner() {
-  const hasProfile = Boolean(ui.profileDraft);
-  const hasOtherChanges = settingsDraftDirty();
-  const dirty = hasProfile || hasOtherChanges;
-  const saving = ui.profileSaving || ui.settingsSaving;
-  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas" ${dirty ? '' : raw('hidden')}>
-    <span>Alterações não salvas</span>
-    <div class="settings-unsaved-actions">
-      <button type="button" class="btn back" data-action="profile-discard" ${dirty && !saving ? '' : raw('disabled')}>Descartar alterações</button>
-      <button type="button" class="btn primary" data-action="profile-save" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : 'Salvar alterações'}</button>
-    </div>
-  </div>`;
-}
 function viewConfig() {
-  const s = S.settings, p = s.prefs;
-  const requestedTab = settingsTabId(ui.settingsTab);
-  const selected = SETTINGS_SECTIONS.some(([id]) => id === requestedTab) ? requestedTab : 'profile';
-  const content = settingsSectionContent(s, p, selected);
-  const menuGroups = SETTINGS_SECTION_GROUPS.map((group) => h`<div class="settings-menu-group"><span class="settings-menu-heading">${group.label}</span>${group.items.map((id) => {
-    const section = SETTINGS_SECTIONS.find(([item]) => item === id);
-    if (!section) return '';
-    const [key, label, ic, description] = section;
-    return h`<a class="settings-link" href="/config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
-  })}</div>`);
-  return h`${pageTitle('Ajustes')}${settingsStorageNotice(selected)}${unsavedSettingsBanner()}
-    <div class="settings-layout">
-      <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
-      <div class="settings-content" id="settings-content">${content}</div>
-    </div>`;
+  return renderSettingsView({
+    S,
+    ui,
+    sections: SETTINGS_SECTIONS,
+    sectionGroups: SETTINGS_SECTION_GROUPS,
+    settingsTabId,
+    tabLabel,
+    pageTitle,
+    storageNotice: (selectedTab) => renderSettingsStorageNotice(selectedTab, {
+      integrityIssues: ui.integrityIssues,
+      persistFailed: ui.persistFailed,
+      isOnline: navigator.onLine,
+    }),
+    settingsDirty: settingsDraftDirty(),
+    renderers: {
+      appearance: aparencia,
+      home: homeSettings,
+      areasNavigation: areasNavigationSettings,
+      data: dataSettings,
+      calendars: googleCalendarSettingsPanel,
+      account: accountSettings,
+      profile: profileSettings,
+    },
+  });
 }
 
 const ROUTES = { inicio: viewInicio, planejar: viewPlanejar, financas: viewFinancas, ciclo: viewCiclo, habitos: viewHabits, config: viewConfig };
@@ -3842,7 +4055,7 @@ function confirmInDialog(message) {
   }
   if (ui.dlg?.dirty) {
     console.error('Aurora: não é possível abrir uma confirmação durante uma edição pendente.');
-    toast('Salve ou feche a edição antes de confirmar esta ação.');
+    toast('Salve ou feche a edição antes de confirmar esta ação.', 'info');
     return Promise.resolve(false);
   }
   return new Promise((resolve) => {
@@ -3863,6 +4076,7 @@ function settleDialogConfirmation(confirmed) {
   resolve(confirmed);
 }
 const CONFIRMABLE_ACTIONS = new Set([
+  'annual-goal-delete',
   'appearance-reset',
   'clear-sample',
   'del-plan',
@@ -3876,7 +4090,7 @@ const CONFIRMABLE_ACTIONS = new Set([
 function requestActionConfirmation(action, data, title, message, confirmLabel = 'Confirmar') {
   if (!CONFIRMABLE_ACTIONS.has(action)) {
     console.error('Aurora: ação sem confirmação configurada.', action);
-    toast('Não foi possível confirmar esta ação.');
+    toast('Não foi possível confirmar esta ação.', 'info');
     return;
   }
   ui.confirmPrevious = ui.dlg && !ui.dlg.dirty ? ui.dlg : null;
@@ -3899,15 +4113,28 @@ const dlgDiscardChanges = () => {
 }
 const dlgClose = () => {
   if (ui.dlg?.type === 'account-delete' && ui.dlg.d.pending) return;
+  if (ui.dlg?.type === 'category-new' && ui.dlg.d.fromTransaction) {
+    const returnToTransaction = () => {
+      const previous = ui.categoryReturnDialog;
+      ui.categoryReturnDialog = null;
+      ui.dlg = previous?.type === 'tx' ? previous : null;
+      render();
+    };
+    if (ui.dlg.dirty) { askDiscardDialog(null, returnToTransaction); return; }
+    returnToTransaction();
+    return;
+  }
   if (ui.dlg?.dirty) { askDiscardDialog(); return; }
   if (ui.dlg?.type === 'onboard') {
     finishOnboard(true);
     return;
   }
   if (ui.dlg?.type === 'area-tutorial') {
+    const afterOnboarding = ui.dlg.d.afterOnboarding === true;
     ui.dlg = null;
     ui.dlgPending = null;
     render();
+    if (afterOnboarding) void maybeOpenReleaseNotes();
     return;
   }
   if (ui.dlg?.type === 'confirmation') {
@@ -3975,10 +4202,6 @@ function dlgTask() {
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
     'task-dialog');
 }
-const cycleDialogViews = createCycleDialogViews({
-  ui, CYC, CYC_ICON, CYC_OPTION_ICON, CYC_SHORT_LABEL, CYCLE_CONTRACEPTION_METHODS, topSymptoms, plural,
-  cycLabel, dlgWrap, closeBtn, dlgField, today, MAX_CYCLE_PERIOD_DAYS,
-});
 function dlgCycleLog() { return cycleDialogViews.log(); }
 function dlgCyclePeriod() { return cycleDialogViews.period(); }
 function dlgHabitEdit() {
@@ -4027,10 +4250,27 @@ function updateWaterSuggestionWeight(weightInput) {
   const goalInput = $('#water-goal-ml');
   if (goalInput && !draft.waterGoalEdited && goal) goalInput.value = String(goal.ml);
 }
+function highlightSearchText(value, query) {
+  const text = String(value || '');
+  const chars = Array.from(text);
+  const positions = [];
+  let folded = '';
+  chars.forEach((character, index) => {
+    const normalized = norm(character);
+    folded += normalized;
+    for (let offset = 0; offset < normalized.length; offset += 1) positions.push(index);
+  });
+  const index = folded.indexOf(norm(query));
+  if (index < 0 || !norm(query)) return h`${text}`;
+  const start = positions[index];
+  const end = positions[index + norm(query).length - 1] + 1;
+  return raw(`${esc(chars.slice(0, start).join(''))}<mark>${esc(chars.slice(start, end).join(''))}</mark>${esc(chars.slice(end).join(''))}`);
+}
+function globalSearchAreas() {
+  return ['Planejar', ...(areaOn('habits') ? ['Hábitos'] : []), 'Finanças', ...(areaOn('cycle') ? ['Ciclo'] : [])].join(', ');
+}
 function globalSearchResults(query) {
-  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
-    ? 'Planejar, Hábitos, Finanças e Ciclo'
-    : 'Planejar, Hábitos e Finanças';
+  const searchAreas = globalSearchAreas();
   const searchableCycleLogs = areaOn('cycle')
     ? Object.fromEntries(Object.entries(S.cycleLog).map(([date, value]) => {
       const log = value && typeof value === 'object' ? value : {};
@@ -4049,22 +4289,41 @@ function globalSearchResults(query) {
     habits: areaOn('habits') ? S.habits : [],
     water: [],
     cycleLogs: searchableCycleLogs,
+    actions: [
+      { id: 'new-task', action: 'new-task', area: 'Ações', title: 'Nova tarefa', detail: 'Criar uma tarefa', aliases: ['criar tarefa', 'adicionar tarefa'] },
+      ...(areaOn('habits') && S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active')
+        ? [{ id: 'add-water', action: 'add-water', area: 'Ações', title: 'Registrar água', detail: 'Adicionar um registro de hidratação', aliases: ['água', 'hidratação', 'beber água'] }]
+        : []),
+      ...(areaOn('finances')
+        ? [{ id: 'open-finances', action: 'open-finances', area: 'Ações', title: 'Ir para Finanças', detail: 'Abrir a área financeira', aliases: ['finanças', 'financeiro', 'dinheiro'] }]
+        : []),
+    ],
   }, query);
   if (String(query).trim().length < 2) return h`<p class="small muted">Digite pelo menos duas letras para buscar em ${searchAreas}.</p>`;
-  if (!results.length) return empty('Nenhum resultado', 'Tente outro nome, categoria ou descrição.', '', 'search');
-  const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart' };
+  if (!results.length) return areaEmpty(
+    'Nenhum resultado encontrado.',
+    `Tente outra palavra, nome, categoria ou descrição. Áreas pesquisadas: ${searchAreas}.`,
+    h`<button type="button" class="btn primary" data-action="search-clear">${icon('search', 16)}Limpar busca</button>`,
+    'search',
+    'h3',
+    'global-search-empty',
+  );
+  const resultIcons = { task: 'check', transaction: 'wallet', habit: 'sparkles', cycle: 'heart', action: 'plus', water: 'droplet' };
   const groups = [...results.reduce((map, item) => {
     if (!map.has(item.area)) map.set(item.area, []);
     map.get(item.area).push(item);
     return map;
   }, new Map())];
-  return h`<div class="global-search-results">${groups.map(([area, items]) => h`<section class="global-search-group" aria-label="Resultados em ${area}"><h3>${area}<span>${items.length}</span></h3><ul class="list">${items.map((item) => h`<li><button type="button" class="global-search-result" data-action="search-result" data-kind="${item.kind}" data-id="${item.id}"><span class="global-search-kind">${icon(resultIcons[item.kind] || 'search', 16)}</span><span class="grow"><b class="ttl">${item.title}</b><small class="small muted">${item.detail || item.kind}</small></span>${icon('chevRight', 16)}</button></li>`)}</ul></section>`)}</div>`;
+  return h`<div class="global-search-results">${groups.map(([area, items]) => h`<section class="global-search-group" aria-label="Resultados em ${area}"><h3>${area}<span>${items.length}</span></h3><ul class="list">${items.map((item) => {
+    const titleMatches = norm(item.title).includes(norm(query));
+    const detailMatches = norm(item.detail).includes(norm(query));
+    const snippet = !titleMatches && !detailMatches && item.matchText ? highlightSearchText(item.matchText, query) : highlightSearchText(item.detail || item.kind, query);
+    return h`<li><button type="button" class="global-search-result" data-action="search-result" data-kind="${item.kind}" data-id="${item.id}" data-command="${item.action || ''}"><span class="global-search-kind">${icon(resultIcons[item.kind] || 'search', 16)}</span><span class="grow"><b class="ttl">${highlightSearchText(item.title, query)}</b><small class="small muted">${snippet}</small></span>${icon('chevRight', 16)}</button></li>`;
+  })}</ul></section>`)}</div>`;
 }
 function dlgSearch() {
   const query = ui.dlg.d.query || '';
-  const searchAreas = canAccessCycle(S.settings.profile, ui.preview)
-    ? 'Planejar, Hábitos, Finanças e Ciclo'
-    : 'Planejar, Hábitos e Finanças';
+  const searchAreas = globalSearchAreas();
   return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora<i>.</i></h2><p class="small muted">${searchAreas}</p></div>${closeBtn}</div>
     <label class="search global-search-input"><span class="sr">Buscar em todas as áreas</span>${icon('search', 18)}<input id="f0" type="search" data-dlg="query" value="${query}" placeholder="Tarefa, hábito, conta ou descrição" autocomplete="off"></label>
     <div id="global-search-results" aria-live="polite">${globalSearchResults(query)}</div>`,
@@ -4096,6 +4355,20 @@ const ONBOARDING_AREAS = [
   { id: 'finances', icon: 'wallet', title: 'Finanças', description: 'Organize contas, gastos, receitas e objetivos.' },
   { id: 'cycle', icon: 'heart', title: 'Ciclo', description: 'Registre sinais e acompanhe estimativas do ciclo.' },
 ];
+const ONBOARDING_TOUR_AREAS = [
+  { id: 'inicio', icon: 'calendarCheck' },
+  { id: 'planejar', icon: 'calendarCheck' },
+  { id: 'habitos', icon: 'check' },
+  { id: 'financas', icon: 'wallet' },
+  { id: 'ciclo', icon: 'heart' },
+];
+function onboardingTourAreas(draft) {
+  return ONBOARDING_TOUR_AREAS.filter(({ id }) => {
+    if (!AREA_GUIDES[id]) return false;
+    if (id === 'inicio' || id === 'planejar') return true;
+    return draft.areas[id] && (id !== 'ciclo' || canAccessCycle(S.settings.profile, ui.preview));
+  });
+}
 function refreshOnboardingRecommendations(draft) {
   const recommended = new Set(ONBOARDING_NEEDS
     .filter((need) => draft.needs.includes(need.id))
@@ -4111,14 +4384,30 @@ function dlgOnboard() {
   const d = ui.dlg.d, st = d.step;
   const onboardingNeeds = ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
   const onboardingAreas = ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview));
-  const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 3">${[0, 1, 2].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
+  const dots = h`<div class="steps" aria-label="Passo ${st + 1} de 5">${[0, 1, 2, 3, 4].map((i) => h`<i class="${i <= st ? 'on' : ''}"></i>`)}</div>`;
   let body, foot;
   if (st === 0) {
+    const overviewAreas = [
+      { id: 'inicio', icon: 'calendarCheck', title: 'Início', description: 'Veja o que importa hoje e encontre atalhos para agir.' },
+      { id: 'planejar', icon: 'calendarCheck', title: 'Planejar', description: 'Organize tarefas com prazos, prioridades e diferentes visualizações.' },
+      { id: 'habitos', icon: 'check', title: 'Hábitos', description: 'Crie rotinas possíveis e acompanhe cada passo no seu ritmo.' },
+      { id: 'financas', icon: 'wallet', title: 'Finanças', description: 'Cadastre contas manualmente e acompanhe receitas, gastos e objetivos.' },
+      ...(canAccessCycle(S.settings.profile, ui.preview)
+        ? [{ id: 'ciclo', icon: 'heart', title: 'Ciclo', description: 'Registre informações e consulte estimativas baseadas no seu histórico.' }]
+        : []),
+    ];
+    body = h`${dots}<div class="onboard-overview">
+      <div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Conheça o Aurora</span><h2 id="dt">Um espaço para organizar a vida do seu jeito<i>.</i></h2><p>Transforme a sensação de sobrecarga em um próximo passo possível. Use só o que fizer sentido para você — sem precisar dar conta de tudo.</p></div></div>
+      <div class="onboard-overview-cards" aria-label="O que você pode fazer no Aurora">${overviewAreas.map((area) => h`<article class="onboard-overview-card"><span class="mk">${icon(area.icon, 20)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span></span></article>`)}</div>
+      ${canAccessCycle(S.settings.profile, ui.preview) ? h`<p class="fine">${icon('info', 15)} Ciclo é opcional e só fica disponível com consentimento específico.</p>` : ''}
+    </div>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Vamos personalizar</button>`;
+  } else if (st === 1) {
     body = h`${dots}<div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Personalização inicial</span><h2 id="dt">O que você quer melhorar no seu dia a dia?</h2><p>Escolha uma ou mais opções; você pode mudar depois.</p></div></div>
       <fieldset class="onboard-fieldset"><legend>Escolha o que faz sentido para você agora.</legend><div class="onboard-options">${onboardingNeeds.map((need) => h`<button type="button" class="opt" aria-pressed="${d.needs.includes(need.id)}" data-action="ob-need" data-v="${need.id}"><span class="mk">${icon(need.icon, 22)}</span><span class="tx"><b>${need.title}</b><span>${need.description}</span></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>
       <p class="fine">${icon('info', 15)} Suas tarefas e seu planejamento já ficam disponíveis; não é preciso ativar uma área para começar a se organizar.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn primary" data-action="ob-next">Ver sugestões</button>`;
-  } else if (st === 1) {
+  } else if (st === 2) {
     const solutionIds = onboardingAreas.filter((area) => d.areas[area.id] || d.recommendedAreas.includes(area.id));
     const hasOrganizationNeed = d.needs.includes('organization');
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
@@ -4126,10 +4415,19 @@ function dlgOnboard() {
       ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
       <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e navegação.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
-  } else {
+  } else if (st === 3) {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
       <div class="onboard-theme"><span class="f-label">Cor do app</span><div class="swatches">${Object.entries(PALETTES).map(([key, [name, color]]) => h`<button type="button" class="swatch" aria-pressed="${d.theme === key}" data-action="ob-theme" data-v="${key}"><i style="background:${color}"></i>${name}</button>`)}</div></div>`;
-    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-finish">Concluir</button>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
+  } else {
+    const tourAreas = onboardingTourAreas(d);
+    body = h`${dots}<div class="wiz-h"><span class="eyebrow">Um tour opcional</span><h2 id="dt">Quer ver o Aurora em ação?</h2><p>Escolha um guia rápido para assistir ao concluir. Você também pode explorar agora e abrir os tutoriais quando quiser pelo botão “Como usar?” de cada área.</p></div>
+      <div class="onboard-tour-cards" aria-label="Tutoriais disponíveis">${tourAreas.map((area) => {
+        const guide = AREA_GUIDES[area.id];
+        return h`<button type="button" class="opt onboard-tour-card" data-action="ob-finish-guide" data-route="${area.id}"><span class="mk">${icon(area.icon, 20)}</span><span class="tx"><b>${guide.title}</b><span>${guide.summary}</span><small>Concluir e assistir</small></span>${icon('play', 16, 'onboard-tour-play')}</button>`;
+      })}</div>
+      <p class="fine">${icon('info', 15)} Os vídeos não iniciam sozinhos e também têm um roteiro em texto.</p>`;
+    foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-finish">Concluir sem tour</button>`;
   }
   return dlgWrap(body, foot, st === 0 ? 'onboard-needs-dialog' : '');
 }
@@ -4140,19 +4438,24 @@ function dlgExport() {
   }
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">${ui.dlg.d.kind === 'csv' ? 'O download direto não está disponível aqui. Copie o texto e salve em um arquivo .csv.' : 'O download direto não está disponível aqui. Copie o conteúdo e salve em um arquivo de backup para importar depois.'}</p>
-    <textarea id="exp" readonly rows="8" style="font-family:ui-monospace,monospace;font-size:.75rem">${ui.dlg.d.json}</textarea>`,
+    <textarea id="exp" class="finance-export-json" readonly rows="8">${ui.dlg.d.json}</textarea>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="copy-export">Copiar</button>`);
 }
 function dlgImport() {
   const p = ui.dlg.d.parsed;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Importar este backup?</h2><p class="small muted">Prévia do conteúdo validado deste arquivo:</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Importar este backup?</h2><p class="small muted">Revise o conteúdo validado antes de substituir os dados atuais. Configurações e perfil também serão restaurados.</p></div>${closeBtn}</div>
     <ul class="backup-preview">
       <li><span>Tarefas</span><b>${p.tasks.length}</b></li>
-      <li><span>Hábitos e contas financeiras</span><b>${p.habits.length} · ${p.finance.accounts.length}</b></li>
+      <li><span>Hábitos</span><b>${p.habits.length}</b></li>
+      <li><span>Contas financeiras</span><b>${p.finance.accounts.length}</b></li>
       <li><span>Lançamentos financeiros</span><b>${p.finance.tx.length}</b></li>
-      <li><span>Registros de hidratação e dias de ciclo</span><b>${p.water.length} · ${Object.keys(p.cycleLog).length}</b></li>
+      <li><span>Orçamentos, objetivos e contas fixas</span><b>${Object.keys(p.finance.budgets).length} · ${p.finance.goals.length} · ${p.finance.recurring.length}</b></li>
+      <li><span>Registros de hidratação</span><b>${p.water.length}</b></li>
+      <li><span>Períodos e dias de ciclo</span><b>${p.cycle.length} · ${Object.keys(p.cycleLog).length}</b></li>
+      <li><span>Registros de peso</span><b>${p.weight.length}</b></li>
+      <li><span>Itens na lixeira</span><b>${p.settings.prefs.trash.length}</b></li>
     </ul>
-    <div class="notice warn" role="alert">${icon('alert', 18)}<span>Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter os dados atuais, exporte um backup antes.</span></div>`,
+    <div class="notice warn" role="alert">${icon('alert', 18)}<span>Esta opção não mescla os dados. Ao confirmar, todos os dados relacionais atuais desta conta serão substituídos pelo conteúdo do backup. Para manter uma cópia dos dados atuais, cancele e exporte um backup antes.</span></div>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="import-apply">Substituir meus dados</button>`);
 }
 function dlgAreaTutorial() {
@@ -4162,8 +4465,7 @@ function dlgAreaTutorial() {
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}<i>.</i></h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
     <video class="area-tutorial-video" controls playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
-      <source src="${guide.video}" type="video/webm">
-      <source src="${guide.fallbackVideo}" type="video/mp4">
+      <source src="${guide.video}" type="video/mp4">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
@@ -4219,6 +4521,12 @@ function replaceCategoryReferences(oldPath, newPath) {
       changed = true;
     }
   }));
+  S.settings.prefs.financeCategoryRules.forEach((rule) => {
+    if (rule.category === oldPath) {
+      rule.category = newPath;
+      changed = true;
+    }
+  });
   if (Object.hasOwn(S.finance.budgets, oldPath)) {
     Object.defineProperty(S.finance.budgets, newPath, {
       value: S.finance.budgets[oldPath],
@@ -4234,7 +4542,7 @@ function replaceCategoryReferences(oldPath, newPath) {
 function resolveNew(g, d, key) {
   if (d[key] !== '__new') return true;
   const n = String(d.newName || '').trim().slice(0, 30);
-  if (!n) { toast('Dê um nome para a nova opção.'); return false; }
+  if (!n) { toast('Dê um nome para a nova opção.', 'info'); return false; }
   const parentName = String(d.newParent || '').trim();
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
@@ -4270,7 +4578,7 @@ function applyFitDlg() {
   el.style.setProperty('--dialog-available-height', `${height}px`);
 }
 function fitDlg() { applyFitDlg(); }
-function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(applyFitDlg, 90); }
+function fitDlgSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(() => { applyFitDlg(); keepKeyboardControlVisible(); }, 90); }
 if (window.visualViewport) visualViewport.addEventListener('resize', fitDlgSoon);
 window.addEventListener('resize', fitDlgSoon);
 let keyboardFocusTarget = null;
@@ -4280,12 +4588,14 @@ function keepKeyboardControlVisible() {
   if (!viewport || !target?.isConnected || window.innerHeight - viewport.height <= 120) return;
   requestAnimationFrame(() => {
     if (!target.isConnected) return;
+    const body = target.closest('#dlg .dlg-body');
+    if (!body) return;
     const bounds = target.getBoundingClientRect();
-    const top = viewport.offsetTop + 12;
-    const bottom = viewport.offsetTop + viewport.height - 16;
-    if (bounds.top < top || bounds.bottom > bottom) {
-      target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-    }
+    const bodyBounds = body.getBoundingClientRect();
+    const top = Math.max(bodyBounds.top, viewport.offsetTop) + 12;
+    const bottom = Math.min(bodyBounds.bottom, viewport.offsetTop + viewport.height) - 16;
+    if (bounds.top < top) body.scrollTop += bounds.top - top;
+    else if (bounds.bottom > bottom) body.scrollTop += bounds.bottom - bottom;
   });
 }
 document.addEventListener('focusin', (event) => {
@@ -4306,7 +4616,12 @@ window.addEventListener('popstate', (event) => {
   const scrollPosition = dialogHistoryScrollPosition;
   dialogHistoryScrollPosition = null;
   if (ui.dlg) {
-    ui.dlg = null;
+    if (ui.dlg.type === 'category-new' && ui.dlg.d.fromTransaction) {
+      ui.dlg = ui.categoryReturnDialog;
+      ui.categoryReturnDialog = null;
+    } else {
+      ui.dlg = null;
+    }
     render();
   }
   restoreDialogHistoryScroll(scrollPosition);
@@ -4325,6 +4640,7 @@ function renderDialog() {
       history.back();
     }
     if (el) {
+      if (el instanceof HTMLDialogElement && el.open) el.close();
       el.remove();
       $('#app').inert = false;
       const lf = ui.lastFocus;
@@ -4347,10 +4663,25 @@ function renderDialog() {
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
   const afSel = af ? { id: af.id, data: af.dataset.dlg, action: af.dataset.action, v: af.dataset.v, c: af.dataset.c } : null;
   const prevScroll = !opening ? (el.querySelector('.dlg-body') || {}).scrollTop : 0;
-  if (opening) { if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement); el = document.createElement('div'); el.id = 'dlg'; el.className = 'dlg-back is-opening'; setTimeout(() => el.classList.remove('is-opening'), 500); document.body.appendChild(el); if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll(); }
+  if (opening) {
+    if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement);
+    el = document.createElement('dialog');
+    el.id = 'dlg';
+    el.className = 'dlg-back is-opening';
+    el.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      if (ui.dlg) dlgClose();
+    });
+    setTimeout(() => el.classList.remove('is-opening'), 500);
+    document.body.appendChild(el);
+    if (!releaseDialogScroll) releaseDialogScroll = lockPageScroll();
+  }
   el.classList.toggle('is-intro', isIntro);
+  el.dataset.route = ui.route;
   fitDlg();
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">${DLG[ui.dlg.type]().s}</div>`;
+  el.setAttribute('aria-labelledby', 'dt');
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
@@ -4359,6 +4690,7 @@ function renderDialog() {
   if (afSel) target = (afSel.id && document.getElementById(afSel.id)) || (afSel.data && el.querySelector(`[data-dlg="${afSel.data}"]`)) || (afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`));
   if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('.dlg');
   if ((opening || typeChanged) && !afSel) target = el.querySelector('.dlg');
+  if ((opening || typeChanged) && ui.dlg.type === 'search') target = el.querySelector('[data-dlg="query"]');
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -4402,6 +4734,12 @@ const keepNonSample = (a) => a.filter((x) => !x.sample);
 function removeSampleData() {
   S.tasks = keepNonSample(S.tasks); S.water = keepNonSample(S.water);
   S.gym = { templates: keepNonSample(S.gym.templates), logs: keepNonSample(S.gym.logs) };
+  const removedAccountIds = new Set(S.finance.accounts.filter((account) => account.sample).map((account) => account.id));
+  S.finance.goals.forEach((goal) => {
+    if (!removedAccountIds.has(goal.linkedAccountId)) return;
+    goal.savedCents = linkedGoalProgressCents(goal, S.finance.accounts, S.finance.tx);
+    delete goal.linkedAccountId;
+  });
   const accs = keepNonSample(S.finance.accounts);
   S.finance = { accounts: accs, tx: S.finance.tx.filter((x) => !x.sample && accs.some((a) => a.id === x.accountId)), budgets: Object.fromEntries(Object.entries(S.finance.budgets || {}).filter(([, b]) => !b.sample)), goals: keepNonSample(S.finance.goals || []), recurring: (S.finance.recurring || []).filter((r) => accs.some((a) => a.id === r.accountId)) };
   S.cycle = keepNonSample(S.cycle); S.cycleLog = Object.fromEntries(Object.entries(S.cycleLog).filter(([, l]) => !l.sample)); S.weight = keepNonSample(S.weight);
@@ -4409,7 +4747,7 @@ function removeSampleData() {
 }
 function clearSample() {
   removeSampleData();
-  commit(...SLICES); toast('Exemplos removidos.');
+  commit(...SLICES); toast('Exemplos removidos.', 'success');
 }
 
 /* ---- Backup ---- */
@@ -4428,13 +4766,13 @@ function buildBackup() {
 }
 async function doExport() {
   if (Object.keys(ui.integrityIssues).length) {
-    toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.');
+    toast('O backup normal não foi criado para evitar omitir dados locais inválidos. Baixe a cópia de recuperação ou importe um backup confiável.', 'warning');
     return;
   }
   if (!await confirmInDialog('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
   const json = buildBackup(), name = `aurora-backup-${today()}.json`;
   downloadFile(name, json, 'application/json;charset=utf-8');
-  S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.');
+  S.settings.prefs.lastBackup = new Date().toISOString(); commit('settings'); toast('Backup baixado.', 'success');
 }
 function downloadFile(name, contents, type) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -4445,7 +4783,7 @@ function downloadFile(name, contents, type) {
 }
 async function exportRecoveryData() {
   if (!Persist.rawTables || !Object.keys(Persist.rawTables).length) {
-    toast('Não há dados bloqueados disponíveis para exportar.');
+    toast('Não há dados bloqueados disponíveis para exportar.', 'error');
     return;
   }
   if (!await confirmInDialog('A cópia de recuperação contém dados da conta, inclusive informações de saúde e finanças, e não tem proteção própria por senha. Guarde-a em um local privado e não a compartilhe. Deseja continuar?')) return;
@@ -4457,7 +4795,7 @@ async function exportRecoveryData() {
     tables: Persist.rawTables,
   }, null, 2);
   downloadFile(`aurora-recovery-${today()}.json`, recovery, 'application/json;charset=utf-8');
-  toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.');
+  toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.', 'success');
 }
 const arr = (v) => Array.isArray(v) ? v : [];
 function backupRecords(value, validator, label) {
@@ -4537,7 +4875,7 @@ function parseBackup(text) {
   };
 }
 async function importFile(file) {
-  const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m); };
+  const err = (m) => { const e = $('#imperr'); if (e) e.textContent = m; else toast(m, 'info'); };
   if (!file) return;
   if (file.size > 7 * 1024 * 1024) return err('O arquivo excede o limite permitido para backup.');
   let text;
@@ -4566,6 +4904,25 @@ async function importFile(file) {
 }
 
 /* ---- Ações por clique ---- */
+function recordWaterEntry(amount, habit) {
+  const day = today();
+  S.water.push({ id: newId(), ml: amount, at: new Date().toISOString() });
+  const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
+  const reached = waterGoalReached(waterMlForDay(S.water, day), target);
+  const completing = Boolean(habit && reached && habit.days.includes(pk(day).getDay())
+    && !habitIsSkipped(habit, day, day) && !habit.completions.includes(day));
+  if (completing) habit.completions.push(day);
+  const saved = saveSlices('water', ...(completing ? ['habits'] : []));
+  render();
+  if (saved) toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
+  return saved;
+}
+function focusQuickActionsTrigger() {
+  const trigger = [...document.querySelectorAll('.nav-quick-trigger, .mobile-nav-create-trigger')]
+    .find((element) => element.getClientRects().length > 0);
+  trigger?.focus();
+}
+
 const ACTIONS = {
   'cycle-consent-revoke': async () => {
     if (ui.cycleConsentBusy || !accountSession?.client?.auth?.updateUser) return;
@@ -4585,10 +4942,10 @@ const ACTIONS = {
         throw new Error('O provedor não confirmou a revogação do consentimento.');
       }
       accountSession.user = data.user;
-      toast('Consentimento retirado. Ciclo foi bloqueado; os registros existentes foram mantidos.');
+      toast('Consentimento retirado. Ciclo foi bloqueado; os registros existentes foram mantidos.', 'error');
     } catch (error) {
       console.error('Aurora: não foi possível retirar o consentimento para dados de Ciclo.', error);
-      toast('Não foi possível retirar o consentimento. Confira sua conexão e tente novamente.');
+      toast('Não foi possível retirar o consentimento. Confira sua conexão e tente novamente.', 'warning');
     } finally {
       ui.cycleConsentBusy = false;
       render();
@@ -4618,39 +4975,38 @@ const ACTIONS = {
     void confirmInDialog('Há alterações que ainda não foram salvas. Recarregar pode descartá-las. Deseja continuar?')
       .then((confirmed) => { if (confirmed) window.location.reload(); });
   },
-  'nav-more-toggle': () => { ui.navigationOpen = !ui.navigationOpen; render(); if (ui.toast) renderToast(); },
-  'sidebar-toggle': () => {
-    ui.sidebarCollapsed = !ui.sidebarCollapsed;
-    writeSidebarCollapsed(ui.sidebarCollapsed);
+  'tasks-show-more': () => showMoreResults('tasks', '#task-results', taskListHtml),
+  'transactions-show-more': () => showMoreResults('transactions', '#tx-results', txListHtml),
+  'quick-action-water': () => {
+    const habit = S.habits.find((item) => isWaterHabit(item) && item.status === 'active');
+    ui.quickActionsOpen = false;
     render();
-    requestAnimationFrame(() => document.querySelector('.sidebar-toggle')?.focus());
+    const amount = parseWaterMl('250');
+    if (amount === null) return toast('Não foi possível registrar um copo de água.', 'error');
+    recordWaterEntry(amount, habit);
+    focusQuickActionsTrigger();
   },
-  'quick-actions-toggle': (el) => {
+  'quick-actions-toggle': () => {
     const opening = !ui.quickActionsOpen;
-    const returnTarget = el.matches('.finance-fab')
-      ? '.finance-fab'
-      : window.matchMedia('(max-width: 899px)').matches
-        ? '.nav-more-trigger'
-        : '.nav-quick-trigger';
-    ui.navigationOpen = false;
     ui.quickActionsOpen = opening;
     render();
     requestAnimationFrame(() => {
       const target = opening
         ? document.querySelector('#quick-actions-menu button')
-        : document.querySelector(returnTarget);
-      target?.focus();
+        : null;
+      if (target) target.focus();
+      else focusQuickActionsTrigger();
     });
   },
   'quick-action-task': () => { ui.quickActionsOpen = false; openTaskDialog(today()); },
   'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
-  'quick-action-transaction': () => { ui.quickActionsOpen = false; newTxDlg('out'); },
+  'quick-action-expense': () => { openFinanceQuickAction(() => newTxDlg('out')); },
+  'quick-action-transaction': () => { openFinanceQuickAction(() => newTxDlg('out')); },
   'quick-action-finance': (el) => {
-    ui.quickActionsOpen = false;
     const kind = el.dataset.kind;
-    newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card');
+    openFinanceQuickAction(() => newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card'));
   },
-  'quick-action-account': () => { ui.quickActionsOpen = false; ACTIONS['acct-new'](); },
+  'quick-action-account': () => { openFinanceQuickAction(() => ACTIONS['acct-new']()); },
   'areas-nav-open': (_, event) => {
     event.preventDefault();
     nav('config?section=areas-navigation');
@@ -4659,7 +5015,7 @@ const ACTIONS = {
     const route = el.dataset.areaGuide;
     if (!AREA_GUIDES[route]) {
       console.error('Aurora: tutorial solicitado para uma área desconhecida.', route);
-      toast('Não foi possível abrir o tutorial desta área.');
+      toast('Não foi possível abrir o tutorial desta área.', 'info');
       return;
     }
     dlgOpen('area-tutorial', { route });
@@ -4668,7 +5024,7 @@ const ACTIONS = {
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     render();
-    toast('Alterações descartadas.');
+    toast('Alterações descartadas.', 'info');
   },
   'profile-discard': () => {
     ui.profileDraft = null;
@@ -4677,7 +5033,7 @@ const ACTIONS = {
       ui.settingsDraftBase = null;
     }
     render();
-    toast('Alterações descartadas.');
+    toast('Alterações descartadas.', 'info');
   },
   'profile-save': async () => {
     if (ui.profileDraft) await saveProfileDraft();
@@ -4685,17 +5041,11 @@ const ACTIONS = {
   },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
-  'home-quick-focus': () => {
-    const input = $('#home-quick-title-input');
-    if (!input) return openTaskDialog(today());
-    const reduceMotion = prefersReducedMotion(settingsView().look.reduceMotion);
-    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
-    if (reduceMotion) input.focus();
-    else setTimeout(() => input.focus(), 250);
-  },
-  'first-steps-dismiss': () => {
+  'first-steps-dismiss': async () => {
+    if (!await confirmInDialog('Dispensar o cartão “Comece em 3 passos”? Ele não aparecerá novamente.')) return;
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.firstStepsDismissed = true;
+    S.settings.prefs.firstStepsStarted = true;
     if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a dispensa dos primeiros passos')) return;
     render();
   },
@@ -4704,6 +5054,12 @@ const ACTIONS = {
     const task = findTask(el.dataset.id);
     if (!task) return;
     const wasDone = task.done, previousDoneAt = task.doneAt, completing = !task.done;
+    const reducedMotion = prefersReducedMotion(settingsView().look.reduceMotion);
+    const dayTasks = ui.route === 'inicio' ? todayTasks() : [];
+    const completesLastTaskOfDay = completing
+      && dayTasks.filter((item) => !item.done).length === 1
+      && dayTasks.some((item) => item.id === task.id);
+    const row = completing ? [...document.querySelectorAll('.task')].find((item) => item.dataset.k === task.id) : null;
     const snapshot = snapshotSlices(['tasks']);
     task.done = completing;
     task.doneAt = task.done ? new Date().toISOString() : undefined;
@@ -4723,12 +5079,39 @@ const ACTIONS = {
       delete nextTask.sample;
       S.tasks.push(nextTask);
     }
-    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a conclusão da tarefa')) return;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, !completing, 'a conclusão da tarefa')) {
+      if (completing) render();
+      return;
+    }
     if (completing) {
+      if (row && !reducedMotion) {
+        row.style.height = `${row.getBoundingClientRect().height}px`;
+        row.classList.add('done', 'is-completing');
+        playMotion(row.querySelector('.ttl'), 'is-task-completing');
+        row.inert = true;
+        const checkbox = row.querySelector('[data-action="toggle"]');
+        checkbox?.setAttribute('aria-checked', 'true');
+        checkbox?.setAttribute('aria-label', `Reabrir: ${task.title}`);
+        requestAnimationFrame(() => {
+          row.style.height = '0px';
+          row.classList.add('is-collapsing');
+        });
+        setTimeout(() => {
+          if (row.isConnected) render();
+          if (completesLastTaskOfDay && ui.route === 'inicio') {
+            playMotion(document.querySelector('.home-head'), 'is-day-completion');
+          }
+        }, 260);
+      } else {
+        render();
+        if (completesLastTaskOfDay && ui.route === 'inicio') {
+          playMotion(document.querySelector('.home-head'), 'is-day-completion');
+        }
+      }
       vibrateFeedback();
       completionFeedback(`.task[data-k="${task.id}"]`);
       const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
-      toast(message, () => {
+      toast(message, 'action', () => {
         const currentTask = findTask(task.id);
         if (!currentTask) return;
         const undoSnapshot = snapshotSlices(['tasks']);
@@ -4759,18 +5142,18 @@ const ACTIONS = {
   },
   'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
   'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
-  'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.'); },
+  'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.', 'info'); },
   'reminders-pause': () => {
     if (ui.remindersPausedUntil > Date.now()) {
       ui.remindersPausedUntil = 0;
       render();
-      toast('Lembretes do app retomados.');
+      toast('Lembretes do app retomados.', 'info');
       return;
     }
     ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
     Object.keys(ui.alerts).forEach((key) => { delete ui.alerts[key]; });
     render();
-    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.');
+    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.', 'info');
   },
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
@@ -4781,13 +5164,49 @@ const ACTIONS = {
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
+  'finance-values-toggle': () => {
+    S.settings.prefs.financeValuesHidden = !S.settings.prefs.financeValuesHidden;
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
+    commit('settings');
+  },
+  'finance-week-day': (el) => {
+    const day = el.dataset.day;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) return;
+    ui.financeWeekDay = day;
+    render();
+    document.getElementById(`finance-week-day-${day}`)?.focus({ preventScroll: true });
+  },
   'search-open': () => dlgOpen('search', { query: '' }),
+  'search-clear': () => {
+    if (ui.dlg?.type !== 'search') return;
+    ui.dlg.d.query = '';
+    render();
+    requestAnimationFrame(() => $('#f0')?.focus({ preventScroll: true }));
+  },
   'search-result': (el) => {
     const query = ui.dlg?.d.query || '';
     ui.dlg = null;
+    if (el.dataset.kind === 'action') {
+      if (el.dataset.command === 'new-task') {
+        openTaskDialog();
+        return;
+      }
+      if (el.dataset.command === 'open-finances') {
+        nav('financas');
+        return;
+      }
+      if (el.dataset.command === 'add-water') {
+        const habit = S.habits.find((item) => isWaterHabit(item) && item.status === 'active');
+        if (!habit) return toast('Não há um hábito de água ativo para registrar.', 'info');
+        ui.openDetails[`hab-${habit.id}`] = true;
+        nav('habitos');
+        requestAnimationFrame(() => document.getElementById(`water-amount-${CSS.escape(habit.id)}`)?.focus());
+        return;
+      }
+    }
     if (el.dataset.kind === 'task') {
       const task = findTask(el.dataset.id);
-      if (!task) return toast('Esta tarefa não está mais disponível.');
+      if (!task) return toast('Esta tarefa não está mais disponível.', 'info');
       ui.planView = 'lista';
       ui.filters.f = 'todas';
       ui.filters.q = task.title || query;
@@ -4795,19 +5214,19 @@ const ACTIONS = {
       return;
     }
     if (el.dataset.kind === 'habit') {
-      if (!S.habits.some((habit) => habit.id === el.dataset.id)) return toast('Este hábito não está mais disponível.');
+      if (!S.habits.some((habit) => habit.id === el.dataset.id)) return toast('Este hábito não está mais disponível.', 'info');
       nav('habitos');
       return;
     }
     if (el.dataset.kind === 'cycle') {
-      if (!S.cycleLog[el.dataset.id]) return toast('Este registro do ciclo não está mais disponível.');
+      if (!S.cycleLog[el.dataset.id]) return toast('Este registro do ciclo não está mais disponível.', 'info');
       ui.cycDay = el.dataset.id;
       ui.calMonth = el.dataset.id.slice(0, 7);
       nav('ciclo');
       return;
     }
     const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
-    if (!transaction) return toast('Este lançamento não está mais disponível.');
+    if (!transaction) return toast('Este lançamento não está mais disponível.', 'info');
     ui.finMonth = transaction.date.slice(0, 7);
     ui.finTab = 'lancamentos';
     ui.finFilter = 'todos';
@@ -4815,15 +5234,99 @@ const ACTIONS = {
     nav('financas');
   },
   'plan-view': (el) => {
-    if (!['lista', 'calendario', 'semana', 'revisao'].includes(el.dataset.v)) return;
+    if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
+    const focusTab = el.getAttribute('role') === 'tab';
     ui.planView = el.dataset.v;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
     render();
+    if (focusTab) requestAnimationFrame(() => document.getElementById(`plan-tab-${ui.planView}`)?.focus());
     if (ui.planView === 'calendario') {
       const staleAccounts = connectedGoogleCalendarAccounts()
         .filter((account) => account.loadedMonth !== ui.taskCal)
         .map((account) => account.id);
       if (staleAccounts.length) void loadGoogleCalendarEvents(staleAccounts);
     }
+  },
+  'annual-goal-edit': (el) => {
+    const goals = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals || [];
+    const goal = goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    ui.annualEditingGoalId = el.dataset.id;
+    ui.annualGoalQuarter = goal.quarter;
+    ui.annualGoalFormOpen = true;
+    ui.annualGoalDraft = null;
+    render();
+  },
+  'annual-goal-add': (el) => {
+    const quarter = el.dataset.quarter || '';
+    if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) return;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalQuarter = quarter;
+    ui.annualGoalFormOpen = true;
+    ui.annualGoalDraft = null;
+    render();
+    requestAnimationFrame(() => document.querySelector('.annual-goal-form [name="title"]')?.focus());
+  },
+  'annual-idea-use': (el) => {
+    const idea = ANNUAL_PLAN_IDEAS.find((item) => item.id === el.dataset.id);
+    if (!idea) return;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalQuarter = '';
+    ui.annualGoalDraft = { title: idea.title, action: idea.action };
+    ui.annualGoalFormOpen = true;
+    render();
+    requestAnimationFrame(() => {
+      const title = document.querySelector('.annual-goal-form [name="title"]');
+      title?.scrollIntoView({ block: 'center' });
+      title?.focus();
+    });
+  },
+  'annual-idea-category': (el) => {
+    const category = el.dataset.category || 'all';
+    if (category !== 'all' && !ANNUAL_PLAN_IDEA_CATEGORIES.some((item) => item.id === category)) return;
+    ui.annualIdeaCategory = category;
+    updateAnnualIdeaFilters();
+  },
+  'annual-ideas-clear': () => {
+    ui.annualIdeaCategory = 'all';
+    ui.annualIdeaQuery = '';
+    const search = document.querySelector('[data-input="annual-ideas-search"]');
+    if (search) search.value = '';
+    updateAnnualIdeaFilters();
+  },
+  'annual-goal-edit-cancel': () => {
+    ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
+    render();
+  },
+  'annual-goal-toggle': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    const snapshot = snapshotSlices(['settings']);
+    goal.done = !goal.done;
+    saveSlicesWithRollback(['settings'], snapshot);
+  },
+  'annual-goal-delete': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    if (ui.confirmedAction !== 'annual-goal-delete') {
+      return requestActionConfirmation(
+        'annual-goal-delete',
+        { id: goal.id },
+        'Excluir conquista?',
+        `“${goal.title}” será removida do plano anual.`,
+        'Excluir conquista',
+      );
+    }
+    const snapshot = snapshotSlices(['settings']);
+    plan.goals = plan.goals.filter((item) => item.id !== goal.id);
+    if (ui.annualEditingGoalId === goal.id) ui.annualEditingGoalId = '';
+    saveSlicesWithRollback(['settings'], snapshot);
   },
   'google-calendar-prepare': () => prepareGoogleCalendar(),
   'google-calendar-authorize': () => authorizeGoogleCalendar(),
@@ -4834,8 +5337,26 @@ const ACTIONS = {
   'google-calendar-disconnect': (el) => disconnectGoogleCalendar(el.dataset.accountId),
   'weekly-open-overdue': () => { ui.planView = 'lista'; ui.filters.f = 'atrasadas'; nav('planejar'); },
   'home-weekly-review': () => { ui.planView = 'revisao'; nav('planejar'); },
+  'weekly-open-review': () => {
+    ui.planView = 'revisao';
+    if (ui.route === 'planejar') render();
+    else nav('planejar');
+  },
+  'weekly-note': (el) => {
+    const choice = ['Menos tarefas', 'Mais pausas', 'Manter assim'].find((value) => value === el.dataset.v);
+    if (!choice) return;
+    const weekStart = weekDays(today(), weekStartDay())[0];
+    const title = `Para a semana de ${shortDate(weekStart)} de ${weekStart.slice(0, 4)}: ${choice}`;
+    if (S.tasks.some((task) => task.title === title && !task.dueDate)) {
+      return toast('Essa anotação já está na sua lista de tarefas.', 'info');
+    }
+    const snapshot = snapshotSlices(['tasks']);
+    S.tasks.push(mkTask({ title, dueDate: null }));
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a anotação da semana')) return;
+    toast('Anotação adicionada à sua lista de tarefas.', 'success');
+  },
   'weekly-keep-task': (el) => {
-    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.');
+    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.', 'info');
   },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
@@ -4845,10 +5366,10 @@ const ACTIONS = {
     task.dueDate = addDays(task.dueDate, 7);
     const deferredDate = task.dueDate;
     if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o adiamento da tarefa')) return;
-    toast('Tarefa adiada por uma semana.', () => {
+    toast('Tarefa adiada por uma semana.', 'action', () => {
       const currentTask = findTask(el.dataset.id);
       if (!currentTask || currentTask.dueDate !== deferredDate) {
-        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.');
+        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.', 'warning');
         return;
       }
       const current = snapshotSlices(['tasks']);
@@ -4856,13 +5377,25 @@ const ACTIONS = {
       saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
     });
   },
-  'weekly-save-reflection': () => {
-    const text = String($('#weekly-reflection')?.value || '').trim().slice(0, 500);
-    const weekOf = weekDays(today(), weekStartDay())[0];
-    S.settings.prefs.weeklyReflection = text ? { weekOf, text } : null;
-    const saved = saveSlices('settings');
-    render();
-    if (saved) toast(text ? 'Reflexão salva na sua conta.' : 'Reflexão removida.');
+  'task-swipe-defer': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task || task.done) return;
+    const previousDate = task.dueDate;
+    const deferredDate = addDays(today(), 1);
+    const snapshot = snapshotSlices(['tasks']);
+    task.dueDate = deferredDate;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o adiamento da tarefa')) return;
+    toast('Tarefa adiada para amanhã.', 'action', () => {
+      const currentTask = findTask(task.id);
+      if (!currentTask || currentTask.dueDate !== deferredDate) {
+        toast('A tarefa mudou depois do adiamento; as alterações atuais foram preservadas.', 'warning');
+        return;
+      }
+      const current = snapshotSlices(['tasks']);
+      if (previousDate) currentTask.dueDate = previousDate;
+      else delete currentTask.dueDate;
+      saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
+    });
   },
   'weekly-open-finances': () => { ui.finTab = 'resumo'; nav('financas'); },
   'weekly-open-habits': () => nav('habitos'),
@@ -4918,18 +5451,30 @@ const ACTIONS = {
     const day = today();
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
+    const previousCelebrationDay = ui.habitCelebrationDay;
     const snapshot = snapshotSlices(['habits']);
     habit.completions = habit.completions.includes(day)
       ? habit.completions.filter((completed) => completed !== day)
       : [...habit.completions, day];
-    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) return;
+    const scheduledToday = S.habits.filter((item) => (
+      (item.status || 'active') === 'active'
+      && item.days.includes(pk(day).getDay())
+      && !habitIsSkipped(item, day, day)
+    ));
+    ui.habitCelebrationDay = completing && scheduledToday.length > 0
+      && scheduledToday.every((item) => habitCompletedFor(item, day)) ? day : '';
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a marcação do hábito')) {
+      ui.habitCelebrationDay = previousCelebrationDay;
+      return;
+    }
     if (completing) {
       completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
-      toast('Hábito marcado como concluído.', () => {
+      toast('Hábito marcado como concluído.', 'action', () => {
         const currentHabit = S.habits.find((item) => item.id === habit.id);
         if (!currentHabit || !currentHabit.completions.includes(day)) return;
         const undoSnapshot = snapshotSlices(['habits']);
         currentHabit.completions = currentHabit.completions.filter((completed) => completed !== day);
+        ui.habitCelebrationDay = '';
         saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a marcação do hábito');
       });
     }
@@ -4943,13 +5488,13 @@ const ACTIONS = {
     const undoSkip = skipped.has(day);
     if (undoSkip) skipped.delete(day);
     else {
-      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.');
+      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.', 'warning');
       skipped.add(day);
     }
     const snapshot = snapshotSlices(['habits']);
     habit.skipped = [...skipped].sort();
     if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a alteração do dia pulado')) return;
-    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? null : () => {
+    toast(undoSkip ? 'Pulo removido.' : 'Hoje foi marcado como dia pulado.', undoSkip ? 'success' : 'action', undoSkip ? null : () => {
       const currentHabit = S.habits.find((item) => item.id === habit.id);
       if (!currentHabit || !(currentHabit.skipped || []).includes(day)) return;
       const undoSnapshot = snapshotSlices(['habits']);
@@ -4968,7 +5513,7 @@ const ACTIONS = {
     if (hadSkip && !had) habit.skipped = habit.skipped.filter((item) => item !== day);
     commit('habits');
     if (!had) completionFeedback(`.habit-dot[data-id="${habit.id}"][data-d="${day}"]`);
-    toast(had ? `Marcação de ${shortDate(day)} removida.` : `${habit.name} marcado · ${shortDate(day)}`, () => {
+    toast(had ? `Marcação de ${shortDate(day)} removida.` : `${habit.name} marcado · ${shortDate(day)}`, 'action', () => {
       habit.completions = had ? [...habit.completions, day].sort() : habit.completions.filter((item) => item !== day);
       if (hadSkip) habit.skipped = [...new Set([...(habit.skipped || []), day])].sort();
       commit('habits');
@@ -4996,7 +5541,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Hábito: ${habit.name}`, [
       createTrashRecord('habits', habit.id, index, habit),
     ], ['habits'], () => { S.habits.splice(index, 1); });
-    if (entry) toast('Hábito movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Hábito movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'habit-delete-dialog': () => {
     const id = ui.dlg?.d?.id;
@@ -5035,7 +5580,7 @@ const ACTIONS = {
     }
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast(habit.status === 'paused' ? 'Hábito pausado.' : 'Hábito retomado.');
+    toast(habit.status === 'paused' ? 'Hábito pausado.' : 'Hábito retomado.', 'info');
   },
   'habit-archive': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -5045,7 +5590,7 @@ const ACTIONS = {
     habit.status = 'archived';
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast('Hábito arquivado. O histórico foi preservado.', () => {
+    toast('Hábito arquivado. O histórico foi preservado.', 'action', () => {
       habit.status = previousStatus;
       commit('habits');
     });
@@ -5057,7 +5602,7 @@ const ACTIONS = {
     habit.status = 'active';
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
-    toast('Hábito restaurado.');
+    toast('Hábito restaurado.', 'success');
   },
   'habit-month': (el) => {
     const next = shiftMonth(ui.habitMonth, Number(el.dataset.n));
@@ -5074,7 +5619,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Tarefa: ${task.title}`, [
       createTrashRecord('tasks', task.id, i, task),
     ], ['tasks'], () => { S.tasks.splice(i, 1); });
-    if (entry) toast('Tarefa movida para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Tarefa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
   'del-plan': (el) => {
@@ -5086,7 +5631,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Plano: ${title}`, records, ['tasks'], () => {
       S.tasks = S.tasks.filter((task) => task.groupId !== el.dataset.id);
     });
-    if (entry) toast('Plano movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Plano movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'del-task-dlg': () => {
     const id = ui.dlg?.d?.id;
@@ -5096,12 +5641,6 @@ const ACTIONS = {
     requestActionConfirmation('del-task', { id }, 'Excluir tarefa?', `A tarefa "${task.title}" irá para a lixeira por 30 dias.`, 'Excluir tarefa');
   },
   'set-filter': (el) => { ui.filters.f = el.dataset.f; render(); },
-  'planning-filter': (el) => {
-    ui.planView = 'lista';
-    ui.filters.f = el.dataset.f;
-    ui.filters.q = '';
-    render();
-  },
   'task-filters-clear': () => {
     ui.filters.f = 'todas';
     ui.filters.q = '';
@@ -5118,7 +5657,7 @@ const ACTIONS = {
     url.pathname = '/config';
     url.hash = '';
     url.searchParams.set('section', tab);
-    history.replaceState(null, '', `${url.pathname}${url.search}`);
+    history.pushState(null, '', `${url.pathname}${url.search}`);
     activeRouteLocationKey = `config?${url.search.slice(1)}`;
     render();
     const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
@@ -5156,7 +5695,7 @@ const ACTIONS = {
     );
     updateSettingsDraft((settings) => Object.assign(settings.prefs, defaults));
     document.querySelector('[data-settings-tab="areas-navigation"]')?.focus();
-    toast('Padrão dos menus selecionado. Salve para aplicar permanentemente.');
+    toast('Padrão dos menus selecionado. Salve para aplicar permanentemente.', 'info');
   },
   'home-block-move': (el) => {
     const id = el.dataset.homeBlock, direction = Number(el.dataset.direction);
@@ -5190,7 +5729,7 @@ const ACTIONS = {
       settings.prefs.homeShortcuts = [...defaults.shortcuts];
       saveActiveHomeMode(settings);
     });
-    toast('Modo inicial restaurado. Salve para aplicar permanentemente.');
+    toast('Modo inicial restaurado. Salve para aplicar permanentemente.', 'success');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'habit-push-toggle': () => toggleHabitPush(),
@@ -5209,7 +5748,6 @@ const ACTIONS = {
     if (ui.confirmedAction !== 'clear-sample') return requestActionConfirmation('clear-sample', {}, 'Remover dados de exemplo?', 'Somente os registros identificados como exemplos serão removidos. Seus dados pessoais serão mantidos.', 'Remover exemplos');
     clearSample();
   },
-  'load-sample': () => { loadSample(); toast('Dados de exemplo adicionados.'); },
   'undo': () => { const u = ui.toast && ui.toast.undo; ui.toast = null; if (u) u(); renderToast(); },
   'action-confirm-cancel': () => dlgClose(),
   'confirmation-cancel': () => settleDialogConfirmation(false),
@@ -5221,7 +5759,7 @@ const ACTIONS = {
       ui.confirmPrevious = null;
       ui.dlg = null;
       render();
-      toast('Não foi possível concluir esta ação.');
+      toast('Não foi possível concluir esta ação.', 'info');
       return;
     }
     const { action, data } = d;
@@ -5259,19 +5797,19 @@ const ACTIONS = {
     if (S.cycle.some((period) => period.start <= day && cyclePeriodEnd(period) >= day)) {
       ui.cycDay = day;
       render();
-      return toast('Hoje já faz parte de um período registrado.');
+      return toast('Hoje já faz parte de um período registrado.', 'info');
     }
     S.cycle.push({ start: day, end: null });
     ui.cycDay = day;
     ui.calMonth = day.slice(0, 7);
     const saved = saveSlices('cycle');
     render();
-    if (saved) toast('Início registrado para hoje. Você pode ajustar o último dia depois.');
+    if (saved) toast('Início registrado para hoje. Você pode ajustar o último dia depois.', 'success');
   },
   'cyc-period-edit': (el) => {
     const index = Number(el.dataset.index);
     const period = Number.isInteger(index) ? S.cycle[index] : null;
-    if (!period) return toast('Este período não está mais disponível.');
+    if (!period) return toast('Este período não está mais disponível.', 'info');
     dlgOpen('cycle-period', {
       index,
       originalStart: period.start,
@@ -5283,7 +5821,7 @@ const ACTIONS = {
   'cyc-period-delete': (el) => {
     const index = Number(el.dataset.index);
     const period = Number.isInteger(index) ? S.cycle[index] : null;
-    if (!period) return toast('Este período não está mais disponível.');
+    if (!period) return toast('Este período não está mais disponível.', 'info');
     const label = `o período de ${shortDate(period.start)}${cyclePeriodEnd(period) === period.start ? '' : ` a ${shortDate(cyclePeriodEnd(period))}`}`;
     if (ui.confirmedAction !== 'cyc-period-delete') {
       return requestActionConfirmation('cyc-period-delete', { index }, 'Excluir período?', `${label} irá para a lixeira por 30 dias. Os registros diários de sintomas e anotações serão mantidos.`, 'Excluir período');
@@ -5291,7 +5829,7 @@ const ACTIONS = {
     const entry = moveRecordsToTrash(`Ciclo: ${label}`, [
       createTrashRecord('cycle', cyclePeriodKey(period), index, period),
     ], ['cycle'], () => { S.cycle.splice(index, 1); });
-    if (entry) toast('Período movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Período movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'cyc-opt': (el) => {
     if (ui.dlg?.type !== 'cycle-log') return;
@@ -5321,6 +5859,87 @@ const ACTIONS = {
     ui.dlg.dirty = true;
     render();
   },
+  'cyc-sex': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.sexualActivity === value) {
+      delete log.sexualActivity;
+      delete log.contraceptionMethods;
+    } else {
+      log.sexualActivity = value;
+      if (!value) delete log.contraceptionMethods;
+    }
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-libido': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['high', 'low'].includes(el.dataset.v)) return;
+    if (log.libido === el.dataset.v) delete log.libido;
+    else log.libido = el.dataset.v;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-intimacy-toggle': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['masturbationActivity', 'sexToysUsed'].includes(key)) return;
+    if (log[key]) delete log[key];
+    else log[key] = true;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-orgasm': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.orgasmOccurred === value) delete log.orgasmOccurred;
+    else log.orgasmOccurred = value;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'intimacy'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'intimacy');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-test-toggle': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['ovulationTestResult', 'pregnancyTestResult'].includes(key)) return;
+    if (log[key]) delete log[key];
+    else log[key] = 'undisclosed';
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'tests'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'tests');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-test-result': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    const key = el.dataset.k;
+    if (!log || !['ovulationTestResult', 'pregnancyTestResult'].includes(key)
+      || !CYCLE_TEST_RESULTS.some(([value]) => value === el.dataset.v)) return;
+    log[key] = el.dataset.v;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'tests'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'tests');
+    ui.dlg.d.dirty = true;
+    render();
+  },
+  'cyc-medication': (el) => {
+    const log = ui.dlg?.type === 'cycle-log' ? ui.dlg.d.log : null;
+    if (!log || !['yes', 'no'].includes(el.dataset.v)) return;
+    const value = el.dataset.v === 'yes';
+    if (log.medicationTaken === value) delete log.medicationTaken;
+    else log.medicationTaken = value;
+    ui.dlg.d.openGroups = [...new Set([...(ui.dlg.d.openGroups || []), 'medication'])];
+    ui.dlg.d.closedGroups = (ui.dlg.d.closedGroups || []).filter((group) => group !== 'medication');
+    ui.dlg.d.dirty = true;
+    render();
+  },
   'cyc-clear': (el) => {
     const k = ui.confirmedAction === 'cyc-clear'
       ? el.dataset.day
@@ -5329,10 +5948,14 @@ const ACTIONS = {
     const previous = S.cycleLog[k];
     if (!previous) return;
     if (ui.confirmedAction !== 'cyc-clear') return requestActionConfirmation('cyc-clear', { day: k }, 'Remover registro do ciclo?', `O registro de ${longDate(k)} irá para a lixeira por 30 dias.`, 'Remover registro');
+    const affectedSlices = Number.isFinite(previous.weightKg) ? ['cycleLog', 'habits'] : ['cycleLog'];
     const entry = moveRecordsToTrash(`Ciclo: ${longDate(k)}`, [
       createTrashRecord('cycleLog', k, 0, previous),
-    ], ['cycleLog'], () => { delete S.cycleLog[k]; });
-    if (entry) toast('Registro movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    ], affectedSlices, () => {
+      delete S.cycleLog[k];
+      if (Number.isFinite(previous.weightKg)) syncLatestCycleWeight();
+    });
+    if (entry) toast('Registro movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
   'appearance-preset': (el) => {
@@ -5361,7 +5984,7 @@ const ACTIONS = {
     draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     render();
-    toast('Identidade visual padrão selecionada. Salve para aplicar.');
+    toast('Identidade visual padrão selecionada. Salve para aplicar.', 'info');
   },
   'preferences-week-start': (el) => {
     const weekStart = Number(el.dataset.v);
@@ -5389,7 +6012,7 @@ const ACTIONS = {
         reduceMotion: LOOK_DEFAULT.reduceMotion,
       };
     });
-    toast('Padrão visual selecionado. Salve para aplicar permanentemente.');
+    toast('Padrão visual selecionado. Salve para aplicar permanentemente.', 'info');
   },
   'look': (el) => {
     const k = el.dataset.k, v = k === 'weekStart' ? Number(el.dataset.v) : el.dataset.v;
@@ -5406,16 +6029,16 @@ const ACTIONS = {
   'legacy-import-apply': () => { void applyLegacyImport(); },
   'legacy-import-clear': () => clearLegacyBrowserData(),
   'copy-export': async () => {
-    if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.');
+    if (Object.keys(ui.integrityIssues).length) return toast('O backup normal não foi copiado para evitar omitir dados locais inválidos.', 'warning');
     if (!await confirmInDialog('O backup copiado não tem proteção própria por senha e pode incluir dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?')) return;
     const ta = $('#exp');
     try {
       await navigator.clipboard.writeText(ta.value);
-      toast('Backup copiado.');
+      toast('Backup copiado.', 'success');
     } catch (error) {
       ta.focus();
       ta.select();
-      toast('O backup foi selecionado. Copie manualmente e guarde-o em um local privado.');
+      toast('O backup foi selecionado. Copie manualmente e guarde-o em um local privado.', 'warning');
     }
     S.settings.prefs.lastBackup = new Date().toISOString();
     saveSlices('settings');
@@ -5423,7 +6046,7 @@ const ACTIONS = {
   'import-apply': async (button) => {
     const p = ui.dlg && ui.dlg.d && ui.dlg.d.parsed;
     if (!p) {
-      toast('Não foi possível localizar os dados do backup.');
+      toast('Não foi possível localizar os dados do backup.', 'warning');
       return;
     }
 
@@ -5474,7 +6097,7 @@ const ACTIONS = {
       restoreMetadata();
       render();
       console.error('Aurora: a restauração relacional do backup não foi concluída.', error);
-      toast('A restauração não foi confirmada. Os dados anteriores foram mantidos.');
+      toast('A restauração não foi confirmada. Os dados anteriores foram mantidos.', 'error');
       return;
     } finally {
       Persist.replacing = false;
@@ -5483,8 +6106,9 @@ const ACTIONS = {
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     ui.dlg = null;
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
     render();
-    toast('Backup restaurado na sua conta.');
+    toast('Backup restaurado na sua conta.', 'success');
   },
   'wipe-ask': () => dlgOpen('wipe'),
   'wipe': async (button) => {
@@ -5492,7 +6116,7 @@ const ACTIONS = {
     const synchronized = await Persist.flush();
     if (!synchronized) {
       button.disabled = false;
-      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.');
+      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.', 'warning');
       return;
     }
     if (getPushNotificationStatus().enabled) {
@@ -5501,7 +6125,7 @@ const ACTIONS = {
       } catch (error) {
         button.disabled = false;
         console.error('Aurora: não foi possível desativar os avisos Push antes de apagar os dados.', error);
-        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`);
+        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`, 'info');
         return;
       }
     }
@@ -5510,11 +6134,12 @@ const ACTIONS = {
     } catch (error) {
       button.disabled = false;
       console.error('Aurora: a exclusão dos dados relacionais falhou.', error);
-      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.');
+      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.', 'info');
       return;
     }
 
     S = defaults();
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     ui.persistBlocked.clear();
@@ -5531,7 +6156,7 @@ const ACTIONS = {
   'wipe-home': () => { ui.dlg = null; render(); },
   'ob-theme': (el) => { ui.dlg.d.theme = el.dataset.v; render(); },
   'ob-next': () => {
-    if (ui.dlg.d.step === 0) refreshOnboardingRecommendations(ui.dlg.d);
+    if (ui.dlg.d.step === 1) refreshOnboardingRecommendations(ui.dlg.d);
     ui.dlg.d.step++;
     render();
   },
@@ -5555,9 +6180,23 @@ const ACTIONS = {
   },
   'ob-skip': () => finishOnboard(true),
   'ob-finish': () => finishOnboard(),
+  'ob-finish-guide': (el) => {
+    const route = el.dataset.route;
+    if (!onboardingTourAreas(ui.dlg.d).some((area) => area.id === route)) {
+      console.error('Aurora: tutorial de primeiro acesso solicitado para uma área indisponível.', route);
+      toast('Não foi possível abrir esse tutorial. Escolha um dos guias disponíveis.', 'info');
+      return;
+    }
+    finishOnboard(false, route);
+  },
 };
-function finishOnboard(skip = false) {
+function finishOnboard(skip = false, tutorialRoute = '') {
   const d = ui.dlg.d;
+  if (tutorialRoute && !onboardingTourAreas(d).some((area) => area.id === tutorialRoute)) {
+    console.error('Aurora: tutorial de primeiro acesso solicitado para uma área indisponível.', tutorialRoute);
+    toast('Não foi possível abrir esse tutorial. Escolha um dos guias disponíveis.', 'info');
+    return false;
+  }
   const snapshot = snapshotSlices(['settings']);
   Object.assign(S.settings, { onboardingComplete: true, introSeen: true });
   if (!skip) {
@@ -5571,11 +6210,13 @@ function finishOnboard(skip = false) {
     render();
     return false;
   }
-  ui.dlg = ui.returnDialog;
+  ui.dlg = tutorialRoute
+    ? createDialog('area-tutorial', { route: tutorialRoute, afterOnboarding: true })
+    : ui.returnDialog;
   ui.returnDialog = null;
   render();
-  toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.');
-  void maybeOpenReleaseNotes();
+  toast(skip ? 'Personalização inicial pulada. Você pode ativar áreas em Ajustes.' : 'Aurora personalizado para você.', 'info');
+  if (!tutorialRoute) void maybeOpenReleaseNotes();
   return true;
 }
 
@@ -5636,6 +6277,25 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'finance-category-rule': (form, data) => {
+    const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
+    const kind = ui.dlg?.d?.ruleKind === 'in' ? 'in' : 'out';
+    const category = String(data.get('category') || '').trim();
+    if (!phrase) return toast('Informe uma frase para reconhecer.', 'warning');
+    if (!catNames(kind).includes(category)) return toast('Escolha uma categoria válida para o tipo selecionado.', 'warning');
+    const rules = S.settings.prefs.financeCategoryRules;
+    if (rules.length >= 50) return toast('Você pode configurar até 50 regras de categoria.', 'warning');
+    if (rules.some((rule) => rule.kind === kind && norm(rule.phrase) === norm(phrase))) {
+      return toast('Já existe uma regra com essa frase para este tipo.', 'info');
+    }
+    const snapshot = snapshotSlices(['settings']);
+    rules.unshift({ id: newId(), phrase, category, kind });
+    if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a regra de categoria')) return;
+    ui.dlg.d.ruleCategory = category;
+    ui.dlg.dirty = false;
+    render();
+    toast('Regra automática adicionada.', 'success');
+  },
   'cycle-data-consent': async (form) => {
     const checkbox = form.elements.namedItem('cycleConsent');
     if (!(checkbox instanceof HTMLInputElement) || !checkbox.checked) return;
@@ -5677,29 +6337,28 @@ const FORMS = {
   'water-add': (f, d) => {
     const habit = S.habits.find((item) => item.id === f.dataset.id);
     if (!habit || !isWaterHabit(habit) || habit.status !== 'active') {
-      return toast('Este hábito de água não está disponível para registro.');
+      return toast('Este hábito de água não está disponível para registro.', 'info');
     }
     const amount = parseWaterMl(d.get('amount'));
     if (amount === null) return fieldError('Informe um volume inteiro entre 1 e 10.000 mL.', '[name="amount"]');
-    const day = today();
-    S.water.push({ id: newId(), ml: amount, at: new Date().toISOString() });
-    const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
-    const reached = waterGoalReached(waterMlForDay(S.water, day), target);
-    const completing = reached && habit.days.includes(pk(day).getDay())
-      && !habitIsSkipped(habit, day, day) && !habit.completions.includes(day);
-    if (completing) habit.completions.push(day);
-    const saved = saveSlices('water', ...(completing ? ['habits'] : []));
-    render();
-    if (saved) toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`);
+    recordWaterEntry(amount, habit);
   },
   'home-quick-task': (f, d) => {
     const title = String(d.get('title') || '').trim();
-    if (!title) return toast('Escreva uma tarefa para hoje.');
-    const parsed = parseTags(title);
-    S.tasks.push(mkTask({ title: parsed.title, dueDate: today(), ...(parsed.tags.length ? { tags: parsed.tags } : {}) }));
-    const saved = saveSlices('tasks');
+    if (!title) return toast('Escreva uma tarefa.', 'info');
+    const date = parseQuickDate(title, today());
+    if (date.error) return toast(date.error, 'info');
+    if (!date.title) return toast('Escreva o título da tarefa além da data.', 'info');
+    const parsed = parseTags(date.title);
+    const slices = homeFirstTaskSlices();
+    S.tasks.push(mkTask({ title: parsed.title, dueDate: date.date, ...(date.time ? { time: date.time } : {}), ...(parsed.tags.length ? { tags: parsed.tags } : {}) }));
+    const saved = saveSlices(...slices);
     render();
-    if (saved) toast('Tarefa adicionada para hoje.');
+    if (saved) {
+      const deadline = date.date === today() ? 'hoje' : shortDate(date.date);
+      toast(`Tarefa adicionada para ${deadline}${date.time ? ` às ${date.time}` : ''}.`, 'success');
+      requestAnimationFrame(() => $('#home-quick-title-input')?.focus());
+    }
   },
   'settings-save': saveSettingsDraft,
   'settings-profile': saveProfileDraft,
@@ -5708,16 +6367,16 @@ const FORMS = {
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
     const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
-    if (!name) return toast('Dê um nome ao hábito.');
-    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.');
-    if (remind && !isTime(remind)) return toast('Informe um horário válido para o lembrete.');
-    if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.');
+    if (!name) return toast('Dê um nome ao hábito.', 'info');
+    if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.', 'error');
+    if (remind && !isTime(remind)) return toast('Informe um horário válido para o lembrete.', 'error');
+    if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.', 'info');
     S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
     f.reset();
     f.querySelectorAll('input[name="days"]').forEach((input) => { input.checked = true; });
     const saved = saveSlices('habits');
     render();
-    if (saved) toast('Hábito adicionado.');
+    if (saved) toast('Hábito adicionado.', 'success');
   },
   'habit-edit': (f, d) => {
     const draft = ui.dlg?.d;
@@ -5739,7 +6398,7 @@ const FORMS = {
     }
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
     if (remind && !isTime(remind)) return fieldError('Informe um horário válido para o lembrete.', '[data-dlg="remind"]');
-    if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.');
+    if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
     const tracksWater = Boolean(draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
@@ -5761,7 +6420,7 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('habits');
     render();
-    if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.');
+    if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
   },
   'tg-add': (f, d) => { const v = String(d.get('tg') || '').trim().replace(/^#/, '').toLowerCase().replace(/[^\p{L}\d_-]/gu, '').slice(0, 24); if (!v) return; const a = ui.dlg.d.tags = ui.dlg.d.tags || []; if (!a.includes(v)) a.push(v); render(); const i = $('#tgn'); if (i) i.focus(); },
   'st-add': (f, d) => { const v = String(d.get('st') || '').trim().slice(0, 100); if (!v) return; (ui.dlg.d.subs = ui.dlg.d.subs || []).push({ id: newId(), title: v, done: false }); render(); const i = $('#stn'); if (i) i.focus(); },
@@ -5778,6 +6437,7 @@ const FORMS = {
     const priority = ['high', 'normal', 'low'].includes(d.priority) ? d.priority : 'normal';
     if (d.create) {
       const tags = [...new Set([...(Array.isArray(d.tags) ? d.tags : []), ...parsed.tags])];
+      const slices = homeFirstTaskSlices();
       S.tasks.push(mkTask({
         title: parsed.title,
         dueDate,
@@ -5791,9 +6451,9 @@ const FORMS = {
         ...(String(d.notes || '').trim() ? { notes: String(d.notes).trim().slice(0, 2000) } : {}),
       }));
       ui.dlg = null;
-      const saved = saveSlices('tasks');
+      const saved = saveSlices(...slices);
       render();
-      if (saved) toast('Tarefa adicionada.');
+      if (saved) toast('Tarefa adicionada.', 'success');
       return;
     }
     const t = findTask(d.id);
@@ -5811,37 +6471,53 @@ const FORMS = {
       if (!log.orgasmCount.trim()) delete log.orgasmCount;
       else if (/^\d{1,2}$/.test(log.orgasmCount)) log.orgasmCount = Number(log.orgasmCount);
     }
-    if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.');
+    if (typeof log.weightKg === 'string') {
+      const value = log.weightKg.trim();
+      if (!value) delete log.weightKg;
+      else {
+        const weightKg = parseWaterWeightKg(value);
+        if (weightKg === null) return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="log.weightKg"]');
+        log.weightKg = weightKg;
+      }
+    }
+    if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Revise o registro do ciclo.', 'info');
     if (typeof log.note === 'string') {
       log.note = log.note.trim().slice(0, 500);
       if (!log.note) delete log.note;
     }
-    if (!log.sexualActivity) {
-      delete log.sexualActivity;
+    if (log.sexualActivity !== true) {
       delete log.contraceptionMethods;
     } else if (!log.contraceptionMethods?.length) {
       delete log.contraceptionMethods;
     }
     if (!log.masturbationActivity) delete log.masturbationActivity;
+    if (!log.sexToysUsed) delete log.sexToysUsed;
+    const previousWeight = dayLog(day).weightKg;
+    const weightChanged = previousWeight !== log.weightKg;
+    const slices = weightChanged ? ['cycleLog', 'settings', 'habits'] : ['cycleLog'];
+    const snapshot = snapshotSlices(slices);
     if (hasAnyLog(log)) S.cycleLog[day] = log;
     else delete S.cycleLog[day];
+    if (weightChanged && Object.values(S.cycleLog).some((entry) => Number.isFinite(entry?.weightKg))) {
+      syncLatestCycleWeight();
+    }
+    if (!saveSlicesWithRollback(slices, snapshot, false, 'registro do ciclo')) return;
     ui.cycDay = day;
     ui.dlg = null;
-    const saved = saveSlices('cycleLog');
     render();
-    if (saved) toast('Registro do dia atualizado.');
+    toast('Registro do dia atualizado.', 'success');
   },
   'cycle-period': (f, d) => {
     const period = createCyclePeriod(String(d.get('start') || ''), String(d.get('end') || ''), today());
-    if (!period) return toast(`Informe um intervalo válido, de até ${MAX_CYCLE_PERIOD_DAYS} dias, que termine até hoje.`);
+    if (!period) return toast(`Informe um intervalo válido, de até ${MAX_CYCLE_PERIOD_DAYS} dias, que termine até hoje.`, 'error');
     const draft = ui.dlg.d;
     const index = Number.isInteger(draft.index) ? draft.index : -1;
     const current = index >= 0 ? S.cycle[index] : null;
     if (index >= 0 && (!current || current.start !== draft.originalStart || (current.end || '') !== draft.originalEnd)) {
-      return toast('Este período mudou desde que você abriu a edição. Feche e tente novamente.');
+      return toast('Este período mudou desde que você abriu a edição. Feche e tente novamente.', 'info');
     }
     if (S.cycle.some((item, itemIndex) => itemIndex !== index && cyclePeriodKey(item) === cyclePeriodKey(period))) {
-      return toast('Esse período já está registrado.');
+      return toast('Esse período já está registrado.', 'info');
     }
     if (current) S.cycle[index] = { ...current, ...period };
     else S.cycle.push(period);
@@ -5850,16 +6526,16 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('cycle');
     render();
-    if (saved) toast(current ? 'Período atualizado.' : 'Período registrado.');
+    if (saved) toast(current ? 'Período atualizado.' : 'Período registrado.', 'success');
   },
   'cycle-batch': (f, d) => {
     const days = cycleLogDays(String(d.get('start') || ''), String(d.get('end') || ''), today());
-    if (!days) return toast(`Informe um intervalo válido de até ${MAX_CYCLE_LOG_RANGE_DAYS} dias, que termine até hoje.`);
+    if (!days) return toast(`Informe um intervalo válido de até ${MAX_CYCLE_LOG_RANGE_DAYS} dias, que termine até hoje.`, 'error');
     const symptoms = ui.dlg.d.symptoms;
     const selections = Object.fromEntries(
       Object.entries(symptoms).map(([category, values]) => [category, [...new Set(values)]]),
     );
-    if (!Object.values(selections).some((values) => values.length)) return toast('Selecione pelo menos um sintoma.');
+    if (!Object.values(selections).some((values) => values.length)) return toast('Selecione pelo menos um sintoma.', 'error');
     for (const day of days) {
       S.cycleLog[day] = mergeCycleLogSymptoms(dayLog(day), selections);
     }
@@ -5868,11 +6544,25 @@ const FORMS = {
     ui.dlg = null;
     const saved = saveSlices('cycleLog');
     render();
-    if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`);
+    if (saved) toast(`Sintomas adicionados a ${days.length} ${plural(days.length, 'dia', 'dias')}.`, 'success');
   },
 };
 const CHANGES = {
   'plan-view': (el) => ACTIONS['plan-view']({ dataset: { v: el.value } }),
+  'finance-rule-kind': (el) => {
+    if (ui.dlg?.type !== 'category-manager' || !['in', 'out'].includes(el.value)) return;
+    ui.dlg.d.ruleKind = el.value;
+    ui.dlg.d.ruleCategory = catNames(el.value)[0] || '';
+    render();
+  },
+  'annual-plan-year': (el) => {
+    if (!/^\d{4}$/.test(el.value) || Number(el.value) < 2026) return;
+    ui.annualYear = el.value;
+    ui.annualEditingGoalId = '';
+    ui.annualGoalFormOpen = false;
+    ui.annualGoalDraft = null;
+    render();
+  },
   'habit-idea-category': (el) => {
     ui.habitIdeaCategory = el.value || 'all';
     updateHabitIdeaFilters();
@@ -5918,16 +6608,11 @@ const CHANGES = {
       saveActiveHomeMode(settings);
     });
   },
-  'home-area-color': (el) => {
-    const id = el.dataset.homeAreaColor;
-    if (!HOME_AREA_COLORS.some((area) => area.id === id)) return;
-    updateSettingsDraft((settings) => {
-      if (el.value) settings.prefs.areaColors[id] = el.value;
-      else delete settings.prefs.areaColors[id];
-    });
-  },
   'home-message': (el) => {
     updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
+  },
+  'weekly-review-reminder': (el) => {
+    updateSettingsDraft((settings) => { settings.prefs.weeklyReviewReminder = el.checked; });
   },
   'look-custom': (el) => { if (hexOk(el.value)) updateSettingsDraft((settings) => { settings.look.custom = el.value; settings.theme = 'custom'; }); },
   'look-contrast': (el) => updateSettingsDraft((settings) => { settings.look.contrast = el.checked; }),
@@ -6008,16 +6693,78 @@ function tick() {
 /* ---- Eventos globais ---- */
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
-  if (!Persist.store || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
+  if (!Persist.store || Persist.inFlight || Persist.pendingSnapshot || syncState.pending.size || ui.persistFailed.size || Object.keys(ui.integrityIssues).length) {
     return;
   }
   try {
     await loadAccountData();
+    render();
   } catch (error) {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
   }
 });
+let taskSwipeState = null;
+let suppressTaskClickUntil = 0;
+document.addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary || event.pointerType !== 'touch' || !(event.target instanceof Element)) return;
+  const title = event.target.closest('.task .tt');
+  const row = title?.closest('.task');
+  if (row && !row.classList.contains('done')) {
+    taskSwipeState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row };
+  }
+});
+document.addEventListener('pointermove', (event) => {
+  if (taskSwipeState?.pointerId !== event.pointerId) return;
+  const deltaX = event.clientX - taskSwipeState.startX;
+  const deltaY = event.clientY - taskSwipeState.startY;
+  if (Math.abs(deltaY) > 16 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    resetTaskSwipe(taskSwipeState);
+    taskSwipeState = null;
+    return;
+  }
+  if (Math.abs(deltaX) < 10 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+  taskSwipeState.deltaX = deltaX;
+  taskSwipeState.moved = true;
+  taskSwipeState.row.classList.add('is-swiping');
+  taskSwipeState.row.dataset.swipeDirection = deltaX < 0 ? 'complete' : 'defer';
+  taskSwipeState.row.style.setProperty('--task-swipe-x', `${Math.max(-120, Math.min(120, deltaX))}px`);
+  event.preventDefault();
+}, { passive: false });
+const resetTaskSwipe = (state) => {
+  if (!state?.row.isConnected) return;
+  state.row.classList.remove('is-swiping', 'is-swipe-committing');
+  delete state.row.dataset.swipeDirection;
+  state.row.style.removeProperty('--task-swipe-x');
+};
+document.addEventListener('pointerup', (event) => {
+  if (taskSwipeState?.pointerId !== event.pointerId) return;
+  const state = taskSwipeState;
+  taskSwipeState = null;
+  if (!state.moved || Math.abs(state.deltaX) < 84) {
+    resetTaskSwipe(state);
+    return;
+  }
+  state.row.classList.remove('is-swiping');
+  state.row.classList.add('is-swipe-committing');
+  state.row.style.setProperty('--task-swipe-x', `${state.deltaX < 0 ? '-120vw' : '120vw'}`);
+  suppressTaskClickUntil = Date.now() + 500;
+  setTimeout(() => {
+    ACTIONS[state.deltaX < 0 ? 'toggle' : 'task-swipe-defer']({ dataset: { id: state.row.dataset.k } });
+  }, 170);
+});
+document.addEventListener('pointercancel', (event) => {
+  if (taskSwipeState?.pointerId === event.pointerId) {
+    resetTaskSwipe(taskSwipeState);
+    taskSwipeState = null;
+  }
+});
 document.addEventListener('click', (e) => {
+  if (Date.now() < suppressTaskClickUntil) {
+    suppressTaskClickUntil = 0;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
   const el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
   if (ui.legacyImport.busy) return;
   const focusBeforeAction = !ui.dlg ? describeDialogOpener(el) : null;
@@ -6034,17 +6781,15 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
-  if (!ui.navigationOpen || !(target instanceof Element)
-    || target.closest('#nav-more-menu, .nav-more-trigger, .nav-more-create')) return;
-  ui.navigationOpen = false;
+  if (!ui.quickActionsOpen || !(target instanceof Element)
+    || target.closest('#quick-actions-menu, .nav-quick-trigger, .mobile-nav-create-trigger')) return;
+  ui.quickActionsOpen = false;
   render();
 });
 document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (!ui.quickActionsOpen || !(target instanceof Element)
-    || target.closest('#quick-actions-menu, .nav-quick-trigger, .nav-more-create, .finance-fab')) return;
-  ui.quickActionsOpen = false;
-  render();
+  const menu = document.querySelector('.profile-menu-control[open]');
+  if (!menu || !(e.target instanceof Node) || menu.contains(e.target)) return;
+  menu.open = false;
 });
 document.addEventListener('click', (e) => {
   const target = e.target;
@@ -6093,9 +6838,23 @@ document.addEventListener('input', (e) => {
       }
     }
   }
+  if (el.matches('[data-dlg="log.weightKg"]')) {
+    const value = el.value;
+    const cursor = el.selectionStart;
+    const filteredValue = filterWeightInput(value);
+    if (filteredValue !== value) {
+      el.value = filteredValue;
+      if (cursor !== null) {
+        const filteredCursor = filterWeightInput(value.slice(0, cursor)).length;
+        el.setSelectionRange(filteredCursor, filteredCursor);
+      }
+    }
+  }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
+  const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
+  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'category' && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
+  if (ui.dlg && ui.dlg.type !== 'search' && !opensCategoryDialog && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const preferredInput = $('#ppreferred');
     if (el.dataset.profileField === 'name' && preferredInput && !preferredInput.value.trim()) {
@@ -6116,8 +6875,32 @@ document.addEventListener('input', (e) => {
     if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
+    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'category' && el.value === '__new') {
+      const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      ui.categoryReturnDialog = ui.dlg;
+      ui.dlg = createDialog('category-new', {
+        kind,
+        name: '',
+        icon: 'tag',
+        color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
+        fromTransaction: true,
+      });
+      render();
+      return;
+    }
     if (ui.dlg.type === 'habit-edit' && ui.dlg.d.waterSuggestion && el.dataset.dlg === 'waterGoalMl') {
       ui.dlg.d.waterGoalEdited = true;
+    }
+    if (ui.dlg.type === 'goal' && el.dataset.dlg === 'linkedAccountId'
+      && ui.dlg.d.linkedAccountId && ui.dlg.d.linkedAccountId !== el.value) {
+      const previousAccount = accById(ui.dlg.d.linkedAccountId);
+      if (previousAccount) {
+        const previousProgress = linkedGoalProgressCents({
+          linkedAccountId: previousAccount.id,
+          savedCents: parseMoney(ui.dlg.d.saved) || 0,
+        }, S.finance.accounts, S.finance.tx);
+        ui.dlg.d.saved = moneyIn(previousProgress);
+      }
     }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
     if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
@@ -6142,16 +6925,29 @@ document.addEventListener('input', (e) => {
     } else if (ui.dlg.type === 'cycle-log' && el.dataset.dlg === 'log.sexualActivity') {
       if (!el.checked) ui.dlg.d.log.contraceptionMethods = [];
       render();
-    } else if (['sex', 'accountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
+    } else if (ui.dlg.type === 'category-new' && el.dataset.dlg === 'parent') {
+      render();
+    } else if (['sex', 'accountId', 'linkedAccountId', 'repeat', 'installmentAmountMode', 'mode', 'type', 'tag', 'category', 'time', 'invert', 'paid'].includes(el.dataset.dlg) || el.dataset.dlg.startsWith('rows.')) {
       if (ui.dlg.type === 'impfin' && (el.dataset.dlg === 'accountId' || el.dataset.dlg === 'invert')) impRecalc(ui.dlg.d, el.dataset.dlg === 'invert');
       render();
     }
+  }
+  if (el.id === 'home-quick-title-input') {
+    const date = parseQuickDate(el.value, today());
+    const preview = $('#home-quick-date-preview');
+    if (preview) preview.textContent = date.error || `${date.date === today() ? 'Hoje' : longDate(date.date)}${date.time ? ` · ${date.time}` : ''}`;
+    const submit = el.form?.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = !el.value.trim();
   }
   if (el.dataset.input === 'fin-search') { ui.finQ = el.value; const r = $('#tx-results'); if (r) r.innerHTML = txListHtml().s; }
   if (el.dataset.input === 'search') { ui.filters.q = el.value; const r = $('#task-results'); if (r) r.innerHTML = taskListHtml().s; }
   if (el.dataset.input === 'habit-ideas-search') {
     ui.habitIdeaQuery = el.value;
     updateHabitIdeaFilters();
+  }
+  if (el.dataset.input === 'annual-ideas-search') {
+    ui.annualIdeaQuery = el.value;
+    updateAnnualIdeaFilters();
   }
 });
 document.addEventListener('focusin', (e) => {
@@ -6186,30 +6982,47 @@ document.addEventListener('toggle', (e) => {
 }, true);
 document.addEventListener('keydown', (e) => {
   if (handlePublicKeydown(e)) return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-    if (ui.dlg?.type === 'onboard') return;
+  const tab = e.target instanceof Element ? e.target.closest('[role="tab"]') : null;
+  if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    const list = tab.closest('[role="tablist"]');
+    const tabs = list ? [...list.querySelectorAll('[role="tab"]:not([disabled])')] : [];
+    const index = tabs.indexOf(tab);
+    if (index >= 0) {
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+        : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      const target = tabs[next];
+      const id = target.id;
+      target.click();
+      requestAnimationFrame(() => document.getElementById(id)?.focus());
+      return;
+    }
+  }
+  const searchShortcut = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
+  const editable = e.target instanceof Element && (e.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || e.target.isContentEditable);
+  const slashShortcut = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !editable;
+  if (!e.isComposing && !ui.dlg && (searchShortcut || slashShortcut)) {
     e.preventDefault();
     dlgOpen('search', { query: '' });
     return;
   }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
+  if (e.key === 'Escape') {
+    const profileMenu = document.querySelector('.profile-menu-control[open]');
+    if (profileMenu) {
+      e.preventDefault();
+      profileMenu.open = false;
+      profileMenu.querySelector('summary')?.focus();
+      return;
+    }
+  }
   if (e.key === 'Escape' && ui.quickActionsOpen) {
     e.preventDefault();
     ui.quickActionsOpen = false;
     render();
     requestAnimationFrame(() => {
-      const returnTarget = window.matchMedia('(max-width: 899px)').matches
-        ? '.nav-more-trigger'
-        : '.nav-quick-trigger';
-      document.querySelector(returnTarget)?.focus();
+      focusQuickActionsTrigger();
     });
-    return;
-  }
-  if (e.key === 'Escape' && ui.navigationOpen) {
-    e.preventDefault();
-    ui.navigationOpen = false;
-    render();
-    requestAnimationFrame(() => document.querySelector('[data-action="nav-more-toggle"]')?.focus());
     return;
   }
   if (!ui.dlg) return;
@@ -6295,12 +7108,12 @@ const cardDueLabel = (date) => {
 /* ---- gráficos ---- */
 function donut(items, total, label) {
   let off = 0;
-  const segs = items.map((it) => { const p = it.v / total * 100, visible = Math.max(0, p - 1.25); const s = `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${it.c}" stroke-width="6" stroke-dasharray="${visible.toFixed(2)} ${(100 - visible).toFixed(2)}" stroke-dashoffset="${(25 - off).toFixed(2)}"/>`; off += p; return s; }).join('');
+  const segs = items.map((it) => { const p = it.v / total * 100, visible = Math.max(0, p - 1.25); const s = `<circle class="donut-segment" cx="21" cy="21" r="15.9155" fill="none" stroke="${it.c}" stroke-width="6" stroke-dasharray="${visible.toFixed(2)} ${(100 - visible).toFixed(2)}" stroke-dashoffset="${(25 - off).toFixed(2)}" tabindex="0"><title>${esc(it.label || label)}: ${esc(brl(it.v))} (${Math.round(p)}%)</title></circle>`; off += p; return s; }).join('');
   return raw(`<svg class="donut" viewBox="0 0 42 42" role="img" aria-label="${esc(label)}"><circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--soft2)" stroke-width="6"/>${segs}</svg>`);
 }
 function flowChart(months) {
   const W = 320, H = 160, top = 10, bot = 24, bw = 14, n = months.length, step = W / n, max = Math.max(1, ...months.flatMap((m) => [m.i, m.o])) * 1.1, y = (v) => top + (H - top - bot) * (1 - v / max);
-  const bars = months.map((m, k) => { const x = step * k + step / 2; return `<rect class="bi" x="${x - bw - 1}" y="${y(m.i)}" width="${bw}" height="${Math.max(0, H - bot - y(m.i))}" rx="4"><title>${esc(m.l)}: receitas ${esc(brl(m.i))}</title></rect><rect class="bo" x="${x + 1}" y="${y(m.o)}" width="${bw}" height="${Math.max(0, H - bot - y(m.o))}" rx="4"><title>${esc(m.l)}: despesas ${esc(brl(m.o))}</title></rect><text x="${x}" y="${H - 7}" text-anchor="middle">${esc(m.l)}</text>`; }).join('');
+  const bars = months.map((m, k) => { const x = step * k + step / 2; return `<rect class="bi" x="${x - bw - 1}" y="${y(m.i)}" width="${bw}" height="${Math.max(0, H - bot - y(m.i))}" rx="4" tabindex="0"><title>${esc(m.l)}: receitas ${esc(brl(m.i))}</title></rect><rect class="bo" x="${x + 1}" y="${y(m.o)}" width="${bw}" height="${Math.max(0, H - bot - y(m.o))}" rx="4" tabindex="0"><title>${esc(m.l)}: despesas ${esc(brl(m.o))}</title></rect><text x="${x}" y="${H - 7}" text-anchor="middle">${esc(m.l)}</text>`; }).join('');
   return raw(`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Receitas e despesas dos últimos ${n} meses. ${esc(months.map((m) => `${m.l}: receitas ${brl(m.i)}, despesas ${brl(m.o)}`).join('; '))}">${bars}</svg>`);
 }
 
@@ -6314,6 +7127,7 @@ function accountChip(account) {
 }
 function finRow(t, { showDate = false } = {}) {
   const meta = catMeta(t), acc = accById(t.accountId), paid = isPaid(t), tr = t.type === 'tr';
+  const installment = !!t.groupId && !t.recId;
   const sub = tr
     ? h`<span class="user-value">${accName(t.accountId)} → ${accName(t.toAccountId)}</span>`
     : h`<span class="expense-name">${expenseTitle(t.category)}</span> · <span class="user-value">${accName(t.accountId)}</span>`;
@@ -6323,20 +7137,61 @@ function finRow(t, { showDate = false } = {}) {
     ? (paid ? 'Voltar parcela da fatura para pendente' : 'Marcar parcela da fatura como paga')
     : (t.type === 'in' ? 'Marcar como recebido' : 'Marcar como pago');
   return h`<li class="fr ${paid ? '' : 'pend'}" data-k="${t.id}">
-    <button class="fr-main" data-action="edit-tx" data-id="${t.id}" aria-label="Editar ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
+    <button class="fr-main" data-action="${installment ? 'installment-open' : 'edit-tx'}" data-id="${t.id}" aria-label="${installment ? 'Ver resumo da parcela' : 'Editar lançamento'} ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
       <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}</span><span class="meta2">${showDate ? h`<span class="tx-date">${t.date === today() ? 'Hoje' : shortDate(t.date)}</span> · ` : ''}${sub}${paid && t.settledDate && t.settledDate !== t.date ? h` · ${t.type === 'in' ? 'recebido' : 'pago'} em ${shortDate(t.settledDate)}` : ''}${t.type === 'out' || t.invoiceInstallment ? t.interestCents != null ? h` · ${t.interestCents === 0 ? 'Sem juros' : h`Juros ${money(t.interestCents)}`}` : '' : ''}${t.type === 'out' && t.anticipatedDate ? h` · Antecipada em ${shortDate(t.anticipatedDate)}` : ''}${!paid ? h` · <span class="m-warn">${t.type === 'in' ? 'A receber' : 'A pagar'}${t.date < today() ? ' · atrasado' : ''}</span>` : ''}</span></span>
       <span class="amt ${t.type}">${t.type === 'in' ? '+' : t.type === 'out' ? '−' : ''}${money(t.cents)}</span></button>
     ${canToggle ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}" data-action="tx-paid" data-id="${t.id}" aria-label="${paymentAction}: ${title}" title="${paymentAction}">${icon('check', 16)}</button>` : h`<span class="pk-sp"></span>`}
   </li>`;
 }
-const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><button class="mlabel" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual">${cap(ymLabel(ui.finMonth))}</button><button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
-const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
+function financeInstallmentPlans() {
+  const month = today().slice(0, 7), plans = new Map();
+  S.finance.tx.forEach((transaction) => {
+    if (!transaction.groupId || transaction.recId) return;
+    const summary = summarizeInstallments(S.finance.tx, transaction.id, accById, month);
+    if (!summary?.remainingCount) return;
+    const key = JSON.stringify([
+      transaction.groupId,
+      transaction.type,
+      transaction.accountId,
+      transaction.toAccountId || '',
+    ]);
+    if (plans.has(key)) return;
+    const next = summary.installments.find((item) => summary.cardPurchase
+      ? item.date.slice(0, 7) >= month
+      : !isPaid(item));
+    if (next) plans.set(key, { transaction: next, summary });
+  });
+  return [...plans.values()].sort((a, b) => a.summary.endDate.localeCompare(b.summary.endDate));
+}
+function finInstallments() {
+  const plans = financeInstallmentPlans();
+  return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
+    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento<i>.</i></h2>
+      <p class="small muted">${plans.length
+        ? 'Veja quantas parcelas faltam, o valor restante e quando cada série termina.'
+        : 'Registre uma despesa parcelada para acompanhar aqui o que falta e quando termina.'}</p></div></div>
+    ${plans.length ? h`<ul class="list">${plans.map(({ transaction, summary }) => {
+      const title = (transaction.desc || transaction.category || 'Série parcelada')
+        .replace(/\s+\(\d+\/\d+\)$/, '');
+      return h`<li><button type="button" class="finance-installment-plan" data-action="installment-open" data-id="${transaction.id}" aria-label="Ver parcelas de ${title}">
+        <span class="finance-installment-mark" aria-hidden="true">${icon('repeat', 18)}</span>
+        <span class="grow"><b>${title}</b><small>${summary.remainingCount} ${plural(summary.remainingCount, 'parcela restante', 'parcelas restantes')} · termina ${shortDate(summary.endDate)}</small></span>
+        <span class="finance-installment-value"><small>Valor restante</small><b>${money(summary.remainingCents)}</b></span>${icon('chevRight', 16)}
+      </button></li>`;
+    })}</ul>` : areaEmpty('Nenhuma série parcelada em andamento.', 'Acompanhe aqui o valor restante e as próximas datas de uma despesa parcelada.', h`<button type="button" class="btn primary" data-action="tx-new-installment">${icon('plus', 16)}Registrar compra parcelada</button>`, 'repeat', 'h3', 'finance-installments-empty-state')}
+  </section>`;
+}
+const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><span class="mlabel" aria-live="polite">${cap(ymLabel(ui.finMonth))}</span>${ui.finMonth !== today().slice(0, 7) ? h`<button class="btn sm" type="button" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual" title="Voltar para o mês atual">Hoje</button>` : ''}<button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
+const FIN_TABS = [['resumo', 'Visão geral', 'home'], ['lancamentos', 'Movimentações', 'list'], ['contas', 'Contas e cartões', 'bank'], ['planejamento', 'Planejamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
 const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
-  return h`<div class="fin-section-menu" role="group" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="fin-section-option ${id === key ? 'is-active' : ''}" data-action="fin-tab" data-t="${id}" aria-pressed="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
+  return h`<div class="tabs fin-section-menu" role="tablist" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="tab fin-section-option" role="tab" id="fin-tab-${id}" aria-controls="fin-panel" tabindex="${id === key ? '0' : '-1'}" data-action="fin-tab" data-t="${id}" aria-selected="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
 };
-const fab = () => S.finance.accounts.length ? h`<button class="fab finance-fab" data-action="quick-actions-toggle" aria-label="Abrir ações rápidas de Finanças" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}<span>Lançamento</span></button>` : '';
-
+const FIN_ACCOUNT_TABS = [['contas', 'Contas'], ['cartoes', 'Cartões']];
+const finAccountPicker = () => {
+  const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
+  return h`<div class="tabs finance-account-tabs" role="tablist" aria-label="Contas e cartões">${FIN_ACCOUNT_TABS.map(([id, label]) => h`<button type="button" class="tab finance-account-option" role="tab" id="fin-account-tab-${id}" aria-controls="fin-account-panel" tabindex="${active === id ? '0' : '-1'}" data-action="fin-account-tab" data-t="${id}" aria-selected="${active === id}">${label}</button>`)}</div>`;
+};
 /* ---- Resumo ---- */
 function expenseTrendChart(ym, cur) {
   if (ym > today().slice(0, 7)) {
@@ -6349,14 +7204,32 @@ function expenseTrendChart(ym, cur) {
     .filter((transaction) => transaction.type === 'out' && transaction.date === day)
     .reduce((sum, transaction) => sum + transaction.cents, 0));
   const max = Math.max(1, ...totals);
-  const x = (index) => 16 + index * 48;
-  const y = (value) => 88 - value / max * 64;
-  const points = totals.map((value, index) => `${x(index)},${y(value)}`).join(' ');
-  const area = `M${x(0)},88 ${totals.map((value, index) => `L${x(index)},${y(value)}`).join(' ')} L${x(6)},88 Z`;
-  const labels = days.map((day, index) => `<text x="${x(index)}" y="116" text-anchor="middle">${esc(shortDate(day))}</text>`).join('');
-  const markers = totals.map((value, index) => `<circle class="finance-trend-point" cx="${x(index)}" cy="${y(value)}" r="4"><title>${esc(shortDate(days[index]))}: ${esc(money(value))}</title></circle>`).join('');
-  const summary = days.map((day, index) => `${shortDate(day)}: ${money(totals[index])}`).join('; ');
-  return raw(`<svg class="finance-trend-chart" viewBox="0 0 320 128" role="img" aria-label="Despesas nos últimos 7 dias: ${esc(summary)}"><line class="finance-trend-grid" x1="8" y1="24" x2="312" y2="24"/><line class="finance-trend-grid" x1="8" y1="56" x2="312" y2="56"/><line class="finance-trend-grid" x1="8" y1="88" x2="312" y2="88"/><path class="finance-trend-area" d="${area}"/><polyline class="finance-trend-line" points="${points}"/>${markers}${labels}</svg>`);
+  const selectedDay = days.includes(ui.financeWeekDay) ? ui.financeWeekDay : '';
+  const compactAmount = (cents) => {
+    if (ui.financeValuesHidden) return '••••';
+    const value = cents / 100;
+    if (value >= 1_000_000_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000_000_000)} bi`;
+    if (value >= 1_000_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000_000)} mi`;
+    if (value >= 1_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000)} mil`;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+  };
+  const summary = days.map((day, index) => `${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}`).join('; ');
+  const selectedIndex = days.indexOf(selectedDay);
+  return h`<div class="finance-week-chart" role="group" aria-label="Despesas nos últimos 7 dias">
+    <div class="finance-week-chart-grid">${days.map((day, index) => {
+      const selected = day === selectedDay;
+      const percentage = totals[index] ? Math.max(4, Math.round(totals[index] / max * 100)) : 0;
+      return h`<div class="finance-week-chart-column">
+        <span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>
+        <button type="button" class="finance-week-chart-bar${day === today() ? ' is-today' : ''}${selected ? ' is-selected' : ''}${totals[index] ? ' has-value' : ''}" id="finance-week-day-${day}" data-action="finance-week-day" data-day="${day}" aria-pressed="${String(selected)}" aria-label="${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}">
+          <span class="finance-week-chart-track" aria-hidden="true"><span style="--week-fill:${percentage}%"></span></span>
+        </button>
+        <span class="finance-week-chart-day" aria-hidden="true">${shortDate(day)}</span>
+      </div>`;
+    })}</div>
+    ${selectedDay ? h`<p class="finance-week-chart-selected" aria-live="polite"><b>${longDate(selectedDay)}:</b> ${money(totals[selectedIndex])}</p>` : ''}
+    <span class="sr">Despesas nos últimos 7 dias: ${summary}</span>
+  </div>`;
 }
 
 function finRitmo(ym, st, cur) {
@@ -6380,7 +7253,8 @@ function balanceSparkline() {
   const values = days.map((day) => netAccountBalanceOn(S.finance.accounts, S.finance.tx, day));
   const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
   const points = values.map((value, index) => `${index * (100 / (values.length - 1))},${42 - ((value - min) / range * 34)}`).join(' ');
-  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/></svg>`);
+  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${ui.financeValuesHidden ? 'valor oculto' : esc(brl(value))}</title></circle>`).join('');
+  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
 }
 function categoryBars(items, total) {
   return h`<ul class="category-bars">${items.slice(0, 5).map(([name, value]) => {
@@ -6391,8 +7265,13 @@ function categoryBars(items, total) {
 }
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
-  const close = summarizeMonthlyClose(F.tx, ym, accById);
-  const forecast = bal + st.inPending - st.outPending;
+  const [forecastYear, forecastMonth] = today().slice(0, 7).split('-').map(Number);
+  const forecastThrough = `${today().slice(0, 7)}-${pad(new Date(forecastYear, forecastMonth, 0).getDate())}`;
+  const forecastInvoices = F.accounts.filter(isCredit).map((card) => ({
+    dueDate: cardInfo(card).due,
+    cents: Math.max(0, -accountBalanceOn(card, F.tx, today()) - scheduledInvoicePrincipal(card.id)),
+  }));
+  const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
   const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
   const pendingOut = pend.filter((t) => t.type === 'out');
@@ -6400,62 +7279,39 @@ function finResumo() {
   const pendingOutCents = pendingOut.reduce((sum, transaction) => sum + transaction.cents, 0);
   const pendingInCents = pendingIn.reduce((sum, transaction) => sum + transaction.cents, 0);
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
-  const cards = F.accounts.filter(isCredit);
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
     .filter((transaction) => !cur || transaction.date <= today())
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 5);
-  const bud = Object.entries(F.budgets).filter(([, b]) => b && b.cents > 0), budSpent = bud.reduce((s, [c]) => s + (cats.find(([n]) => n === c)?.[1] || 0), 0), budTot = bud.reduce((s, [, b]) => s + b.cents, 0);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras feitas no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
-      <div class="fin-hero-trend">${balanceSparkline()}<p class="fh-s">${cur ? h`Estimativa até o fim do mês, considerando os lançamentos pendentes: <b>${money(forecast)}</b>` : h`Resumo de ${cap(ymLabel(ym))}`}</p></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Se os compromissos forem pagos. É uma estimativa, não o saldo atual; compras futuras no cartão não entram.</p>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês<i>.</i></h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
-        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
-        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></button>
-        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado</span><b>${money(result)}</b><small>no mês</small></button>
-        <button type="button" class="finance-summary-stat is-open" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters aria-label="Ver lançamentos pendentes do mês"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></button>
+        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
+        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
       </div>
     </section>
-    <section class="card finance-month-close" aria-labelledby="finance-month-close-title">
-      <div class="head"><div><p class="section-kicker">Revisão por competência</p><h2 id="finance-month-close-title">Fechamento do mês<i>.</i></h2><p class="small muted">${cap(ymLabel(ym))} · compras no cartão entram no mês da compra; pagamento da fatura é uma transferência.</p></div></div>
-      <dl class="finance-close-stats">
-        <div><dt>Resultado do mês</dt><dd class="${close.resultCents < 0 ? 'is-negative' : ''}">${money(close.resultCents)}</dd></div>
-        <div><dt>Já recebido</dt><dd>${money(close.inPaid)}</dd></div>
-        <div><dt>Já pago em contas</dt><dd>${money(close.outPaid)}</dd></div>
-        <div><dt>Pendente em contas</dt><dd>${money(close.pendingInCents + close.pendingOutCents)}</dd><small>${money(close.pendingInCents)} a receber · ${money(close.pendingOutCents)} a pagar</small></div>
-        <div><dt>Lançamentos fixos</dt><dd>${money(close.recurringCents)}</dd><small>${close.recurringCount} ${plural(close.recurringCount, 'lançamento', 'lançamentos')}</small></div>
-        <div><dt>Compras no cartão</dt><dd>${money(close.cardOut)}</dd><small>Não reduz o saldo das contas neste resumo.</small></div>
-      </dl>
-      <div class="finance-close-next">${close.topExpense
-        ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
-        : h`<p>Sem despesas registradas neste mês.</p>`}
-        <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
-      </div>
-    </section>
-    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div>
+    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
       <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
       <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
-    ${finRitmo(ym, st, cur)}
     <div class="fin-overview-grid">
       <section class="card finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
-        ${cats.length ? categoryBars(cats, totOut) : empty('Sem despesas neste mês', 'Registre uma despesa para ver a divisão por categoria.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie')}</section>
-      <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : empty('Nada por aqui ainda', 'Toque em Lançamento para registrar o primeiro.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, 'list')}</section>
-      ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
-        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}
+        ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
+      <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
-    ${finFixas()}`;
+    `;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
-  if (!rs.length) return '';
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Todo mês</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length} ${plural(rs.length, 'fixa ativa', 'fixas ativas')}: ${money(out)} em despesas${inc ? h` e ${money(inc)} em receitas` : ''} por mês.</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}Gerenciar</button></div></section>`;
+  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -6484,32 +7340,37 @@ function filteredTx() {
   }).sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
 }
 function txListHtml() {
-  const r = filteredTx();
+  const all = filteredTx();
+  const page = listPage('transactions', JSON.stringify([ui.finMonth, ui.finFilter, ui.finQ, ui.finAcc, ui.finCat]));
+  const r = all.slice(0, page.limit);
   if (!r.length) {
     const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finFilter !== 'todos');
-    return empty(
-      'Nenhum lançamento aqui',
-      filtered ? 'Troque os filtros para ver mais.' : 'Toque em Lançamento para registrar o primeiro deste mês.',
+    return areaEmpty(
+      filtered ? 'Nenhum lançamento encontrado.' : 'Nenhum lançamento neste mês.',
+      filtered ? 'Ajuste os filtros ou limpe a busca para ver outros lançamentos.' : 'Quando registrar algo, ele aparecerá nesta lista.',
       filtered
-        ? h`<button class="btn" data-action="fin-filters-clear">Limpar filtros</button>`
-        : h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`,
+        ? h`<button type="button" class="btn primary" data-action="fin-filters-clear">Limpar filtros</button>`
+        : h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`,
       filtered ? 'search' : 'list',
+      'h3',
     );
   }
   const days = []; r.forEach((t) => { const l = days[days.length - 1]; if (l && l.d === t.date) l.items.push(t); else days.push({ d: t.date, items: [t] }); });
-  return raw('<div class="finance-results-groups">' + days.map((g) => { const net = g.items.reduce((s, t) => s + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0), 0); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`.s; }).join('') + '</div>');
+  const netByDay = new Map();
+  all.forEach((t) => netByDay.set(t.date, (netByDay.get(t.date) || 0) + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0)));
+  return h`<div class="finance-results-groups">${days.map((g) => { const net = netByDay.get(g.d); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`; })}</div>
+    ${all.length > r.length ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} lançamentos</p><button type="button" class="btn" data-action="transactions-show-more">Mostrar mais lançamentos</button>` : ''}`;
 }
-function finLanc() { return ui.finView === 'cal' ? h`${monthNav()}${finTools()}${finCal()}` : finLancList(); }
+function finLanc() { return h`${monthNav()}${finTools()}<div id="fin-view-panel" role="tabpanel" aria-labelledby="fin-view-${ui.finView}">${ui.finView === 'cal' ? finCal() : finLancList()}</div>`; }
 function finLancList() {
   const st = monthStats(ui.finMonth);
-  return h`${monthNav()}${finTools()}
-    <section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
+  return h`<section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
       <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
       <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
       <div class="row fin-export-actions"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
-      <div id="tx-results">${txListHtml()}</div></section>`;
+      <div id="tx-results" aria-live="polite" tabindex="-1">${txListHtml()}</div></section>`;
 }
 
 /* ---- Contas e cartões ---- */
@@ -6530,10 +7391,10 @@ function creditCardCard(card, paymentAccounts) {
 }
 function finContas() {
   const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
-  return h`<section class="card flat"><div><p class="small muted">Saldo das contas (sem cartões)</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p></div></section>
+  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div>${balanceSparkline()}</section>
     <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
-    ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${empty('Nenhuma conta ainda', 'Cadastre uma conta corrente, poupança ou investimento. O Aurora não se conecta a bancos: tudo é digitado por você.', h`<button class="btn primary" data-action="acct-new">Criar conta</button>`, 'wallet')}</div>`}
-    <p class="small muted">Cartões de crédito ficam na seção Cartões para separar faturas e limites do saldo das contas.</p>`;
+    ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${areaEmpty('Nenhuma conta ainda.', 'Você pode cadastrar uma conta e acompanhar os movimentos por aqui.', h`<button type="button" class="btn primary" data-action="acct-new">Criar primeira conta</button>`, 'wallet', 'h3')}</div>`}
+    <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
 }
 function finCartoes() {
   const cards = S.finance.accounts.filter(isCredit);
@@ -6541,24 +7402,66 @@ function finCartoes() {
   const outstanding = cards.reduce((sum, card) => sum + cardInfo(card).used, 0);
   return h`<section class="card flat"><p class="small muted">Total em aberto nos cartões</p><p class="fh-v">${money(outstanding)}</p><p class="fh-context">Esse valor não faz parte do saldo disponível das contas.</p></section>
     <div class="head"><div><h2>Cartões de crédito<i>.</i></h2><p class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${cards.length ? h`<button class="btn sm" data-action="acct-new-card">${icon('plus', 16)}Novo cartão</button>` : ''}</div>
-    ${cards.length ? h`<ul class="cards">${cards.map((card) => creditCardCard(card, paymentAccounts))}</ul>` : h`<section class="card">${empty('Nenhum cartão de crédito', 'Cadastre um cartão para acompanhar o valor em aberto, o limite e o vencimento da fatura.', h`<button class="btn primary" data-action="acct-new-card">${icon('plus', 16)}Cadastrar cartão</button>`, 'card')}</section>`}`;
+    ${cards.length ? h`<ul class="cards">${cards.map((card) => creditCardCard(card, paymentAccounts))}</ul>` : h`<section class="card">${areaEmpty('Nenhum cartão cadastrado.', 'Se quiser, acompanhe faturas, limites e vencimentos de forma manual.', h`<button type="button" class="btn primary" data-action="acct-new-card">${icon('plus', 16)}Cadastrar primeiro cartão</button>`, 'card', 'h3')}</section>`}`;
+}
+function finContasCartoes() {
+  const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
+  return h`${finAccountPicker()}<div id="fin-account-panel" role="tabpanel" aria-labelledby="fin-account-tab-${active}">${active === 'cartoes' ? finCartoes() : finContas()}</div>`;
 }
 
 /* ---- Orçamento e objetivos ---- */
-function finOrc() {
+function finPlanejamento() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), spent = Object.fromEntries(byCategory(st.tx, 'out'));
   const names = [...new Set([...catNames('out'), ...Object.keys(spent), ...Object.keys(F.budgets)])].filter((n) => n !== 'Estudos' || spent[n] || F.budgets[n]);
   const rows = names.map((n) => ({ n, sp: spent[n] || 0, lim: (F.budgets[n] || {}).cents || 0 })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
   const limited = rows.filter((r) => r.lim > 0), tl = limited.reduce((s, r) => s + r.lim, 0), ts = limited.reduce((s, r) => s + r.sp, 0);
+  const currentMonth = ym === today().slice(0, 7);
+  const [budgetYear, budgetMonth] = ym.split('-').map(Number);
+  const budgetDays = new Date(budgetYear, budgetMonth, 0).getDate();
+  const daysLeft = currentMonth ? budgetDays - Number(today().slice(8)) + 1 : 0;
+  const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
+    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
-      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p></div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
-      <ul class="list budget-list">${rows.map((r) => { const m = outMeta(r.n), over = r.lim && r.sp > r.lim; return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="Definir limite de ${r.n}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`; })}</ul></section>
+      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
+      <ul class="list budget-list">${rows.map((r) => {
+        const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
+        const nearLimit = r.lim > 0 && !over && r.sp / r.lim >= .8;
+        const label = `Definir limite de ${r.n}${nearLimit ? '. Atenção: atingiu pelo menos 80% do limite mensal.' : ''}`;
+        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
+      })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
-      ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => { const pc = g.targetCents ? Math.min(100, Math.round(g.savedCents / g.targetCents * 100)) : 0; const complete = g.savedCents >= g.targetCents; return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(g.savedCents)} de ${money(g.targetCents)} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button><button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button><button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`; })}</ul>` : empty('Nenhum objetivo ainda', 'Crie um objetivo, como uma viagem ou reserva de emergência, e acompanhe quanto já guardou.', h`<button class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target')}</section>`;
+      ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
+        const savedCents = linkedGoalProgressCents(g, F.accounts, F.tx);
+        const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
+        const pc = g.targetCents ? Math.min(100, Math.round(savedCents / g.targetCents * 100)) : 0;
+        const complete = savedCents >= g.targetCents;
+        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
+      })}</ul>` : areaEmpty('Nenhum objetivo ainda.', 'Escolha algo que gostaria de construir e acompanhe cada passo no seu ritmo.', h`<button type="button" class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target', 'h3')}</section>
+    ${finInstallments()}${finFixas()}`;
 }
 
 /* ---- Relatórios ---- */
+function finMonthClose(ym) {
+  const close = summarizeMonthlyClose(S.finance.tx, ym, accById);
+  return h`<details class="card finance-month-close">
+    <summary class="finance-month-close-summary"><span><b>Fechamento do mês</b><small>${cap(ymLabel(ym))} · revisão por competência</small></span><span class="finance-close-summary-hint">Ver detalhes</span></summary>
+    <p class="small muted">Compras no cartão entram no mês da compra; o pagamento da fatura é uma transferência.</p>
+    <dl class="finance-close-stats">
+      <div><dt>Resultado do mês</dt><dd class="${close.resultCents < 0 ? 'is-negative' : ''}">${money(close.resultCents)}</dd></div>
+      <div><dt>Já recebido</dt><dd>${money(close.inPaid)}</dd></div>
+      <div><dt>Já pago em contas</dt><dd>${money(close.outPaid)}</dd></div>
+      <div><dt>Pendente em contas</dt><dd>${money(close.pendingInCents + close.pendingOutCents)}</dd><small>${money(close.pendingInCents)} a receber · ${money(close.pendingOutCents)} a pagar</small></div>
+      <div><dt>Lançamentos fixos</dt><dd>${money(close.recurringCents)}</dd><small>${close.recurringCount} ${plural(close.recurringCount, 'lançamento', 'lançamentos')}</small></div>
+      <div><dt>Compras no cartão</dt><dd>${money(close.cardOut)}</dd><small>Não reduz o saldo das contas.</small></div>
+    </dl>
+    <div class="finance-close-next">${close.topExpense
+      ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
+      : h`<p class="small muted">Nenhuma despesa neste mês.</p>`}
+      <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
+    </div>
+  </details>`;
+}
 function finRel() {
   const ym = ui.finMonth, kind = ui.repKind;
   const st = reportMonthStats(S.finance.tx, ym, accById, ui.repBasis);
@@ -6566,26 +7469,37 @@ function finRel() {
   const col = (n) => kind === 'out' ? outMeta(n).c : catMeta({ type: 'in', category: n }).c;
   const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(S.finance.tx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
   const avgOut = Math.round(months.reduce((s, m) => s + m.o, 0) / 6);
+  const monthTransactions = monthStats(ym);
   return h`${monthNav()}
+    ${finRitmo(ym, monthTransactions, ym === today().slice(0, 7))}
+    ${finMonthClose(ym)}
     <section class="card"><div class="seg" role="group" aria-label="Período do relatório"><button type="button" aria-pressed="${ui.repBasis === 'competence'}" data-action="rep-basis" data-b="competence">Competência</button><button type="button" aria-pressed="${ui.repBasis === 'cash'}" data-action="rep-basis" data-b="cash">Caixa</button></div>
       <p class="fine">${ui.repBasis === 'cash'
         ? 'Por data de pagamento ou recebimento. Pagamentos de fatura entram como saída no dia em que foram registrados; lançamentos antigos sem data de liquidação usam a data do lançamento.'
         : 'Por data em que a receita ou despesa aconteceu. Compras no cartão aparecem neste mês, independentemente do pagamento da fatura.'}</p>
       <div class="seg" role="group" aria-label="Tipo"><button type="button" aria-pressed="${kind === 'out'}" data-action="rep-kind" data-k="out">Despesas</button><button type="button" aria-pressed="${kind === 'in'}" data-action="rep-kind" data-k="in">Receitas</button></div>
       ${list.length ? h`<div class="donut-row"><div class="donut-w">${donut(list.map(([n, v]) => ({ v, c: col(n) })), total, (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria')}<div class="dc"><b>${money(total)}</b><span>${kind === 'out' ? 'gastos' : 'recebidos'}</span></div></div></div>
-        <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : empty(kind === 'out' ? 'Sem despesas neste mês' : 'Sem receitas neste mês', 'Registre lançamentos para ver o relatório.', h`<button class="btn" data-action="tx-new">${icon('plus', 16)}Registrar lançamento</button>`, kind === 'out' ? 'pie' : 'wallet')}</section>
+        <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : areaEmpty(kind === 'out' ? 'Nenhuma despesa neste mês.' : 'Nenhuma receita neste mês.', 'Quando houver lançamentos, este relatório mostrará a divisão por categoria.', h`<button type="button" class="btn primary" data-action="${kind === 'out' ? 'tx-new' : 'tx-new-in'}">${icon('plus', 16)}${kind === 'out' ? 'Criar despesa' : 'Criar receita'}</button>`, kind === 'out' ? 'pie' : 'wallet', 'h3')}</section>
     ${finCompare()}
     <section class="card"><h2>Últimos 6 meses<i>.</i></h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
 }
 
 function viewFinancas() {
-  const g = gate('finances', 'Finanças'); if (g) return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças')}${financePrivacyNotice()}${g}`;
-  const panel = { resumo: finResumo, lancamentos: finLanc, contas: finContas, cartoes: finCartoes, orcamento: finOrc, relatorios: finRel }[ui.finTab] || finResumo;
-  const noAcc = !S.finance.accounts.length;
-  const createAction = noAcc ? '' : h`<button class="btn primary finance-page-action" data-action="tx-new">${icon('plus', 18)}Novo lançamento</button>`;
-  const emptyAccounts = h`<section class="card">${empty('Comece por uma conta', 'Cadastre uma conta corrente, poupança ou investimento. Depois, receitas e despesas aparecem no resumo.', h`<button class="btn primary" data-action="acct-new">${icon('plus', 18)}Criar primeira conta</button>`, 'wallet')}</section>`;
-  return h`${areaNav('financas')}${areaPageTitle('financas', 'Finanças', createAction)}${financePrivacyNotice()}
-    <div class="fin-section-content">${noAcc ? h`${finSectionPicker()}${ui.finTab === 'cartoes' ? finCartoes() : emptyAccounts}` : h`${finSectionPicker()}${panel()}`}</div>${noAcc ? '' : h`${fab()}<div class="fab-clearance" aria-hidden="true"></div>`}`;
+  return renderFinanceView({
+    S,
+    ui,
+    gate,
+    areaPageTitle,
+    financePrivacyNotice,
+    finSectionPicker,
+    panels: {
+      resumo: finResumo,
+      lancamentos: finLanc,
+      contas: finContasCartoes,
+      planejamento: finPlanejamento,
+      relatorios: finRel,
+    },
+  });
 }
 
 /* ========== Diálogos de Finanças ========== */
@@ -6604,7 +7518,7 @@ function anticipationCandidates(groupId, fromDate = today()) {
       && (credit || !isPaid(transaction)))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
-function newTxDlg(kind = 'out', preferCredit = false) {
+function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
   const accs = S.finance.accounts;
   const defaults = recentTransactionDefaults(kind, preferCredit);
   const first = accs.find((account) => account.id === defaults.accountId)
@@ -6618,13 +7532,14 @@ function newTxDlg(kind = 'out', preferCredit = false) {
     amount: '',
     desc: '',
     category: defaults.category,
+    categoryTouched: false,
     accountId: first ? first.id : '',
     toAccountId: second?.id || '',
     date: today(),
     settledDate: today(),
     paid: true,
     interest: '0,00',
-    repeat: 'none',
+    repeat,
     currentInstallment: '1',
     installmentAmountMode: 'total',
     times: '2',
@@ -6658,12 +7573,6 @@ function recentTransactionDefaults(kind, preferCredit = false) {
     toAccountId: kind === 'tr' ? recent?.toAccountId || '' : '',
   };
 }
-const financeDialogViews = createFinanceDialogViews({
-  ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
-  accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
-  categoryMatch, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
-  anticipationCandidates,
-});
 function dlgTx() { return financeDialogViews.transaction(); }
 function dlgCategoryManager() {
   const renderCategoryNode = (kind, category) => {
@@ -6680,23 +7589,46 @@ function dlgCategoryManager() {
     <div class="head"><h3>${label}</h3><button type="button" class="btn sm" data-action="category-new" data-kind="${kind}">${icon('plus', 16)}Adicionar</button></div>
     <ul class="list category-manager-list">${categoryEntries(kind).map((category) => renderCategoryNode(kind, category))}</ul>
   </section>`;
+  const ruleKind = ui.dlg.d.ruleKind === 'in' ? 'in' : 'out';
+  const ruleCategories = catNames(ruleKind);
+  const rules = S.settings.prefs.financeCategoryRules;
   return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
     ${categoryGroup('out', 'Despesas')}
-    ${categoryGroup('in', 'Receitas')}`,
+    ${categoryGroup('in', 'Receitas')}
+    <section class="category-manager-group finance-category-rules"><div class="head"><div><h3>Regras automáticas</h3><p class="small muted">Na importação e em novos lançamentos, uma frase da descrição pode sugerir uma categoria.</p></div></div>
+      <form class="form finance-category-rule-form" data-form="finance-category-rule">
+        <label class="f"><span>Tipo</span><select data-change="finance-rule-kind" aria-label="Tipo da regra"><option value="out" ${ruleKind === 'out' ? raw('selected') : ''}>Despesa</option><option value="in" ${ruleKind === 'in' ? raw('selected') : ''}>Receita</option></select></label>
+        <label class="f"><span>Frase na descrição</span><input name="phrase" type="text" maxlength="80" required placeholder="Ex.: Café Central"></label>
+        <label class="f"><span>Categoria</span><select name="category" required>${ruleCategories.map((category) => h`<option value="${category}" ${category === ui.dlg.d.ruleCategory ? raw('selected') : ''}>${category}</option>`)}</select></label>
+        <button class="btn sm" type="submit">${icon('plus', 16)}Adicionar regra</button>
+      </form>
+      ${rules.length
+        ? h`<ul class="finance-category-rule-list" aria-label="Regras configuradas">${rules.map((rule) => h`<li><span><b>“${rule.phrase}”</b><small>${rule.kind === 'in' ? 'Receita' : 'Despesa'} · ${rule.category}</small></span><button type="button" class="ibtn" data-action="finance-category-rule-delete" data-id="${rule.id}" aria-label="Excluir regra para ${rule.phrase}">${icon('trash', 16)}</button></li>`)}</ul>`
+        : areaEmpty('Nenhuma regra cadastrada.', 'Você pode sugerir uma categoria para lançamentos que contenham uma frase específica.', h`<button type="button" class="btn primary" data-action="finance-category-rule-focus">${icon('plus', 16)}Adicionar primeira regra</button>`, 'tag', 'h4', 'finance-category-rule-empty')}
+    </section>`,
     h`<button type="button" class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgCategoryNew() {
   const d = ui.dlg.d, kind = d.kind, editing = !!d.editName;
   const label = kind === 'in' ? 'receita' : 'despesa';
   const parents = topCategoryNames(kind);
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">${editing ? 'Personalizar categoria' : `Nova categoria de ${label}`}<i>.</i></h2><p class="small muted">${editing ? 'A cor e o ícone também aparecem nos lançamentos.' : 'Ela ficará disponível nos próximos lançamentos.'}</p></div>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-category">
-      ${!editing && parents.length ? dlgField('Categoria pai (opcional)', h`<select data-dlg="parent"><option value="">Nenhuma</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select>`, 'full') : ''}
-      ${dlgField('Nome da categoria', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
-      ${dlgField('Ícone', h`<select data-dlg="icon">${CAT_ICONS.map((name) => h`<option value="${name}" ${name === (d.icon || 'tag') ? raw('selected') : ''}>${CATEGORY_ICON_LABELS[name]}</option>`)}</select>`)}
-      ${dlgField('Cor', h`<input type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
+  const parentName = parents.find((name) => name === d.parent);
+  const title = editing ? 'Personalizar categoria' : parentName ? 'Nova subcategoria' : `Nova categoria de ${label}`;
+  const description = editing
+    ? 'A cor e o ícone também aparecem nos lançamentos.'
+    : parentName
+      ? `Ela ficará dentro de ${kind === 'out' ? expenseTitle(parentName) : parentName}.`
+      : 'Escolha um nome, ícone e cor para identificar esta categoria nos lançamentos.';
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">${title}<i>.</i></h2><p class="small muted">${description}</p></div>${closeBtn}</div>
+    <form id="dlgform" class="form category-form" data-form="dlg-category">
+      ${!editing && parents.length ? h`<div class="category-parent-field f full"><label class="lbl" for="category-parent">Categoria principal</label><select id="category-parent" data-dlg="parent"><option value="">Nova categoria principal</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select><span class="category-form-help">Escolha uma categoria para criar uma subcategoria; deixe a opção inicial para criar uma categoria principal.</span></div>` : ''}
+      ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
+      <fieldset class="category-icon-field full"><legend>Ícone</legend><div class="category-icon-picker">
+        ${CAT_ICONS.map((name) => h`<label title="${CATEGORY_ICON_LABELS[name]}"><input type="radio" name="category-icon" data-dlg="icon" value="${name}" aria-label="${CATEGORY_ICON_LABELS[name]}" ${name === (d.icon || 'tag') ? raw('checked') : ''}><span aria-hidden="true">${icon(name, 19)}</span><i class="sr">${CATEGORY_ICON_LABELS[name]}</i></label>`)}
+      </div></fieldset>
+      ${dlgField('Cor', h`<input class="category-color-input" type="color" data-dlg="color" value="${d.color || LIST_COLORS[0]}" aria-label="Cor da categoria">`)}
     </form>`,
-    h`<button type="button" class="btn back" data-action="category-manager">Voltar</button><button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
+    h`${d.fromTransaction ? h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button>` : h`<button type="button" class="btn back" data-action="category-manager">Voltar</button>`}<button type="submit" class="btn primary" form="dlgform">${editing ? 'Salvar' : 'Adicionar'}</button>`);
 }
 function dlgAccount() {
   const d = ui.dlg.d, edit = !!d.id, card = d.type === 'credit';
@@ -6751,8 +7683,21 @@ function dlgBudget() {
 }
 function dlgGoal() {
   const d = ui.dlg.d;
+  const linkedAccountIds = new Set(S.finance.goals
+    .filter((goal) => goal.id !== d.id && goal.linkedAccountId)
+    .map((goal) => goal.linkedAccountId));
+  const linkedAccount = accById(d.linkedAccountId);
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${d.id ? 'Editar objetivo' : 'Novo objetivo'}<i>.</i></h2>${closeBtn}</div>
-    <form id="dlgform" class="form" data-form="dlg-goal" novalidate>${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00">`)}${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-goal" novalidate>
+      ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}
+      ${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}
+      ${dlgField(h`Já guardado (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="saved" value="${formatMoneyInput(d.saved)}" placeholder="00,00" ${d.linkedAccountId ? raw('disabled') : ''}>`)}
+      ${dlgField('Acompanhar saldo da conta (opcional)', h`<select data-dlg="linkedAccountId"><option value="">Acompanhamento manual</option>${S.finance.accounts.filter((account) => !isCredit(account)).map((account) => h`<option value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''} ${linkedAccountIds.has(account.id) ? raw('disabled') : ''}>${accountOptionLabel(account)}${linkedAccountIds.has(account.id) ? ' · já vinculada a outro objetivo' : ''}</option>`)}</select>`, 'full')}
+      <p class="fine full">${d.linkedAccountId
+        ? linkedAccount ? h`O saldo total de ${accountDisplayName(linkedAccount)} será usado como progresso e acompanhará os lançamentos dessa conta. Vincule uma conta dedicada a este objetivo.` : 'A conta vinculada não está disponível. Escolha outra conta ou volte ao acompanhamento manual.'
+        : 'No modo manual, o valor guardado é editado aqui. Ao vincular uma conta, o saldo total dela passa a representar o progresso; não há movimentação automática.'}</p>
+      ${dlgField('Prazo (opcional)', h`<input type="date" data-dlg="deadline" value="${d.deadline}">`, 'full')}
+    </form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">${d.id ? 'Salvar' : 'Criar objetivo'}</button>`);
 }
 function dlgDeposit() {
@@ -6797,9 +7742,66 @@ function dlgTxDel() {
     <p class="small"><span class="${t.type === 'out' ? 'expense-name' : 'user-value'}">${t.type === 'out' ? expenseTitle(t.desc || t.category || 'Este lançamento') : t.desc || t.category || 'Este lançamento'}</span> · ${t.date || ''} · ${t.cents ? money(t.cents) : ''}</p>
     <p class="small muted">O lançamento poderá ser restaurado pela lixeira por 30 dias.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="txdel-do" data-k="one">Excluir</button>`);
-  const opt = (k, title, sub) => h`<button type="button" class="mrow" data-action="txdel-do" data-k="${k}"><span class="mk">${icon('trash', 18)}</span><span class="grow"><b>${title}</b><small>${sub} · restaurável por 30 dias</small></span></button>`;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
-    <div class="more">${opt('one', 'Só este', '1 lançamento')}${opt('next', 'Este e os próximos', after.length + ' lançamentos')}${opt('all', 'Toda a série', g.length + ' lançamentos')}</div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
+  const opt = (k, title, count) => h`<button type="button" class="opt finance-series-delete-option" data-action="txdel-do" data-k="${k}">
+    <span class="mk" aria-hidden="true">${icon('trash', 18)}</span>
+    <span class="tx"><b>${title}</b><span>${count} · pode ser restaurado pela lixeira por até 30 dias</span></span>
+  </button>`;
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir da série<i>.</i></h2>${closeBtn}</div>
+    <p class="small muted">Esta série tem ${g.length} lançamentos. Escolha quais deseja remover.</p>
+    <div class="finance-series-delete-options">
+      ${opt('one', 'Só este lançamento', `1 ${plural(1, 'lançamento', 'lançamentos')}`)}
+      ${opt('next', 'Este e os próximos', `${after.length} ${plural(after.length, 'lançamento', 'lançamentos')}`)}
+      ${opt('all', 'Toda a série', `${g.length} ${plural(g.length, 'lançamento', 'lançamentos')}`)}
+    </div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
+}
+function dlgInstallmentSummary() {
+  const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
+  const summary = summarizeInstallments(
+    S.finance.tx,
+    ui.dlg.d.id,
+    accById,
+    today().slice(0, 7),
+  );
+  if (!transaction || !summary) {
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Parcelas indisponíveis<i>.</i></h2>${closeBtn}</div>
+      <p class="small muted">Esta série não está mais disponível. Feche e atualize a lista de lançamentos.</p>`,
+      h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+  }
+
+  const title = (transaction.desc || transaction.category || 'Série parcelada')
+    .replace(/\s+\(\d+\/\d+\)$/, '');
+  const dialogTitle = transaction.type === 'out'
+    ? 'Compra parcelada'
+    : transaction.type === 'in'
+      ? 'Recebimento parcelado'
+      : 'Fatura parcelada';
+  const rowLabel = (installment, index) => {
+    const number = installment.desc?.match(/\((\d+)\/(\d+)\)$/);
+    return number ? `${number[1]} de ${number[2]}` : `${index + 1} de ${summary.installments.length}`;
+  };
+  const installmentStatus = (installment) => summary.cardPurchase
+    ? installment.date.slice(0, 7) < today().slice(0, 7) ? 'Mês anterior' : 'Prevista'
+    : isPaid(installment) ? 'Paga' : 'Pendente';
+
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${dialogTitle}<i>.</i></h2><p class="small muted">${title}</p></div>${closeBtn}</div>
+    <dl class="installment-summary-stats">
+      <div><dt>Última parcela</dt><dd>${longDate(summary.endDate)} de ${summary.endDate.slice(0, 4)}</dd></div>
+      <div><dt>Valor restante</dt><dd>${money(summary.remainingCents)}</dd></div>
+      <div><dt>Parcelas restantes</dt><dd>${summary.remainingCount}</dd></div>
+    </dl>
+    <p class="fine">${summary.cardPurchase
+      ? 'No cartão, o valor inclui as parcelas deste mês e dos próximos. O pagamento da fatura é separado.'
+      : 'O valor restante soma as parcelas que ainda não foram marcadas como pagas.'}</p>
+    <section class="installment-summary-schedule" aria-label="Parcelas da série">
+      <h3>Parcelas</h3>
+      <ul class="list">${summary.installments.map((installment, index) => h`<li>
+        <button type="button" class="installment-summary-row" data-action="edit-tx" data-id="${installment.id}" aria-current="${index === summary.selectedIndex ? 'step' : 'false'}" aria-label="Editar parcela ${rowLabel(installment, index)}">
+          <span class="grow"><b>Parcela ${rowLabel(installment, index)}</b><small>${shortDate(installment.date)} · ${installmentStatus(installment)}${index === summary.selectedIndex ? ' · Selecionada' : ''}</small></span>
+          <span class="amt ${installment.type}">${money(installment.cents)}</span>
+        </button>
+      </li>`)}</ul>
+    </section>`,
+    h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgTxAnticipate() {
   const d = ui.dlg.d, transaction = S.finance.tx.find((item) => item.id === d.id);
@@ -6814,11 +7816,12 @@ function dlgTxAnticipate() {
     </form>` : h`<p class="fine">Não há parcelas futuras disponíveis para antecipar.</p>`}`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button>${installments.length ? h`<button class="btn primary" type="submit" form="dlgform">Confirmar antecipação</button>` : ''}`);
 }
-Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
+Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
 const F_ = () => S.finance;
 Object.assign(ACTIONS, {
+  'finance-category-rule-focus': () => document.querySelector('.finance-category-rule-form [name="phrase"]')?.focus(),
   'fin-tab': (el) => {
     if (!FIN_TABS.some(([key]) => key === el.dataset.t)) { console.error('Aurora: seção de Finanças inválida.', el.dataset.t); return; }
     ui.finTab = el.dataset.t;
@@ -6829,8 +7832,19 @@ Object.assign(ACTIONS, {
       selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   },
+  'fin-account-tab': (el) => {
+    if (!FIN_ACCOUNT_TABS.some(([key]) => key === el.dataset.t)) { console.error('Aurora: subseção de contas inválida.', el.dataset.t); return; }
+    ui.finAccountTab = el.dataset.t;
+    render();
+    requestAnimationFrame(() => {
+      const selected = $(`.finance-account-option[data-t="${ui.finAccountTab}"]`);
+      selected?.focus({ preventScroll: true });
+    });
+  },
   'fin-go': (el) => {
-    ui.finTab = el.dataset.t;
+    const target = el.dataset.t;
+    ui.finTab = target === 'cartoes' ? 'contas' : target === 'orcamento' ? 'planejamento' : target;
+    if (target === 'cartoes' || el.dataset.sub === 'cartoes') ui.finAccountTab = 'cartoes';
     if (el.hasAttribute('data-clear-fin-filters')) {
       ui.finQ = '';
       ui.finAcc = '';
@@ -6859,6 +7873,7 @@ Object.assign(ACTIONS, {
   'rep-kind': (el) => { ui.repKind = el.dataset.k; render(); },
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },
   'tx-new': () => newTxDlg('out'),
+  'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
   'tx-new-in': () => newTxDlg('in'),
   'tx-kind': (el) => {
     const d = ui.dlg.d, kind = el.dataset.k;
@@ -6878,10 +7893,16 @@ Object.assign(ACTIONS, {
     render();
   },
   'edit-tx': (el) => { const t = S.finance.tx.find((x) => x.id === el.dataset.id); if (t) dlgOpen('tx', { id: t.id, kind: t.type, amount: moneyIn(t.cents), interest: t.interestCents == null ? '' : moneyIn(t.interestCents) || '0,00', desc: t.desc || '', category: t.category || catNames('out')[0], accountId: t.accountId, toAccountId: t.toAccountId || '', date: t.date, settledDate: t.settledDate || t.date, paid: isPaid(t), repeat: 'none', times: '2', groupId: t.groupId || '', recId: t.recId || '' }); },
+  'installment-open': (el) => {
+    if (!summarizeInstallments(S.finance.tx, el.dataset.id, accById, today().slice(0, 7))) {
+      return toast('Esta série parcelada não está mais disponível.', 'info');
+    }
+    dlgOpen('installment-summary', { id: el.dataset.id });
+  },
   'tx-anticipate-open': () => {
     const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
-    if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.');
-    if (!anticipationCandidates(transaction.groupId, transaction.date).length) return toast('Não há parcelas futuras disponíveis para antecipar.');
+    if (!transaction?.groupId) return toast('Esta parcela não pertence a uma série válida.', 'info');
+    if (!anticipationCandidates(transaction.groupId, transaction.date).length) return toast('Não há parcelas futuras disponíveis para antecipar.', 'info');
     dlgOpen('txanticipate', { id: transaction.id, groupId: transaction.groupId, fromDate: transaction.date, date: today() });
   },
   'tx-paid': (el) => {
@@ -6898,7 +7919,7 @@ Object.assign(ACTIONS, {
     if (transaction.paid) completionFeedback(`.fr[data-k="${transaction.id}"]`);
     toast(transaction.paid
       ? (transaction.invoiceInstallment ? 'Parcela da fatura marcada como paga.' : transaction.type === 'in' ? 'Marcado como recebido.' : 'Marcado como pago.')
-      : 'Voltou para pendente.', () => {
+      : 'Voltou para pendente.', 'action', () => {
       transaction.paid = wasPaid;
       if (previousSettledDate) transaction.settledDate = previousSettledDate;
       else delete transaction.settledDate;
@@ -6909,7 +7930,7 @@ Object.assign(ACTIONS, {
   },
   'tx-del-dlg': () => { const cur = S.finance.tx.find((x) => x.id === ui.dlg.d.id); if (!cur) return dlgClose(); dlgOpen('txdel', { id: cur.id, ...(cur.groupId && S.finance.tx.filter((x) => x.groupId === cur.groupId).length > 1 ? { gid: cur.groupId } : {}) }); },
   'account-delete-open': () => {
-    if (!accountSession) return toast('Entre na conta que deseja excluir.');
+    if (!accountSession) return toast('Entre na conta que deseja excluir.', 'info');
     dlgOpen('account-delete');
   },
   'txdel-do': (el) => {
@@ -6929,18 +7950,29 @@ Object.assign(ACTIONS, {
       S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
       ui.dlg = null;
     });
-    if (entry) toast('Lançamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Lançamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'category-manager': () => dlgOpen('category-manager', {}),
+  'finance-category-rule-delete': (el) => {
+    const index = S.settings.prefs.financeCategoryRules.findIndex((rule) => rule.id === el.dataset.id);
+    if (index < 0) return;
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.financeCategoryRules.splice(index, 1);
+    if (!saveSlicesWithRollback(['settings'], snapshot, false, 'a regra de categoria')) return;
+    render();
+    toast('Regra automática removida.', 'success');
+  },
   'category-new': (el) => {
     const kind = el.dataset.kind;
-    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.');
+    if (kind !== 'out' && kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
     dlgOpen('category-new', { kind, name: '', icon: 'tag', color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length] });
   },
   'category-edit': (el) => {
     const { kind, name, parent = '' } = el.dataset;
-    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.');
-    const category = findCategory(kind, name, parent);
+    if ((kind !== 'out' && kind !== 'in') || !findCategory(kind, name, parent)) return toast('Não foi possível localizar essa categoria.', 'info');
+    const match = categoryMatch(kind, parent ? `${parent} > ${name}` : name);
+    const category = match?.subcategory || match?.category;
+    if (!category) return toast('Não foi possível localizar essa categoria.', 'info');
     dlgOpen('category-new', {
       kind,
       editName: name,
@@ -6958,6 +7990,9 @@ Object.assign(ACTIONS, {
   'acct-del-confirm': () => {
     const account = accById(ui.dlg.d.id);
     if (!account) return dlgClose();
+    if (S.finance.goals.some((goal) => goal.linkedAccountId === account.id)) {
+      return toast('Desvincule esta conta dos objetivos antes de movê-la para a lixeira.', 'error');
+    }
     const transactions = S.finance.tx.filter((transaction) => (
       transaction.accountId === account.id || transaction.toAccountId === account.id
     ));
@@ -6985,7 +8020,7 @@ Object.assign(ACTIONS, {
       S.finance.recurring = S.finance.recurring.filter((item) => item.accountId !== account.id);
       ui.dlg = null;
     });
-    if (entry) toast('Conta e dados associados movidos para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Conta e dados associados movidos para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'budget-edit': (el) => { const c = el.dataset.c, b = S.finance.budgets[c]; dlgOpen('budget', { cat: c, limit: b ? moneyIn(b.cents) : '' }); },
   'budget-clear': () => {
@@ -6999,11 +8034,23 @@ Object.assign(ACTIONS, {
       delete S.finance.budgets[d.cat];
       ui.dlg = null;
     });
-    if (entry) toast('Orçamento movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Orçamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'budget-clear-cancel': () => { ui.dlg.d.confirmClear = false; render(); },
-  'goal-new': () => dlgOpen('goal', { name: '', target: '', saved: '', deadline: '' }),
-  'goal-edit': (el) => { const g = S.finance.goals.find((item) => item.id === el.dataset.id); if (!g) return toast('Objetivo não encontrado.'); dlgOpen('goal', { id: g.id, name: g.name, target: moneyIn(g.targetCents), saved: moneyIn(g.savedCents), deadline: g.deadline || '' }); },
+  'goal-new': () => dlgOpen('goal', { name: '', target: '', saved: '', linkedAccountId: '', deadline: '' }),
+  'goal-edit': (el) => {
+    const goal = S.finance.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return toast('Objetivo não encontrado.', 'info');
+    const savedCents = linkedGoalProgressCents(goal, S.finance.accounts, S.finance.tx);
+    dlgOpen('goal', {
+      id: goal.id,
+      name: goal.name,
+      target: moneyIn(goal.targetCents),
+      saved: moneyIn(savedCents),
+      linkedAccountId: goal.linkedAccountId || '',
+      deadline: goal.deadline || '',
+    });
+  },
   'goal-dep': (el) => dlgOpen('deposit', { id: el.dataset.id, amount: '' }),
   'goal-del': (el) => {
     const goal = S.finance.goals.find((item) => item.id === el.dataset.id);
@@ -7014,7 +8061,7 @@ Object.assign(ACTIONS, {
     const entry = moveRecordsToTrash(`Objetivo: ${goal.name}`, [
       createTrashRecord('finance.goals', goal.id, i, goal),
     ], ['finance'], () => { S.finance.goals.splice(i, 1); });
-    if (entry) toast('Objetivo movido para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Objetivo movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'pay-inv': (el) => {
     const card = accById(el.dataset.id);
@@ -7033,13 +8080,59 @@ Object.assign(ACTIONS, {
   },
 });
 Object.assign(FORMS, {
+  'annual-intention': (form, data) => {
+    const intention = String(data.get('intention') || '').trim();
+    if (intention.length > ANNUAL_PLAN_LIMITS.intention) {
+      return fieldError('A intenção precisa ter até 300 caracteres.', '#annual-intention');
+    }
+    const plans = S.settings.prefs.annualPlans;
+    const snapshot = snapshotSlices(['settings']);
+    const plan = plans[ui.annualYear] || { intention: '', goals: [] };
+    plan.intention = intention;
+    plans[ui.annualYear] = plan;
+    if (saveSlicesWithRollback(['settings'], snapshot)) toast('Intenção salva para o ano.', 'success');
+  },
+  'annual-goal-save': (form, data) => {
+    const title = String(data.get('title') || '').trim();
+    const action = String(data.get('action') || '').trim();
+    const quarter = String(data.get('quarter') || '');
+    if (!title || title.length > ANNUAL_PLAN_LIMITS.goalTitle) {
+      return fieldError('Informe uma conquista com até 120 caracteres.', '[name="title"]');
+    }
+    if (action.length > ANNUAL_PLAN_LIMITS.goalAction) {
+      return fieldError('O primeiro passo precisa ter até 280 caracteres.', '[name="action"]');
+    }
+    if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) {
+      return fieldError('Escolha um período válido.', '[name="quarter"]');
+    }
+    const snapshot = snapshotSlices(['settings']);
+    const plans = S.settings.prefs.annualPlans;
+    const plan = plans[ui.annualYear] || { intention: '', goals: [] };
+    const goal = form.dataset.id
+      ? plan.goals.find((item) => item.id === form.dataset.id)
+      : null;
+    if (form.dataset.id && !goal) return toast('Esta conquista não está mais disponível.', 'info');
+    if (!goal && plan.goals.length >= ANNUAL_PLAN_LIMITS.goals) {
+      return toast('Este ano já tem o limite de conquistas. Remova uma antes de adicionar outra.', 'warning');
+    }
+    if (goal) Object.assign(goal, { title, action, quarter });
+    else plan.goals.push({ id: newId(), title, action, quarter, done: false });
+    plans[ui.annualYear] = plan;
+    if (saveSlicesWithRollback(['settings'], snapshot)) {
+      ui.annualEditingGoalId = '';
+      ui.annualGoalFormOpen = false;
+      ui.annualGoalDraft = null;
+      render();
+      toast(goal ? 'Conquista atualizada.' : 'Conquista adicionada ao plano.', 'success');
+    }
+  },
   'dlg-txanticipate': () => {
     const d = ui.dlg.d, eligible = anticipationCandidates(d.groupId, d.fromDate);
     const selectedIds = new Set(Array.from(document.querySelectorAll('#dlg [data-advance-id]:checked'))
       .map((input) => input.dataset.advanceId));
     const selected = eligible.filter((transaction) => selectedIds.has(transaction.id));
     if (!isDay(d.date) || d.date > today()) return fieldError('Informe uma data válida de antecipação, até hoje.', '[data-dlg="date"]');
-    if (!selected.length || selected.length !== selectedIds.size) return toast('Selecione uma ou mais parcelas disponíveis.');
+    if (!selected.length || selected.length !== selectedIds.size) return toast('Selecione uma ou mais parcelas disponíveis.', 'error');
     const card = isCredit(accById(selected[0].accountId));
     const previous = selected.map((transaction) => ({
       transaction,
@@ -7056,7 +8149,7 @@ Object.assign(FORMS, {
     });
     ui.dlg = null;
     commit('finance');
-    toast(`${selected.length} ${plural(selected.length, 'parcela antecipada', 'parcelas antecipadas')}.`, () => {
+    toast(`${selected.length} ${plural(selected.length, 'parcela antecipada', 'parcelas antecipadas')}.`, 'action', () => {
       previous.forEach(({ transaction, paid, settledDate, anticipatedDate }) => {
         if (paid === undefined) delete transaction.paid;
         else transaction.paid = paid;
@@ -7071,22 +8164,22 @@ Object.assign(FORMS, {
   'dlg-tx': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), tr = d.kind === 'tr', acc = accById(d.accountId);
     if (!(cents > 0)) return fieldError('Informe um valor maior que zero.', '[data-dlg="amount"]');
-    if (!['out', 'in', 'tr'].includes(d.kind)) return toast('Escolha um tipo de lançamento válido.');
+    if (!['out', 'in', 'tr'].includes(d.kind)) return toast('Escolha um tipo de lançamento válido.', 'info');
     if (!tr && !resolveNew(d.kind === 'in' ? 'in' : 'out', d, 'category')) return;
-    if (!acc) return toast('Escolha uma conta.');
-    if (tr && (!d.toAccountId || d.toAccountId === d.accountId)) return toast('Escolha duas contas diferentes.');
-    if (!isDay(d.date)) return toast('Informe a data.');
-    if (tr && d.date > today()) return toast('Uma transferência futura não pode ser registrada como realizada.');
-    if (!tr && !isCredit(acc) && d.date > today() && d.paid) return toast('Para um lançamento futuro, desmarque a opção de pagamento realizado.');
+    if (!acc) return toast('Escolha uma conta.', 'info');
+    if (tr && (!d.toAccountId || d.toAccountId === d.accountId)) return toast('Escolha duas contas diferentes.', 'info');
+    if (!isDay(d.date)) return toast('Informe a data.', 'error');
+    if (tr && d.date > today()) return toast('Uma transferência futura não pode ser registrada como realizada.', 'error');
+    if (!tr && !isCredit(acc) && d.date > today() && d.paid) return toast('Para um lançamento futuro, desmarque a opção de pagamento realizado.', 'info');
     if (!tr && !isCredit(acc) && d.paid
       && (!isDay(d.settledDate) || d.settledDate > today())) {
-      return toast('Informe uma data válida de pagamento ou recebimento, até hoje.');
+      return toast('Informe uma data válida de pagamento ou recebimento, até hoje.', 'error');
     }
     if (!d.id && d.repeat === 'parcel') {
       const currentInstallment = Number(d.currentInstallment), totalInstallments = Number(d.times);
-      if (!Number.isInteger(totalInstallments) || totalInstallments < 2 || totalInstallments > 60) return toast('Informe um total entre 2 e 60 parcelas.');
-      if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.');
-      if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.');
+      if (!Number.isInteger(totalInstallments) || totalInstallments < 2 || totalInstallments > 60) return toast('Informe um total entre 2 e 60 parcelas.', 'error');
+      if (!Number.isInteger(currentInstallment) || currentInstallment < 1 || currentInstallment > totalInstallments) return toast('A parcela atual deve estar entre 1 e o total de parcelas.', 'info');
+      if (!['total', 'installment'].includes(d.installmentAmountMode || 'total')) return toast('Escolha como informar o valor do parcelamento.', 'info');
     }
     const totalInstallments = d.repeat === 'parcel' ? Number(d.times) : 1;
     const firstInstallment = d.repeat === 'parcel' ? Number(d.currentInstallment) : 1;
@@ -7100,7 +8193,13 @@ Object.assign(FORMS, {
     if (interestInput && (!Number.isSafeInteger(interestCents) || interestCents < 0 || interestCents > installmentCents)) {
       return fieldError('Informe juros válidos, entre zero e o valor da parcela.', '[data-dlg="interest"]');
     }
-    const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : d.category, desc: d.desc.trim().slice(0, 80) };
+    const matchedRule = !d.id && !d.categoryTouched && !tr
+      ? matchCategoryRule(d.desc, d.kind, S.settings.prefs.financeCategoryRules)
+      : null;
+    const category = matchedRule && catNames(d.kind).includes(matchedRule.category)
+      ? matchedRule.category
+      : d.category;
+    const base = { type: d.kind, accountId: d.accountId, category: tr ? 'Transferência' : category, desc: d.desc.trim().slice(0, 80) };
     if (tr) base.toAccountId = d.toAccountId;
     const paid = tr || isCredit(acc) ? true : !!d.paid;
     const settledDate = !tr && !isCredit(acc) && paid ? d.settledDate : '';
@@ -7117,11 +8216,11 @@ Object.assign(FORMS, {
       ui.finMonth = d.date.slice(0, 7);
       ui.dlg = null;
       commit('finance');
-      return toast('Lançamento atualizado.');
+      return toast('Lançamento atualizado.', 'success');
     }
     if (d.repeat === 'fixed' && !tr) {
       const r = { id: newId(), type: d.kind, accountId: d.accountId, category: base.category, desc: base.desc, cents, day: pk(d.date).getDate(), startYM: d.date.slice(0, 7), lastYM: null, firstPaid: paid };
-      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.'); return;
+      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.', 'success'); return;
     }
     const installmentsToCreate = totalInstallments - firstInstallment + 1;
     const gid = totalInstallments > 1 ? newId() : undefined;
@@ -7146,20 +8245,20 @@ Object.assign(FORMS, {
         ...(totalInstallments > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${installmentNumber}/${totalInstallments})` } : {}),
       });
     }
-    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.');
+    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.', 'success');
   },
   'dlg-account': () => {
-    const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.');
-    if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.');
+    const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.', 'info');
+    if (!Object.hasOwn(ACCOUNT_TYPES, d.type) || (d.id && !current)) return toast('Confira o tipo e a conta selecionados.', 'warning');
     const linkedAccount = d.type === 'credit' && d.linkedAccountId ? accById(d.linkedAccountId) : null;
-    if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.');
+    if (d.type === 'credit' && d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) return toast('Escolha uma conta válida para pagar a fatura.', 'info');
     const bankName = String(d.bank || '').trim().slice(0, 40);
     const knownBank = findBankByName(bankName);
     const bank = norm(bankName) === norm('Outro / não listado') ? OTHER_BANK : knownBank ? knownBank[0] : bankName;
     const bal = d.balance.trim() ? parseMoney(d.balance) : 0, lim = d.limit && d.limit.trim() ? parseMoney(d.limit) : 0;
-    if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.');
+    if (!Number.isSafeInteger(bal) || !Number.isSafeInteger(lim) || lim < 0) return toast('Confira os valores digitados. Use valores em reais, como 1.234,56.', 'warning');
     const cl = d.closing.trim() ? Number(d.closing) : 0, du = d.due.trim() ? Number(d.due) : 0;
-    if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.');
+    if (d.type === 'credit' && ((d.closing.trim() && (!Number.isInteger(cl) || cl < 1 || cl > 31)) || (d.due.trim() && (!Number.isInteger(du) || du < 1 || du > 31)))) return toast('Os dias de fechamento e vencimento devem ser números inteiros de 1 a 31.', 'info');
     const patch = { name: accountDisplayName({ name: name.slice(0, 40), bank }), type: d.type, bank, initialCents: d.id ? current.initialCents + (bal - (d.cur0 || 0)) : bal, limitCents: d.type === 'credit' && lim > 0 ? lim : 0, closingDay: d.type === 'credit' && cl >= 1 && cl <= 31 ? cl : 0, dueDay: d.type === 'credit' && du >= 1 && du <= 31 ? du : 0 };
     if (linkedAccount) patch.linkedAccountId = linkedAccount.id;
     if (d.id) {
@@ -7168,21 +8267,27 @@ Object.assign(FORMS, {
     } else S.finance.accounts.push({ id: newId(), ...patch });
     ui.dlg = null; commit('finance');
   },
-  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
+  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.', 'error'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
   'dlg-category': () => {
     const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
-    if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.');
-    if (!name) return toast('Informe o nome da categoria.');
-    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.');
+    if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
+    const transactionDialog = d.fromTransaction ? ui.categoryReturnDialog : null;
+    if (d.fromTransaction && (transactionDialog?.type !== 'tx'
+      || (transactionDialog.d.kind === 'in' ? 'in' : 'out') !== d.kind)) {
+      return toast('Não foi possível retornar ao lançamento. Feche esta janela e tente novamente.', 'info');
+    }
+    if (!name) return toast('Informe o nome da categoria.', 'error');
+    if (!CAT_ICONS.includes(d.icon) || !hexOk(d.color)) return toast('Escolha um ícone e uma cor válidos.', 'info');
     const parentEntry = parentName ? listArr(d.kind).find((category) => norm(category.name) === norm(parentName)) : null;
-    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.');
+    if (parentName && !parentEntry) return toast('Escolha uma categoria pai válida.', 'info');
     const existing = d.editName ? findCategory(d.kind, d.editName, parentName) : null;
-    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.');
+    if (d.editName && !existing) return toast('Não foi possível localizar essa categoria.', 'info');
     const siblings = parentEntry ? (parentEntry.subcategories || []) : listArr(d.kind);
     const duplicate = siblings.some((category) => category !== existing
       && norm(parentEntry ? categoryLeafName(category) : category.name) === norm(name));
-    if (duplicate) return toast('Já existe uma categoria com esse nome.');
+    if (duplicate) return toast('Já existe uma categoria com esse nome.', 'info');
     const financeChanges = [];
+    let addedPath = '';
     if (existing) {
       const oldName = categoryLeafName(existing);
       const oldPath = parentName ? `${parentName} > ${oldName}` : oldName;
@@ -7196,7 +8301,7 @@ Object.assign(FORMS, {
       }
       if (paths.some(([oldValue, newValue]) => oldValue !== newValue
         && Object.hasOwn(S.finance.budgets, newValue))) {
-        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.');
+        return toast('Já existe um limite com o novo nome. Ajuste esse limite antes de renomear a categoria.', 'info');
       }
       existing.name = name;
       existing.color = d.color;
@@ -7207,30 +8312,61 @@ Object.assign(FORMS, {
         else if (changed) financeChanges.push(true);
       });
     } else {
-      addItem(d.kind, name, parentName, d.color, d.icon);
+      addedPath = addItem(d.kind, name, parentName, d.color, d.icon);
+    }
+    if (d.fromTransaction) {
+      if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.', 'warning');
+      transactionDialog.d.category = addedPath;
+      transactionDialog.dirty = true;
+      ui.categoryReturnDialog = null;
+      ui.dlg = transactionDialog;
+      commit('settings');
+      toast('Categoria adicionada e selecionada no lançamento.', 'success');
+      return;
     }
     ui.dlg = createDialog('category-manager', {});
     commit(...(financeChanges.includes(true) ? ['settings', 'finance'] : ['settings']));
-    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.');
+    toast(existing ? 'Categoria atualizada.' : 'Categoria adicionada.', 'success');
   },
   'dlg-goal': () => {
-    const d = ui.dlg.d, name = d.name.trim(), target = parseMoney(d.target), saved = d.saved.trim() ? parseMoney(d.saved) : 0;
+    const d = ui.dlg.d, name = d.name.trim(), target = parseMoney(d.target);
+    const linkedAccount = d.linkedAccountId ? accById(d.linkedAccountId) : null;
+    const saved = d.linkedAccountId ? 0 : d.saved.trim() ? parseMoney(d.saved) : 0;
     if (!name || name.length > 50) return fieldError('Informe um nome com até 50 caracteres.', '[data-dlg="name"]');
     if (!Number.isSafeInteger(target) || target <= 0) return fieldError('Informe um valor maior que zero.', '[data-dlg="target"]');
-    if (!Number.isSafeInteger(saved) || saved < 0) return fieldError('Informe um valor válido, igual ou maior que zero.', '[data-dlg="saved"]');
+    if (!d.linkedAccountId && (!Number.isSafeInteger(saved) || saved < 0)) {
+      return fieldError('Informe um valor válido, igual ou maior que zero.', '[data-dlg="saved"]');
+    }
     if (d.deadline && !isDay(d.deadline)) return fieldError('Informe um prazo válido.', '[data-dlg="deadline"]');
-    const values = { name, targetCents: target, savedCents: saved, deadline: d.deadline || '' };
+    if (d.linkedAccountId && (!linkedAccount || isCredit(linkedAccount))) {
+      return fieldError('Escolha uma conta disponível, sem ser cartão de crédito.', '[data-dlg="linkedAccountId"]');
+    }
+    if (d.linkedAccountId && S.finance.goals.some((goal) => (
+      goal.id !== d.id && goal.linkedAccountId === d.linkedAccountId
+    ))) {
+      return fieldError('Esta conta já acompanha outro objetivo. Escolha outra ou desvincule-a primeiro.', '[data-dlg="linkedAccountId"]');
+    }
+    const values = {
+      name,
+      targetCents: target,
+      savedCents: linkedAccount
+        ? (d.id ? S.finance.goals.find((goal) => goal.id === d.id)?.savedCents ?? 0 : 0)
+        : saved,
+      ...(linkedAccount ? { linkedAccountId: linkedAccount.id } : {}),
+      deadline: d.deadline || '',
+    };
     if (d.id) {
       const goal = S.finance.goals.find((item) => item.id === d.id);
-      if (!goal) return toast('Objetivo não encontrado.');
+      if (!goal) return toast('Objetivo não encontrado.', 'info');
       Object.assign(goal, values);
+      if (!linkedAccount) delete goal.linkedAccountId;
     } else S.finance.goals.push({ id: newId(), ...values });
     ui.dlg = null;
     commit('finance');
   },
   'dlg-deposit': () => {
     const d = ui.dlg.d, goal = S.finance.goals.find((item) => item.id === d.id), amount = parseMoney(d.amount);
-    if (!goal) return toast('Objetivo não encontrado.');
+    if (!goal) return toast('Objetivo não encontrado.', 'info');
     if (!Number.isSafeInteger(amount) || amount === 0) return fieldError('Informe um valor diferente de zero.', '[data-dlg="amount"]');
     const total = goal.savedCents + amount;
     if (!Number.isSafeInteger(total)) return fieldError('Informe um valor menor.', '[data-dlg="amount"]');
@@ -7238,21 +8374,21 @@ Object.assign(FORMS, {
     ui.dlg = null;
     const saved = saveSlices('finance');
     render();
-    if (saved) toast(amount > 0 ? 'Valor guardado.' : 'Valor retirado.');
+    if (saved) toast(amount > 0 ? 'Valor guardado.' : 'Valor retirado.', 'info');
   },
   'dlg-payinv': () => {
     const d = ui.dlg.d, cents = parseMoney(d.amount), card = accById(d.cardId), source = accById(d.from);
-    if (!Number.isSafeInteger(cents) || cents <= 0) return toast('Informe um valor maior que zero.');
-    if (!card || !isCredit(card) || !source || isCredit(source) || source.id === card.id) return toast('Escolha um cartão e uma conta de origem válidos.');
+    if (!Number.isSafeInteger(cents) || cents <= 0) return toast('Informe um valor maior que zero.', 'error');
+    if (!card || !isCredit(card) || !source || isCredit(source) || source.id === card.id) return toast('Escolha um cartão e uma conta de origem válidos.', 'info');
     const outstanding = cardInfo(card).used;
-    if (outstanding <= 0) return toast('Este cartão não tem valores em aberto.');
+    if (outstanding <= 0) return toast('Este cartão não tem valores em aberto.', 'info');
     if (d.mode === 'installments') {
       const times = Number(d.times), interestCents = parseMoney(d.interest);
       const available = Math.max(0, outstanding - scheduledInvoicePrincipal(card.id));
-      if (!Number.isInteger(times) || times < 2 || times > 60) return toast('Informe de 2 a 60 parcelas.');
-      if (!isSafeInteger(interestCents) || interestCents < 0) return toast('Informe um valor válido de juros por parcela.');
-      if (!isDay(d.firstDueDate) || d.firstDueDate < today()) return toast('Informe o vencimento de hoje ou de uma data futura.');
-      if (cents > available) return toast(h`O valor a parcelar não pode ultrapassar ${money(available)} (saldo em aberto descontadas outras parcelas programadas).`);
+      if (!Number.isInteger(times) || times < 2 || times > 60) return toast('Informe de 2 a 60 parcelas.', 'error');
+      if (!isSafeInteger(interestCents) || interestCents < 0) return toast('Informe um valor válido de juros por parcela.', 'error');
+      if (!isDay(d.firstDueDate) || d.firstDueDate < today()) return toast('Informe o vencimento de hoje ou de uma data futura.', 'error');
+      if (cents > available) return toast(h`O valor a parcelar não pode ultrapassar ${money(available)} (saldo em aberto descontadas outras parcelas programadas).`, 'info');
       const groupId = newId(), baseCents = Math.floor(cents / times), remainder = cents % times;
       const plan = Array.from({ length: times }, (_, index) => {
         const principalPart = baseCents + (index === 0 ? remainder : 0);
@@ -7275,19 +8411,19 @@ Object.assign(FORMS, {
         };
       });
       if (plan.some((transaction) => !transaction || !isDay(transaction.date))) {
-        return toast('Não foi possível gerar as datas ou os valores das parcelas. Revise os dados.');
+        return toast('Não foi possível gerar as datas ou os valores das parcelas. Revise os dados.', 'info');
       }
       S.finance.tx.push(...plan);
       ui.finMonth = plan[0].date.slice(0, 7);
       ui.dlg = null;
       commit('finance');
       const total = plan.reduce((sum, transaction) => sum + transaction.cents, 0);
-      return toast(`${times} parcelas programadas, totalizando ${money(total)}. O saldo da conta não foi alterado.`);
+      return toast(`${times} parcelas programadas, totalizando ${money(total)}. O saldo da conta não foi alterado.`, 'info');
     }
-    if (d.mode !== 'single') return toast('Escolha uma forma de pagamento válida.');
-    if (cents > outstanding) return toast(h`O pagamento não pode ultrapassar o valor em aberto de ${money(outstanding)}.`);
+    if (d.mode !== 'single') return toast('Escolha uma forma de pagamento válida.', 'info');
+    if (cents > outstanding) return toast(h`O pagamento não pode ultrapassar o valor em aberto de ${money(outstanding)}.`, 'info');
     S.finance.tx.push({ id: newId(), type: 'tr', accountId: source.id, toAccountId: card.id, cents, category: 'Transferência', desc: 'Pagamento da fatura', date: today(), paid: true, createdAt: Date.now() });
-    ui.dlg = null; commit('finance'); toast('Pagamento registrado.');
+    ui.dlg = null; commit('finance'); toast('Pagamento registrado.', 'success');
   },
 });
 Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); } });
@@ -7298,9 +8434,9 @@ async function finCsv() {
   const rows = filteredTx(), head = ['Data', 'Data de pagamento/recebimento', 'Data da antecipação', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Juros já incluídos no valor', 'Situação'];
   const lines = rows.map((t) => [t.date, t.settledDate || '', t.anticipatedDate || '', { in: 'Receita', out: 'Despesa', tr: 'Transferência' }[t.type], t.desc || '', t.category || '', accName(t.accountId), (t.type === 'out' ? -t.cents : t.cents) / 100, t.interestCents == null ? '' : t.interestCents / 100, isPaid(t) ? 'Pago' : 'Pendente'].map(csvCell).join(';'));
   const csv = '\uFEFF' + [head.join(';'), ...lines].join('\r\n'), name = `aurora-lancamentos-${ui.finMonth}.csv`;
-  if (!rows.length) return toast('Não há lançamentos para exportar neste filtro.');
+  if (!rows.length) return toast('Não há lançamentos para exportar neste filtro.', 'info');
   downloadFile(name, csv, 'text/csv;charset=utf-8');
-  toast('Arquivo baixado.');
+  toast('Arquivo baixado.', 'success');
 }
 /* ========== Finanças 2: fixas automáticas, importar extrato, calendário ========== */
 const recList = () => S.finance.recurring || (S.finance.recurring = []);
@@ -7343,7 +8479,7 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
   const n = recList().length;
-  return h`<div class="fin-tools"><div class="seg" role="group" aria-label="Modo"><button type="button" aria-pressed="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" aria-pressed="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
+  return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
     <div class="row fin-tools-actions"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
@@ -7354,15 +8490,16 @@ function finCal() {
   const cells = []; for (let i = 0; i < (first.getDay() + 7 - ws) % 7; i++) cells.push('<span></span>');
   for (let d = 1; d <= n; d++) {
     const k = `${ym}-${pad(d)}`, ts = by[k] || [], dots = [];
-    if (ts.some((t) => t.type === 'out' && !isPaid(t))) dots.push('var(--bad)'); if (ts.some((t) => t.type === 'in' && !isPaid(t))) dots.push('var(--ok)'); if (ts.some(isPaid)) dots.push('var(--line2)');
-    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.finDay ? 's' : ''}" data-action="fin-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${ts.length} lançamentos"><b>${d}</b><i>${dots.map((c) => `<u style="background:${c}"></u>`).join('')}</i></button>`);
+    if (ts.some((t) => t.type === 'out' && !isPaid(t))) dots.push('finance-day-dot--out');
+    if (ts.some((t) => t.type === 'in' && !isPaid(t))) dots.push('finance-day-dot--in');
+    if (ts.some(isPaid)) dots.push('finance-day-dot--settled');
+    cells.push(`<button type="button" class="tc ${k === tdy ? 't' : ''} ${k === ui.finDay ? 's' : ''}" data-action="fin-day" data-d="${k}" aria-label="${d} de ${MESES_L[m - 1]}, ${ts.length} lançamentos"><b>${d}</b><i>${dots.map((dot) => `<u class="${dot}"></u>`).join('')}</i></button>`);
   }
   const day = (by[ui.finDay] || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), tot = day.reduce((s, t) => s + (t.type === 'in' ? t.cents : -t.cents), 0);
   return h`<div class="tcal-wrap"><div class="tcal" role="group" aria-label="Calendário financeiro">${wd.map((w) => h`<em>${w}</em>`)}${raw(cells.join(''))}</div>
     <p class="fine"><span class="lg finance-overdue"></span>a pagar <span class="lg finance-upcoming"></span>a receber <span class="lg finance-settled"></span>pago/recebido</p></div>
     <section class="card"><div class="head"><h3>${ui.finDay === tdy ? 'Hoje' : cap(longDate(ui.finDay))}</h3><span class="small ${tot < 0 ? '' : 'muted'}">${day.length ? money(tot) : ''}</span></div>
-      ${day.length ? h`<ul class="list">${day.map(finRow)}</ul>` : h`<p class="small muted">Nada neste dia.</p>`}
-      <button class="btn sm" data-action="tx-new-day">${icon('plus', 16)}Lançamento neste dia</button></section>`;
+      ${day.length ? h`<ul class="list">${day.map(finRow)}</ul><button type="button" class="btn sm" data-action="tx-new-day">${icon('plus', 16)}Lançamento neste dia</button>` : areaEmpty('Nenhum lançamento neste dia.', 'Se quiser, registre aqui uma receita ou despesa.', h`<button type="button" class="btn primary" data-action="tx-new-day">${icon('plus', 16)}Criar lançamento</button>`, 'calendar', 'h4')}</section>`;
 }
 
 /* ---- fixas: lista e edição ---- */
@@ -7370,7 +8507,7 @@ function dlgRecurList() {
   const rs = recList();
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Lançamentos fixos<i>.</i></h2>${closeBtn}</div>
     <p class="small muted">Contas e receitas que se repetem todo mês. O Aurora cria os próximos meses sozinho. Para criar uma, use Lançamento e escolha "Fixa mensal".</p>
-    ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : empty('Nenhuma fixa ainda', 'Aluguel, salário, assinaturas: crie uma vez e acompanhe todos os meses.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Novo lançamento</button>`, 'repeat')}`,
+    ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : areaEmpty('Nenhum lançamento fixo ainda.', 'Se quiser, registre uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar lançamento fixo</button>`, 'repeat', 'h3')}`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgRecur() {
@@ -7391,6 +8528,8 @@ function dlgRecur() {
 const KW = [[/mercado|supermerc|padaria|restaur|lanche|ifood|pizza|cafe|burger|acougue|hortifruti/, 'Alimentação'], [/uber|99 ?pop|combust|posto|estacion|onibus|metro|pedagio/, 'Transporte'], [/farmac|drog|medic|consulta|clinica|hospital|dentist/, 'Saúde'], [/aluguel|condominio|energia|enel|sabesp|internet|vivo|claro|tim /, 'Moradia'], [/netflix|spotify|cinema|ingresso|steam|disney|prime video/, 'Lazer'], [/curso|escola|faculdade|livro|udemy/, 'Educação'], [/salario|folha|pagamento de/, 'Salário']];
 function guessCategory(desc, kind) {
   const names = catNames(kind), n = norm(desc);
+  const customRule = matchCategoryRule(desc, kind, S.settings.prefs.financeCategoryRules);
+  if (customRule && names.includes(customRule.category)) return customRule.category;
   const hit = S.finance.tx.find((t) => t.type === kind && t.desc && norm(t.desc) === n) || S.finance.tx.find((t) => t.type === kind && t.desc && norm(t.desc).length >= 4 && n.includes(norm(t.desc)));
   if (hit && names.includes(hit.category)) return hit.category;
   for (const [re, c] of KW) { const f = names.find((x) => norm(x) === norm(c)); if (f && re.test(n)) return f; }
@@ -7400,25 +8539,40 @@ function impRecalc(d, resetCats) {
   d.rows.forEach((r) => {
     const amt = d.invert ? -r.cents : r.cents; r.kind = amt > 0 ? 'in' : 'out'; r.abs = Math.abs(amt);
     if (resetCats || !catNames(r.kind).includes(r.cat)) r.cat = guessCategory(r.desc, r.kind);
-    r.dup = S.finance.tx.some((t) => t.accountId === d.accountId && t.date === r.date && t.cents === r.abs && t.type === r.kind);
+    const status = statementDuplicateStatus({
+      accountId: d.accountId,
+      date: r.date,
+      cents: r.abs,
+      type: r.kind,
+      desc: r.desc,
+    }, S.finance.tx);
+    r.dup = status.duplicate;
+    r.possibleDup = status.possible;
     r.on = !r.dup;
   });
 }
 function dlgImport2() {
-  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length, dups = d.rows.filter((r) => r.dup).length;
+  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length;
+  const dups = d.rows.filter((r) => r.dup).length;
+  const possibleDups = d.rows.filter((r) => r.possibleDup).length;
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
-    <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} parecem já existir (desmarcados)` : ''}. Confira as categorias antes de importar.</p>
+    <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} têm descrição correspondente e foram desmarcados como prováveis duplicatas para conferência` : ''}${possibleDups ? `, ${possibleDups} têm data, valor e tipo iguais a registros existentes, mas descrições diferentes; permanecem marcados para sua revisão` : ''}. Confira antes de importar.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
     <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
       <label class="row full form-choice-row"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
-    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · possível duplicado' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
+    <ul class="list imp">${d.rows.map((r, i) => h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${i}.on" ${r.on ? raw('checked') : ''} aria-label="Importar ${r.desc}"><span class="grow"><b class="ellip ${r.kind === 'out' ? 'expense-name' : 'user-value'}">${r.kind === 'out' ? expenseTitle(r.desc) : r.desc}</b><span class="small muted">${shortDate(r.date)}${r.dup ? ' · provável duplicata (desmarcada)' : r.possibleDup ? ' · confira possível semelhança' : ''}</span></span><span class="amt ${r.kind}">${r.kind === 'in' ? '+' : '−'}${money(r.abs)}</span></label>
       <select class="impcat" data-dlg="rows.${i}.cat" aria-label="Categoria de ${r.desc}">${catNames(r.kind).map((c) => h`<option class="user-value" ${c === r.cat ? raw('selected') : ''}>${c}</option>`)}</select></li>`)}</ul>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" data-action="imp-apply" ${n ? '' : raw('disabled')}>Importar ${n ? '(' + n + ')' : ''}</button>`);
 }
+let statementDuplicateStatus;
 Object.assign(DLG, { recurlist: dlgRecurList, recur: dlgRecur, impfin: dlgImport2 });
 
 Object.assign(ACTIONS, {
-  'fin-view': (el) => { ui.finView = el.dataset.v; render(); },
+  'fin-view': (el) => {
+    ui.finView = el.dataset.v;
+    render();
+    requestAnimationFrame(() => document.getElementById(`fin-view-${ui.finView}`)?.focus());
+  },
   'fin-day': (el) => { ui.finDay = el.dataset.d; render(); },
   'tx-new-day': () => { newTxDlg('out'); ui.dlg.d.date = ui.finDay || today(); render(); },
   'rec-list': () => dlgOpen('recurlist', {}),
@@ -7452,32 +8606,32 @@ Object.assign(ACTIONS, {
       S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
       ui.dlg = null;
     });
-    if (entry) toast('Fixa movida para a lixeira.', () => restoreTrashEntry(entry.id));
+    if (entry) toast('Fixa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'imp-apply': () => { const d = ui.dlg.d, ids = []; d.rows.filter((r) => r.on).forEach((r, i) => { const id = newId(); ids.push(id); const account = accById(d.accountId), paid = isCredit(account) || r.date <= today(); S.finance.tx.push({ id, type: r.kind, accountId: d.accountId, category: r.cat, desc: r.desc, cents: r.abs, date: r.date, ...(paid && account && !isCredit(account) ? { settledDate: r.date } : {}), paid, createdAt: Date.now() + i }); });
-    const mo = d.rows.filter((r) => r.on).map((r) => r.date).sort().pop(); if (mo) ui.finMonth = mo.slice(0, 7); ui.dlg = null; commit('finance'); toast(`${ids.length} ${plural(ids.length, 'lançamento importado', 'lançamentos importados')}${d.truncated ? '. O restante do arquivo não foi incluído; importe-o em partes.' : '.'}`, () => { S.finance.tx = S.finance.tx.filter((t) => !ids.includes(t.id)); commit('finance'); }); },
+    const mo = d.rows.filter((r) => r.on).map((r) => r.date).sort().pop(); if (mo) ui.finMonth = mo.slice(0, 7); ui.dlg = null; commit('finance'); toast(`${ids.length} ${plural(ids.length, 'lançamento importado', 'lançamentos importados')}${d.truncated ? '. O restante do arquivo não foi incluído; importe-o em partes.' : '.'}`, 'action', () => { S.finance.tx = S.finance.tx.filter((t) => !ids.includes(t.id)); commit('finance'); }); },
 });
 Object.assign(FORMS, { 'dlg-recur': () => {
   const d = ui.dlg.d, r = recById(d.id), cents = parseMoney(d.amount), day = Math.round(num(d.day)); if (!r) return dlgClose();
-  if (!(cents > 0)) return toast('Informe um valor maior que zero.'); if (!(day >= 1 && day <= 31)) return toast('O dia deve ser de 1 a 31.');
+  if (!(cents > 0)) return toast('Informe um valor maior que zero.', 'error'); if (!(day >= 1 && day <= 31)) return toast('O dia deve ser de 1 a 31.', 'error');
   Object.assign(r, { desc: d.desc.trim().slice(0, 80), cents, day, category: d.category, accountId: d.accountId, paused: !!d.paused });
   if (d.future) S.finance.tx.forEach((t) => { if (t.recId === r.id && !isPaid(t) && t.date >= today()) { const dim = new Date(Number(t.date.slice(0, 4)), Number(t.date.slice(5, 7)), 0).getDate(); Object.assign(t, { desc: r.desc, cents, category: r.category, accountId: r.accountId, date: `${t.date.slice(0, 7)}-${pad(Math.min(day, dim))}` }); } });
-  ui.dlg = null; genRecurring(); commit('finance'); toast('Fixa atualizada.'); } });
+  ui.dlg = null; genRecurring(); commit('finance'); toast('Fixa atualizada.', 'success'); } });
 Object.assign(CHANGES, { 'fin-import': async (el) => {
   const f = el.files && el.files[0]; el.value = ''; if (!f) return;
-  if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).');
-  if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.');
-  let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.'); }
+  if (f.size > 2 * 1024 * 1024) return toast('Arquivo grande demais (máx. 2 MB).', 'error');
+  if (!S.finance.accounts.length) return toast('Crie uma conta antes de importar.', 'info');
+  let text = ''; try { text = await f.text(); } catch (e) { return toast('Não consegui ler o arquivo.', 'error'); }
   let parseStatement;
   try {
-    ({ parseStatement } = await import('./features/finance/statement.js'));
+    ({ parseStatement, statementDuplicateStatus } = await import('./features/finance/statement.js'));
   } catch (error) {
     console.error('Aurora: não foi possível carregar a leitura de extratos.', error);
-    toast('Não foi possível preparar a leitura do extrato. Tente novamente.');
+    toast('Não foi possível preparar a leitura do extrato. Tente novamente.', 'info');
     return;
   }
   const parsed = parseStatement(text, f.name);
-  if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.');
+  if (!parsed.transactions.length) return toast('Não encontrei lançamentos. Use CSV (data, descrição, valor) ou OFX.', 'error');
   const acc = S.finance.accounts.find((a) => !isCredit(a)) || S.finance.accounts[0], d = { file: f.name.slice(0, 40), accountId: acc.id, invert: false, truncated: parsed.truncated, rows: parsed.transactions.map((r) => ({ ...r, on: true })) };
   impRecalc(d, true); dlgOpen('impfin', d); } });
 
@@ -7493,13 +8647,13 @@ function finCompare() {
   const sel = (k, v) => h`<select data-change="cmp-${k}" aria-label="Mês ${k === 'a' ? 'principal' : 'de comparação'}">${monthOpts().map((m) => h`<option value="${m}" ${m === v ? raw('selected') : ''}>${cap(ymLabel(m))}</option>`)}</select>`;
   return h`<section class="card"><h2>Comparar meses<i>.</i></h2>
     <div class="form">${dlgField('Mês', sel('a', A))}${dlgField('Comparar com', sel('b', B))}</div>
-    <table class="cmp"><thead><tr><th></th><th>${MESES[Number(A.slice(5)) - 1]}</th><th>${MESES[Number(B.slice(5)) - 1]}</th><th>Diferença</th></tr></thead><tbody>
+    <div class="finance-compare-table-wrap" role="region" aria-label="Comparação dos valores dos meses selecionados" tabindex="0"><table class="cmp"><thead><tr><th></th><th>${MESES[Number(A.slice(5)) - 1]}</th><th>${MESES[Number(B.slice(5)) - 1]}</th><th>Diferença</th></tr></thead><tbody>
       <tr><td>Receitas</td><td>${money(sa.inAll)}</td><td>${money(sb.inAll)}</td><td>${dl(sa.inAll, sb.inAll, true)}</td></tr>
       <tr><td>Despesas</td><td>${money(sa.outAll)}</td><td>${money(sb.outAll)}</td><td>${dl(sa.outAll, sb.outAll, false)}</td></tr>
-      <tr><td>Resultado</td><td>${money(sa.inAll - sa.outAll)}</td><td>${money(sb.inAll - sb.outAll)}</td><td>${dl(sa.inAll - sa.outAll, sb.inAll - sb.outAll, true)}</td></tr></tbody></table>
+      <tr><td>Resultado</td><td>${money(sa.inAll - sa.outAll)}</td><td>${money(sb.inAll - sb.outAll)}</td><td>${dl(sa.inAll - sa.outAll, sb.inAll - sb.outAll, true)}</td></tr></tbody></table></div>
     ${names.length ? h`<div class="f"><span class="lbl">Despesas por categoria</span><ul class="list cmpl">${names.map((n) => h`<li><div class="grow"><div class="row finance-compare-row"><b class="expense-name">${expenseTitle(n)}</b><span class="small">${dl(ca[n] || 0, cb[n] || 0, false)}</span></div>
       <div class="pair" aria-hidden="true"><span style="width:${(ca[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div><div class="pair b" aria-hidden="true"><span style="width:${(cb[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div>
-      <div class="small muted">${money(ca[n] || 0)} · ${money(cb[n] || 0)}</div></div></li>`)}</ul><p class="fine">Barra cheia: ${cap(ymLabel(A))}. Barra clara: ${cap(ymLabel(B))}.</p></div>` : h`<p class="small muted">Sem despesas nesses meses.</p>`}
+      <div class="small muted">${money(ca[n] || 0)} · ${money(cb[n] || 0)}</div></div></li>`)}</ul><p class="fine">Barra cheia: ${cap(ymLabel(A))}. Barra clara: ${cap(ymLabel(B))}.</p></div>` : areaEmpty('Nenhuma despesa para comparar.', 'Quando houver despesas nos períodos selecionados, a comparação por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar despesa</button>`, 'pie', 'h3', 'finance-compare-empty')}
     </section>`;
 }
 Object.assign(CHANGES, {
@@ -7513,30 +8667,17 @@ function renderAccountLoading(root) {
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
 
-  const content = document.createElement('div');
-  content.className = 'account-loading-content';
-
-  const brand = document.createElement('span');
-  brand.className = 'account-loading-brand-text';
-  brand.setAttribute('aria-hidden', 'true');
-  brand.textContent = 'aurora';
-
-  const brandDot = document.createElement('span');
-  brandDot.className = 'account-loading-brand-dot';
-  brandDot.setAttribute('aria-hidden', 'true');
-  brandDot.textContent = '.';
-  brand.append(brandDot);
-
-  const indicator = document.createElement('span');
-  indicator.className = 'account-loading-indicator';
-  indicator.setAttribute('aria-hidden', 'true');
-
-  const message = document.createElement('p');
-  message.className = 'account-loading-message';
-  message.textContent = 'Preparando seu espaço…';
-
-  content.append(brand, indicator, message);
-  page.append(content);
+  page.innerHTML = `<div class="account-loading-content">
+      <header class="account-loading-header">
+        <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
+        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
+      </header>
+      <div class="account-loading-skeleton" aria-hidden="true">
+        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
+        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      </div>
+    </div>`;
+  page.querySelector('.account-loading-brand img').src = new URL('../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(page);
 }
 
@@ -7596,7 +8737,14 @@ function showAccountDataLoadError(root, error, user) {
   heading.focus({ preventScroll: true });
 }
 
+function onPushNotification(event) {
+  if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.', 'info');
+  if (event.detail?.kind === 'task-reminder') toast('Um lembrete de tarefa chegou. Abra Planejar para conferir sua lista.', 'info');
+  if (event.detail?.kind === 'weekly-review') toast('Sua semana está disponível em Planejar, quando quiser.', 'info');
+}
+
 async function continueAuthenticatedAurora(root, user) {
+  preloadInitialRouteModule();
   try {
     const { purgeRemovedStudyDataFromBrowserStorage } = await import('./features/backup/removed-study-data.js');
     purgeRemovedStudyDataFromBrowserStorage(window.localStorage, user.id);
@@ -7609,7 +8757,7 @@ async function continueAuthenticatedAurora(root, user) {
   }
 
   purgeExpiredTrash();
-  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.');
+  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.', 'error');
   const recurringReconciled = reconcileRecurringTransactions();
   const recurringGenerated = genRecurring();
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
@@ -7620,9 +8768,12 @@ async function continueAuthenticatedAurora(root, user) {
   });
   releaseNoticePending = true;
   onRoute();
+  preloadEnabledRouteModules();
   if (!profileSetupComplete()) openProfileSetup();
   else void maybeOpenReleaseNotes();
   setInterval(tick, 1000);
+  window.removeEventListener('aurora:push-notification', onPushNotification);
+  window.addEventListener('aurora:push-notification', onPushNotification);
   const registration = await registerPwaSupport();
   if (registration || isNativeApp()) {
     try {
@@ -7683,19 +8834,24 @@ function watchSessionExpiry(client) {
   });
 }
 
-export async function startAuthenticatedAurora(root, initialMode = 'login', allowPublicReturn = false, authCallback = false) {
+export async function startAuthenticatedAurora(
+  root,
+  initialMode = 'login',
+  allowPublicReturn = false,
+  authCallback = false,
+  preauthenticatedAccount = null,
+) {
   const { requireAccount } = await import('./services/account-auth.js');
   renderAccountLoading(root);
   let returnedToPublic = false;
   rememberRequestedRoute();
   const sessionExpired = readStorage(SESSION_EXPIRED_KEY) === '1';
   writeStorage(SESSION_EXPIRED_KEY, null);
-  accountSession = await requireAccount(root, initialMode, {
+  accountSession = preauthenticatedAccount || await requireAccount(root, initialMode, {
     allowPublicReturn,
     initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
     onPublicReturn: () => { returnedToPublic = true; },
     onAccountDeleted: () => {
-      window.auroraLoadingAppearance?.clear();
       redirectToPublicLanding(location);
     },
   });
@@ -7787,11 +8943,14 @@ async function startAurora() {
       history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
     }
     const routeMode = accountModeFromLocation(location);
+    const preauthenticatedAccount = window.__auroraPreauthenticatedAccount || null;
+    delete window.__auroraPreauthenticatedAccount;
     await startAuthenticatedAurora(
       root,
       routeMode || (requestedMode === 'signup' ? 'signup' : 'login'),
       routeMeta,
       authCallback,
+      preauthenticatedAccount,
     );
     return;
   }
@@ -7868,8 +9027,9 @@ document.addEventListener('click', async (event) => {
   const button = event.target instanceof Element ? event.target.closest('[data-account-signout]') : null;
   if (!button || !accountSession) return;
   event.preventDefault();
+  if (button.closest('.profile-menu-control')) button.closest('.profile-menu-control').open = false;
   if (ui.legacyImport.busy) {
-    toast('A importação está em andamento. Aguarde a confirmação antes de sair.');
+    toast('A importação está em andamento. Aguarde a confirmação antes de sair.', 'warning');
     return;
   }
   button.disabled = true;
@@ -7879,7 +9039,7 @@ document.addEventListener('click', async (event) => {
     return;
   }
   try {
-    await cancelHabitPushReminders();
+    await Promise.all([cancelHabitPushReminders(), cancelTaskPushReminders()]);
   } catch {
     if (!await confirmInDialog('Não foi possível cancelar os lembretes de Hábitos deste dispositivo. Eles podem continuar ativos até o próximo ajuste. Deseja sair mesmo assim?')) {
       button.disabled = false;
@@ -7890,7 +9050,7 @@ document.addEventListener('click', async (event) => {
   const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
   if (error) {
     intentionalSignOut = false;
-    toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
+    toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.', 'info');
     return;
   }
   Persist.wipe();
@@ -7902,7 +9062,7 @@ document.addEventListener('click', async (event) => {
 window.addEventListener('offline', () => render());
 window.addEventListener('online', () => {
   render();
-  if (Persist.pendingSnapshot) toast('A conexão voltou. As alterações pendentes continuam apenas nesta página; toque em “Tentar novamente” para gravá-las.');
+  if (Persist.pendingSnapshot) toast('A conexão voltou. As alterações pendentes continuam apenas nesta página; toque em “Tentar novamente” para gravá-las.', 'warning');
 });
 window.addEventListener('beforeunload', (event) => {
   if (!ui.legacyImport.busy && !syncState.pending.size && !syncState.failed.size) return;

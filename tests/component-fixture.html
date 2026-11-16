@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Componentes para testes</title>
+  <link rel="stylesheet" href="/src/css/main.css">
+</head>
+<body>
+<div id="app">
+  <main class="main">
+    <h1>Componentes</h1>
+    <button type="button" data-theme-set="dark">escuro</button>
+    <section class="card" aria-labelledby="fields-heading">
+      <h2 id="fields-heading">Campos</h2>
+      <form class="form">
+        <label class="f">Texto<input type="text"></label>
+        <label class="f">Frequência
+          <select name="frequency" required>
+            <option value="" selected disabled>Selecione</option>
+            <option value="weekly">Uma vez por semana</option>
+            <option value="daily">Todos os dias</option>
+          </select>
+        </label>
+        <label class="f">Seleção indisponível
+          <select disabled><option selected>Indisponível</option></select>
+        </label>
+        <label class="f">Seleção com erro
+          <select aria-invalid="true" aria-describedby="ds-select-error" required>
+            <option value="" selected disabled>Selecione</option>
+            <option value="weekly">Uma vez por semana</option>
+            <option value="daily">Todos os dias</option>
+          </select>
+          <small class="err field-err" id="ds-select-error">Escolha uma frequência para continuar.</small>
+        </label>
+      </form>
+      <button class="btn" type="button">Padrão</button>
+      <button class="btn primary" type="button">Primário</button>
+      <button class="btn danger" type="button">Excluir</button>
+      <span class="badge ok">Sucesso</span>
+      <span class="badge warn">Aviso</span>
+      <span class="badge bad">Erro</span>
+    </section>
+  </main>
+</div>
+<script type="module">
+  import { initializeCustomSelects } from '/src/js/features/selects/custom-select.js';
+  initializeCustomSelects(document);
+  document.querySelector('[data-theme-set="dark"]').addEventListener('click', () => {
+    document.documentElement.dataset.theme = 'dark';
+  });
+</script>
+</body>
+</html>

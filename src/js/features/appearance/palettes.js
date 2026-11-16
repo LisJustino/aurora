@@ -1,6 +1,6 @@
 /* Paletas de cor e cálculo de contraste do tema. Funções puras, sem acesso a estado ou DOM. */
 export const PALETTES = {
-  rose: ['Rosé', '#c8a19e', '#78504c'], coral: ['Coral', '#e07a5f', '#b5432a'], crimson: ['Carmim', '#d6455d', '#a8213a'], plum: ['Ameixa', '#a24f9e', '#7c2f78'],
+  rose: ['Rosé', '#c65a79', '#ab4e69'], coral: ['Coral', '#e07a5f', '#b5432a'], crimson: ['Carmim', '#d6455d', '#a8213a'], plum: ['Ameixa', '#a24f9e', '#7c2f78'],
   lavender: ['Lavanda', '#9a86b2', '#75618e'], indigo: ['Índigo', '#6a67d8', '#4a46b8'], ocean: ['Oceano', '#3b6fd1', '#274da6'], sky: ['Céu', '#4f9be0', '#1f68b3'],
   teal: ['Turquesa', '#2fa3b0', '#12707c'], mint: ['Menta', '#4fb59a', '#1f7a63'], sage: ['Sálvia', '#829a89', '#5f7967'], amber: ['Âmbar', '#d99a2b', '#8a5a00'],
   earth: ['Terra', '#ad8c76', '#795b47'], graphite: ['Grafite', '#7b8794', '#46505b']

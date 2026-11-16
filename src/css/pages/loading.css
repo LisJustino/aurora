@@ -1,0 +1,74 @@
+body:has(#app > .account-loading),
+body:has(#app > .app-skeleton) { overflow: hidden; }
+
+.account-loading,
+.app-skeleton {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--canvas-initial);
+  color: var(--ink);
+}
+:root[data-theme="dark"] :is(.account-loading, .app-skeleton) { background: var(--bg); }
+.account-loading-content { height: 100%; }
+.account-loading-header {
+  display: flex;
+  min-height: var(--topbar-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--gut-r) 0 var(--gut-l);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+.account-loading-brand, .account-loading-status { display: flex; align-items: center; gap: var(--space-2); }
+.account-loading-status { color: var(--muted); font-size: var(--text-sm); }
+.account-loading-message { margin: 0; }
+.account-loading-indicator {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: var(--r-pill);
+  animation: account-loading-spin 1s linear infinite;
+}
+.account-loading-skeleton {
+  display: grid;
+  gap: var(--space-5);
+  width: min(100%, var(--content-width));
+  margin: 0 auto;
+  padding: clamp(var(--space-6), 3vw, var(--space-7)) var(--gut-r) var(--space-5) var(--gut-l);
+}
+.loading-skeleton-hero, .loading-skeleton-card {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--card-padding);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface-strong);
+}
+.loading-skeleton-hero { min-height: 196px; }
+.loading-skeleton-dashboard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, .7fr); gap: var(--space-5); }
+.loading-skeleton-card { min-height: 160px; background: var(--surface); }
+.loading-skeleton-line, .loading-skeleton-button, .loading-skeleton-field {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--r-group);
+  background: color-mix(in srgb, var(--ink) 9%, var(--surface));
+}
+.loading-skeleton-line { width: 15rem; height: .65rem; }
+.loading-skeleton-line.short { width: 6rem; }
+.loading-skeleton-line.medium { width: 11rem; }
+.loading-skeleton-line.title { width: 19rem; height: 1.75rem; }
+.loading-skeleton-button { width: 6rem; height: 2.5rem; }
+.loading-skeleton-button { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.loading-skeleton-field { width: 100%; height: 3rem; }
+@media (width < 700px) { .loading-skeleton-dashboard { grid-template-columns: 1fr; gap: var(--space-3); } }
+@keyframes account-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .account-loading-indicator { animation: none; }
+}
+:root[data-motion="reduce"] .account-loading-indicator { animation: none; }

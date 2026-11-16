@@ -1,4 +1,5 @@
 import { iconSvg } from '../../utils/icons.js';
+import { CONTACT_EMAIL } from './suggestions.js';
 
 const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
 
@@ -16,7 +17,7 @@ export function renderSuggestionForm() {
       <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
       <button class="btn back" type="button" data-action="copy-contact-email">Copiar e-mail de contato</button>
       <p class="fine" data-suggestion-copy-status role="status" aria-live="polite"></p>
-      <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: lisjustino@gmail.com</p>
+      <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: ${CONTACT_EMAIL}</p>
     </form>
   </div>`;
 }
@@ -40,7 +41,7 @@ export function renderFooterContent({
   const accountLinks = preview
     ? '<a class="footer-link" href="/config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
     : authenticated
-    ? `<a class="footer-link" href="/config">Perfil e ajustes</a><button class="footer-link" type="button" data-account-signout>Sair da conta</button>`
+    ? '<a class="footer-link" href="/config">Perfil e ajustes</a>'
     : accountError
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
@@ -55,7 +56,7 @@ export function renderFooterContent({
     <div class="site-footer-content">
       <div class="footer-brand">
         <div class="footer-brand-mark"><img src="${brandLogo}" alt="" aria-hidden="true" width="32" height="32"><span class="wordmark">aurora<span>.</span></span></div>
-        <p>Organize sua rotina com tarefas, hábitos, ciclo e finanças em um único lugar.</p>
+        <p>Organize tarefas, hábitos, finanças e ciclo no seu ritmo.</p>
       </div>
       <nav class="footer-nav" aria-label="Conta">
         <h2>Conta</h2>
@@ -89,23 +90,11 @@ export function renderFooterContent({
           </details>
           <details>
             <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-            <p>O formulário abaixo abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Se não tiver um aplicativo configurado, copie o e-mail de contato. Não inclua senhas ou informações pessoais sensíveis.</p>
-            <form class="footer-suggestion-form" data-footer-suggestion>
-              <label for="footer-suggestion-name">Seu nome (opcional)</label>
-              <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
-              <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
-              <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
-              <label for="footer-suggestion-message">Sua sugestão</label>
-              <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
-              <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
-              <button class="btn back" type="button" data-action="copy-contact-email">Copiar e-mail de contato</button>
-              <p class="fine" data-suggestion-copy-status role="status" aria-live="polite"></p>
-              <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: lisjustino@gmail.com</p>
-            </form>
+            ${renderSuggestionForm()}
           </details>
           <details>
             <summary>Como entro em contato com quem criou o Aurora?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-            <p>Elisa da Silva Justino: <a href="mailto:lisjustino@gmail.com">lisjustino@gmail.com</a>.</p>
+            <p>Elisa da Silva Justino: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
           </details>
         </div>
       </details>` : ''}
@@ -122,7 +111,7 @@ export function renderFooterContent({
 }
 
 export function initializeFaqDisclosure(root) {
-  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item, details.public-faq-more').forEach((details) => {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
     const summary = details.querySelector(':scope > summary');
     if (!summary || summary.dataset.expandedStateBound) return;
     summary.dataset.expandedStateBound = 'true';

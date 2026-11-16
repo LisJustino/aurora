@@ -18,15 +18,16 @@
 
 :root {
   color-scheme: light;
-  --p: #c8a19e;
-  --pd: #78504c;
-  --plum: #634742;
-  --bg: #e8e6e0;
-  --bg-strong: #eeece7;
-  --surface: #ffffff;
-  --surface-strong: #faf9f7;
+  --p: #c65a79;
+  --pd: #ab4e69;
+  --plum: #593047;
+  --bg: #f7f0ea;
+  --canvas-initial: #f8f8f6;
+  --bg-strong: #f0e7e1;
+  --surface: #fffdfa;
+  --surface-strong: #fcf8f5;
   --surface-raised: #ffffff;
-  --surface-soft: #faf9f7;
+  --surface-soft: #f8f2ed;
   --surface-qr: #fff; /* QR codes keep a white field in both themes. */
   --ink: #252321;
   --muted: #625f5b;
@@ -48,18 +49,40 @@
   --warn-soft: #fff3dc;
   --bad: #a62836;
   --bad-soft: #fff0f1;
+  --area-plan: var(--pd);
+  --area-habits: #5a5fa8;
   --area-water: #216f86;
   --area-finances: #397650;
   --area-cycle: #8b4e78;
   --priority-low: #3f7f93;
-  --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 52%, #71465f), color-mix(in srgb, var(--btn) 40%, #382f45));
-  --on-hero-home: var(--on-btn);
+  --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
+  --hero-home: color-mix(in srgb, var(--p) 3%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 3%, var(--surface));
+  --brand-surface-strong: color-mix(in srgb, var(--p) 17%, var(--surface));
+  --on-hero-home: var(--ink);
   --on-hero: var(--ink);
-  --shadow: 0 28px 64px -34px rgb(44 38 33 / 26%);
-  --shadow-sm: 0 8px 18px -14px rgb(44 38 33 / 28%);
-  --card-shadow: 0 16px 38px -28px rgb(44 38 33 / 20%);
-  --shadow-hover: 0 20px 40px -30px color-mix(in srgb, var(--ink) 55%, transparent);
+  --public-hero-start: #3f2b2a;
+  --public-hero-end: #7b504d;
+  --public-account-start: #402c2b;
+  --public-account-end: #7d514e;
+  --public-hero-ink: #fffaf6;
+  --public-hero-accent: #ffd7ca;
+  --public-hero-marker: #eec0b3;
+  --public-hero-button-ink: #503331;
+  --public-art-rose: #e8b4a6;
+  --public-art-lilac: #edc5dd;
+  --public-art-ok: #81c3a0;
+  --preview-phone-border: #62545e;
+  --preview-phone-frame: #51444e;
+  --preview-phone-dark: #211d22;
+  --preview-phone-camera: #746674;
+  --elev-0: none;
+  --elev-1: 0 10px 24px -20px rgb(74 37 52 / 36%), 0 1px 3px rgb(74 37 52 / 7%);
+  --elev-2: 0 20px 48px -24px rgb(44 38 33 / 22%);
+  --shadow: var(--elev-2);
+  --shadow-sm: var(--elev-1);
+  --card-shadow: var(--elev-1);
+  --shadow-hover: var(--elev-2);
   --focus-ring-shadow: 0 0 0 4px var(--focus-soft);
   --status-halo-shadow: 0 0 0 4px var(--ok-soft);
   --current-control-shadow: inset 0 0 0 1px var(--accent);
@@ -78,6 +101,7 @@
   --space-11: 72px;
   --space-12: 80px;
   --space-half: 2px;
+  --space-quarter: 1px;
   --card-padding: var(--space-5);
   --card-padding-compact: clamp(var(--space-4), 5vw, var(--space-5));
   --card-content-gap: var(--space-4);
@@ -99,6 +123,12 @@
   --list-row-gap: var(--space-3);
   --list-row-padding-block: var(--space-4);
   --list-row-padding-inline: var(--space-3);
+  --icon-box-sm: 32px;
+  --icon-box-md: 40px;
+  --icon-box-lg: 48px;
+  --row-height-compact: 56px;
+  --row-height-standard: 64px;
+  --row-height-card: 88px;
   --dialog-padding: 20px;
   --dialog-padding-compact: 16px;
   --text-xs: .75rem;
@@ -109,20 +139,23 @@
   --text-xl: 1.25rem;
   --text-heading: clamp(1.35rem, 3vw, 1.7rem);
   --text-section: clamp(1.45rem, 3vw, 1.9rem);
-  --text-display: clamp(1.9rem, 4vw, 2.5rem);
+  --text-display: clamp(2.5rem, 5vw, 4rem);
   --text-hero: clamp(2.1rem, 4vw, 3.3rem);
+  --text-home-title: clamp(1.55rem, 3vw, 2.65rem);
   --text-page-title: clamp(2.2rem, 4vw, 3.25rem);
+  --text-annual-plan-title: clamp(1.6rem, 3vw, 2.25rem);
   --text-metric: clamp(2.1rem, 5vw, 3rem);
   --text-water-total: clamp(2.75rem, 8vw, 4rem);
+  --text-account-brand: clamp(1.25rem, 2vw, 1.625rem);
+  --text-account-intro: clamp(1rem, 1.4vw, 1.1875rem);
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
-  --weight-strong: 750;
   --leading-tight: 1.2;
   --leading-body: 1.5;
   --leading-relaxed: 1.6;
-  --content-width: 1120px;
+  --content-width: 1200px;
   --reading-width: 880px;
   --control-height: 48px;
   --target-size: 44px;
@@ -139,14 +172,21 @@
   --z-popover: 55;
   --z-toast: 60;
   --z-skip: 100;
-  --r-control: 16px;
-  --r-group: 20px;
-  --r: 28px;
-  --r-large: 36px;
+  --r-sm: 12px;
+  --r-card: 20px;
+  --r-hero: 28px;
   --r-pill: 999px;
+  --r-control: var(--r-sm);
+  --r-group: var(--r-sm);
+  --r: var(--r-sm);
+  --r-hairline: var(--r-sm);
+  --r-tiny: var(--r-sm);
+  --r-phone-outer: var(--r-hero);
+  --r-phone-inner: var(--r-card);
+  --r-public-hero-min: var(--r-hero);
+  --r-public-hero: var(--r-hero);
   /* ---- Escalas do design system (use sempre tokens; nunca valores soltos) ---- */
-  /* Tipografia: 2xs 11 · xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
-  --text-2xs: .6875rem;
+  /* Tipografia: xs 12 · meta 13 · sm 14 · md 15 · base 16 · lg 18 · xl 20 · title 22 · 2xl 24 · 3xl 28 */
   --text-md: .9375rem;
   --text-title: 1.375rem;
   --text-2xl: 1.5rem;
@@ -161,17 +201,17 @@
   --control-field: var(--control-height);
   --control-lg: 52px;
   --select-menu-max-height: 288px;
-  /* Raios: xs 8 · sm 12 · control 16 · group 20 · card 28 · large 36 · pill */
-  --r-xs: 8px;
-  --r-sm: 12px;
+  /* Raios: 12 · 20 · 28 · pill */
   /* Elevação e canvas */
-  --canvas-glow: color-mix(in srgb, var(--p) 16%, transparent);
-  --public-glow: color-mix(in srgb, var(--p) 14%, transparent);
+  --canvas-glow: color-mix(in srgb, var(--p) 12%, transparent);
+  --public-glow: transparent;
   --canvas-grid: color-mix(in srgb, var(--ink) 2.2%, transparent);
   --nav-h: 72px;
   --gut-l: max(16px, env(safe-area-inset-left, 0px));
   --gut-r: max(16px, env(safe-area-inset-right, 0px));
 }
+
+:root[data-scrolled="true"] { --topbar-height: 60px; }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -197,51 +237,32 @@
   --warn-soft: #392b19;
   --bad: #f2959e;
   --bad-soft: #3a2227;
+  --area-plan: color-mix(in srgb, var(--pd) 35%, white);
+  --area-habits: #b6baff;
   --area-water: #72c7d8;
   --area-finances: #8fcea0;
   --area-cycle: #d997bd;
   --priority-low: #8ccddd;
-  --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
-  --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
-  --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
-  --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
-  --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
+  --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
+  --hero-home: color-mix(in srgb, var(--p) 6%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 9%, var(--surface));
+  --elev-1: 0 14px 28px -22px rgb(0 0 0 / 80%);
+  --elev-2: 0 28px 64px -34px rgb(0 0 0 / 78%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
     --bg: #1c1b19;
-    --bg-strong: #242320;
+    --canvas-initial: var(--bg);
     --surface: #272522;
     --surface-strong: #272522;
-    --surface-raised: #302c28;
-    --surface-soft: #302c28;
     --ink: #f2efeb;
     --muted: #c8c2bb;
     --line: rgba(205, 196, 186, 0.17);
-    --line-strong: #938b82;
     --accent: color-mix(in srgb, var(--p) 72%, #fff);
-    --soft: color-mix(in srgb, var(--p) 12%, var(--surface));
-    --soft2: color-mix(in srgb, var(--p) 20%, var(--surface));
-    --ring: color-mix(in srgb, var(--p) 72%, #fff);
-    --focus-soft: color-mix(in srgb, var(--p) 24%, transparent);
-    --focus: #edc6bc;
-    --ok: #8bd0a6;
-    --ok-soft: #203329;
-    --warn: #f0bf76;
-    --warn-soft: #392b19;
-    --bad: #f2959e;
-    --bad-soft: #3a2227;
-    --area-water: #72c7d8;
-    --area-finances: #8fcea0;
-    --area-cycle: #d997bd;
-    --priority-low: #8ccddd;
-    --hero: color-mix(in srgb, var(--p) 12%, var(--surface-strong));
-    --hero-home: linear-gradient(128deg, color-mix(in srgb, var(--btn) 62%, #5b3b50), color-mix(in srgb, var(--btn) 54%, #292633));
-    --shadow: 0 28px 64px -34px rgb(0 0 0 / 78%);
-    --shadow-sm: 0 8px 18px -14px rgb(0 0 0 / 68%);
-    --card-shadow: 0 16px 38px -28px rgb(0 0 0 / 54%);
+    --elev-1: 0 14px 28px -22px rgb(0 0 0 / 80%);
+    --elev-2: 0 28px 64px -34px rgb(0 0 0 / 78%);
   }
 }
 
@@ -253,6 +274,7 @@
   --btn: #6f2845;
   --focus: #542135;
   --ring: #6f2845;
+  --area-habits: #5e63aa;
   --priority-low: #17596b;
 }
 
@@ -264,5 +286,12 @@
   --btn: #a94f71;
   --focus: #fff;
   --ring: #f5c0d2;
+  --area-habits: #c5c8ff;
   --priority-low: #a6e7f5;
 }
+
+:is(.main, .nav-item, .dlg-back)[data-route="planejar"] { --area: var(--area-plan); }
+:is(.main, .nav-item, .dlg-back)[data-route="habitos"] { --area: var(--area-habits); }
+:is(.main, .nav-item, .dlg-back)[data-route="agua"] { --area: var(--area-water); }
+:is(.main, .nav-item, .dlg-back)[data-route="financas"] { --area: var(--area-finances); }
+:is(.main, .nav-item, .dlg-back)[data-route="ciclo"] { --area: var(--area-cycle); }
