@@ -20,6 +20,23 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('.preview-shell .main').waitFor();
   check(await page.locator('.global-quick-actions, .global-quick-fab').count() === 0, 'não há botão flutuante de criação duplicado');
+  const mobileNavBackgrounds = await page.locator('.topbar .nav').evaluate((nav) => {
+    const root = document.documentElement;
+    const previousTheme = root.dataset.theme;
+    const backgrounds = ['light', 'dark'].map((theme) => {
+      root.dataset.theme = theme;
+      const color = getComputedStyle(nav).backgroundColor;
+      const alpha = color.startsWith('rgba(')
+        ? Number(color.slice(color.lastIndexOf(',') + 1).replace(')', '').trim())
+        : 1;
+      return { theme, alpha };
+    });
+    if (previousTheme) root.dataset.theme = previousTheme;
+    else delete root.dataset.theme;
+    return backgrounds;
+  });
+  check(mobileNavBackgrounds.every(({ alpha }) => alpha === 1),
+    'menu móvel tem fundo opaco nos temas claro e escuro', JSON.stringify(mobileNavBackgrounds));
   const quickTrigger = () => page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first();
   const quickMenu = page.locator('#quick-actions-menu');
   const openQuickActions = async () => {
@@ -182,11 +199,13 @@ const check = (passed, name, detail = '') => {
         const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
         const items = [...nav.children].filter((child) => getComputedStyle(child).display !== 'none');
         const create = nav.querySelector('.mobile-nav-create-trigger');
+        const profile = nav.querySelector('.profile-menu-control');
         const navBounds = nav.getBoundingClientRect();
         const createBounds = create.getBoundingClientRect();
         return !nav.querySelector('.nav-more-trigger')
-          && links.length === 5 && items.length === 6 && items[2] === create
-          && Math.abs((createBounds.left + createBounds.right) / 2 - (navBounds.left + navBounds.right) / 2) <= navBounds.width / 6 + 1
+          && links.length === 5 && items.length === 7 && items[3] === create
+          && profile && profile.parentElement === nav
+          && Math.abs((createBounds.left + createBounds.right) / 2 - (navBounds.left + navBounds.right) / 2) <= 2
           && links.every((link) => getComputedStyle(link).display !== 'none');
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
@@ -437,11 +456,24 @@ const check = (passed, name, detail = '') => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a.nav-item')];
         const active = nav.querySelector('[aria-current="page"]');
+        const areaBounds = {
+          left: links[0].getBoundingClientRect().left,
+          right: links[links.length - 1].getBoundingClientRect().right,
+        };
+        const headerBounds = nav.closest('.topbar').getBoundingClientRect();
+        const navBackground = getComputedStyle(nav).backgroundColor;
+        const navAlpha = navBackground.startsWith('rgba(')
+          ? Number(navBackground.slice(navBackground.lastIndexOf(',') + 1).replace(')', '').trim())
+          : 1;
         return {
           width: innerWidth,
           theme: document.documentElement.dataset.theme,
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
           position: getComputedStyle(nav).position,
+          navOpaque: navAlpha === 1,
+          areaCenterDelta: Math.abs(
+            (areaBounds.left + areaBounds.right) / 2 - (headerBounds.left + headerBounds.right) / 2,
+          ),
           labelsVisible: links.length === 5 && links.every((link) => {
             const label = link.querySelector('.tab-label-group');
             const rect = label.getBoundingClientRect();
@@ -460,8 +492,12 @@ const check = (passed, name, detail = '') => {
   check(breakpoints.every(({ overflow }) => !overflow), 'sem overflow nos tamanhos e temas solicitados', JSON.stringify(breakpoints));
   check(breakpoints.every(({ labelsVisible, activeCircle, noMore, headerCreate }) => labelsVisible && activeCircle && noMore && headerCreate),
     'áreas, estado ativo e criação permanecem visíveis nos dois temas', JSON.stringify(breakpoints));
-  check(breakpoints.every(({ width, position }) => width < 900 ? position === 'fixed' : position === 'static'),
+  check(breakpoints.every(({ width, position }) => width < 900 ? position === 'fixed' : position === 'relative'),
     'dock e barra superior usam os breakpoints previstos', JSON.stringify(breakpoints));
+  check(breakpoints.filter(({ width }) => width >= 900).every(({ areaCenterDelta }) => areaCenterDelta <= 40),
+    'áreas ficam centralizadas no header web', JSON.stringify(breakpoints));
+  check(breakpoints.filter(({ width }) => width < 900).every(({ navOpaque }) => navOpaque),
+    'menu móvel tem fundo opaco nos temas claro e escuro', JSON.stringify(breakpoints));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${BASE}/?preview#config?section=areas-navigation`);
   const cycleAreaToggle = page.locator('[data-change="area"][data-area="cycle"]');
@@ -503,18 +539,20 @@ const check = (passed, name, detail = '') => {
   check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas,/ciclo',
     'dock móvel mostra todas as áreas na ordem escolhida');
   check(await page.locator('.nav-more-trigger').count() === 0, 'dock móvel não mostra Mais');
-  check(await page.locator('.profile-menu-trigger').isVisible(),
-    'menu da conta permanece acessível pelo atalho de perfil no cabeçalho móvel');
+  check(await page.locator('.topbar .nav .profile-menu-trigger').isVisible(),
+    'menu da conta fica acessível no dock móvel');
   await page.locator('.profile-menu-trigger').click();
   const profileMenu = page.locator('#profile-menu');
   check(await profileMenu.locator('a[href="/config"]').isVisible(),
     'menu de perfil oferece acesso a Perfil e ajustes');
   const profileMenuBounds = await profileMenu.evaluate((menu) => {
-    const { left, right } = menu.getBoundingClientRect();
-    return { left, right, viewport: innerWidth };
+    const { left, right, bottom } = menu.getBoundingClientRect();
+    return { left, right, bottom, viewport: innerWidth, navTop: document.querySelector('.topbar .nav').getBoundingClientRect().top };
   });
   check(profileMenuBounds.left >= 0 && profileMenuBounds.right <= profileMenuBounds.viewport,
     'menu da conta cabe na largura do celular');
+  check(profileMenuBounds.bottom <= profileMenuBounds.navTop,
+    'menu da conta abre acima do dock móvel');
   await page.keyboard.press('Escape');
   check(await page.locator('.profile-menu-control').getAttribute('open') === null,
     'Escape fecha o menu da conta');

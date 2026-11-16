@@ -16,6 +16,9 @@ function transaction() {
   const originalDate = S.finance.tx.find((item) => item.id === d.id)?.date;
   const canAnticipate = !!d.groupId && anticipationCandidates(d.groupId, originalDate).length > 0;
   const hasInstallmentInterest = d.kind === 'out' && (edit ? !!d.groupId : d.repeat === 'parcel');
+  const amountLabel = d.repeat === 'parcel'
+    ? d.installmentAmountMode === 'installment' ? 'Valor de cada parcela' : 'Valor total da compra'
+    : 'Valor';
   const kinds = [['out', 'Despesa'], ['in', 'Receita'], ['tr', 'Transferência']];
   const formSection = (label) => h`<h3 class="finance-form-section full">${label}</h3>`;
   const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
@@ -24,7 +27,7 @@ function transaction() {
     <div class="seg finance-transaction-type" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
     <form id="dlgform" class="form" data-form="dlg-tx">
       ${formSection('Detalhes do lançamento')}
-      ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
+      ${dlgField(h`${amountLabel} (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required autocomplete="off">`, 'full')}
       ${hasInstallmentInterest ? dlgField(h`Juros desta parcela (<span class="money">R$</span>)`, h`<input class="money-input" type="text" inputmode="decimal" data-dlg="interest" value="${formatMoneyInput(d.interest || '')}" placeholder="00,00" autocomplete="off">`, 'full') : ''}
       ${!edit && hasInstallmentInterest ? h`<p class="fine full">Informe zero se não houver juros. O valor é informativo e já está incluído na parcela; as demais podem ser editadas individualmente.</p>` : ''}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
@@ -36,7 +39,16 @@ function transaction() {
       ${!tr && !isCredit(acc) ? h`${formSection('Situação do pagamento')}<label class="row full tx-settlement-toggle"><input type="checkbox" data-dlg="paid" ${d.paid ? raw('checked') : ''}><span class="small tx-settlement-toggle-copy"><b>${d.kind === 'in' ? 'Já recebi' : 'Já paguei'}</b><span class="muted">${d.kind === 'in' ? 'Desmarque para deixar como "a receber".' : 'Desmarque para deixar como "a pagar".'} Outra data desmarca esta opção automaticamente.</span></span></label>` : ''}
       ${!tr && !isCredit(acc) && d.paid ? h`${dlgField(d.kind === 'in' ? 'Data do recebimento' : 'Data do pagamento', h`<input type="date" data-dlg="settledDate" value="${d.settledDate || d.date}" max="${today()}" required>`, 'full')}<p class="fine full">Quando o valor entrou ou saiu da conta. Os relatórios por caixa usam esta data.</p>` : ''}
       ${canAnticipate ? h`<div class="notice full"><span class="small grow">Você pode marcar as parcelas futuras desta série como antecipadas.</span><button type="button" class="btn sm" data-action="tx-anticipate-open">Antecipar parcelas</button></div>` : ''}
-      ${!edit && !tr ? h`${formSection('Repetição')}${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`)}${d.repeat === 'parcel' ? h`${dlgField('Parcela atual', h`<input type="number" data-dlg="currentInstallment" min="1" max="60" value="${d.currentInstallment || '1'}" inputmode="numeric">`)}${dlgField('Total de parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`)}${dlgField('Valor informado', h`<select data-dlg="installmentAmountMode"><option value="total" ${d.installmentAmountMode !== 'installment' ? raw('selected') : ''}>Total da compra</option><option value="installment" ${d.installmentAmountMode === 'installment' ? raw('selected') : ''}>Valor de cada parcela</option></select>`)}` : ''}${d.repeat !== 'none' ? h`<p class="fine full">${d.repeat === 'parcel' ? d.installmentAmountMode === 'installment' ? 'O valor informado será usado em cada parcela. A data é da parcela atual; serão criadas somente esta e as seguintes. Parcelas anteriores não serão lançadas.' : 'O valor informado é o total da compra e será dividido igualmente. A data é da parcela atual; serão criadas somente esta e as seguintes. Parcelas anteriores não serão lançadas.' : 'Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.'}</p>` : ''}` : ''}
+      ${!edit && !tr ? h`${formSection('Repetição')}${dlgField('Repetir', h`<select data-dlg="repeat"><option value="none" ${d.repeat === 'none' ? raw('selected') : ''}>Não repetir</option><option value="parcel" ${d.repeat === 'parcel' ? raw('selected') : ''}>Parcelado</option><option value="fixed" ${d.repeat === 'fixed' ? raw('selected') : ''}>Fixa mensal</option></select>`, 'full')}${d.repeat === 'parcel' ? h`<fieldset class="finance-installment-fields full">
+        <legend>Configuração das parcelas</legend>
+        <p class="fine full finance-installment-help">A data do lançamento acima corresponde à parcela atual. Parcelas anteriores não serão criadas.</p>
+        ${dlgField('Número desta parcela', h`<input type="number" data-dlg="currentInstallment" min="1" max="60" value="${d.currentInstallment || '1'}" inputmode="numeric">`)}
+        ${dlgField('Total de parcelas', h`<input type="number" data-dlg="times" min="2" max="60" value="${d.times}" inputmode="numeric">`)}
+        ${dlgField('O valor acima representa', h`<select data-dlg="installmentAmountMode"><option value="total" ${d.installmentAmountMode !== 'installment' ? raw('selected') : ''}>Valor total da compra</option><option value="installment" ${d.installmentAmountMode === 'installment' ? raw('selected') : ''}>Valor de cada parcela</option></select>`, 'full')}
+        <p class="fine full finance-installment-help">${d.installmentAmountMode === 'installment'
+          ? 'Esse valor será usado em cada parcela.'
+          : 'O total será dividido igualmente; eventuais centavos restantes ficam na primeira parcela da série.'}</p>
+      </fieldset>` : ''}${d.repeat === 'fixed' ? h`<p class="fine full">Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.</p>` : ''}` : ''}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
 }

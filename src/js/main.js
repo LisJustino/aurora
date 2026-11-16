@@ -467,7 +467,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -476,13 +476,15 @@ let accountSession = null;
 let releaseNoticePending = false;
 let pwaRegistration = null;
 let pwaReloading = false;
+let pwaApplying = false;
+let pwaUpdateAutoBlocked = false;
 let pwaSupportPromise = null;
 const syncState = {
   pending: new Set(),
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -770,6 +772,7 @@ function normalizeSettings(s) {
   );
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
+  o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
@@ -962,6 +965,7 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(prefs, 'birthday') && prefs.birthday !== null
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'weeklyReviewReminder') && typeof prefs.weeklyReviewReminder !== 'boolean') issues++;
@@ -1334,6 +1338,7 @@ async function loadAccountData() {
     }
   }
   Object.assign(S, next);
+  ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
   Persist.rawTables = Persist.store.rawTables;
   for (const slice of SLICES) stamps[slice] = Date.now();
   ui.integrityIssues = integrityIssues;
@@ -1549,7 +1554,7 @@ function updateDocumentTitle() {
 }
 function notificationButton(cls, id) {
   const count = notificationCount();
-  return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
+  return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Lembretes e notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Lembretes e notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Lembretes e notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
 }
 const agoLabel = (at) => {
   if (!at) return '';
@@ -1592,7 +1597,7 @@ function notificationsHtml() {
   const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
-    <p class="small muted">Os lembretes de tarefas e hábitos aparecem aqui enquanto o Aurora está aberto. Avisos do sistema são opcionais, somente para hábitos, e dependem da permissão do navegador e da configuração do serviço.</p>
+    <p class="small muted">Este painel reúne lembretes de tarefas e hábitos enquanto o Aurora está aberto. Configure horários em Planejar ou Hábitos. Para receber avisos com o app fechado — de hábitos, tarefas ou da revisão semanal — ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo.</p>
     ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
@@ -1697,19 +1702,19 @@ function shell(body) {
     <button type="button" class="nav-quick-trigger iconbtn" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>`;
+  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">Criar</span></button>`;
   const profileMenu = h`<details class="profile-menu-control">
-    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu">${icon('user', 20)}</summary>
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu"><span class="ni">${icon('user', 20)}</span><span class="mobile-nav-label">Conta</span></summary>
     <div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Menu da conta">
       <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
     </div>
   </details>`;
-  const navLinks = menuItems.map(navLink);
-  const navMiddle = Math.floor(navLinks.length / 2);
-  const navItems = h`${navLinks.slice(0, navMiddle)}${mobileQuickActionsTrigger}${navLinks.slice(navMiddle)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navMenuItems = [...menuItems.map(navLink), profileMenu];
+  const navMiddle = Math.floor(navMenuItems.length / 2);
+  const navItems = h`${navMenuItems.slice(0, navMiddle)}${mobileQuickActionsTrigger}${navMenuItems.slice(navMiddle)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
-    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn mobile-refresh-trigger" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button>${profileMenu}</div></header>
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn mobile-refresh-trigger" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button></div></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
       ${notificationsHtml()}
@@ -2009,7 +2014,16 @@ function renderApp(routeChanged, viewTransition) {
   $('#app').inert = Boolean(ui.dlg);
   renderToast();
   renderPwaUpdateNotice();
+  if (ui.pwaUpdateAvailable && !pwaUpdateAutoBlocked && !hasUnsavedPwaChanges()) {
+    void applyPwaUpdate({ automatic: true });
+  }
   tick();
+}
+function hasUnsavedPwaChanges() {
+  return settingsDraftDirty()
+    || Boolean(ui.profileDraft)
+    || Boolean(ui.dlg)
+    || ui.persistFailed.size > 0;
 }
 function renderPwaUpdateNotice() {
   let notice = $('#pwa-update-notice');
@@ -2050,7 +2064,9 @@ function watchPwaRegistration(registration) {
     announcedWorker = waiting;
     ui.pwaUpdateAvailable = true;
     ui.pwaUpdateDismissed = false;
+    pwaUpdateAutoBlocked = false;
     renderPwaUpdateNotice();
+    void applyPwaUpdate({ automatic: true });
   };
   registration.addEventListener('updatefound', () => {
     const installing = registration.installing;
@@ -2092,32 +2108,37 @@ function registerPwaSupport() {
   }
   return pwaSupportPromise;
 }
-async function applyPwaUpdate() {
+async function applyPwaUpdate({ automatic = false } = {}) {
+  if (pwaReloading || pwaApplying) return;
+  if (!automatic) pwaUpdateAutoBlocked = false;
   const waiting = pwaRegistration?.waiting;
   if (!waiting) {
     ui.pwaUpdateAvailable = false;
     renderPwaUpdateNotice();
-    toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.', 'info');
+    if (!automatic) toast('Não há uma atualização aguardando. Tente recarregar o app mais tarde.', 'info');
     return;
   }
-  const hasUnsavedChanges = settingsDraftDirty()
-    || Boolean(ui.profileDraft)
-    || Boolean(ui.dlg)
-    || ui.persistFailed.size > 0;
-  if (hasUnsavedChanges
-    && !await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
-  if (Persist.store && !await Persist.flush()) {
-    toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.', 'error');
-    return;
+  if (hasUnsavedPwaChanges()) {
+    if (automatic) return;
+    if (!await confirmInDialog('Há alterações que ainda não foram salvas. Aplicar a atualização pode descartá-las. Deseja continuar?')) return;
   }
-  if (pwaReloading) return;
-  pwaReloading = true;
-  const button = $('[data-action="pwa-update-apply"]');
-  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  }, { once: true });
-  waiting.postMessage({ type: 'SKIP_WAITING' });
+  pwaApplying = true;
+  try {
+    if (Persist.store && !await Persist.flush()) {
+      pwaUpdateAutoBlocked = true;
+      toast('A atualização foi adiada porque não foi possível confirmar os dados salvos. Tente novamente.', 'error');
+      return;
+    }
+    pwaReloading = true;
+    const button = $('[data-action="pwa-update-apply"]');
+    if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    }, { once: true });
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+  } finally {
+    pwaApplying = false;
+  }
 }
 function setToast(msg, tone, undo) {
   toastController.show(msg, tone, undo);
@@ -2721,7 +2742,6 @@ function viewInicio() {
     homeShortcuts,
     emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
-    openExtras: ui.openDetails['home-extras'],
     financeAccountsCount: S.finance.accounts.length,
     showHomeBlock,
     homeBlockStyle,
@@ -3459,7 +3479,7 @@ function profileSettings(s) {
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div><button type="button" class="btn sm back" data-account-signout>Sair da conta</button></div>
+      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div></div>
     </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
@@ -3488,7 +3508,7 @@ const SETTINGS_SECTIONS = [
   ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
-  ['account', 'Conta e ajuda', 'info', 'Sair, excluir e documentos'],
+  ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
   { label: 'Perfil', items: ['profile'] },
@@ -3505,7 +3525,7 @@ function homeLayoutSettings(s) {
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações. O plano de hoje fica no topo; os demais ficam em Mais do Início.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
     <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
@@ -3561,7 +3581,7 @@ function homeSettings(s) {
     <fieldset class="home-shortcut-settings weekly-review-reminder-settings" aria-describedby="weekly-review-reminder-help">
       <legend>Lembrete da revisão da semana</legend>
       <label class="home-layout-toggle"><input type="checkbox" role="switch" data-change="weekly-review-reminder" aria-label="Receber um lembrete da revisão da semana aos domingos" aria-describedby="weekly-review-reminder-help" ${s.prefs.weeklyReviewReminder ? raw('checked') : ''}><span><b>Receber um lembrete aos domingos</b><small>Às 18h, no horário deste dispositivo.</small></span></label>
-      <p id="weekly-review-reminder-help" class="small muted">Desligado por padrão. O aviso só será agendado se você também ativar Avisos fora do app e autorizar as notificações.</p>
+      <p id="weekly-review-reminder-help" class="small muted">Desligado por padrão. Para receber o aviso com o app fechado, ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo. Esse mesmo ajuste pode avisar sobre tarefas e hábitos.</p>
       ${pushStatus.enabled ? '' : h`<p class="small muted"><a class="inline-link" href="/habitos">Gerencie o consentimento para avisos em Hábitos.</a></p>`}
     </fieldset>
   </form>`;
@@ -5144,7 +5164,18 @@ const ACTIONS = {
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
-  'finance-values-toggle': () => { ui.financeValuesHidden = !ui.financeValuesHidden; render(); },
+  'finance-values-toggle': () => {
+    S.settings.prefs.financeValuesHidden = !S.settings.prefs.financeValuesHidden;
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
+    commit('settings');
+  },
+  'finance-week-day': (el) => {
+    const day = el.dataset.day;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) return;
+    ui.financeWeekDay = day;
+    render();
+    document.getElementById(`finance-week-day-${day}`)?.focus({ preventScroll: true });
+  },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-clear': () => {
     if (ui.dlg?.type !== 'search') return;
@@ -6075,6 +6106,7 @@ const ACTIONS = {
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     ui.dlg = null;
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
     render();
     toast('Backup restaurado na sua conta.', 'success');
   },
@@ -6107,6 +6139,7 @@ const ACTIONS = {
     }
 
     S = defaults();
+    ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
     ui.settingsDraft = null;
     ui.settingsDraftBase = null;
     ui.persistBlocked.clear();
@@ -7135,24 +7168,29 @@ function finInstallments() {
   return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
     <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento<i>.</i></h2>
       <p class="small muted">${plans.length
-        ? 'Veja quanto falta e quando termina cada série.'
-        : 'Quando você registrar um lançamento parcelado, o resumo da série aparecerá aqui.'}</p></div></div>
+        ? 'Veja quantas parcelas faltam, o valor restante e quando cada série termina.'
+        : 'Registre uma despesa parcelada para acompanhar aqui o que falta e quando termina.'}</p></div></div>
     ${plans.length ? h`<ul class="list">${plans.map(({ transaction, summary }) => {
       const title = (transaction.desc || transaction.category || 'Série parcelada')
         .replace(/\s+\(\d+\/\d+\)$/, '');
       return h`<li><button type="button" class="finance-installment-plan" data-action="installment-open" data-id="${transaction.id}" aria-label="Ver parcelas de ${title}">
         <span class="finance-installment-mark" aria-hidden="true">${icon('repeat', 18)}</span>
         <span class="grow"><b>${title}</b><small>${summary.remainingCount} ${plural(summary.remainingCount, 'parcela restante', 'parcelas restantes')} · termina ${shortDate(summary.endDate)}</small></span>
-        <span class="finance-installment-value">${money(summary.remainingCents)}</span>${icon('chevRight', 16)}
+        <span class="finance-installment-value"><small>Valor restante</small><b>${money(summary.remainingCents)}</b></span>${icon('chevRight', 16)}
       </button></li>`;
-    })}</ul>` : areaEmpty('Nenhuma série parcelada em andamento.', 'Ao registrar uma compra ou conta parcelada, você acompanha as próximas etapas aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar lançamento parcelado</button>`, 'repeat', 'h3', 'finance-installments-empty-state')}
+    })}</ul>` : areaEmpty('Nenhuma série parcelada em andamento.', 'Acompanhe aqui o valor restante e as próximas datas de uma despesa parcelada.', h`<button type="button" class="btn primary" data-action="tx-new-installment">${icon('plus', 16)}Registrar compra parcelada</button>`, 'repeat', 'h3', 'finance-installments-empty-state')}
   </section>`;
 }
 const monthNav = () => h`<div class="mnav"><button class="ibtn" data-action="fin-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><span class="mlabel" aria-live="polite">${cap(ymLabel(ui.finMonth))}</span>${ui.finMonth !== today().slice(0, 7) ? h`<button class="btn sm" type="button" data-action="fin-month" data-n="0" aria-label="Voltar para o mês atual" title="Voltar para o mês atual">Hoje</button>` : ''}<button class="ibtn" data-action="fin-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>`;
-const FIN_TABS = [['resumo', 'Resumo', 'home'], ['lancamentos', 'Lançamentos', 'list'], ['contas', 'Contas', 'bank'], ['cartoes', 'Cartões', 'card'], ['orcamento', 'Orçamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
+const FIN_TABS = [['resumo', 'Visão geral', 'home'], ['lancamentos', 'Movimentações', 'list'], ['contas', 'Contas e cartões', 'bank'], ['planejamento', 'Planejamento', 'target'], ['relatorios', 'Relatórios', 'pie']];
 const finSectionPicker = () => {
   const [key] = FIN_TABS.find(([id]) => id === ui.finTab) || FIN_TABS[0];
   return h`<div class="tabs fin-section-menu" role="tablist" aria-label="Seções de Finanças">${FIN_TABS.map(([id, name, sectionIcon]) => h`<button type="button" class="tab fin-section-option" role="tab" id="fin-tab-${id}" aria-controls="fin-panel" tabindex="${id === key ? '0' : '-1'}" data-action="fin-tab" data-t="${id}" aria-selected="${id === key}">${icon(sectionIcon, 18)}${tabLabel(name)}</button>`)}</div>`;
+};
+const FIN_ACCOUNT_TABS = [['contas', 'Contas'], ['cartoes', 'Cartões']];
+const finAccountPicker = () => {
+  const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
+  return h`<div class="tabs finance-account-tabs" role="tablist" aria-label="Contas e cartões">${FIN_ACCOUNT_TABS.map(([id, label]) => h`<button type="button" class="tab finance-account-option" role="tab" id="fin-account-tab-${id}" aria-controls="fin-account-panel" tabindex="${active === id ? '0' : '-1'}" data-action="fin-account-tab" data-t="${id}" aria-selected="${active === id}">${label}</button>`)}</div>`;
 };
 /* ---- Resumo ---- */
 function expenseTrendChart(ym, cur) {
@@ -7166,14 +7204,32 @@ function expenseTrendChart(ym, cur) {
     .filter((transaction) => transaction.type === 'out' && transaction.date === day)
     .reduce((sum, transaction) => sum + transaction.cents, 0));
   const max = Math.max(1, ...totals);
-  const x = (index) => 16 + index * 48;
-  const y = (value) => 88 - value / max * 64;
-  const points = totals.map((value, index) => `${x(index)},${y(value)}`).join(' ');
-  const area = `M${x(0)},88 ${totals.map((value, index) => `L${x(index)},${y(value)}`).join(' ')} L${x(6)},88 Z`;
-  const labels = days.map((day, index) => `<text x="${x(index)}" y="116" text-anchor="middle">${esc(shortDate(day))}</text>`).join('');
-  const markers = totals.map((value, index) => `<circle class="finance-trend-point" cx="${x(index)}" cy="${y(value)}" r="4"><title>${esc(shortDate(days[index]))}: ${esc(money(value))}</title></circle>`).join('');
-  const summary = days.map((day, index) => `${shortDate(day)}: ${money(totals[index])}`).join('; ');
-  return raw(`<svg class="finance-trend-chart" viewBox="0 0 320 128" role="img" aria-label="Despesas nos últimos 7 dias: ${esc(summary)}"><line class="finance-trend-grid" x1="8" y1="24" x2="312" y2="24"/><line class="finance-trend-grid" x1="8" y1="56" x2="312" y2="56"/><line class="finance-trend-grid" x1="8" y1="88" x2="312" y2="88"/><path class="finance-trend-area" d="${area}"/><polyline class="finance-trend-line" points="${points}"/>${markers}${labels}</svg>`);
+  const selectedDay = days.includes(ui.financeWeekDay) ? ui.financeWeekDay : '';
+  const compactAmount = (cents) => {
+    if (ui.financeValuesHidden) return '••••';
+    const value = cents / 100;
+    if (value >= 1_000_000_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000_000_000)} bi`;
+    if (value >= 1_000_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000_000)} mi`;
+    if (value >= 1_000) return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value / 1_000)} mil`;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+  };
+  const summary = days.map((day, index) => `${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}`).join('; ');
+  const selectedIndex = days.indexOf(selectedDay);
+  return h`<div class="finance-week-chart" role="group" aria-label="Despesas nos últimos 7 dias">
+    <div class="finance-week-chart-grid">${days.map((day, index) => {
+      const selected = day === selectedDay;
+      const percentage = totals[index] ? Math.max(4, Math.round(totals[index] / max * 100)) : 0;
+      return h`<div class="finance-week-chart-column">
+        <span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>
+        <button type="button" class="finance-week-chart-bar${day === today() ? ' is-today' : ''}${selected ? ' is-selected' : ''}${totals[index] ? ' has-value' : ''}" id="finance-week-day-${day}" data-action="finance-week-day" data-day="${day}" aria-pressed="${String(selected)}" aria-label="${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}">
+          <span class="finance-week-chart-track" aria-hidden="true"><span style="--week-fill:${percentage}%"></span></span>
+        </button>
+        <span class="finance-week-chart-day" aria-hidden="true">${shortDate(day)}</span>
+      </div>`;
+    })}</div>
+    ${selectedDay ? h`<p class="finance-week-chart-selected" aria-live="polite"><b>${longDate(selectedDay)}:</b> ${money(totals[selectedIndex])}</p>` : ''}
+    <span class="sr">Despesas nos últimos 7 dias: ${summary}</span>
+  </div>`;
 }
 
 function finRitmo(ym, st, cur) {
@@ -7197,7 +7253,7 @@ function balanceSparkline() {
   const values = days.map((day) => netAccountBalanceOn(S.finance.accounts, S.finance.tx, day));
   const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
   const points = values.map((value, index) => `${index * (100 / (values.length - 1))},${42 - ((value - min) / range * 34)}`).join(' ');
-  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${esc(brl(value))}</title></circle>`).join('');
+  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${ui.financeValuesHidden ? 'valor oculto' : esc(brl(value))}</title></circle>`).join('');
   return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
 }
 function categoryBars(items, total) {
@@ -7209,7 +7265,6 @@ function categoryBars(items, total) {
 }
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
-  const close = summarizeMonthlyClose(F.tx, ym, accById);
   const [forecastYear, forecastMonth] = today().slice(0, 7).split('-').map(Number);
   const forecastThrough = `${today().slice(0, 7)}-${pad(new Date(forecastYear, forecastMonth, 0).getDate())}`;
   const forecastInvoices = F.accounts.filter(isCredit).map((card) => ({
@@ -7224,63 +7279,39 @@ function finResumo() {
   const pendingOutCents = pendingOut.reduce((sum, transaction) => sum + transaction.cents, 0);
   const pendingInCents = pendingIn.reduce((sum, transaction) => sum + transaction.cents, 0);
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
-  const cards = F.accounts.filter(isCredit);
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
     .filter((transaction) => !cur || transaction.date <= today())
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, 5);
-  const bud = Object.entries(F.budgets).filter(([, b]) => b && b.cents > 0), budSpent = bud.reduce((s, [c]) => s + (cats.find(([n]) => n === c)?.[1] || 0), 0), budTot = bud.reduce((s, [, b]) => s + b.cents, 0);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual das contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real, sem incluir compras feitas no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
-      <div class="fin-hero-trend">${balanceSparkline()}<p class="fh-s">${cur ? h`Projeção até o fim do mês, se os compromissos forem pagos. Inclui pendências em contas, transferências e faturas com vencimento neste período; parcelas programadas são contadas uma vez. Compras futuras no cartão não entram na estimativa. <b>${money(forecast)}</b>` : h`Resumo de ${cap(ymLabel(ym))}`}</p></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Se os compromissos forem pagos. É uma estimativa, não o saldo atual; compras futuras no cartão não entram.</p>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês<i>.</i></h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
-        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas lançadas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
-        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas lançadas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes · ${money(st.cardOut)} no cartão</small></button>
-        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado</span><b>${money(result)}</b><small>no mês</small></button>
-        <button type="button" class="finance-summary-stat is-open" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters aria-label="Ver lançamentos pendentes do mês"><span class="finance-summary-icon" aria-hidden="true">${icon('repeat', 16)}</span><span>Em aberto</span><b>${money(st.inPending + st.outPending)}</b><small>${money(st.inPending)} a receber · ${money(st.outPending)} a pagar</small></button>
+        <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
+        <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
       </div>
     </section>
-    ${finInstallments()}
-    <section class="card finance-month-close" aria-labelledby="finance-month-close-title">
-      <div class="head"><div><p class="section-kicker">Revisão por competência</p><h2 id="finance-month-close-title">Fechamento do mês<i>.</i></h2><p class="small muted">${cap(ymLabel(ym))} · compras no cartão entram no mês da compra; pagamento da fatura é uma transferência.</p></div></div>
-      <dl class="finance-close-stats">
-        <div><dt>Resultado do mês</dt><dd class="${close.resultCents < 0 ? 'is-negative' : ''}">${money(close.resultCents)}</dd></div>
-        <div><dt>Já recebido</dt><dd>${money(close.inPaid)}</dd></div>
-        <div><dt>Já pago em contas</dt><dd>${money(close.outPaid)}</dd></div>
-        <div><dt>Pendente em contas</dt><dd>${money(close.pendingInCents + close.pendingOutCents)}</dd><small>${money(close.pendingInCents)} a receber · ${money(close.pendingOutCents)} a pagar</small></div>
-        <div><dt>Lançamentos fixos</dt><dd>${money(close.recurringCents)}</dd><small>${close.recurringCount} ${plural(close.recurringCount, 'lançamento', 'lançamentos')}</small></div>
-        <div><dt>Compras no cartão</dt><dd>${money(close.cardOut)}</dd><small>Não reduz o saldo das contas neste resumo.</small></div>
-      </dl>
-      <div class="finance-close-next">${close.topExpense
-        ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
-        : areaEmpty('Nenhuma despesa neste mês.', 'Ainda não há despesas para revisar neste fechamento.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3', 'finance-close-empty')}
-        <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
-      </div>
-    </section>
-    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Próximos compromissos</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver todos</button></div>
+    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
       <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
       <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
-    ${finRitmo(ym, st, cur)}
     <div class="fin-overview-grid">
       <section class="card finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
       <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
-      ${(bud.length || cards.length) ? h`<aside class="fin-overview-side">${bud.length ? h`<section class="card"><div class="head"><h2>Orçamento<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="orcamento">Detalhes</button></div>${budBar(budSpent, budTot)}<p class="small muted">${money(budSpent)} de ${money(budTot)} nas categorias com limite</p></section>` : ''}
-        ${cards.length ? h`<section class="card"><div class="head"><h2>Cartões<i>.</i></h2><button class="btn ghost sm" data-action="fin-go" data-t="cartoes">Ver cartões</button></div><ul class="list">${cards.map((c) => { const i = cardInfo(c); return h`<li>${catChip({ c: '#7c8fd4', i: 'card' })}<div class="grow"><div class="ttl">${accountDisplayName(c)}</div><span class="small muted">Compras no ciclo ${MESES_L[Number(i.ym.slice(5)) - 1]}${i.due ? ' · vence ' + shortDate(i.due) : ''}</span>${cardDueLabel(i.due)}</div><b>${money(i.total)}</b></li>`; })}</ul><p class="fine">Confira o valor e a data diretamente na fatura do banco.</p></section>` : ''}</aside>` : ''}
     </div>
-    ${finFixas()}`;
+    `;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
-  if (!rs.length) return '';
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Todo mês</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length} ${plural(rs.length, 'fixa ativa', 'fixas ativas')}: ${money(out)} em despesas${inc ? h` e ${money(inc)} em receitas` : ''} por mês.</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}Gerenciar</button></div></section>`;
+  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -7360,10 +7391,10 @@ function creditCardCard(card, paymentAccounts) {
 }
 function finContas() {
   const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
-  return h`<section class="card flat"><div><p class="small muted">Saldo das contas (sem cartões)</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p></div></section>
+  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div>${balanceSparkline()}</section>
     <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${areaEmpty('Nenhuma conta ainda.', 'Você pode cadastrar uma conta e acompanhar os movimentos por aqui.', h`<button type="button" class="btn primary" data-action="acct-new">Criar primeira conta</button>`, 'wallet', 'h3')}</div>`}
-    <p class="small muted">Cartões de crédito ficam na seção Cartões para separar faturas e limites do saldo das contas.</p>`;
+    <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
 }
 function finCartoes() {
   const cards = S.finance.accounts.filter(isCredit);
@@ -7373,9 +7404,13 @@ function finCartoes() {
     <div class="head"><div><h2>Cartões de crédito<i>.</i></h2><p class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${cards.length ? h`<button class="btn sm" data-action="acct-new-card">${icon('plus', 16)}Novo cartão</button>` : ''}</div>
     ${cards.length ? h`<ul class="cards">${cards.map((card) => creditCardCard(card, paymentAccounts))}</ul>` : h`<section class="card">${areaEmpty('Nenhum cartão cadastrado.', 'Se quiser, acompanhe faturas, limites e vencimentos de forma manual.', h`<button type="button" class="btn primary" data-action="acct-new-card">${icon('plus', 16)}Cadastrar primeiro cartão</button>`, 'card', 'h3')}</section>`}`;
 }
+function finContasCartoes() {
+  const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
+  return h`${finAccountPicker()}<div id="fin-account-panel" role="tabpanel" aria-labelledby="fin-account-tab-${active}">${active === 'cartoes' ? finCartoes() : finContas()}</div>`;
+}
 
 /* ---- Orçamento e objetivos ---- */
-function finOrc() {
+function finPlanejamento() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), spent = Object.fromEntries(byCategory(st.tx, 'out'));
   const names = [...new Set([...catNames('out'), ...Object.keys(spent), ...Object.keys(F.budgets)])].filter((n) => n !== 'Estudos' || spent[n] || F.budgets[n]);
   const rows = names.map((n) => ({ n, sp: spent[n] || 0, lim: (F.budgets[n] || {}).cents || 0 })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
@@ -7386,6 +7421,7 @@ function finOrc() {
   const daysLeft = currentMonth ? budgetDays - Number(today().slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
+    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
       ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => {
@@ -7401,10 +7437,31 @@ function finOrc() {
         const pc = g.targetCents ? Math.min(100, Math.round(savedCents / g.targetCents * 100)) : 0;
         const complete = savedCents >= g.targetCents;
         return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
-      })}</ul>` : areaEmpty('Nenhum objetivo ainda.', 'Escolha algo que gostaria de construir e acompanhe cada passo no seu ritmo.', h`<button type="button" class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target', 'h3')}</section>`;
+      })}</ul>` : areaEmpty('Nenhum objetivo ainda.', 'Escolha algo que gostaria de construir e acompanhe cada passo no seu ritmo.', h`<button type="button" class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target', 'h3')}</section>
+    ${finInstallments()}${finFixas()}`;
 }
 
 /* ---- Relatórios ---- */
+function finMonthClose(ym) {
+  const close = summarizeMonthlyClose(S.finance.tx, ym, accById);
+  return h`<details class="card finance-month-close">
+    <summary class="finance-month-close-summary"><span><b>Fechamento do mês</b><small>${cap(ymLabel(ym))} · revisão por competência</small></span><span class="finance-close-summary-hint">Ver detalhes</span></summary>
+    <p class="small muted">Compras no cartão entram no mês da compra; o pagamento da fatura é uma transferência.</p>
+    <dl class="finance-close-stats">
+      <div><dt>Resultado do mês</dt><dd class="${close.resultCents < 0 ? 'is-negative' : ''}">${money(close.resultCents)}</dd></div>
+      <div><dt>Já recebido</dt><dd>${money(close.inPaid)}</dd></div>
+      <div><dt>Já pago em contas</dt><dd>${money(close.outPaid)}</dd></div>
+      <div><dt>Pendente em contas</dt><dd>${money(close.pendingInCents + close.pendingOutCents)}</dd><small>${money(close.pendingInCents)} a receber · ${money(close.pendingOutCents)} a pagar</small></div>
+      <div><dt>Lançamentos fixos</dt><dd>${money(close.recurringCents)}</dd><small>${close.recurringCount} ${plural(close.recurringCount, 'lançamento', 'lançamentos')}</small></div>
+      <div><dt>Compras no cartão</dt><dd>${money(close.cardOut)}</dd><small>Não reduz o saldo das contas.</small></div>
+    </dl>
+    <div class="finance-close-next">${close.topExpense
+      ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
+      : h`<p class="small muted">Nenhuma despesa neste mês.</p>`}
+      <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
+    </div>
+  </details>`;
+}
 function finRel() {
   const ym = ui.finMonth, kind = ui.repKind;
   const st = reportMonthStats(S.finance.tx, ym, accById, ui.repBasis);
@@ -7412,7 +7469,10 @@ function finRel() {
   const col = (n) => kind === 'out' ? outMeta(n).c : catMeta({ type: 'in', category: n }).c;
   const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(S.finance.tx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
   const avgOut = Math.round(months.reduce((s, m) => s + m.o, 0) / 6);
+  const monthTransactions = monthStats(ym);
   return h`${monthNav()}
+    ${finRitmo(ym, monthTransactions, ym === today().slice(0, 7))}
+    ${finMonthClose(ym)}
     <section class="card"><div class="seg" role="group" aria-label="Período do relatório"><button type="button" aria-pressed="${ui.repBasis === 'competence'}" data-action="rep-basis" data-b="competence">Competência</button><button type="button" aria-pressed="${ui.repBasis === 'cash'}" data-action="rep-basis" data-b="cash">Caixa</button></div>
       <p class="fine">${ui.repBasis === 'cash'
         ? 'Por data de pagamento ou recebimento. Pagamentos de fatura entram como saída no dia em que foram registrados; lançamentos antigos sem data de liquidação usam a data do lançamento.'
@@ -7432,15 +7492,11 @@ function viewFinancas() {
     areaPageTitle,
     financePrivacyNotice,
     finSectionPicker,
-    weekStartDay,
-    formatMoney: brl,
-    today,
     panels: {
       resumo: finResumo,
       lancamentos: finLanc,
-      contas: finContas,
-      cartoes: finCartoes,
-      orcamento: finOrc,
+      contas: finContasCartoes,
+      planejamento: finPlanejamento,
       relatorios: finRel,
     },
   });
@@ -7462,7 +7518,7 @@ function anticipationCandidates(groupId, fromDate = today()) {
       && (credit || !isPaid(transaction)))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
-function newTxDlg(kind = 'out', preferCredit = false) {
+function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
   const accs = S.finance.accounts;
   const defaults = recentTransactionDefaults(kind, preferCredit);
   const first = accs.find((account) => account.id === defaults.accountId)
@@ -7483,7 +7539,7 @@ function newTxDlg(kind = 'out', preferCredit = false) {
     settledDate: today(),
     paid: true,
     interest: '0,00',
-    repeat: 'none',
+    repeat,
     currentInstallment: '1',
     installmentAmountMode: 'total',
     times: '2',
@@ -7686,9 +7742,17 @@ function dlgTxDel() {
     <p class="small"><span class="${t.type === 'out' ? 'expense-name' : 'user-value'}">${t.type === 'out' ? expenseTitle(t.desc || t.category || 'Este lançamento') : t.desc || t.category || 'Este lançamento'}</span> · ${t.date || ''} · ${t.cents ? money(t.cents) : ''}</p>
     <p class="small muted">O lançamento poderá ser restaurado pela lixeira por 30 dias.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="txdel-do" data-k="one">Excluir</button>`);
-  const opt = (k, title, sub) => h`<button type="button" class="mrow" data-action="txdel-do" data-k="${k}"><span class="mk">${icon('trash', 18)}</span><span class="grow"><b>${title}</b><small>${sub} · restaurável por 30 dias</small></span></button>`;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir qual parte?<i>.</i></h2>${closeBtn}</div><p class="small muted">Este lançamento faz parte de uma série de ${g.length} (parcelas ou fixa mensal).</p>
-    <div class="more">${opt('one', 'Só este', '1 lançamento')}${opt('next', 'Este e os próximos', after.length + ' lançamentos')}${opt('all', 'Toda a série', g.length + ' lançamentos')}</div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
+  const opt = (k, title, count) => h`<button type="button" class="opt finance-series-delete-option" data-action="txdel-do" data-k="${k}">
+    <span class="mk" aria-hidden="true">${icon('trash', 18)}</span>
+    <span class="tx"><b>${title}</b><span>${count} · pode ser restaurado pela lixeira por até 30 dias</span></span>
+  </button>`;
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir da série<i>.</i></h2>${closeBtn}</div>
+    <p class="small muted">Esta série tem ${g.length} lançamentos. Escolha quais deseja remover.</p>
+    <div class="finance-series-delete-options">
+      ${opt('one', 'Só este lançamento', `1 ${plural(1, 'lançamento', 'lançamentos')}`)}
+      ${opt('next', 'Este e os próximos', `${after.length} ${plural(after.length, 'lançamento', 'lançamentos')}`)}
+      ${opt('all', 'Toda a série', `${g.length} ${plural(g.length, 'lançamento', 'lançamentos')}`)}
+    </div>`, h`<button class="btn back" data-action="dlg-close">Cancelar</button>`);
 }
 function dlgInstallmentSummary() {
   const transaction = S.finance.tx.find((item) => item.id === ui.dlg.d.id);
@@ -7768,8 +7832,19 @@ Object.assign(ACTIONS, {
       selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   },
+  'fin-account-tab': (el) => {
+    if (!FIN_ACCOUNT_TABS.some(([key]) => key === el.dataset.t)) { console.error('Aurora: subseção de contas inválida.', el.dataset.t); return; }
+    ui.finAccountTab = el.dataset.t;
+    render();
+    requestAnimationFrame(() => {
+      const selected = $(`.finance-account-option[data-t="${ui.finAccountTab}"]`);
+      selected?.focus({ preventScroll: true });
+    });
+  },
   'fin-go': (el) => {
-    ui.finTab = el.dataset.t;
+    const target = el.dataset.t;
+    ui.finTab = target === 'cartoes' ? 'contas' : target === 'orcamento' ? 'planejamento' : target;
+    if (target === 'cartoes' || el.dataset.sub === 'cartoes') ui.finAccountTab = 'cartoes';
     if (el.hasAttribute('data-clear-fin-filters')) {
       ui.finQ = '';
       ui.finAcc = '';
@@ -7798,6 +7873,7 @@ Object.assign(ACTIONS, {
   'rep-kind': (el) => { ui.repKind = el.dataset.k; render(); },
   'rep-basis': (el) => { ui.repBasis = el.dataset.b === 'cash' ? 'cash' : 'competence'; render(); },
   'tx-new': () => newTxDlg('out'),
+  'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
   'tx-new-in': () => newTxDlg('in'),
   'tx-kind': (el) => {
     const d = ui.dlg.d, kind = el.dataset.k;
@@ -8571,10 +8647,10 @@ function finCompare() {
   const sel = (k, v) => h`<select data-change="cmp-${k}" aria-label="Mês ${k === 'a' ? 'principal' : 'de comparação'}">${monthOpts().map((m) => h`<option value="${m}" ${m === v ? raw('selected') : ''}>${cap(ymLabel(m))}</option>`)}</select>`;
   return h`<section class="card"><h2>Comparar meses<i>.</i></h2>
     <div class="form">${dlgField('Mês', sel('a', A))}${dlgField('Comparar com', sel('b', B))}</div>
-    <table class="cmp"><thead><tr><th></th><th>${MESES[Number(A.slice(5)) - 1]}</th><th>${MESES[Number(B.slice(5)) - 1]}</th><th>Diferença</th></tr></thead><tbody>
+    <div class="finance-compare-table-wrap" role="region" aria-label="Comparação dos valores dos meses selecionados" tabindex="0"><table class="cmp"><thead><tr><th></th><th>${MESES[Number(A.slice(5)) - 1]}</th><th>${MESES[Number(B.slice(5)) - 1]}</th><th>Diferença</th></tr></thead><tbody>
       <tr><td>Receitas</td><td>${money(sa.inAll)}</td><td>${money(sb.inAll)}</td><td>${dl(sa.inAll, sb.inAll, true)}</td></tr>
       <tr><td>Despesas</td><td>${money(sa.outAll)}</td><td>${money(sb.outAll)}</td><td>${dl(sa.outAll, sb.outAll, false)}</td></tr>
-      <tr><td>Resultado</td><td>${money(sa.inAll - sa.outAll)}</td><td>${money(sb.inAll - sb.outAll)}</td><td>${dl(sa.inAll - sa.outAll, sb.inAll - sb.outAll, true)}</td></tr></tbody></table>
+      <tr><td>Resultado</td><td>${money(sa.inAll - sa.outAll)}</td><td>${money(sb.inAll - sb.outAll)}</td><td>${dl(sa.inAll - sa.outAll, sb.inAll - sb.outAll, true)}</td></tr></tbody></table></div>
     ${names.length ? h`<div class="f"><span class="lbl">Despesas por categoria</span><ul class="list cmpl">${names.map((n) => h`<li><div class="grow"><div class="row finance-compare-row"><b class="expense-name">${expenseTitle(n)}</b><span class="small">${dl(ca[n] || 0, cb[n] || 0, false)}</span></div>
       <div class="pair" aria-hidden="true"><span style="width:${(ca[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div><div class="pair b" aria-hidden="true"><span style="width:${(cb[n] || 0) / mx * 100}%;background:${outMeta(n).c}"></span></div>
       <div class="small muted">${money(ca[n] || 0)} · ${money(cb[n] || 0)}</div></div></li>`)}</ul><p class="fine">Barra cheia: ${cap(ymLabel(A))}. Barra clara: ${cap(ymLabel(B))}.</p></div>` : areaEmpty('Nenhuma despesa para comparar.', 'Quando houver despesas nos períodos selecionados, a comparação por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar despesa</button>`, 'pie', 'h3', 'finance-compare-empty')}

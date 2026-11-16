@@ -59,7 +59,9 @@ export function renderHabitsView(dependencies) {
     skippedForDay,
   );
   const hasTaskReminders = S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null);
-  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind) || hasTaskReminders;
+  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind)
+    || hasTaskReminders
+    || S.settings.prefs.weeklyReviewReminder;
   const pushStatus = hasReminders ? getPushNotificationStatus() : null;
   const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
     && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
@@ -119,6 +121,7 @@ export function renderHabitsView(dependencies) {
     'reminder-note': hasReminders
       ? h`<div class="habit-reminder-note">
         <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${icon('bell', 16)}${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
+        <p class="small muted">Ative para receber lembretes de hábitos, tarefas e da revisão semanal com o Aurora fechado. A autorização vale para este dispositivo.</p>
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
       </div>`.s
       : '',

@@ -109,6 +109,7 @@ async function main() {
   let expectedAuthServerErrors = 0;
   let pkceRequests = 0;
   let simulateRelational = false;
+  let financeValuesHidden = false;
   let manyTasks = false;
   let manyTransactions = false;
   let homeFixtures = false;
@@ -247,7 +248,10 @@ async function main() {
         }], corsOrigin);
       }
       if (manyTransactions && requestUrl.pathname === '/rest/v1/user_settings') {
-        return jsonResponse(route, 200, [{ enabled_areas: { finances: true }, preferences: {} }], corsOrigin);
+        return jsonResponse(route, 200, [{
+          enabled_areas: { finances: true },
+          preferences: { financeValuesHidden },
+        }], corsOrigin);
       }
       if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_accounts') {
         return jsonResponse(route, 200, [{
@@ -290,6 +294,10 @@ async function main() {
       if (!Array.isArray(changes)) {
         unexpectedAuthRequests.push(endpoint);
         return jsonResponse(route, 400, { message: 'Missing relational changes' }, corsOrigin);
+      }
+      const settingsRow = changes.find(({ table }) => table === 'user_settings')?.rows?.[0];
+      if (typeof settingsRow?.preferences?.financeValuesHidden === 'boolean') {
+        financeValuesHidden = settingsRow.preferences.financeValuesHidden;
       }
       const savedAt = new Date().toISOString();
       return jsonResponse(route, 200, changes.map(({ table, rows }) => ({
@@ -458,7 +466,7 @@ async function main() {
       privacy_policy_version: '2.0',
     };
     simulateRelational = true;
-    for (const destination of ['/inicio', '/planejar', '/financas', '/habitos']) {
+    for (const destination of ['/financas', '/inicio', '/planejar', '/habitos']) {
       manyTasks = destination === '/planejar';
       manyTransactions = destination === '/financas';
       homeFixtures = destination === '/inicio';
@@ -659,6 +667,50 @@ async function main() {
         assert.equal(await results.locator('.task').count(), 10,
           'Alterar a busca deve reiniciar a paginação');
       } else if (destination === '/financas') {
+        const visibilityButton = page.locator('.finance-visibility-toggle');
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Ocultar valores financeiros');
+        const waitForSettingsSave = async () => {
+          const response = await page.waitForResponse((candidate) => (
+            candidate.url().includes('/rest/v1/rpc/apply_relational_changes')
+            && candidate.request().method() === 'POST'
+          ));
+          assert.ok(response.ok(), `A preferência financeira não foi salva: HTTP ${response.status()}`);
+        };
+        const hiddenSave = waitForSettingsSave();
+        await visibilityButton.evaluate((button) => button.click());
+        await hiddenSave;
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Mostrar valores financeiros');
+        await page.addInitScript(() => {
+          window.__financeValueFlash = [];
+          const observer = new MutationObserver(() => {
+            const amounts = [...document.querySelectorAll('.main[data-route="financas"] .money')];
+            const visible = amounts.filter((amount) => /\d/.test(amount.textContent || ''));
+            if (visible.length) window.__financeValueFlash.push(visible.map((amount) => amount.textContent));
+          });
+          observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+        });
+        await page.reload();
+        await visibilityButton.waitFor({ state: 'visible' });
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Mostrar valores financeiros');
+        assert.ok(await page.locator('.main[data-route="financas"] .money').evaluateAll((amounts) => (
+          amounts.length > 0 && amounts.every((amount) => amount.textContent.includes('••••'))
+        )), 'valores ficam ocultos após recarregar');
+        assert.deepEqual(await page.evaluate(() => window.__financeValueFlash), [],
+          'valores ocultos não aparecem durante a abertura de Finanças');
+        const visibleSave = waitForSettingsSave();
+        await visibilityButton.evaluate((button) => button.click());
+        await visibleSave;
+        await page.reload();
+        await visibilityButton.waitFor({ state: 'visible' });
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Ocultar valores financeiros');
+        assert.ok(await page.locator('.main[data-route="financas"] .money').evaluateAll((amounts) => (
+          amounts.some((amount) => /\d/.test(amount.textContent || ''))
+        )), 'valores continuam visíveis após recarregar');
+
         await page.locator('[data-action="fin-tab"][data-t="lancamentos"]').evaluate((button) => button.click());
         const results = page.locator('#tx-results');
         assert.equal(await results.locator('.fr').count(), 10, await page.locator('.main').innerText());
@@ -797,10 +849,13 @@ async function main() {
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
     const passwordCriteria = page.locator('.account-password-strength .account-strength-label');
+    const signupPassword = page.getByLabel('Senha', { exact: true });
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 0 de 5');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora1');
+    assert.equal(await signupPassword.getAttribute('minlength'), '6');
+    assert.equal(await signupPassword.getAttribute('maxlength'), '72');
+    await signupPassword.fill('Aa1!x');
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 4 de 5');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
+    await signupPassword.fill('Aurora1!');
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 5 de 5');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'etapa de acesso deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -936,10 +991,17 @@ async function main() {
     await assertNoHorizontalOverflow('a confirmação da nova senha deve caber em 320 px');
     await page.setViewportSize({ width: 390, height: 844 });
     const updatePasswordButton = page.locator('.account-form button[type="submit"]');
-    await page.getByLabel('Nova senha', { exact: true }).fill('NovaSenha456!');
-    await page.getByLabel('Confirmar nova senha', { exact: true }).fill('Diferente456!');
+    const newPassword = page.getByLabel('Nova senha', { exact: true });
+    const confirmNewPassword = page.getByLabel('Confirmar nova senha', { exact: true });
+    assert.equal(await newPassword.getAttribute('minlength'), '6');
+    assert.equal(await newPassword.getAttribute('maxlength'), '72');
+    await newPassword.fill('Aa1!x');
+    await confirmNewPassword.fill('Aa1!x');
+    assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas abaixo do mínimo');
+    await newPassword.fill('Aa1!xy');
+    await confirmNewPassword.fill('Diferente456!');
     assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas divergentes');
-    await page.getByLabel('Confirmar nova senha', { exact: true }).fill('NovaSenha456!');
+    await confirmNewPassword.fill('Aa1!xy');
     assert.equal(await updatePasswordButton.isEnabled(), true, 'senhas correspondentes liberam a redefinição');
     await updatePasswordButton.click();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
@@ -948,7 +1010,7 @@ async function main() {
     assert.equal(await page.evaluate(() => location.search), '', 'callback de redefinição é removido da URL');
     assert.equal(await page.locator('.account-message[data-tone="success"]').count(), 1);
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('NovaSenha456!');
+    await page.getByLabel('Senha', { exact: true }).fill('Aa1!xy');
     await page.locator('.account-form button[type="submit"]').click();
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
@@ -962,7 +1024,7 @@ async function main() {
       0,
       'uma sessão recusada pelo serviço deve ser removida',
     );
-    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'NovaSenha456!']);
+    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'Aa1!xy']);
     assert.deepEqual(externalRequests, [], 'nenhuma requisição real fora do servidor local e do mock deve ocorrer');
     assert.deepEqual(unexpectedAuthRequests, [], 'somente endpoints de autenticação esperados devem ser chamados');
     assert.deepEqual(errors, [], 'o fluxo não deve gerar erros no console');

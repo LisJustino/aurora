@@ -50,7 +50,6 @@ export function renderCycleView({
         ? 'Há um intervalo recente fora da faixa de 15 a 60 dias usada nos cálculos; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.'
         : `A variação dos últimos ${st.observedIntervals} intervalos foi de ${st.min} a ${st.max} dias; por isso, ovulação e janela fértil não são estimadas. As demais previsões não substituem avaliação profissional nem servem como método contraceptivo.`;
   return h`${areaPageTitle('ciclo', 'Ciclo')}
-    <div class="notice cycle-consent-management" role="note"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
     ${!hasCycleHistory && !hasCycleRecords
       ? h`<section class="card cycle-start-empty">${emptyState({
         title: 'Seu ciclo começa no seu tempo.',
@@ -97,13 +96,17 @@ export function renderCycleView({
         <div class="cycle-health-sources" aria-label="Fontes de saúde">
           <span>Fontes:</span>
           <a href="https://www.gov.br/saude/pt-br/assuntos/saude-de-a-a-z/i/ist" target="_blank" rel="noopener noreferrer">Ministério da Saúde · ISTs</a>
-          <a href="https://www.nhs.uk/contraception/methods-of-contraception/natural-family-planning/" target="_blank" rel="noopener noreferrer">NHS · contracepção e fertilidade</a>
-          <a href="https://www.nhs.uk/conditions/periods/period-problems/" target="_blank" rel="noopener noreferrer">NHS · alterações menstruais</a>
-          <a href="https://www.nhs.uk/symptoms/period-pain/" target="_blank" rel="noopener noreferrer">NHS · dor menstrual</a>
-          <a href="https://www.nhs.uk/symptoms/vaginal-bleeding-between-periods-or-after-sex/" target="_blank" rel="noopener noreferrer">NHS · sangramento fora do período ou após sexo</a>
+          <a href="https://bvsms.saude.gov.br/bvs/publicacoes/saude_sexual_saude_reprodutiva.pdf" target="_blank" rel="noopener noreferrer">Ministério da Saúde · contracepção e fertilidade</a>
+          <a href="https://www.febrasgo.org.br/noticia/menstruacao-e-ovulacao-tem-tudo-a-ver-sim/" target="_blank" rel="noopener noreferrer">FEBRASGO · variações menstruais</a>
+          <a href="https://www.febrasgo.org.br/noticia/sentir-dor-abdominal-intensa-durante-o-periodo-menstrual-nao-e-normal/" target="_blank" rel="noopener noreferrer">FEBRASGO · dor menstrual</a>
+          <a href="https://www.febrasgo.org.br/noticia/cancer-do-colo-do-utero-nao-espere-os-sintomas-eles-nem-sempre-aparecem/" target="_blank" rel="noopener noreferrer">FEBRASGO · sangramento fora do período ou após sexo</a>
           <a href="https://www.gov.br/saude/pt-br/composicao/saes/samu-192" target="_blank" rel="noopener noreferrer">Ministério da Saúde · SAMU 192</a>
         </div>
       </div>
+    </details>
+    <details class="notice cycle-consent-management">
+      <summary>Privacidade do Ciclo</summary>
+      <div class="cycle-consent-management-content"><span>Você pode retirar o consentimento quando quiser. Ciclo será bloqueado, mas os registros existentes continuarão na conta até serem apagados.</span><button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button></div>
     </details>
     `;
 }

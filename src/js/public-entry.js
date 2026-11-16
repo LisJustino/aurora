@@ -187,53 +187,21 @@ function startPublicPwaSupport() {
       });
     };
 
-    const renderUpdateNotice = () => {
+    const activateWaitingWorker = () => {
       const waiting = registration.waiting;
       if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
       announcedWorker = waiting;
-      document.getElementById('pwa-update-notice')?.remove();
-
-      const notice = document.createElement('section');
-      notice.id = 'pwa-update-notice';
-      notice.className = 'pwa-update-notice';
-      notice.setAttribute('role', 'status');
-      notice.setAttribute('aria-label', 'Atualização do Aurora disponível');
-      const message = document.createElement('p');
-      message.textContent = 'Nova versão disponível — atualizar quando terminar o que estiver fazendo.';
-      const actions = document.createElement('div');
-      actions.className = 'pwa-update-actions';
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.className = 'btn back';
-      dismiss.textContent = 'Agora não';
-      dismiss.addEventListener('click', () => notice.remove());
-      const apply = document.createElement('button');
-      apply.type = 'button';
-      apply.className = 'btn primary';
-      apply.textContent = 'Atualizar';
-      apply.addEventListener('click', () => {
-        const currentWorker = registration.waiting;
-        if (!currentWorker) {
-          notice.remove();
-          return;
-        }
-        apply.disabled = true;
-        apply.setAttribute('aria-busy', 'true');
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        }, { once: true });
-        currentWorker.postMessage({ type: 'SKIP_WAITING' });
-      });
-      actions.append(dismiss, apply);
-      notice.append(message, actions);
-      document.body.append(notice);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      }, { once: true });
+      waiting.postMessage({ type: 'SKIP_WAITING' });
     };
 
     const onUpdateFound = () => {
       const installing = registration.installing;
       if (!installing) return;
       const onStateChange = () => {
-        if (active && installing.state === 'installed') renderUpdateNotice();
+        if (active && installing.state === 'installed') activateWaitingWorker();
       };
       installing.addEventListener('statechange', onStateChange);
       installingWorkers.push([installing, onStateChange]);
@@ -259,7 +227,7 @@ function startPublicPwaSupport() {
       document.getElementById('pwa-update-notice')?.remove();
     };
     prepareOfflineStyles();
-    renderUpdateNotice();
+    activateWaitingWorker();
   }).catch((error) => {
     if (active) console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
   });

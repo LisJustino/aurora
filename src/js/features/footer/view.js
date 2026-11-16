@@ -41,7 +41,7 @@ export function renderFooterContent({
   const accountLinks = preview
     ? '<a class="footer-link" href="/config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
     : authenticated
-    ? `<a class="footer-link" href="/config">Perfil e ajustes</a><button class="footer-link" type="button" data-account-signout>Sair da conta</button>`
+    ? '<a class="footer-link" href="/config">Perfil e ajustes</a>'
     : accountError
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;

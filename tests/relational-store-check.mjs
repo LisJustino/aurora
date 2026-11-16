@@ -217,6 +217,7 @@ const state = {
     cats: { out: [], in: [] },
     prefs: {
       releaseNotesSeen: 'release-123',
+      financeValuesHidden: true,
       trash: [{
         id: 'trashed-cycle-period',
         deletedAt: Date.parse('2026-10-29T12:00:00Z'),
@@ -395,6 +396,7 @@ assert.equal(changeByTable.get('profiles')[0].display_name, 'Pessoa');
 assert.equal(changeByTable.get('user_settings')[0].preferences.onboardingComplete, true);
 assert.equal(changeByTable.get('user_settings')[0].preferences.introSeen, true);
 assert.equal(changeByTable.get('user_settings')[0].preferences.releaseNotesSeen, 'release-123');
+assert.equal(changeByTable.get('user_settings')[0].preferences.financeValuesHidden, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
   month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29',
 });
@@ -495,6 +497,7 @@ for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
 assert.equal(loadedState.settings.prefs.firstStepsStarted, true);
 assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
+assert.equal(loadedState.settings.prefs.financeValuesHidden, true);
 assert.deepEqual(loadedState.checkins, [{
   date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],
 }]);

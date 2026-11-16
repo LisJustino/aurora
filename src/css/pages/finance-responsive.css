@@ -7,6 +7,8 @@
 .fin-tools-actions { gap: var(--space-2); }
 .fin-import-action { cursor: pointer; }
 .finance-results-groups { display: flex; flex-direction: column; gap: var(--space-3); }
+.main[data-route="financas"] .scroll-x[role="group"] { scrollbar-width: none; }
+.main[data-route="financas"] .scroll-x[role="group"]::-webkit-scrollbar { display: none; }
 .fin-export-actions { justify-content: space-between; }
 .finance-compare-row { min-width: 0; justify-content: space-between; flex-wrap: nowrap; }
 .fin-income { color: var(--ok); }
@@ -51,16 +53,19 @@
     gap: var(--space-4);
   }
   .main[data-route="financas"] .fin-section-menu {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: visible;
-    position: relative;
-    z-index: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-padding-inline: var(--space-2);
+    scroll-snap-type: x proximity;
   }
   .main[data-route="financas"] .fin-section-option {
-    min-width: 0;
-    padding-inline: var(--space-2);
+    min-height: var(--target-size);
+    scroll-snap-align: start;
   }
+  .main[data-route="financas"] .fin-tools-actions { flex-wrap: wrap; }
+  .main[data-route="financas"] .fin-tools-actions > * { flex: 1 1 140px; justify-content: center; }
+  .main[data-route="financas"] :is(#fin-panel, #fin-view-panel, #fin-account-panel) { gap: var(--space-4); }
   .main[data-route="financas"] .mnav {
     min-height: var(--control-md);
   }

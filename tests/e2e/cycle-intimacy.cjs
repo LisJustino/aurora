@@ -31,7 +31,18 @@ const check = (passed, name) => {
 
   await page.goto(`${BASE}/?preview#ciclo`);
   const healthCard = page.locator('.cycle-health-card');
+  const consentDetails = page.locator('.cycle-consent-management');
   const estimates = page.locator('#d-cycle-estimates');
+  await consentDetails.waitFor();
+  check(await consentDetails.count() === 1
+    && await consentDetails.evaluate((element) => !element.open)
+    && await consentDetails.evaluate((element) => element.previousElementSibling.matches('.cycle-health-card')),
+  'privacidade do Ciclo começa recolhida no fim da página');
+  await consentDetails.locator('summary').click();
+  check(await consentDetails.getByRole('button', { name: 'Retirar consentimento' }).isVisible()
+    && (await consentDetails.textContent()).includes('Você pode retirar o consentimento quando quiser.'),
+  'ação de retirada mantém o rótulo claro dentro do bloco de privacidade');
+  await consentDetails.locator('summary').click();
   check(await estimates.evaluate((element) => !element.open), 'explicação das estimativas começa recolhida');
   await estimates.locator('summary').click();
   check(await estimates.locator('p').isVisible()
