@@ -8,18 +8,27 @@ let systemThemeQuery = null;
 
 const icon = iconSvg;
 const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
+const themeLabels = { auto: 'automático', light: 'claro', dark: 'escuro' };
+const nextTheme = { auto: 'light', light: 'dark', dark: 'auto' };
+const themeAction = (mode) => `Alternar para tema ${themeLabels[nextTheme[mode]]}`;
+const themeTooltip = (mode) => `Tema atual: ${themeLabels[mode]}. ${themeAction(mode)}`;
 function setAccessibilityOpen(open) {
   accessibilityOpen = open;
 }
 
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const isLanding = !demo && !authMode;
-  const themeName = { auto: 'automático', light: 'claro', dark: 'escuro' }[publicLook.mode];
+  const publicNav = demo ? '' : `
+    <nav class="public-header-nav" aria-label="Navegação principal">
+      <a href="${authMode ? '/#public-features' : '#public-features'}"><span class="ni" aria-hidden="true">${icon('grid', 20)}</span><span>Áreas</span></a>
+      <a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Demonstração</span></a>
+      <a href="${authMode ? '/#public-faq' : '#public-faq'}"><span class="ni" aria-hidden="true">${icon('info', 20)}</span><span>Perguntas</span></a>
+    </nav>`;
   const accountAction = (mode, label) => {
     const isCurrentMode = authMode === mode;
     const action = authMode ? `data-account-mode="${mode}"` : `data-public-action="${mode}"`;
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
-    const variant = (isLanding || demo) && mode === 'signup' ? 'primary' : '';
+    const variant = demo && mode === 'signup' ? 'primary' : '';
     const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
     if (!authMode) {
       const href = mode === 'signup' ? '/criar-conta' : '/entrar';
@@ -30,13 +39,13 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
       <a class="brand public-brand-link" href="./" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
-      ${isLanding ? `<nav class="public-header-nav" aria-label="Navegação principal"><a href="#public-features">Áreas</a><a href="/demonstracao" data-public-action="demo">Demonstração</a><a href="#public-faq">Perguntas</a></nav>` : ''}
+      ${publicNav}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'Entrar')}
         ${accountAction('signup', 'Criar conta')}
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
-          <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="Alternar tema: ${themeName}" title="Alternar tema">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
-          ${isLanding || demo ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
+          <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="${themeAction(publicLook.mode)}" title="${themeTooltip(publicLook.mode)}">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
+          ${isLanding || demo || authMode ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
         </span>
       </span>
     </header>`;
@@ -52,6 +61,7 @@ function applyPublicLook() {
   root.style.setProperty('--pd', accent);
   root.setAttribute('data-palette', 'rose');
   root.setAttribute('data-theme', effectiveMode);
+  window.auroraManifestTheme?.setMode(publicLook.mode);
   root.setAttribute('data-density', publicLook.density);
   root.setAttribute('data-fs', publicLook.font);
   root.setAttribute('data-contrast', publicLook.contrast ? 'high' : 'normal');
@@ -93,9 +103,8 @@ function syncPublicControls() {
   }
   const theme = document.querySelector('.public-header-actions [data-public-control="theme-cycle"]');
   if (theme) {
-    const labels = { auto: 'automático', light: 'claro', dark: 'escuro' };
-    theme.setAttribute('aria-label', `Tema ${labels[publicLook.mode]}`);
-    theme.title = `Tema: ${labels[publicLook.mode]}`;
+    theme.setAttribute('aria-label', themeAction(publicLook.mode));
+    theme.title = themeTooltip(publicLook.mode);
     theme.innerHTML = icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20);
   }
 }
@@ -151,7 +160,7 @@ export function handlePublicControl(event, root) {
       document.getElementById('public-accessibility-trigger')?.focus({ preventScroll: true });
       return true;
     case 'theme-cycle':
-      publicLook.mode = { auto: 'light', light: 'dark', dark: 'auto' }[publicLook.mode];
+      publicLook.mode = nextTheme[publicLook.mode];
       break;
     case 'mode':
       if (!['auto', 'light', 'dark'].includes(control.dataset.value)) return true;

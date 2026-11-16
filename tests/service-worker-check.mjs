@@ -7,8 +7,12 @@ const handlers = new Map();
 const stored = new Map();
 let skipWaitingCalls = 0;
 let appearanceOffline = false;
+let lastMatchOptions;
 const cache = {
-  match: async (request) => stored.get(typeof request === 'string' ? request : request.url),
+  match: async (request, options) => {
+    lastMatchOptions = options;
+    return stored.get(typeof request === 'string' ? request : request.url);
+  },
   put: async (request, response) => stored.set(typeof request === 'string' ? request : request.url, response),
 };
 const self = {
@@ -19,6 +23,7 @@ const self = {
   skipWaiting: async () => { skipWaitingCalls += 1; },
 };
 const fetchCalls = [];
+const workerWarnings = [];
 const htmlResponse = {
   ok: true,
   type: 'basic',
@@ -61,7 +66,7 @@ runInNewContext(source, {
       ? htmlResponse
       : assetResponse;
   },
-  console,
+  console: { ...console, warn: (...args) => workerWarnings.push(args) },
 });
 
 assert.equal(handlers.has('install'), true, 'the offline fallback should be cached during install');
@@ -81,6 +86,27 @@ handlers.get('message')({
 });
 await waitUntilPromise;
 assert.equal(skipWaitingCalls, 1, 'only the explicit message should activate the waiting worker');
+
+handlers.get('message')({
+  data: { type: 'CACHE_PUBLIC_STYLES', url: '/assets/main-abc123.css' },
+  waitUntil: (promise) => { waitUntilPromise = promise; },
+});
+await waitUntilPromise;
+assert.equal(stored.get('https://aurora.test/assets/main-abc123.css'), assetResponse, 'demo styles should be cached for offline use');
+const fetchCountAfterStyleWarm = fetchCalls.length;
+handlers.get('message')({
+  data: { type: 'CACHE_PUBLIC_STYLES', url: '/assets/main-abc123.css' },
+  waitUntil: (promise) => { waitUntilPromise = promise; },
+});
+await waitUntilPromise;
+assert.equal(fetchCalls.length, fetchCountAfterStyleWarm, 'already cached styles should not be fetched again');
+handlers.get('message')({
+  data: { type: 'CACHE_PUBLIC_STYLES', url: 'https://other.example/assets/main.css' },
+  waitUntil: (promise) => { waitUntilPromise = promise; },
+});
+await waitUntilPromise;
+assert.equal(fetchCalls.length, fetchCountAfterStyleWarm, 'cross-origin styles must not be cached');
+assert.equal(workerWarnings.length, 1, 'invalid offline style requests should be reported');
 
 const dispatchFetch = async (request) => {
   let responsePromise;
@@ -107,6 +133,8 @@ assert.equal(await dispatchFetch(assetRequest), assetResponse);
 const fetchCountAfterAssetMiss = fetchCalls.length;
 assert.equal(await dispatchFetch(assetRequest), assetResponse, 'app assets should be cache-first');
 assert.equal(fetchCalls.length, fetchCountAfterAssetMiss, 'cached app assets should not be fetched again');
+assert.equal(await dispatchFetch(request('/assets/main-abc123.css')), assetResponse);
+assert.equal(lastMatchOptions?.ignoreVary, true, 'prefetched styles must also match crossorigin stylesheet requests');
 assert.equal(await dispatchFetch(request('/screenshots/demo-wide.png')), assetResponse, 'PWA screenshots should be cache-first');
 
 const appearanceRequest = request('/loading-appearance.js');
@@ -127,7 +155,7 @@ assert.equal(stored.has('https://aurora.test/config?section=data'), false, 'quer
 stored.delete('https://aurora.test/index.html');
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), offlineResponse, 'uncached offline routes should show the branded offline page');
 
-assert.match(source, /aurora-static-v13/);
+assert.match(source, /aurora-static-v14/);
 assert.match(source, /APP_SHELL_ASSET/);
 assert.match(source, /APP_ROUTE/);
 assert.match(source, /APP_DOCUMENT/);

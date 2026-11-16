@@ -1,4 +1,5 @@
 import {
+  accountModeFromLocation,
   accountPathForMode,
   canonicalPublicPath,
   isDemoLocation,
@@ -9,7 +10,7 @@ import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } 
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { createSuggestionMailto } from './features/footer/suggestions.js';
+import { CONTACT_EMAIL, createSuggestionMailto } from './features/footer/suggestions.js';
 import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
 import { isNativeApp } from './utils/platform.js';
 
@@ -36,7 +37,7 @@ function setupKeyboardViewportSafety() {
     document.documentElement.style.setProperty('--keyboard-offset', `${keyboardInset}px`);
 
     const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return;
+    if (!(active instanceof HTMLElement) || active.closest('#dlg')) return;
     if (!active.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (keyboardInset > 100) {
       active.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -47,7 +48,7 @@ function setupKeyboardViewportSafety() {
   window.visualViewport.addEventListener('scroll', updateKeyboardInset);
   document.addEventListener('focusin', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
     if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
     if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -98,14 +99,14 @@ function showEntryError(rootElement) {
   rootElement.append(page);
 }
 
-let appWarmed = false;
-function warmApplication() {
-  if (appWarmed || isDemoLocation(location)) return;
+let accountEntryWarmed = false;
+function warmAccountEntry() {
+  if (accountEntryWarmed || isDemoLocation(location)) return;
   const href = import.meta.env.DEV
-    ? '/src/js/main.js'
-    : document.querySelector('meta[name="aurora-app-chunk"]')?.content;
+    ? '/src/js/account-entry.js'
+    : document.querySelector('meta[name="aurora-account-chunk"]')?.content;
   if (!href) return;
-  appWarmed = true;
+  accountEntryWarmed = true;
   const link = document.createElement('link');
   link.rel = 'modulepreload';
   link.href = href;
@@ -130,7 +131,10 @@ function observeLandingScroll() {
 }
 
 let applicationLoaded = false;
+let publicAccountNavigationPending = false;
+let returnToPublicLanding = () => {};
 async function loadApplication(mode = 'login') {
+  root.removeAttribute('aria-busy');
   publicPwaCleanup();
   publicConnectionCleanup();
   mobileCtaCleanup();
@@ -149,8 +153,11 @@ async function loadApplication(mode = 'login') {
     const { startAuthenticatedAurora } = await import('./main.js');
     await startAuthenticatedAurora(root, mode, true);
   } else {
-    await import('./main.js');
-    applicationLoaded = true;
+    const { startAccountEntry } = await import('./account-entry.js');
+    applicationLoaded = await startAccountEntry(root, mode, {
+      allowPublicReturn: true,
+      onPublicReturn: returnToPublicLanding,
+    });
   }
 }
 
@@ -170,54 +177,31 @@ function startPublicPwaSupport() {
     if (!active) return;
     let announcedWorker = null;
     const installingWorkers = [];
+    const prepareOfflineStyles = () => {
+      const stylesheet = document.querySelector('meta[name="aurora-app-css"]')?.content;
+      if (!stylesheet || !active) return;
+      void navigator.serviceWorker.ready.then((readyRegistration) => {
+        if (active) readyRegistration.active?.postMessage({ type: 'CACHE_PUBLIC_STYLES', url: stylesheet });
+      }).catch((error) => {
+        console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
+      });
+    };
 
-    const renderUpdateNotice = () => {
+    const activateWaitingWorker = () => {
       const waiting = registration.waiting;
       if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
       announcedWorker = waiting;
-      document.getElementById('pwa-update-notice')?.remove();
-
-      const notice = document.createElement('section');
-      notice.id = 'pwa-update-notice';
-      notice.className = 'pwa-update-notice';
-      notice.setAttribute('role', 'status');
-      notice.setAttribute('aria-label', 'Atualização do Aurora disponível');
-      const message = document.createElement('p');
-      message.textContent = 'Nova versão disponível — atualizar quando terminar o que estiver fazendo.';
-      const actions = document.createElement('div');
-      actions.className = 'pwa-update-actions';
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.className = 'btn back';
-      dismiss.textContent = 'Agora não';
-      dismiss.addEventListener('click', () => notice.remove());
-      const apply = document.createElement('button');
-      apply.type = 'button';
-      apply.className = 'btn primary';
-      apply.textContent = 'Atualizar';
-      apply.addEventListener('click', () => {
-        const currentWorker = registration.waiting;
-        if (!currentWorker) {
-          notice.remove();
-          return;
-        }
-        apply.disabled = true;
-        apply.setAttribute('aria-busy', 'true');
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        }, { once: true });
-        currentWorker.postMessage({ type: 'SKIP_WAITING' });
-      });
-      actions.append(dismiss, apply);
-      notice.append(message, actions);
-      document.body.append(notice);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      }, { once: true });
+      waiting.postMessage({ type: 'SKIP_WAITING' });
     };
 
     const onUpdateFound = () => {
       const installing = registration.installing;
       if (!installing) return;
       const onStateChange = () => {
-        if (active && installing.state === 'installed') renderUpdateNotice();
+        if (active && installing.state === 'installed') activateWaitingWorker();
       };
       installing.addEventListener('statechange', onStateChange);
       installingWorkers.push([installing, onStateChange]);
@@ -232,15 +216,18 @@ function startPublicPwaSupport() {
 
     registration.addEventListener('updatefound', onUpdateFound);
     window.addEventListener('focus', checkForUpdate);
+    window.addEventListener('online', prepareOfflineStyles);
     document.addEventListener('visibilitychange', checkForUpdate);
     cleanupRegistration = () => {
       registration.removeEventListener('updatefound', onUpdateFound);
       window.removeEventListener('focus', checkForUpdate);
+      window.removeEventListener('online', prepareOfflineStyles);
       document.removeEventListener('visibilitychange', checkForUpdate);
       installingWorkers.forEach(([worker, listener]) => worker.removeEventListener('statechange', listener));
       document.getElementById('pwa-update-notice')?.remove();
     };
-    renderUpdateNotice();
+    prepareOfflineStyles();
+    activateWaitingWorker();
   }).catch((error) => {
     if (active) console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
   });
@@ -284,18 +271,43 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     renderedPublicPath = `${location.pathname}${location.search}`;
     if (isDemoLocation(location)) {
       mobileCtaCleanup();
-      renderLandingDemo(root);
-      document.title = 'Demonstração | aurora.';
+      root.setAttribute('aria-busy', 'true');
+      const requestedPath = renderedPublicPath;
+      void import('../css/main.css').then(() => {
+        if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
+        renderLandingDemo(root);
+        root.removeAttribute('aria-busy');
+        document.title = 'Demonstração | aurora.';
+        updatePublicConnectionNotice();
+      }).catch((error) => {
+        if (`${location.pathname}${location.search}` !== requestedPath) return;
+        console.error('Aurora: não foi possível carregar os estilos da demonstração.', error);
+        root.removeAttribute('aria-busy');
+        showEntryError(root);
+      });
+      return;
     } else {
+      root.removeAttribute('aria-busy');
       renderLanding(root);
-      document.title = 'aurora. — planner semanal, hábitos e finanças em um só lugar';
+      document.title = 'aurora. - rotinas';
       observeLandingScroll();
     }
     updatePublicConnectionNotice();
   };
+  returnToPublicLanding = () => {
+    renderPublicRoute();
+    window.dispatchEvent(new Event('aurora:public-return'));
+  };
   if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
-    import('./main.js').catch((error) => {
+    import('./account-entry.js').then(({ startAccountEntry }) => startAccountEntry(
+      root,
+      accountModeFromLocation(location) || 'login',
+      {
+        allowPublicReturn: true,
+        onPublicReturn: returnToPublicLanding,
+      },
+    )).catch((error) => {
       console.error('Aurora: não foi possível carregar a tela da conta.', error);
       showEntryError(root);
     });
@@ -306,7 +318,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     startPublicPwaSupport();
     ['focusin', 'touchstart'].forEach((type) => {
       root.addEventListener(type, (event) => {
-        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmApplication();
+        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmAccountEntry();
       }, { passive: true });
     });
     window.addEventListener('online', updatePublicConnectionNotice);
@@ -321,11 +333,12 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
 
   const sessionRestore = isPublicLandingLocation(location) && !isDemoLocation(location) ? (async () => {
     try {
-      const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
-        import('./services/account-auth.js'),
-        import('./data/supabase-client.js'),
-      ]);
-      if (!hasSupabaseConfig()) return false;
+      const { hasSupabaseConfig, hasStoredAuthSession } = await import('./data/supabase-client.js');
+      const query = new URLSearchParams(location.search);
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const hasAuthCallback = [query, hash].some((params) => params.has('access_token') || params.has('error_description'));
+      if (!hasSupabaseConfig() || (!hasAuthCallback && !hasStoredAuthSession(window))) return false;
+      const { getAccountClient } = await import('./services/account-auth.js');
       const client = await getAccountClient();
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
@@ -380,7 +393,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       const fallback = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-fallback]');
       try {
         if (!navigator.clipboard?.writeText) throw new Error('A área de transferência não está disponível.');
-        await navigator.clipboard.writeText('lisjustino@gmail.com');
+        await navigator.clipboard.writeText(CONTACT_EMAIL);
         if (status) status.textContent = 'E-mail copiado.';
         if (fallback) fallback.hidden = true;
       } catch (error) {
@@ -426,29 +439,24 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       url.pathname = '/demonstracao';
       url.hash = '';
       history.pushState(null, '', `${url.pathname}${url.search}`);
-      renderLandingDemo(root);
-      renderedPublicPath = `${location.pathname}${location.search}`;
-      document.title = 'Demonstração | aurora.';
+      renderPublicRoute();
       window.scrollTo(0, 0);
-      updatePublicConnectionNotice();
       return;
     }
     if (action !== 'login' && action !== 'signup') return;
+    if (publicAccountNavigationPending) return;
+    publicAccountNavigationPending = true;
 
-    const buttons = [...root.querySelectorAll('[data-public-action="login"], [data-public-action="signup"], [data-public-action="demo"]')];
     const setBusy = (control, busy) => {
       if (control instanceof HTMLButtonElement) control.disabled = busy;
       else if (busy) control.setAttribute('aria-disabled', 'true');
       else control.removeAttribute('aria-disabled');
     };
-    buttons.forEach((button) => {
-      setBusy(button, true);
-      button.setAttribute('aria-busy', 'true');
-      if (button !== trigger) return;
-      const label = button.textContent?.trim();
-      if (label && !button.dataset.defaultLabel) button.dataset.defaultLabel = label;
-      if (button.dataset.defaultLabel) button.textContent = button.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
-    });
+    setBusy(trigger, true);
+    trigger.setAttribute('aria-busy', 'true');
+    const label = trigger.textContent?.trim();
+    if (label && !trigger.dataset.defaultLabel) trigger.dataset.defaultLabel = label;
+    if (trigger.dataset.defaultLabel) trigger.textContent = trigger.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
 
     try {
       const sessionReady = await sessionRestore;
@@ -458,12 +466,11 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       console.error('Aurora: a inicialização segura falhou.', error);
       showEntryError(root);
     } finally {
-      buttons.forEach((button) => {
-        setBusy(button, false);
-        button.removeAttribute('aria-busy');
-        const defaultLabel = button.dataset.defaultLabel;
-        if (defaultLabel) button.textContent = defaultLabel;
-      });
+      publicAccountNavigationPending = false;
+      setBusy(trigger, false);
+      trigger.removeAttribute('aria-busy');
+      const defaultLabel = trigger.dataset.defaultLabel;
+      if (defaultLabel) trigger.textContent = defaultLabel;
     }
   });
 

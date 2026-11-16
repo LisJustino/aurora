@@ -14,13 +14,22 @@ import {
   isAccountDeletionConfirmed,
   isExistingAccountSignup,
   isPasswordRecoveryCallback,
-  LEGAL_DOCUMENT_VERSION,
-  meetsPasswordRequirements,
+  TERMS_DOCUMENT_VERSION,
+  PRIVACY_POLICY_VERSION,
+  CYCLE_DATA_CONSENT_VERSION,
   passwordRecoveryErrorMessage,
   getEmailDomainSuggestions,
   requestAccountDeletion,
   signupErrorMessage,
 } from '../src/js/services/account-auth.js';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_REJECTED_MESSAGE,
+  PASSWORD_REQUIREMENTS,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+  validatePassword,
+} from '../src/js/services/password-policy.js';
 import {
   NATIVE_AUTH_REDIRECT_URL,
   parseNativeAuthCallback,
@@ -35,6 +44,7 @@ import {
 import { timeBasedGreeting } from '../src/js/features/profile/model.js';
 import {
   createAuthSessionStorage,
+  hasStoredAuthSession,
   resolveSupabaseConfig,
   setRememberSession,
 } from '../src/js/data/supabase-client.js';
@@ -107,12 +117,23 @@ const authSessionStorage = createAuthSessionStorage({
   localStorage: localAuthStorage,
   sessionStorage: sessionAuthStorage,
 });
+const storage = { localStorage: localAuthStorage, sessionStorage: sessionAuthStorage };
+const testUrl = 'https://test.supabase.co';
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
+assert.throws(() => hasStoredAuthSession({
+  localStorage: { getItem() { throw new Error('storage unavailable'); } },
+  sessionStorage: sessionAuthStorage,
+}, testUrl), /storage unavailable/);
+sessionAuthStorage.setItem('sb-test-auth-token-code-verifier', 'verifier');
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
 setRememberSession(false);
 await authSessionStorage.setItem('sb-test-auth-token', 'session-only');
+assert.equal(hasStoredAuthSession(storage, testUrl), true);
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), 'session-only');
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), null);
 setRememberSession(true);
 await authSessionStorage.setItem('sb-test-auth-token', 'remembered');
+assert.equal(hasStoredAuthSession(storage, testUrl), true);
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), 'remembered');
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), null);
 setRememberSession(false);
@@ -120,6 +141,7 @@ assert.equal(await authSessionStorage.getItem('sb-test-auth-token'), 'remembered
 await authSessionStorage.removeItem('sb-test-auth-token');
 assert.equal(localAuthStorage.getItem('sb-test-auth-token'), null);
 assert.equal(sessionAuthStorage.getItem('sb-test-auth-token'), null);
+assert.equal(hasStoredAuthSession(storage, testUrl), false);
 assert.equal(isPasswordRecoveryCallback({ search: '?type=recovery', hash: '' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '', hash: '#type=recovery' }), true);
 assert.equal(isPasswordRecoveryCallback({ search: '?code=', hash: '' }), false);
@@ -192,7 +214,7 @@ assert.match(signupErrorMessage(null, {
   session: null,
   user: { identities: [] },
 }), /Ajustes → Seu perfil → Excluir conta/);
-assert.match(signupErrorMessage({ code: 'weak_password' }), /requisitos de segurança/);
+assert.equal(signupErrorMessage({ code: 'weak_password' }), PASSWORD_REJECTED_MESSAGE);
 assert.match(signupErrorMessage({ code: 'invalid_email' }), /e-mail foi digitado corretamente/);
 assert.match(signupErrorMessage({ status: 429 }), /Muitas tentativas/);
 assert.equal(
@@ -202,13 +224,15 @@ assert.equal(
 
 assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')), {
   terms_accepted_at: '2026-10-29T12:00:00.000Z',
-  terms_version: LEGAL_DOCUMENT_VERSION,
-  privacy_policy_version: LEGAL_DOCUMENT_VERSION,
+  terms_version: TERMS_DOCUMENT_VERSION,
+  privacy_policy_version: PRIVACY_POLICY_VERSION,
 });
-assert.equal(LEGAL_DOCUMENT_VERSION, '1.9');
+assert.equal(TERMS_DOCUMENT_VERSION, '1.9');
+assert.equal(PRIVACY_POLICY_VERSION, '2.0');
+assert.equal(CYCLE_DATA_CONSENT_VERSION, '2.0');
 assert.deepEqual(createCycleDataConsentMetadata(new Date('2026-11-08T12:00:00.000Z')), {
   cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-  cycle_data_consent_version: '1.9',
+  cycle_data_consent_version: CYCLE_DATA_CONSENT_VERSION,
   cycle_data_consent_revoked_at: null,
 });
 assert.deepEqual(createCycleDataConsentRevocationMetadata(new Date('2026-11-08T13:00:00.000Z')), {
@@ -222,7 +246,18 @@ const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
 assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.9">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="1\.9">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.0">/);
+const analyticsSection = privacyDocument.match(/<section id="privacy-analytics">([\s\S]*?)<\/section>/)?.[1];
+assert.ok(analyticsSection, 'A política deve explicar a medição de acessos da Cloudflare.');
+assert.match(analyticsSection, /Cloudflare Web Analytics/);
+assert.match(analyticsSection, /acessos agregados/);
+assert.match(analyticsSection, /sem identificar as pessoas/);
+assert.match(analyticsSection, /melhorias/);
+assert.match(analyticsSection, /cookies de publicidade/);
+assert.match(analyticsSection, /href="https:\/\/developers\.cloudflare\.com\/web-analytics\/"/);
+assert.match(analyticsSection, /href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/);
+assert.match(privacyDocument, /última atualização: 14 de novembro de 2026/);
+assert.doesNotMatch(privacyDocument, /11 de novembro de 2026/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);
@@ -232,16 +267,24 @@ assert.match(termsDocument, /cadastro não exige confirmação do e-mail, mas pe
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
 assert.match(accountAuthSource, /erro pode impedir a recuperação da senha/i);
-assert.match(landingSource, /você digita o endereço duas vezes/i);
-assert.match(landingSource, /endereço inválido pode impedir a recuperação da senha/i);
+assert.match(accountAuthSource, /Digite novamente o endereço para evitar erros de recuperação\./i);
+assert.match(accountAuthSource, /um erro pode impedir a recuperação da senha/i);
+assert.doesNotMatch(landingSource, /endereço.*recuperação da senha/i);
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
+    terms_version: '1.9',
+    privacy_policy_version: '2.0',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), true);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.9',
     privacy_policy_version: '1.9',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
-}), true);
+}), false);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.6',
@@ -267,10 +310,17 @@ assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-    cycle_data_consent_version: '1.9',
+    cycle_data_consent_version: '2.0',
     cycle_data_consent_revoked_at: null,
   },
 }), true);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '1.9',
+    cycle_data_consent_revoked_at: null,
+  },
+}), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
@@ -281,7 +331,7 @@ assert.equal(hasCurrentCycleDataConsent({
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-    cycle_data_consent_version: '1.9',
+    cycle_data_consent_version: '2.0',
     cycle_data_consent_revoked_at: '2026-11-08T13:00:00.000Z',
   },
 }), false);
@@ -357,14 +407,19 @@ assert.doesNotMatch(accountAuthSource, /Continuar com Apple \(iCloud\)/);
 assert.match(accountAuthSource, /result\.oauthProvider !== 'google'/);
 assert.match(accountAuthSource, /oauth-profile/);
 
-assert.equal(meetsPasswordRequirements('Abc12!'), true);
-assert.equal(meetsPasswordRequirements('Abc1!'), false);
-assert.equal(meetsPasswordRequirements('abcdef1!'), false);
-assert.equal(meetsPasswordRequirements('ABCDEF1!'), false);
-assert.equal(meetsPasswordRequirements('Abcdefg!'), false);
-assert.equal(meetsPasswordRequirements('Abcdef1g'), false);
-assert.equal(meetsPasswordRequirements(`A${'b'.repeat(69)}1!`), true);
-assert.equal(meetsPasswordRequirements(`A${'b'.repeat(70)}1!`), false);
+assert.equal(PASSWORD_MIN_LENGTH, 6);
+assert.equal(PASSWORD_MAX_LENGTH, 72);
+assert.equal(PASSWORD_REQUIREMENTS[0][1], 'entre 6 e 72 caracteres');
+assert.equal(validatePassword('Abc1!').valid, false);
+assert.equal(validatePassword('Abc12!').valid, true);
+assert.equal(validatePassword('Abc12!x').valid, true);
+assert.equal(validatePassword('abcdef1!').valid, false);
+assert.equal(validatePassword('ABCDEF1!').valid, false);
+assert.equal(validatePassword('Abcdefg!').valid, false);
+assert.equal(validatePassword('Abcdef1g').valid, false);
+assert.equal(validatePassword(`A${'b'.repeat(69)}1!`).valid, true);
+assert.equal(validatePassword(`A${'b'.repeat(70)}1!`).valid, false);
+assert.equal(validatePassword(null).valid, false);
 assert.match(passwordRecoveryErrorMessage({ code: 'over_email_send_rate_limit' }), /aguarde alguns minutos/i);
 assert.match(passwordRecoveryErrorMessage({ status: 429 }), /aguarde alguns minutos/i);
 assert.equal(

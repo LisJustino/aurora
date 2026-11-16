@@ -1,5 +1,5 @@
 import { iconSvg as demoIcon } from '../../utils/icons.js';
-import { prefersReducedMotion } from '../../utils/motion.js';
+import { animateProgressRing, playMotion, prefersReducedMotion } from '../../utils/motion.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
 import { timeBasedGreeting } from '../profile/model.js';
 
@@ -17,6 +17,8 @@ export function stopLandingDemo(root) {
   const controller = demoControllers.get(root);
   if (!controller) return;
   root.removeEventListener('click', controller.onClick);
+  root.removeEventListener('submit', controller.onSubmit);
+  root.removeEventListener('input', controller.onInput);
   demoControllers.delete(root);
 }
 
@@ -34,19 +36,21 @@ function renderTaskRows(tasks) {
   const nextTaskId = tasks.find((task) => !task.done)?.id;
   return `<ul class="list demo-task-list">${tasks.map((task) => `
     <li class="task ${task.done ? 'done' : task.id === nextTaskId ? 'is-next' : ''}">
-      <span class="chk" aria-hidden="true"><span>${demoIcon('check', 15)}</span></span>
+      <button type="button" class="chk" role="checkbox" aria-checked="${String(task.done)}" aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluída'}: ${escapeDemoText(task.title)}" data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
       <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta">${task.done ? '<span>Concluída</span>' : task.id === nextTaskId ? '<span class="m-warn">Próximo passo</span>' : '<span class="m-warn">Hoje</span>'}<span>Exemplo</span></span></div>
     </li>`).join('')}</ul>`;
 }
 
-function renderHabitCard({ large = false } = {}) {
+function renderHabitCard(state, { large = false } = {}) {
   const days = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  const dayNames = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'];
+  const completed = state.habitDays.filter(Boolean).length;
   return `
     <section class="card demo-habit-card ${large ? 'demo-habit-card--large' : ''}" aria-labelledby="demo-habit-title">
       <div class="head"><div><p class="section-kicker">Um cuidado seu</p><h2 id="demo-habit-title">Alongar um pouquinho</h2></div>${demoIcon('leaf', 20)}</div>
-      <p class="demo-muted">2 dias nesta semana</p>
-      <div class="demo-habit-week" aria-label="Check-ins fictícios nesta semana">${days.map((day, index) => `<span class="${index < 2 ? 'is-complete' : ''}" aria-hidden="true">${day}</span>`).join('')}</div>
-      <p class="demo-readonly-note">Registro de exemplo · somente leitura.</p>
+      <p class="demo-muted" aria-live="polite">${completed} ${completed === 1 ? 'dia' : 'dias'} nesta semana</p>
+      <div class="demo-habit-week" role="group" aria-label="Marque os dias em que fez este hábito">${days.map((day, index) => `<button type="button" class="${state.habitDays[index] ? 'is-complete' : ''}" aria-pressed="${String(state.habitDays[index])}" aria-label="${dayNames[index]}: ${state.habitDays[index] ? 'marcado' : 'não marcado'}" data-demo-action="habit-toggle" data-day-index="${index}">${day}</button>`).join('')}</div>
+      <p class="demo-session-note">Check-ins de exemplo. Nada fica salvo ao sair.</p>
     </section>`;
 }
 
@@ -55,7 +59,7 @@ function renderPageHeading(eyebrow, title, description = '') {
 }
 
 function demoNotice() {
-  return `<div class="notice warn sample-banner" role="note">${demoIcon('info', 18)}<div class="grow"><strong>Você está na demonstração</strong><span>Dados fictícios, somente leitura. Nada é enviado nem salvo na sua conta.</span></div><a class="btn sm" href="/criar-conta" data-public-action="signup">Criar minha conta</a></div>`;
+  return `<div class="notice sample-banner" role="note"><span class="sample-banner-copy">Demonstração com dados fictícios.</span><a class="btn sm" href="/criar-conta" data-public-action="signup">Criar conta</a></div>`;
 }
 
 function renderHomeTask(task) {
@@ -75,6 +79,7 @@ function renderToday(state) {
   const lead = open.length ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.';
   const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).format(new Date()).replace(/[.,]/g, '').replace(/^(\S+) /, '$1, ');
   return `
+    ${demoNotice()}
     <header class="home-head" aria-labelledby="demo-greeting">
       <div>
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
@@ -84,7 +89,6 @@ function renderToday(state) {
       </div>
       <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
     </header>
-    ${demoNotice()}
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         <section class="card home-today-card" aria-labelledby="demo-today-tasks-title">
@@ -101,7 +105,8 @@ function renderToday(state) {
         </section>
         <section class="card home-quick-card" aria-labelledby="demo-quick-title">
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Na sua conta, você pode registrar tarefas e organizar o dia.</p></div></div>
-          <p class="demo-readonly-note">Esta prévia é somente de leitura e não salva alterações.</p>
+              <p class="demo-session-note">Experimente adicionar uma tarefa. As mudanças são descartadas ao sair.</p>
+              <button type="button" class="btn" data-demo-view="tasks">Adicionar tarefa de exemplo</button>
         </section>
       </div>
     </div>`;
@@ -112,7 +117,11 @@ function renderTasks(state) {
     <section class="card demo-area-panel" aria-labelledby="demo-task-list-title">
       <div class="head"><div><p class="section-kicker">Um passo de cada vez</p><h2 id="demo-task-list-title">Tarefas de exemplo</h2></div><span class="pill" aria-live="polite">${completed} de ${state.tasks.length} feitos</span></div>
       ${renderTaskRows(state.tasks)}
-      <p class="demo-note">Os exemplos são somente de leitura. Crie uma conta para registrar suas próprias tarefas.</p>
+      <form class="demo-add-form" data-demo-task-form>
+        <label for="demo-new-task">Adicione uma tarefa de exemplo</label>
+        <div><input id="demo-new-task" name="title" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: caminhar por 10 minutos" required data-demo-task-input><button class="btn primary" type="submit">Adicionar</button></div>
+        <p class="demo-note" id="demo-task-help">A tarefa fica só nesta demonstração e não é salva.</p>
+      </form>
     </section>`;
 }
 
@@ -153,8 +162,8 @@ function renderDemoArea(state) {
   if (state.view === 'tasks') return renderTasks(state);
   if (state.view === 'habits') {
     return `${renderPageHeading('Pequenos cuidados', 'Hábitos', 'Acompanhe o que faz sentido para sua rotina, um dia de cada vez.')}
-      <div class="demo-area-single">${renderHabitCard({ large: true })}
-      <section class="card demo-area-panel demo-habit-note"><p class="section-kicker">Nesta semana</p><h2>Constância também pode ter pausas.</h2><p>Este exemplo é somente de leitura e não cria um registro na sua conta.</p></section>
+      <div class="demo-area-single">${renderHabitCard(state, { large: true })}
+      <section class="card demo-area-panel demo-habit-note"><p class="section-kicker">Nesta semana</p><h2>Constância também pode ter pausas.</h2><p>Marque os dias de exemplo. Nada será salvo na sua conta.</p></section>
       </div>`;
   }
   if (state.view === 'cycle') return renderCycle(state);
@@ -162,13 +171,24 @@ function renderDemoArea(state) {
 }
 
 function renderNavigation(state) {
-  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-primary demo-nav-link ${state.view === id ? 'is-current' : ''}" href="/demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
+  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-item demo-nav-link ${state.view === id ? 'is-current' : ''}" href="/demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
 }
 
 function updateDemoView(root, state, focusHeading = false) {
   const screen = root.querySelector('[data-demo-screen]');
   if (!(screen instanceof HTMLElement)) return;
   screen.innerHTML = renderDemoScreen(state);
+  const ring = screen.querySelector('.home-head .ring-fg');
+  if (ring) {
+    const progress = state.tasks.length
+      ? state.tasks.filter((task) => task.done).length / state.tasks.length
+      : 0;
+    const circumference = Number(ring.getAttribute('stroke-dasharray'));
+    if (Number.isFinite(state.displayedHomeProgress)) {
+      animateProgressRing(ring, circumference * (1 - state.displayedHomeProgress));
+    }
+    state.displayedHomeProgress = progress;
+  }
   root.querySelectorAll('[data-demo-view]').forEach((item) => {
     const active = item.dataset.demoView === state.view;
     item.classList.toggle('is-current', active);
@@ -188,6 +208,9 @@ export function renderLandingDemo(root) {
       { id: 'message', title: 'Responder uma mensagem', done: true },
       { id: 'read', title: 'Ler por alguns minutos', done: false },
     ],
+    nextTaskId: 0,
+    displayedHomeProgress: null,
+    habitDays: [true, true, false, false, false, false, false],
     cycleDay: 12,
     financeMonth: 0,
   };
@@ -224,6 +247,25 @@ export function renderLandingDemo(root) {
     } else if (action === 'finance-month') {
       state.financeMonth = Math.min(1, Math.max(0, state.financeMonth - Number(button.dataset.direction)));
       updateDemoView(root, state);
+    } else if (action === 'task-toggle') {
+      const task = state.tasks.find((item) => item.id === button.dataset.taskId);
+      if (!task) return;
+      task.done = !task.done;
+      updateDemoView(root, state);
+      const updatedButton = [...root.querySelectorAll('[data-demo-action="task-toggle"]')]
+        .find((item) => item.dataset.taskId === task.id);
+      if (task.done) {
+        playMotion(updatedButton?.querySelector('span'), 'is-task-check-popping');
+        playMotion(updatedButton?.closest('.task')?.querySelector('.ttl'), 'is-task-completing');
+      }
+      updatedButton?.focus({ preventScroll: true });
+    } else if (action === 'habit-toggle') {
+      const index = Number(button.dataset.dayIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= state.habitDays.length) return;
+      state.habitDays[index] = !state.habitDays[index];
+      updateDemoView(root, state);
+      root.querySelector(`[data-demo-action="habit-toggle"][data-day-index="${index}"]`)
+        ?.focus({ preventScroll: true });
     } else if (action === 'help') {
       root.querySelector('#demo-help')?.scrollIntoView({
         behavior: prefersReducedMotion(document.documentElement.dataset.motion === 'reduce') ? 'auto' : 'smooth',
@@ -231,8 +273,34 @@ export function renderLandingDemo(root) {
       });
     }
   };
+  const onSubmit = (event) => {
+    if (!(event.target instanceof HTMLFormElement)
+      || !event.target.matches('[data-demo-task-form]')) return;
+    event.preventDefault();
+    const form = event.target;
+    const input = form.elements.namedItem('title');
+    if (!(input instanceof HTMLInputElement)) return;
+    const title = input.value.trim();
+    if (!title) {
+      input.setCustomValidity('Digite o nome da tarefa.');
+      input.reportValidity();
+      return;
+    }
+    state.tasks.push({ id: `demo-task-${state.nextTaskId++}`, title, done: false });
+    updateDemoView(root, state);
+    root.querySelector('[data-demo-task-input]')?.focus({ preventScroll: true });
+  };
+  const onInput = (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.matches('[data-demo-task-input]')) {
+      event.target.setCustomValidity('');
+    }
+  };
   state.onClick = onClick;
+  state.onSubmit = onSubmit;
+  state.onInput = onInput;
   demoControllers.set(root, state);
   root.addEventListener('click', onClick);
+  root.addEventListener('submit', onSubmit);
+  root.addEventListener('input', onInput);
   updateDemoView(root, state);
 }

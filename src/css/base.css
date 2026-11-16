@@ -4,13 +4,13 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-#app .money, #dlg .money, #toast .money { text-transform: uppercase !important; }
+#app .money, #dlg .money, #toast .money { text-transform: uppercase; }
 #app .proper-name, #dlg .proper-name, #toast .proper-name,
 #app .user-value, #dlg .user-value, #toast .user-value,
 #app .ttl, #dlg .ttl, #toast .ttl,
 #app .tgx, #dlg .tgx, #toast .tgx,
 #app .bank-logo, #dlg .bank-logo, #toast .bank-logo,
-#app .case-preserve, #dlg .case-preserve, #toast .case-preserve { text-transform: none !important; }
+#app .case-preserve, #dlg .case-preserve, #toast .case-preserve { text-transform: none; }
 #app .expense-name, #dlg .expense-name, #toast .expense-name { text-transform: none; }
 #app input, #app textarea, #dlg input, #dlg textarea { text-transform: none; }
 
@@ -54,7 +54,7 @@ img, svg { max-width: 100%; }
   color: var(--ink);
 }
 
-[hidden]:not([hidden="until-found" i]) { display: none !important; }
+html body [hidden]:not([hidden="until-found" i]) { display: none; }
 
 h1, h2, h3 {
   margin: 0;
@@ -78,7 +78,7 @@ button, [role="tab"], .nav a { -webkit-user-select: none; user-select: none; }
 a { color: inherit; }
 a.inline-link {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   text-decoration: underline;
   text-decoration-thickness: 1.5px;
   text-underline-offset: .18em;
@@ -104,24 +104,6 @@ a.inline-link:focus-visible { color: var(--accent); text-decoration-thickness: 2
 .muted { color: var(--muted); }
 .small { font-size: var(--text-sm); }
 .tiny { font-size: var(--text-xs); }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    scroll-behavior: auto !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
-  }
-}
-
-:root[data-motion="reduce"] *,
-:root[data-motion="reduce"] *::before,
-:root[data-motion="reduce"] *::after {
-  scroll-behavior: auto !important;
-  animation-duration: .01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: .01ms !important;
-}
 
 body {
   background:

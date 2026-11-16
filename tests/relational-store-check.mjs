@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { RelationalAccountStore } from '../src/js/data/relational-account-store.js';
+import {
+  isValidCycleSexualLog,
+  isValidCycleSocialLog,
+  isValidCycleTrackingLog,
+} from '../src/js/features/cycle/log.js';
 
 for (const migrationName of [
   '20261028190000_relational_persistence.sql',
@@ -40,6 +45,16 @@ assert.match(installmentFinanceMigration, /add column if not exists anticipated_
 assert.match(installmentFinanceMigration, /add column if not exists invoice_installment boolean not null default false/i);
 assert.match(installmentFinanceMigration, /interest_cents <= amount_cents/i);
 assert.doesNotMatch(installmentFinanceMigration, /update\s+public\.finance_transactions/i);
+const goalAccountMigration = await readFile(
+  new URL('../supabase/migrations/20261110000000_finance_goal_account_link.sql', import.meta.url),
+  'utf8',
+);
+assert.match(goalAccountMigration, /add column if not exists linked_account_id uuid/i);
+assert.match(goalAccountMigration, /foreign key \(user_id, linked_account_id\)/i);
+assert.match(goalAccountMigration, /references public\.finance_accounts \(user_id, id\)/i);
+assert.match(goalAccountMigration, /on delete restrict/i);
+assert.match(goalAccountMigration, /where linked_account_id is not null and deleted_at is null/i);
+assert.doesNotMatch(goalAccountMigration, /update\s+public\.finance_goals/i);
 const taskIconsMigration = await readFile(
   new URL('../supabase/migrations/20261104210000_task_icons.sql', import.meta.url),
   'utf8',
@@ -81,6 +96,48 @@ assert.match(cycleIntimacyMigration, /add column if not exists masturbation_acti
 assert.match(cycleIntimacyMigration, /add column if not exists orgasm_count integer/i);
 assert.match(cycleIntimacyMigration, /if not exists \([\s\S]*cycle_days_orgasm_count_check/i);
 assert.match(cycleIntimacyMigration, /orgasm_count is null or orgasm_count between 0 and 99/i);
+const cycleIntimacyOptionsMigration = await readFile(
+  new URL('../supabase/migrations/20261111000000_cycle_intimacy_options.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists sex_toys_used boolean/i);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists libido_level text/i);
+assert.match(cycleIntimacyOptionsMigration, /add column if not exists orgasm_occurred boolean/i);
+assert.match(cycleIntimacyOptionsMigration, /libido_level is null or libido_level in \('high', 'low'\)/i);
+assert.doesNotMatch(cycleIntimacyOptionsMigration, /update\s+public\.cycle_days/i);
+assert.equal(isValidCycleSexualLog({ sexualActivity: false }), true);
+assert.equal(isValidCycleSexualLog({ libido: 'high', orgasmOccurred: false, sexToysUsed: true }), true);
+assert.equal(isValidCycleSexualLog({ libido: 'medium' }), false);
+assert.equal(isValidCycleSexualLog({ orgasmOccurred: 'no' }), false);
+const cycleSocialMigration = await readFile(
+  new URL('../supabase/migrations/20261111010000_cycle_social_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleSocialMigration, /add column if not exists social text\[\] not null default '\{\}'::text\[\]/i);
+assert.match(cycleSocialMigration, /cycle_days_social_options_check/i);
+assert.equal(isValidCycleSocialLog({ social: ['interaction', 'interaction-helped'] }), true);
+assert.equal(isValidCycleSocialLog({ social: ['not-an-option'] }), false);
+assert.equal(isValidCycleSocialLog({ social: ['interaction', 'interaction'] }), false);
+assert.equal(isValidCycleTrackingLog({
+  weightKg: 65.5,
+  ovulationTestResult: 'positive',
+  pregnancyTestResult: 'undisclosed',
+  medicationTaken: false,
+}), true);
+assert.equal(isValidCycleTrackingLog({ weightKg: 401 }), false);
+assert.equal(isValidCycleTrackingLog({ weightKg: 65.55 }), false);
+assert.equal(isValidCycleTrackingLog({ ovulationTestResult: 'maybe' }), false);
+assert.equal(isValidCycleTrackingLog({ medicationTaken: 'yes' }), false);
+const cycleDailyTrackingMigration = await readFile(
+  new URL('../supabase/migrations/20261111020000_cycle_daily_tracking.sql', import.meta.url),
+  'utf8',
+);
+assert.match(cycleDailyTrackingMigration, /add column if not exists weight_kg numeric\(5, 2\)/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists ovulation_test_result text/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists pregnancy_test_result text/i);
+assert.match(cycleDailyTrackingMigration, /add column if not exists medication_taken boolean/i);
+assert.match(cycleDailyTrackingMigration, /weight_kg is null or weight_kg between 20 and 400/i);
+assert.doesNotMatch(cycleDailyTrackingMigration, /update\s+public\.cycle_days/i);
 
 const trashCollectionMigration = await readFile(
   new URL('../supabase/migrations/20261029040000_trash_cycle_collection.sql', import.meta.url),
@@ -124,9 +181,10 @@ assert.match(rlsIsolationTest, /User A read User B vault key/i);
 assert.match(rlsIsolationTest, /User A read User B legacy data/i);
 assert.match(rlsIsolationTest, /User A inserted User B vault key/i);
 assert.match(rlsIsolationTest, /User A inserted User B legacy data/i);
-assert.match(rlsIsolationTest, /masturbation_activity, orgasm_count/i);
-assert.match(rlsIsolationTest, /'2026-03-01', true, true, 2/i);
-assert.match(rlsIsolationTest, /'2026-03-02', true, true, 100/i);
+assert.match(rlsIsolationTest, /masturbation_activity, sex_toys_used,[\s\S]*libido_level, orgasm_occurred, orgasm_count/i);
+assert.match(rlsIsolationTest, /'2026-03-01', array\['concentration', 'memory'\], array\['interaction', 'interaction-helped'\],[\s\S]*true, true, true, 'high', true, 2/i);
+assert.match(rlsIsolationTest, /The social options constraint accepted an unknown value/i);
+assert.match(rlsIsolationTest, /'2026-03-02', true, true, true, 'high', true, 100/i);
 assert.match(rlsIsolationTest, /The orgasm count constraint accepted 100/i);
 assert.match(rlsIsolationTest, /public\.apply_relational_changes\(jsonb_build_array/i);
 assert.match(rlsIsolationTest, /expected_versions/i);
@@ -154,11 +212,12 @@ const client = {
 const state = {
   settings: {
     profile: { name: 'Pessoa', preferredName: 'Pessoa' },
-    areas: { finances: true },
+    areas: { finances: true, gym: true },
     lists: [],
     cats: { out: [], in: [] },
     prefs: {
       releaseNotesSeen: 'release-123',
+      financeValuesHidden: true,
       trash: [{
         id: 'trashed-cycle-period',
         deletedAt: Date.parse('2026-10-29T12:00:00Z'),
@@ -173,7 +232,14 @@ const state = {
       birthday: { month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29' },
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
+      firstStepsStarted: true,
       profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      annualPlans: {
+        2027: {
+          intention: 'Abrir espaço para o que importa.',
+          goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+        },
+      },
       homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
       homeMode: 'focus',
       homeModes: {
@@ -189,7 +255,7 @@ const state = {
     introSeen: true,
   },
   tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
-  pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, history: {} },
+  pomodoro: { elapsedSeconds: 120, startedAt: null, phase: 'focus', phaseElapsedSeconds: 120, completedPomodoros: 3, dailyCompletedPomodoros: 2, dailyCompletedOn: '2026-10-29', history: { '2026-10-29': 2 } },
   habits: [{
     id: 'water-habit',
     name: 'Beber água',
@@ -201,7 +267,10 @@ const state = {
   }],
   water: [{ id: 'water-log-1', ml: 250, at: '2026-10-29T12:00:00.000Z' }],
   checkins: [{ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'] }],
-  gym: { templates: [], logs: [] },
+  gym: {
+    templates: [{ id: 'legacy-template', name: 'Treino antigo', exercises: ['Alongamento'] }],
+    logs: [{ id: 'legacy-workout', date: '2026-10-29', name: 'Treino antigo', minutes: 25, notes: 'Registro preservado' }],
+  },
   finance: {
     accounts: [
       { id: 'account-1', name: 'Conta', type: 'checking', initialCents: 0 },
@@ -217,7 +286,14 @@ const state = {
       { id: 'tx-recurring', type: 'out', accountId: 'account-1', cents: 1800, date: '2026-10-25', desc: 'Aluguel', recId: 'rec-rent' },
     ],
     budgets: { Mercado: { cents: 5000 } },
-    goals: [],
+    goals: [{
+      id: 'goal-1',
+      name: 'Reserva',
+      targetCents: 50000,
+      savedCents: 10000,
+      deadline: null,
+      linkedAccountId: 'investment-1',
+    }],
     recurring: [{
       id: 'rec-rent',
       type: 'out',
@@ -235,7 +311,21 @@ const state = {
       sexualActivity: true,
       contraceptionMethods: ['condom'],
       masturbationActivity: true,
+      sexToysUsed: true,
+      libido: 'high',
+      orgasmOccurred: true,
       orgasmCount: 2,
+      mood: ['concentration', 'memory'],
+      social: ['interaction', 'interaction-helped'],
+      weightKg: 65.5,
+      ovulationTestResult: 'positive',
+      pregnancyTestResult: 'negative',
+      medicationTaken: true,
+    },
+    '2026-10-29': {
+      sexualActivity: false,
+      libido: 'low',
+      orgasmOccurred: false,
     },
   },
   weight: [],
@@ -263,6 +353,8 @@ assert.equal(accountRowsByLegacyId.get('investment-1').account_type, 'investment
 assert.equal(accountRowsByLegacyId.get('cash-legacy').account_type, 'checking');
 assert.equal(accountRowsByLegacyId.get('card-1').linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(accountRowsByLegacyId.get('card-stale-link').linked_account_id, null);
+const goalRow = changeByTable.get('finance_goals').find((row) => row.legacy_id === 'goal-1');
+assert.equal(goalRow.linked_account_id, accountRowsByLegacyId.get('investment-1').id);
 assert.equal(changeByTable.get('finance_transactions').find((row) => row.legacy_id === 'tx-cash').account_id, accountRowsByLegacyId.get('cash-legacy').id);
 assert.deepEqual(changeByTable.get('user_settings')[0].account_types, ['checking', 'savings', 'investment']);
 assert.equal(changeByTable.get('finance_budgets')[0].amount_cents, 5000);
@@ -273,7 +365,20 @@ assert.equal(cycleDayRow.log_date, '2026-10-28');
 assert.equal(cycleDayRow.sexual_activity, true);
 assert.deepEqual(cycleDayRow.contraception_methods, ['condom']);
 assert.equal(cycleDayRow.masturbation_activity, true);
+assert.equal(cycleDayRow.sex_toys_used, true);
+assert.equal(cycleDayRow.libido_level, 'high');
+assert.equal(cycleDayRow.orgasm_occurred, true);
 assert.equal(cycleDayRow.orgasm_count, 2);
+assert.deepEqual(cycleDayRow.mood, ['concentration', 'memory']);
+assert.deepEqual(cycleDayRow.social, ['interaction', 'interaction-helped']);
+assert.equal(cycleDayRow.weight_kg, 65.5);
+assert.equal(cycleDayRow.ovulation_test_result, 'positive');
+assert.equal(cycleDayRow.pregnancy_test_result, 'negative');
+assert.equal(cycleDayRow.medication_taken, true);
+const explicitNoSexRow = changeByTable.get('cycle_days').find((row) => row.log_date === '2026-10-29');
+assert.equal(explicitNoSexRow.sexual_activity, false);
+assert.equal(explicitNoSexRow.libido_level, 'low');
+assert.equal(explicitNoSexRow.orgasm_occurred, false);
 assert.equal(changeByTable.get('water_logs')[0].amount_ml, 250);
 assert.equal(changeByTable.get('water_logs')[0].recorded_at, '2026-10-29T12:00:00.000Z');
 const checkinRow = changeByTable.get('daily_checkins')[0];
@@ -291,12 +396,20 @@ assert.equal(changeByTable.get('profiles')[0].display_name, 'Pessoa');
 assert.equal(changeByTable.get('user_settings')[0].preferences.onboardingComplete, true);
 assert.equal(changeByTable.get('user_settings')[0].preferences.introSeen, true);
 assert.equal(changeByTable.get('user_settings')[0].preferences.releaseNotesSeen, 'release-123');
+assert.equal(changeByTable.get('user_settings')[0].preferences.financeValuesHidden, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.birthday, {
   month: 10, day: 29, ageAtReference: 26, referenceDate: '2026-10-29',
 });
 assert.equal(changeByTable.get('user_settings')[0].preferences.birthdayCorrectionUsed, false);
 assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsDismissed, true);
+assert.equal(changeByTable.get('user_settings')[0].preferences.firstStepsStarted, true);
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoals, { 'water-habit': 2750 });
+assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
+});
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
 });
@@ -312,12 +425,16 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeModes.foc
   layout: { order: ['quick', 'today', 'habits', 'summary'], visible: ['quick', 'today'] },
   shortcuts: ['task', 'pomodoro'],
 });
-assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true });
+assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances: true, gym: true });
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
 assert.equal(changeByTable.has('study_sessions'), false);
 assert.equal(changeByTable.get('timer_state')[0].timer_kind, 'pomodoro');
 assert.equal(Object.hasOwn(changeByTable.get('timer_state')[0], 'subject_id'), false);
+assert.equal(changeByTable.get('pomodoro_daily_stats')[0].completed_count, 2);
+assert.equal(changeByTable.get('gym_templates')[0].name, 'Treino antigo');
+assert.equal(changeByTable.get('gym_template_exercises')[0].name, 'Alongamento');
+assert.equal(changeByTable.get('gym_logs')[0].notes, 'Registro preservado');
 assert.equal(writes[0].args.p_changes[0].replace_missing, true);
 assert.ok(changeByTable.get('tasks').every((row) => row.expected_updated_at === null));
 
@@ -361,16 +478,37 @@ const loadClient = {
   },
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
+assert.equal(loadedState.settings.areas.gym, true);
+assert.equal(loadedState.pomodoro.elapsedSeconds, 120);
+assert.equal(loadedState.pomodoro.completedPomodoros, 3);
+assert.deepEqual(loadedState.pomodoro.history, { '2026-10-29': 2 });
+assert.deepEqual(loadedState.gym.templates[0].exercises, ['Alongamento']);
+assert.equal(loadedState.gym.templates[0].id, 'legacy-template');
+assert.equal(loadedState.gym.logs[0].id, 'legacy-workout');
+assert.equal(loadedState.gym.logs[0].notes, 'Registro preservado');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'cash-legacy').type, 'checking');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'card-1').linkedAccountId, 'investment-1');
+assert.equal(loadedState.finance.goals.find((goal) => goal.id === 'goal-1').linkedAccountId, 'investment-1');
 assert.equal(loadedState.finance.accounts.find((account) => account.id === 'investment-1').initialCents, 12000);
+const loadedInvestment = loadedState.finance.accounts.find((account) => account.id === 'investment-1');
+for (const field of ['bank', 'limitCents', 'closingDay', 'dueDay']) {
+  assert.equal(Object.hasOwn(loadedInvestment, field), false, `Campo opcional ${field} deve ficar ausente quando o banco retorna null`);
+}
 assert.equal(loadedState.settings.prefs.firstStepsDismissed, true);
+assert.equal(loadedState.settings.prefs.firstStepsStarted, true);
 assert.equal(loadedState.settings.prefs.releaseNotesSeen, 'release-123');
+assert.equal(loadedState.settings.prefs.financeValuesHidden, true);
 assert.deepEqual(loadedState.checkins, [{
   date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],
 }]);
 assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
   avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+});
+assert.deepEqual(loadedState.settings.prefs.annualPlans, {
+  2027: {
+    intention: 'Abrir espaço para o que importa.',
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+  },
 });
 assert.deepEqual(loadedState.settings.prefs.homeLayout, {
   order: ['today', 'summary', 'quick', 'habits'],
@@ -393,10 +531,25 @@ assert.equal(loadedState.finance.tx[1].interestCents, undefined);
 assert.equal(loadedState.finance.tx[1].anticipatedDate, undefined);
 assert.equal(loadedState.finance.tx[1].invoiceInstallment, undefined);
 assert.deepEqual(loadedState.cycleLog['2026-10-28'], {
+  mood: ['concentration', 'memory'],
+  social: ['interaction', 'interaction-helped'],
+  weightKg: 65.5,
+  ovulationTestResult: 'positive',
+  pregnancyTestResult: 'negative',
+  medicationTaken: true,
   sexualActivity: true,
   contraceptionMethods: ['condom'],
   masturbationActivity: true,
+  sexToysUsed: true,
+  libido: 'high',
+  orgasmOccurred: true,
   orgasmCount: 2,
+  sample: undefined,
+});
+assert.deepEqual(loadedState.cycleLog['2026-10-29'], {
+  sexualActivity: false,
+  libido: 'low',
+  orgasmOccurred: false,
   sample: undefined,
 });
 assert.deepEqual(loadedState.cycle, [{ start: '2026-10-25', end: '2026-10-29', sample: undefined }]);

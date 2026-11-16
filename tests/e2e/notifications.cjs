@@ -20,6 +20,7 @@ async function addTask(page, title, offsetMinutes) {
   await page.locator('[data-dlg="time"]').fill(date.time);
   await page.locator('[data-dlg="remind"]').selectOption('0');
   await page.locator('button[type="submit"][form="dlgform"]').click();
+  return date.day;
 }
 
 (async () => {
@@ -46,7 +47,18 @@ async function addTask(page, title, offsetMinutes) {
 
       await addTask(page, 'Enviar relatório', -5);
       await addTask(page, 'Separar documentos', -2);
-      await addTask(page, 'Ligar para o dentista', 90);
+      const upcomingTaskDate = await addTask(page, 'Ligar para o dentista', 90);
+      const upcomingTaskIsToday = await page.evaluate((day) => {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return day === today;
+      }, upcomingTaskDate);
+
+      await page.locator('a[href="/habitos"]:visible').first().click();
+      await page.locator('[data-action="habit-push-toggle"]').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('[data-action="habit-push-toggle"]').isVisible(), true,
+        `${name}: Push deve ficar disponível quando tarefas têm horário de lembrete`);
+      await page.locator('a[href="/planejar"]:visible').first().click();
 
       assert.equal(await page.locator('#notification-panel').isVisible(), false, `${name}: painel não deve abrir automaticamente`);
       const trigger = page.locator('#notification-top');
@@ -59,11 +71,20 @@ async function addTask(page, title, offsetMinutes) {
       assert.match(await page.locator('#notification-announcer').textContent(), /Abra Notificações para conferir\./);
       await trigger.click();
       await page.locator('#notification-panel').waitFor({ state: 'visible' });
+      assert.match(await page.locator('#notification-panel').textContent(), /hábitos, tarefas ou da revisão semanal/,
+        `${name}: painel explica quais avisos podem chegar fora do app`);
+      const panelTop = await page.locator('#notification-panel').evaluate((panel) => panel.getBoundingClientRect().top);
+      const headerBottom = await page.locator('.topbar').evaluate((header) => header.getBoundingClientRect().bottom);
+      assert(panelTop >= headerBottom, `${name}: painel deve começar abaixo do cabeçalho`);
       assert.notEqual(await page.evaluate(() => document.documentElement.dataset.scrollLocked), 'true', `${name}: a caixa não bloqueia a tela`);
       assert.equal(await page.locator('.notification-item').count(), 2, `${name}: deve exibir os dois lembretes`);
       assert.equal(await page.locator('.notification-section-title').textContent(), 'Agora');
-      assert.equal(await page.locator('.notification-upcoming h3').textContent(), 'Ainda hoje');
-      assert.equal(await page.locator('.notification-upcoming li').count(), 1, `${name}: deve exibir o próximo lembrete`);
+      if (upcomingTaskIsToday) {
+        assert.equal(await page.locator('.notification-upcoming h3').textContent(), 'Ainda hoje');
+        assert.equal(await page.locator('.notification-upcoming li').count(), 1, `${name}: deve exibir o próximo lembrete`);
+      } else {
+        assert.equal(await page.locator('.notification-upcoming').count(), 0, `${name}: não deve mostrar como "Ainda hoje" uma tarefa de amanhã`);
+      }
       assert.equal(await page.locator('.notification-controls').evaluate((el) => getComputedStyle(el).display), 'grid', `${name}: controles devem manter espaçamento em grade`);
       assert.equal(await page.locator('.notification-controls small').evaluate((el) => getComputedStyle(el).display), 'block', `${name}: explicação deve ficar abaixo do título`);
       assert.equal(await page.locator('.notification-settings-link').evaluate((el) => getComputedStyle(el).display), 'flex', `${name}: link de ajustes deve manter ícone e texto alinhados`);
