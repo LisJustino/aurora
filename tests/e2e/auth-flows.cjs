@@ -86,6 +86,12 @@ async function main() {
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const supabaseSdkRequests = [];
+  const mainModuleRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('@supabase_supabase-js')) supabaseSdkRequests.push(request.url());
+    if (new URL(request.url()).pathname.endsWith('/src/js/main.js')) mainModuleRequests.push(request.url());
+  });
   const errors = [];
   const externalRequests = [];
   const unexpectedAuthRequests = [];
@@ -103,6 +109,14 @@ async function main() {
   let expectedAuthServerErrors = 0;
   let pkceRequests = 0;
   let simulateRelational = false;
+  let financeValuesHidden = false;
+  let manyTasks = false;
+  let manyTransactions = false;
+  let homeFixtures = false;
+  let emptyHomeTasks = false;
+  let homeOnboardingComplete = false;
+  let dismissedHomeFirstSteps = false;
+  let habitFixtures = false;
   const assertAccountCardDoesNotScrollInternally = async (label) => {
     const dimensions = await page.locator('.account-card').evaluate((card) => ({
       overflowY: getComputedStyle(card).overflowY,
@@ -139,6 +153,15 @@ async function main() {
       assert.ok(layout.introRight <= layout.cardLeft + 1, `${label}: o formulário deve ficar ao lado do painel de boas-vindas`);
       assert.ok(layout.cardWidth >= layout.introWidth * 0.9, `${label}: o formulário deve ter espaço proporcional ao painel`);
     }
+  };
+  const assertAuthHeaderSpacing = async (label) => {
+    const gap = await page.locator('.account-gate').evaluate((gate) => {
+      const header = document.querySelector('.account-site-header');
+      return header
+        ? gate.getBoundingClientRect().top - header.getBoundingClientRect().bottom
+        : null;
+    });
+    assert.ok(gap !== null && gap >= 24, `${label}: deve haver espaço entre o cabeçalho e o conteúdo`);
   };
   const assertNoHorizontalOverflow = async (label) => {
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -201,7 +224,86 @@ async function main() {
 
     const endpoint = `${request.method()} ${requestUrl.pathname}`;
     if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
+      if ((homeFixtures || habitFixtures) && requestUrl.pathname === '/rest/v1/user_settings') {
+        const preferences = {
+          ...(homeOnboardingComplete ? { onboardingComplete: true, introSeen: true } : {}),
+          ...(dismissedHomeFirstSteps ? { firstStepsDismissed: true } : {}),
+        };
+        return jsonResponse(route, 200, [{ enabled_areas: { habits: true }, preferences }], corsOrigin);
+      }
+      if (homeFixtures && requestUrl.pathname === '/rest/v1/tasks') {
+        if (emptyHomeTasks) return jsonResponse(route, 200, [], corsOrigin);
+        const now = new Date();
+        const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000201', title: 'Tarefa concluída',
+          is_completed: true, due_date: day, completed_at: now.toISOString(),
+          priority: 'normal', sort_order: 1, focus_seconds: 0,
+        }], corsOrigin);
+      }
+      if (habitFixtures && requestUrl.pathname === '/rest/v1/habits') {
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000202', name: 'Hábito teste',
+          scheduled_days: [0, 1, 2, 3, 4, 5, 6], status: 'active',
+        }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/user_settings') {
+        return jsonResponse(route, 200, [{
+          enabled_areas: { finances: true },
+          preferences: { financeValuesHidden },
+        }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_accounts') {
+        return jsonResponse(route, 200, [{
+          id: '00000000-0000-4000-8000-000000000101', name: 'Conta teste',
+          account_type: 'checking', initial_cents: 0, bank: null,
+          limit_cents: null, closing_day: null, due_day: null,
+        }], corsOrigin);
+      }
+      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_transactions') {
+        const now = new Date();
+        const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const rows = Array.from({ length: 23 }, (_, index) => ({
+          id: `00000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+          transaction_type: 'out',
+          account_id: '00000000-0000-4000-8000-000000000101',
+          amount_cents: 100,
+          transaction_date: day,
+          is_paid: true,
+          description: `Lançamento teste ${String(index + 1).padStart(2, '0')}`,
+        }));
+        return jsonResponse(route, 200, rows, corsOrigin);
+      }
+      if (manyTasks && requestUrl.pathname === '/rest/v1/tasks') {
+        const rows = Array.from({ length: 23 }, (_, index) => ({
+          id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          title: `Tarefa de teste ${String(index + 1).padStart(2, '0')}`,
+          is_completed: false,
+          due_date: '2026-01-01',
+          priority: 'normal',
+          sort_order: index,
+          focus_seconds: 0,
+          task_created_at: '2026-01-01T12:00:00.000Z',
+        }));
+        return jsonResponse(route, 200, rows, corsOrigin);
+      }
       return jsonResponse(route, 200, [], corsOrigin);
+    }
+    if (endpoint === 'POST /rest/v1/rpc/apply_relational_changes') {
+      const { p_changes: changes } = request.postDataJSON();
+      if (!Array.isArray(changes)) {
+        unexpectedAuthRequests.push(endpoint);
+        return jsonResponse(route, 400, { message: 'Missing relational changes' }, corsOrigin);
+      }
+      const settingsRow = changes.find(({ table }) => table === 'user_settings')?.rows?.[0];
+      if (typeof settingsRow?.preferences?.financeValuesHidden === 'boolean') {
+        financeValuesHidden = settingsRow.preferences.financeValuesHidden;
+      }
+      const savedAt = new Date().toISOString();
+      return jsonResponse(route, 200, changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({ ...row, updated_at: savedAt })),
+      })), corsOrigin);
     }
     if (endpoint === 'POST /auth/v1/signup') {
       signupRequests += 1;
@@ -309,6 +411,27 @@ async function main() {
 
   try {
     await page.goto(BASE);
+    await page.waitForLoadState('networkidle');
+    assert.equal(supabaseSdkRequests.length, 0, 'landing sem sessão não deve baixar o SDK Supabase');
+    const mainRequestsBeforeDirectLogin = mainModuleRequests.length;
+    await page.goto(`${BASE}/entrar`);
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    await assertAuthLayout('login direto');
+    assert.equal(
+      mainModuleRequests.length,
+      mainRequestsBeforeDirectLogin,
+      'a tela de login deve aparecer sem carregar o módulo completo do aplicativo',
+    );
+    await page.goto(BASE);
+    await page.locator('.public-topbar [data-public-action="login"]').click();
+    await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
+    await assertAuthLayout('login pela landing');
+    assert.equal(
+      mainModuleRequests.length,
+      mainRequestsBeforeDirectLogin,
+      'o link de login da landing também deve abrir sem carregar o módulo completo do aplicativo',
+    );
+    await page.goto(BASE);
     await page.evaluate(() => {
       sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
     });
@@ -327,6 +450,7 @@ async function main() {
     await page.locator('.app-skeleton[role="status"]').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.public-site').count(), 0, 'callback Google não deve renderizar a landing');
     await page.getByRole('heading', { name: 'Complete seu perfil' }).waitFor();
+    assert.ok(supabaseSdkRequests.length > 0, 'callback de autenticação deve carregar o SDK Supabase');
     assert.equal(pkceRequests, 1, 'callback deve trocar o código PKCE exatamente uma vez');
     assert.equal(await page.locator('.public-site').count(), 0);
     assert.equal(new URL(page.url()).searchParams.has('code'), false);
@@ -339,14 +463,18 @@ async function main() {
       birthday_reference_date: '2026-01-01',
       terms_accepted_at: '2026-01-01T00:00:00.000Z',
       terms_version: '1.9',
-      privacy_policy_version: '1.9',
+      privacy_policy_version: '2.0',
     };
     simulateRelational = true;
-    for (const destination of ['/inicio', '/planejar']) {
+    for (const destination of ['/financas', '/inicio', '/planejar', '/habitos']) {
+      manyTasks = destination === '/planejar';
+      manyTransactions = destination === '/financas';
+      homeFixtures = destination === '/inicio';
+      habitFixtures = destination === '/habitos';
       await page.evaluate((returnTo) => {
         sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token');
         sessionStorage.setItem('sb-cltymialatksylhzsitz-auth-token-code-verifier', JSON.stringify('verifier-test'));
-        if (returnTo === '/planejar') sessionStorage.setItem('aurora:return-to', returnTo);
+        if (returnTo !== '/inicio') sessionStorage.setItem('aurora:return-to', returnTo);
         else sessionStorage.removeItem('aurora:return-to');
       }, destination);
       await page.goto(`${BASE}/?code=callback-test`);
@@ -355,9 +483,280 @@ async function main() {
       await page.waitForURL(`**${destination}`);
       await page.locator('.main').waitFor({ state: 'visible' });
       assert.equal(await page.locator('.public-site').count(), 0);
+      if (destination === '/inicio') {
+        await page.locator('.main[data-route="inicio"] > .home-head h1').waitFor();
+        const onboarding = page.locator('#dlg[data-dialog-type="onboard"]');
+        await onboarding.waitFor({ state: 'visible' });
+        assert.match(await onboarding.innerText(), /Um espaço para organizar a vida do seu jeito/,
+          'primeiro acesso apresenta o que dá para fazer no Aurora');
+        for (const area of ['Início', 'Planejar', 'Hábitos', 'Finanças']) {
+          assert.ok(await onboarding.getByText(area, { exact: true }).count() > 0,
+            `visão geral apresenta ${area}`);
+        }
+        assert.equal(await onboarding.locator('.steps').getAttribute('aria-label'), 'Passo 1 de 5');
+        for (const width of [320, 390, 1280]) {
+          await page.setViewportSize({ width, height: 850 });
+          const layout = await onboarding.evaluate((dialog) => ({
+            documentWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+            right: dialog.getBoundingClientRect().right,
+          }));
+          assert.ok(layout.documentWidth <= layout.viewportWidth, `visão geral sem overflow em ${width}px`);
+          assert.ok(layout.right <= layout.viewportWidth, `diálogo cabe em ${width}px`);
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+        await onboarding.locator('[data-action="ob-next"]').click();
+        assert.ok(await onboarding.getByRole('heading', { name: 'O que você quer melhorar no seu dia a dia?' }).count());
+        await onboarding.locator('[data-action="ob-next"]').click();
+        await onboarding.locator('[data-action="ob-next"]').click();
+        await onboarding.locator('[data-action="ob-next"]').click();
+        assert.ok(await onboarding.getByRole('heading', { name: 'Quer ver o Aurora em ação?' }).count(),
+          'depois da personalização o primeiro acesso oferece um tour opcional');
+        assert.ok(await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').count());
+        await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').click();
+        const onboardingGuide = page.locator('#dlg[data-dialog-type="area-tutorial"]');
+        await onboardingGuide.waitFor({ state: 'visible' });
+        assert.equal(await onboardingGuide.locator('.area-tutorial-video').getAttribute('autoplay'), null,
+          'tutorial escolhido não inicia automaticamente');
+        await onboardingGuide.locator('[data-action="dlg-close"]').first().click();
+        await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
+        await page.waitForFunction(() => !document.querySelector('.save-indicator'));
+        if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
+          await page.locator('#dlg [data-action="dlg-close"]').first().click();
+        }
+        await page.locator('.profile-menu-trigger').click();
+        await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
+        const signout = page.locator('#profile-menu [data-account-signout]');
+        await signout.waitFor({ state: 'visible' });
+        const profileMenuAlignment = await page.locator('#profile-menu').evaluate((menu) => {
+          const menuBounds = menu.getBoundingClientRect();
+          const signoutBounds = menu.querySelector('[data-account-signout]').getBoundingClientRect();
+          return {
+            signoutLeft: signoutBounds.left,
+            signoutRight: signoutBounds.right,
+            menuLeft: menuBounds.left,
+            menuRight: menuBounds.right,
+          };
+        });
+        assert.ok(profileMenuAlignment.signoutLeft >= profileMenuAlignment.menuLeft
+          && profileMenuAlignment.signoutRight <= profileMenuAlignment.menuRight,
+        'botão Sair da conta deve ficar alinhado dentro do menu');
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('.profile-menu-control').getAttribute('open'), null,
+          'menu da conta fecha ao pressionar Escape');
+        const firstSteps = page.locator('.home-first-steps');
+        assert.equal(await firstSteps.count(), 0,
+          'cartão de primeiro acesso não aparece quando já existem tarefas');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.count(), 0,
+          'cartão continua oculto após renderização quando já existem tarefas');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        const completed = page.locator('.home-completed');
+        await completed.locator('summary').evaluate((element) => element.click());
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await completed.evaluate((element) => element.open), true,
+          'Tarefas concluídas deve permanecer aberto após renderização');
+
+        emptyHomeTasks = true;
+        homeOnboardingComplete = true;
+        await page.reload();
+        await firstSteps.waitFor({ state: 'visible' });
+        const firstStepLabels = await firstSteps.locator('.home-first-steps-list li b').allTextContents();
+        assert.deepEqual(firstStepLabels, ['Escolher sua cor', 'Criar sua primeira tarefa', 'Marcar um hábito']);
+        assert.equal(await firstSteps.getByRole('progressbar').getAttribute('aria-valuemax'), '3');
+        assert.equal(await firstSteps.locator('a[href="/config?section=personalization"]').count(), 1);
+        assert.equal(await firstSteps.locator('button[data-action="task-new"]').count(), 1);
+        assert.equal(await firstSteps.locator('a[href="/habitos"]').count(), 1);
+        await firstSteps.locator('button[data-action="task-new"]').evaluate((element) => element.click());
+        await page.locator('#dlg[data-dialog-type="task"]').waitFor({ state: 'visible' });
+        await page.locator('#dlg [data-dlg="title"]').fill('Minha primeira tarefa');
+        await page.locator('#dlg button[form="dlgform"]').click();
+        await page.waitForFunction(() => document.querySelector('.home-first-steps [role="progressbar"]')?.getAttribute('aria-valuenow') === '1');
+        assert.equal(await firstSteps.locator('.home-first-steps-progress').innerText(), '1 de 3 feitos');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.isVisible(), true,
+          'cartão de primeiro acesso permanece visível após renderização');
+        await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
+        assert.equal(await firstSteps.locator('.home-first-steps-list li').count(), 3,
+          'cartão mantém as três etapas após renderização');
+        for (const width of [375, 1280]) {
+          await page.setViewportSize({ width, height: 850 });
+          for (const [theme, highContrast] of [['light', false], ['dark', false], ['light', true], ['dark', true]]) {
+            const result = await page.evaluate(async ([selectedTheme, selectedContrast]) => {
+              document.documentElement.dataset.theme = selectedTheme;
+              if (selectedContrast) document.documentElement.dataset.contrast = 'high';
+              else delete document.documentElement.dataset.contrast;
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              const hero = document.querySelector('.main[data-route="inicio"] > .home-head');
+              const title = hero.querySelector('h1');
+              const onboarding = document.querySelector('.home-first-steps');
+              const onboardingText = onboarding.querySelector('.home-first-steps-copy small');
+              const onboardingAction = onboardingText.closest('.home-first-steps-action');
+              const canvas = document.createElement('canvas');
+              const context = canvas.getContext('2d', { willReadFrequently: true });
+              const color = (value) => {
+                context.clearRect(0, 0, 1, 1);
+                context.fillStyle = value;
+                context.fillRect(0, 0, 1, 1);
+                return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+              };
+              const luminance = (rgb) => rgb.map((value) => {
+                const channel = value / 255;
+                return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+              }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+              const foreground = luminance(color(getComputedStyle(title).color));
+              const background = luminance(color(getComputedStyle(hero).backgroundColor));
+              const stepForeground = luminance(color(getComputedStyle(onboardingText).color));
+              const stepBackground = luminance(color(getComputedStyle(onboardingAction).backgroundColor));
+              const cardBackground = luminance(color(getComputedStyle(onboarding).backgroundColor));
+              const headingForeground = luminance(color(getComputedStyle(onboarding.querySelector('h2')).color));
+              return {
+                documentWidth: document.documentElement.scrollWidth,
+                viewportWidth: innerWidth,
+                titleWidth: title.getBoundingClientRect().width,
+                contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+                stepContrast: (Math.max(stepForeground, stepBackground) + .05) / (Math.min(stepForeground, stepBackground) + .05),
+                headingContrast: (Math.max(headingForeground, cardBackground) + .05) / (Math.min(headingForeground, cardBackground) + .05),
+                stepForegroundColor: getComputedStyle(onboardingText).color,
+                stepBackgroundColor: getComputedStyle(onboardingAction).backgroundColor,
+              };
+            }, [theme, highContrast]);
+            assert.ok(result.documentWidth <= result.viewportWidth, `Início ${width}px/${theme}: sem overflow`);
+            assert.ok(result.titleWidth > 0, `Início ${width}px/${theme}: saudação visível`);
+            assert.ok(result.contrast >= 4.5, `Início ${width}px/${theme}: contraste ${result.contrast.toFixed(2)}`);
+            assert.ok(result.stepContrast >= 4.5,
+              `Primeiros passos ${width}px/${theme}/${highContrast ? 'alto contraste' : 'padrão'}: contraste ${result.stepContrast.toFixed(2)} (${result.stepForegroundColor} em ${result.stepBackgroundColor})`);
+            assert.ok(result.headingContrast >= 4.5,
+              `Título dos primeiros passos ${width}px/${theme}/${highContrast ? 'alto contraste' : 'padrão'}: contraste ${result.headingContrast.toFixed(2)}`);
+          }
+        }
+        await page.setViewportSize({ width: 390, height: 844 });
+        await firstSteps.locator('.home-first-steps-dismiss').evaluate((element) => element.click());
+        const confirmation = page.locator('#dlg[data-dialog-type="confirmation"]');
+        await confirmation.waitFor({ state: 'visible' });
+        assert.match(await confirmation.innerText(), /Ele não aparecerá novamente/);
+        await confirmation.locator('[data-action="confirmation-cancel"]').click();
+        await confirmation.waitFor({ state: 'detached' });
+        assert.equal(await firstSteps.isVisible(), true, 'cancelar a confirmação mantém o cartão');
+        await firstSteps.locator('.home-first-steps-dismiss').evaluate((element) => element.click());
+        await confirmation.waitFor({ state: 'visible' });
+        await confirmation.locator('[data-action="confirmation-accept"]').click();
+        await firstSteps.waitFor({ state: 'detached' });
+        dismissedHomeFirstSteps = true;
+        await page.reload();
+        assert.equal(await page.locator('.home-first-steps').count(), 0,
+          'cartão dispensado permanece oculto após recarregar');
+      } else if (destination === '/planejar') {
+        const results = page.locator('#task-results');
+        assert.equal(await results.locator('.task').count(), 10);
+        assert.match(await results.innerText(), /Mostrando 10 de 23 tarefas/);
+        await results.getByRole('button', { name: 'Mostrar mais tarefas' }).evaluate((element) => element.click());
+        assert.equal(await results.locator('.task').count(), 20);
+        await results.getByRole('button', { name: 'Mostrar mais tarefas' }).evaluate((element) => element.click());
+        assert.equal(await results.locator('.task').count(), 23);
+        assert.equal(await results.getByRole('button', { name: 'Mostrar mais tarefas' }).count(), 0);
+        await page.locator('#q').evaluate((input) => {
+          input.value = 'teste 01';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.task').count(), 1);
+        await page.locator('#q').evaluate((input) => {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.task').count(), 10,
+          'Alterar a busca deve reiniciar a paginação');
+      } else if (destination === '/financas') {
+        const visibilityButton = page.locator('.finance-visibility-toggle');
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Ocultar valores financeiros');
+        const waitForSettingsSave = async () => {
+          const response = await page.waitForResponse((candidate) => (
+            candidate.url().includes('/rest/v1/rpc/apply_relational_changes')
+            && candidate.request().method() === 'POST'
+          ));
+          assert.ok(response.ok(), `A preferência financeira não foi salva: HTTP ${response.status()}`);
+        };
+        const hiddenSave = waitForSettingsSave();
+        await visibilityButton.evaluate((button) => button.click());
+        await hiddenSave;
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Mostrar valores financeiros');
+        await page.addInitScript(() => {
+          window.__financeValueFlash = [];
+          const observer = new MutationObserver(() => {
+            const amounts = [...document.querySelectorAll('.main[data-route="financas"] .money')];
+            const visible = amounts.filter((amount) => /\d/.test(amount.textContent || ''));
+            if (visible.length) window.__financeValueFlash.push(visible.map((amount) => amount.textContent));
+          });
+          observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+        });
+        await page.reload();
+        await visibilityButton.waitFor({ state: 'visible' });
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Mostrar valores financeiros');
+        assert.ok(await page.locator('.main[data-route="financas"] .money').evaluateAll((amounts) => (
+          amounts.length > 0 && amounts.every((amount) => amount.textContent.includes('••••'))
+        )), 'valores ficam ocultos após recarregar');
+        assert.deepEqual(await page.evaluate(() => window.__financeValueFlash), [],
+          'valores ocultos não aparecem durante a abertura de Finanças');
+        const visibleSave = waitForSettingsSave();
+        await visibilityButton.evaluate((button) => button.click());
+        await visibleSave;
+        await page.reload();
+        await visibilityButton.waitFor({ state: 'visible' });
+        assert.equal(await visibilityButton.getAttribute('aria-label'), 'Ocultar valores financeiros');
+        assert.ok(await page.locator('.main[data-route="financas"] .money').evaluateAll((amounts) => (
+          amounts.some((amount) => /\d/.test(amount.textContent || ''))
+        )), 'valores continuam visíveis após recarregar');
+
+        await page.locator('[data-action="fin-tab"][data-t="lancamentos"]').evaluate((button) => button.click());
+        const results = page.locator('#tx-results');
+        assert.equal(await results.locator('.fr').count(), 10, await page.locator('.main').innerText());
+        assert.match(await results.innerText(), /Mostrando 10 de 23 lançamentos/);
+        assert.match(await results.locator('.gsum').innerText(), /23,00/,
+          'O total diário deve incluir também os lançamentos ainda não exibidos');
+        await results.getByRole('button', { name: 'Mostrar mais lançamentos' }).evaluate((button) => button.click());
+        assert.equal(await results.locator('.fr').count(), 20);
+        await results.getByRole('button', { name: 'Mostrar mais lançamentos' }).evaluate((button) => button.click());
+        assert.equal(await results.locator('.fr').count(), 23);
+        await page.locator('#fq').evaluate((input) => {
+          input.value = 'teste 01';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.fr').count(), 1);
+        await page.locator('#fq').evaluate((input) => {
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        assert.equal(await results.locator('.fr').count(), 10);
+      } else {
+        const habit = page.locator('.habit-row').filter({ hasText: 'Hábito teste' });
+        await habit.waitFor();
+        await habit.locator('.habit-more > summary').evaluate((element) => element.click());
+        await habit.locator('.habit-month > summary').evaluate((element) => element.click());
+        await habit.locator('.habit-month [data-action="habit-month"][data-n="-1"]').evaluate((button) => button.click());
+        assert.equal(await habit.locator('.habit-month').evaluate((element) => element.open), true,
+          'Histórico mensal deve permanecer aberto ao mudar de mês');
+      }
     }
-    assert.equal(pkceRequests, 3);
+    assert.equal(pkceRequests, 5);
+    for (const storageName of ['sessionStorage', 'localStorage']) {
+      await page.evaluate((target) => {
+        const key = 'sb-cltymialatksylhzsitz-auth-token';
+        const session = sessionStorage.getItem(key) || localStorage.getItem(key);
+        if (!session) throw new Error('Sessão de teste ausente.');
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+        window[target].setItem(key, session);
+      }, storageName);
+      await page.goto(BASE);
+      await page.waitForURL('**/inicio');
+      await page.locator('.main').waitFor({ state: 'visible' });
+    }
     await page.evaluate(() => sessionStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
+    await page.evaluate(() => localStorage.removeItem('sb-cltymialatksylhzsitz-auth-token'));
     simulateRelational = false;
     user = null;
     await page.goto(`${BASE}/?error=access_denied`);
@@ -373,16 +772,20 @@ async function main() {
     assert.equal(await page.locator('.account-form input[name="email"]').getAttribute('autocomplete'), 'email');
     assert.equal(await page.locator('.account-form input[name="password"]').getAttribute('autocomplete'), 'current-password');
     assert.equal(await page.locator('.account-site-header .public-brand-link').count(), 1, 'login iniciado pela landing deve manter a marca no header');
-    assert.equal(await page.locator('.account-site-header .account-home-link').count(), 1, 'login deve oferecer botão de retorno ao início');
+    assert.equal(await page.locator('.account-site-header .public-header-nav a').count(), 3, 'login deve exibir a navegação pública');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'login deve manter os controles de autenticação e aparência');
+    assert.equal(await page.locator('.account-auth-header-actions [data-public-control="refresh"]').count(), 0, 'cabeçalho de autenticação deve manter os controles da landing');
     await assertAccountCardDoesNotScrollInternally('login em desktop');
     await assertAuthLayout('login em desktop');
+    await assertAuthHeaderSpacing('login em desktop');
     await page.setViewportSize({ width: 390, height: 844 });
     await assertAuthLayout('login no celular');
+    await assertAuthHeaderSpacing('login no celular');
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator('.account-auth-header-actions [data-account-mode="signup"]').click();
     await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/criar-conta', 'cadastro deve abrir sua rota própria');
+    await assertAuthHeaderSpacing('cadastro em desktop');
     await page.goBack();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/entrar', 'voltar no navegador retorna ao login');
@@ -446,10 +849,13 @@ async function main() {
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
     const passwordCriteria = page.locator('.account-password-strength .account-strength-label');
+    const signupPassword = page.getByLabel('Senha', { exact: true });
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 0 de 5');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora1');
+    assert.equal(await signupPassword.getAttribute('minlength'), '6');
+    assert.equal(await signupPassword.getAttribute('maxlength'), '72');
+    await signupPassword.fill('Aa1!x');
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 4 de 5');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
+    await signupPassword.fill('Aurora1!');
     assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 5 de 5');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'etapa de acesso deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -585,10 +991,17 @@ async function main() {
     await assertNoHorizontalOverflow('a confirmação da nova senha deve caber em 320 px');
     await page.setViewportSize({ width: 390, height: 844 });
     const updatePasswordButton = page.locator('.account-form button[type="submit"]');
-    await page.getByLabel('Nova senha', { exact: true }).fill('NovaSenha456!');
-    await page.getByLabel('Confirmar nova senha', { exact: true }).fill('Diferente456!');
+    const newPassword = page.getByLabel('Nova senha', { exact: true });
+    const confirmNewPassword = page.getByLabel('Confirmar nova senha', { exact: true });
+    assert.equal(await newPassword.getAttribute('minlength'), '6');
+    assert.equal(await newPassword.getAttribute('maxlength'), '72');
+    await newPassword.fill('Aa1!x');
+    await confirmNewPassword.fill('Aa1!x');
+    assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas abaixo do mínimo');
+    await newPassword.fill('Aa1!xy');
+    await confirmNewPassword.fill('Diferente456!');
     assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas divergentes');
-    await page.getByLabel('Confirmar nova senha', { exact: true }).fill('NovaSenha456!');
+    await confirmNewPassword.fill('Aa1!xy');
     assert.equal(await updatePasswordButton.isEnabled(), true, 'senhas correspondentes liberam a redefinição');
     await updatePasswordButton.click();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
@@ -597,7 +1010,7 @@ async function main() {
     assert.equal(await page.evaluate(() => location.search), '', 'callback de redefinição é removido da URL');
     assert.equal(await page.locator('.account-message[data-tone="success"]').count(), 1);
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('NovaSenha456!');
+    await page.getByLabel('Senha', { exact: true }).fill('Aa1!xy');
     await page.locator('.account-form button[type="submit"]').click();
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
@@ -611,7 +1024,7 @@ async function main() {
       0,
       'uma sessão recusada pelo serviço deve ser removida',
     );
-    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'NovaSenha456!']);
+    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'Aa1!xy']);
     assert.deepEqual(externalRequests, [], 'nenhuma requisição real fora do servidor local e do mock deve ocorrer');
     assert.deepEqual(unexpectedAuthRequests, [], 'somente endpoints de autenticação esperados devem ser chamados');
     assert.deepEqual(errors, [], 'o fluxo não deve gerar erros no console');

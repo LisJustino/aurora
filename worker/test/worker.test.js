@@ -283,6 +283,134 @@ test('lembretes de hábitos são recorrentes, genéricos e compartilham o alarme
   }
 });
 
+test('lembretes de tarefas aceitam somente identificador e instante e enviam payload genérico', async () => {
+  const env = await environment();
+  const client = await register(env);
+  const pushSubscription = await createSubscription();
+  await call(env, '/api/subscription', {
+    method: 'POST',
+    headers: authHeaders(client),
+    body: { subscription: pushSubscription },
+  });
+  const now = Date.parse('2026-10-26T14:00:00.000Z');
+  const reminder = { id: 'task-0', at: now + 60_000 };
+  const originalNow = Date.now;
+  const originalFetch = globalThis.fetch;
+  let pushCount = 0;
+  let sentPayload;
+  const object = env.POMODORO_ALARMS.get(client.clientId);
+  const habitReminder = {
+    id: 'habit-0',
+    days: [1],
+    time: '10:02',
+    timeZone: 'America/New_York',
+    skipDate: null,
+  };
+  Date.now = () => now;
+  try {
+    await call(env, '/api/habits', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [habitReminder] },
+    });
+    const invalid = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [{ ...reminder, title: 'Pagar luz' }] },
+    });
+    assert.equal(invalid.response.status, 400);
+    assert.equal(invalid.body.error, 'invalid-task-reminders');
+
+    const scheduled = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [reminder] },
+    });
+    assert.equal(scheduled.response.status, 200);
+    assert.equal(scheduled.body.scheduledAt, reminder.at);
+    assert.deepEqual(await object.state.storage.get('taskReminders'), [reminder]);
+
+    Date.now = () => reminder.at;
+    globalThis.fetch = async (url, options) => {
+      pushCount += 1;
+      assert.equal(url, pushSubscription.endpoint);
+      sentPayload = options.body;
+      return new Response(null, { status: 201 });
+    };
+    await object.instance.alarm();
+    assert.equal(pushCount, 1);
+    assert.equal(await object.state.storage.get('taskReminders'), undefined);
+    assert.equal(object.state.storage.alarm, now + 120_000, 'o lembrete de Hábitos continua agendado após o alarme da tarefa');
+    assert.equal(JSON.stringify(sentPayload).includes('Pagar luz'), false);
+
+    const cleared = await call(env, '/api/tasks', {
+      method: 'DELETE',
+      headers: authHeaders(client),
+    });
+    assert.equal(cleared.response.status, 200);
+    assert.equal(object.state.storage.alarm, now + 120_000, 'limpar tarefas não remove os lembretes de Hábitos');
+    await call(env, '/api/habits', {
+      method: 'DELETE',
+      headers: authHeaders(client),
+    });
+    assert.equal(object.state.storage.alarm, null);
+  } finally {
+    Date.now = originalNow;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('lembrete da revisão se repete aos domingos e usa payload sem dados pessoais', async () => {
+  const env = await environment();
+  const client = await register(env);
+  const pushSubscription = await createSubscription();
+  await call(env, '/api/subscription', {
+    method: 'POST',
+    headers: authHeaders(client),
+    body: { subscription: pushSubscription },
+  });
+  const now = Date.parse('2026-11-15T17:00:00.000Z');
+  const reminder = {
+    id: 'weekly-review',
+    at: Date.parse('2026-11-15T18:00:00.000Z'),
+    repeat: 'weekly',
+    time: '18:00',
+    timeZone: 'UTC',
+  };
+  const originalNow = Date.now;
+  const object = env.POMODORO_ALARMS.get(client.clientId);
+  const sent = [];
+  Date.now = () => now;
+  try {
+    const invalid = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [{ ...reminder, title: 'Resposta privada' }] },
+    });
+    assert.equal(invalid.response.status, 400);
+
+    const scheduled = await call(env, '/api/tasks', {
+      method: 'POST',
+      headers: authHeaders(client),
+      body: { reminders: [reminder] },
+    });
+    assert.equal(scheduled.response.status, 200);
+    assert.equal(scheduled.body.scheduledAt, reminder.at);
+
+    object.instance.sendNotification = async (payload) => sent.push(payload);
+    Date.now = () => reminder.at;
+    await object.instance.alarm();
+    assert.deepEqual(sent, [{ kind: 'weekly-review' }]);
+    const [nextReminder] = await object.state.storage.get('taskReminders');
+    assert.equal(nextReminder.id, 'weekly-review');
+    assert.equal(nextReminder.at, Date.parse('2026-11-22T18:00:00.000Z'));
+    assert.equal(object.state.storage.alarm, nextReminder.at);
+    assert.equal(JSON.stringify(nextReminder).includes('Resposta privada'), false);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test('horário local inexistente no início do horário de verão é ignorado até a próxima ocorrência', async () => {
   const env = await environment();
   const client = await register(env);

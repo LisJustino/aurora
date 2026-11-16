@@ -1,4 +1,4 @@
-const SUGGESTION_RECIPIENT = 'lisjustino@gmail.com';
+export const CONTACT_EMAIL = 'lisjustino@gmail.com';
 
 export function createSuggestionMailto({ name = '', email = '', message } = {}) {
   if (typeof name !== 'string' || typeof email !== 'string'
@@ -11,5 +11,5 @@ export function createSuggestionMailto({ name = '', email = '', message } = {}) 
   details.push(`Sugestão:\n${message.trim()}`);
   const subject = encodeURIComponent('Sugestão para o Aurora');
   const body = encodeURIComponent(details.join('\n\n'));
-  return `mailto:${SUGGESTION_RECIPIENT}?subject=${subject}&body=${body}`;
+  return `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
 }

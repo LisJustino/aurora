@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
 const base = new URL((process.argv[2] || 'http://127.0.0.1:5173').replace(/\/$/, '/'));
-const url = new URL('/docs/design-system.html', base);
+const url = new URL('/tests/component-fixture.html', base);
 
 (async () => {
   const browser = await chromium.launch();
@@ -82,6 +82,7 @@ const url = new URL('/docs/design-system.html', base);
       .evaluate((element) => getComputedStyle(element).backgroundColor);
     assert.notEqual(darkSurface, 'rgb(255, 255, 255)');
 
+    await combo.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
     await combo.scrollIntoViewIfNeeded();
     await combo.click();

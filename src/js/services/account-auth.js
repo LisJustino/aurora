@@ -21,11 +21,20 @@ import {
 import { iconSvg } from '../utils/icons.js';
 import { isNativeApp } from '../utils/platform.js';
 import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_REJECTED_MESSAGE,
+  PASSWORD_REQUIREMENTS,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+  validatePassword,
+} from './password-policy.js';
 
 export { calculateAge };
 
-export const LEGAL_DOCUMENT_VERSION = '1.9';
-export const CYCLE_DATA_CONSENT_VERSION = '1.9';
+export const TERMS_DOCUMENT_VERSION = '1.9';
+export const PRIVACY_POLICY_VERSION = '2.0';
+export const CYCLE_DATA_CONSENT_VERSION = '2.0';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -34,16 +43,16 @@ export function createLegalConsentMetadata(acceptedAt = new Date()) {
   }
   return {
     terms_accepted_at: acceptedAt.toISOString(),
-    terms_version: LEGAL_DOCUMENT_VERSION,
-    privacy_policy_version: LEGAL_DOCUMENT_VERSION,
+    terms_version: TERMS_DOCUMENT_VERSION,
+    privacy_policy_version: PRIVACY_POLICY_VERSION,
   };
 }
 
 export function hasCurrentLegalConsent(user) {
   const metadata = user?.user_metadata;
   return Boolean(metadata
-    && metadata.terms_version === LEGAL_DOCUMENT_VERSION
-    && metadata.privacy_policy_version === LEGAL_DOCUMENT_VERSION
+    && metadata.terms_version === TERMS_DOCUMENT_VERSION
+    && metadata.privacy_policy_version === PRIVACY_POLICY_VERSION
     && typeof metadata.terms_accepted_at === 'string'
     && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
 }
@@ -109,13 +118,6 @@ const SLICES = new Set([
 ]);
 
 let clientPromise;
-const PASSWORD_REQUIREMENTS = [
-  ['length', '6 ou mais caracteres', (value) => value.length >= 6],
-  ['lowercase', 'uma letra minúscula', (value) => /\p{Ll}/u.test(value)],
-  ['uppercase', 'uma letra maiúscula', (value) => /\p{Lu}/u.test(value)],
-  ['number', 'um dígito', (value) => /\p{N}/u.test(value)],
-  ['symbol', 'um símbolo', (value) => /[\p{P}\p{S}]/u.test(value)],
-];
 const EMAIL_DOMAINS = [
   'gmail.com',
   'outlook.com',
@@ -141,13 +143,6 @@ export function getEmailDomainSuggestions(value) {
   return EMAIL_DOMAINS
     .filter((domain) => domain.startsWith(domainPrefix) && domain !== domainPrefix)
     .map((domain) => `${localPart}@${domain}`);
-}
-
-export function meetsPasswordRequirements(value) {
-  return typeof value === 'string'
-    && value.length >= 6
-    && value.length <= 72
-    && PASSWORD_REQUIREMENTS.slice(1).every(([, , test]) => test(value));
 }
 
 export function passwordRecoveryErrorMessage(error) {
@@ -383,13 +378,9 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
   input.required = true;
   input.value = value;
   if (type === 'email') input.maxLength = 254;
-  if (name === 'password') {
-    input.minLength = 6;
-    input.maxLength = 72;
-  }
-  if (name === 'confirmPassword') {
-    input.minLength = 6;
-    input.maxLength = 72;
+  if (name === 'password' || name === 'confirmPassword') {
+    input.minLength = PASSWORD_MIN_LENGTH;
+    input.maxLength = PASSWORD_MAX_LENGTH;
   }
   if (name === 'email') input.placeholder = 'voce@email.com';
   if (name === 'password') input.placeholder = 'sua senha';
@@ -578,7 +569,7 @@ function createAccountIntro(mode = '', brandLink = null) {
   if (brandLink) intro.append(brandLink);
   if (!introCopy) {
     const topics = create('ul', 'account-intro-topics');
-    ['Tarefas', 'Hábitos', 'Foco', 'Finanças'].forEach((label) => {
+    ['Tarefas', 'Hábitos', 'Finanças', 'Ciclo'].forEach((label) => {
       topics.append(create('li', '', label));
     });
     intro.append(eyebrow, heading, description, topics);
@@ -685,22 +676,19 @@ export function createAccountForm(root, {
     header.innerHTML = renderPublicHeader({ authMode: mode.startsWith('signup-') ? 'signup' : mode });
     const publicHeader = header.content.firstElementChild;
     publicBrand = publicHeader.querySelector('.public-brand-link');
+    const publicNav = publicHeader.querySelector('.public-header-nav');
     publicActions = publicHeader.querySelector('.public-header-actions');
     page.classList.add('is-public-account');
+    if (publicBrand && publicNav && publicActions) {
+      publicActions.classList.add('account-auth-header-actions');
+      const siteHeader = create('header', 'account-site-header');
+      siteHeader.append(publicBrand, publicNav, publicActions);
+      layout.insertBefore(siteHeader, page);
+    }
   }
   page.append(createAccountIntro(mode, null));
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
-  if (publicBrand && publicActions) {
-    publicActions.classList.add('account-auth-header-actions');
-    const home = create('a', 'btn account-home-link');
-    home.href = '/';
-    home.dataset.publicAction = 'landing';
-    home.innerHTML = '<span aria-hidden="true">←</span> Voltar ao início';
-    const siteHeader = create('header', 'account-site-header');
-    siteHeader.append(publicBrand, home, publicActions);
-    layout.insertBefore(siteHeader, page);
-  }
   const brand = create('p', 'account-brand', 'aurora');
   const heading = create('h1', '', title);
   heading.id = 'account-title';
@@ -822,14 +810,14 @@ export function createAccountForm(root, {
       'password',
       'new-password',
       '',
-      'mínimo 6 caracteres, com minúsculas, maiúsculas, dígitos e símbolos.',
+      PASSWORD_REQUIREMENTS_MESSAGE,
       securityGroup,
     );
-    form.elements.password.minLength = 6;
-    form.elements.password.maxLength = 72;
+    form.elements.password.minLength = PASSWORD_MIN_LENGTH;
+    form.elements.password.maxLength = PASSWORD_MAX_LENGTH;
     createField(form, 'Confirmar senha', 'confirmPassword', 'password', 'new-password', '', '', securityGroup);
-    form.elements.confirmPassword.minLength = 6;
-    form.elements.confirmPassword.maxLength = 72;
+    form.elements.confirmPassword.minLength = PASSWORD_MIN_LENGTH;
+    form.elements.confirmPassword.maxLength = PASSWORD_MAX_LENGTH;
     appendLegalConsent(form);
   }
   if (mode === 'legal-consent' || mode === 'oauth-profile') {
@@ -859,6 +847,7 @@ export function createAccountForm(root, {
       '',
       '',
     );
+    form.elements.password.minLength = PASSWORD_MIN_LENGTH;
     const rememberSession = create('input');
     rememberSession.type = 'checkbox';
     rememberSession.name = 'rememberSession';
@@ -881,9 +870,13 @@ export function createAccountForm(root, {
       'password',
       'new-password',
       '',
-      'mínimo 6 caracteres, com minúsculas, maiúsculas, dígitos e símbolos.',
+      PASSWORD_REQUIREMENTS_MESSAGE,
     );
+    form.elements.password.minLength = PASSWORD_MIN_LENGTH;
+    form.elements.password.maxLength = PASSWORD_MAX_LENGTH;
     createField(form, 'Confirmar nova senha', 'confirmPassword', 'password', 'new-password');
+    form.elements.confirmPassword.minLength = PASSWORD_MIN_LENGTH;
+    form.elements.confirmPassword.maxLength = PASSWORD_MAX_LENGTH;
   }
 
   const message = create('p', 'account-message');
@@ -979,9 +972,10 @@ export function createAccountForm(root, {
     });
     const updateSignupValidity = () => {
       const value = password.value;
+      const passwordValidation = validatePassword(value);
       let passed = 0;
-      PASSWORD_REQUIREMENTS.forEach(([key, , test]) => {
-        const valid = test(value);
+      PASSWORD_REQUIREMENTS.forEach(([key]) => {
+        const valid = passwordValidation.criteria[key];
         const item = checklist.querySelector(`[data-criterion="${key}"]`);
         item.classList.toggle('is-met', valid);
         item.setAttribute('aria-label', `${valid ? 'atendido' : 'pendente'}: ${item.textContent}`);
@@ -1013,7 +1007,7 @@ export function createAccountForm(root, {
       submit.disabled = !(
         emailIsValid
         && emailsMatch
-        && meetsPasswordRequirements(value)
+        && passwordValidation.valid
         && confirmationMatches
         && form.elements.termsAccepted.checked
       );
@@ -1036,7 +1030,7 @@ export function createAccountForm(root, {
       setAccountFieldError(confirmPassword, confirmPassword.value && !passwordsMatch
         ? 'As senhas não coincidem.'
         : '');
-      submit.disabled = !meetsPasswordRequirements(password.value) || !passwordsMatch;
+      submit.disabled = !validatePassword(password.value).valid || !passwordsMatch;
     };
     form.addEventListener('input', updatePasswordValidity);
     form.addEventListener('change', updatePasswordValidity);
@@ -1244,7 +1238,7 @@ export function signupErrorMessage(error, data = {}) {
     return `É necessário ter pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`;
   }
   if (code === 'weak_password') {
-    return 'Essa senha não atende aos requisitos de segurança do serviço. Escolha outra senha e tente novamente.';
+    return PASSWORD_REJECTED_MESSAGE;
   }
   if (code === 'invalid_email') {
     return 'Confira se o e-mail foi digitado corretamente e tente novamente.';
@@ -1400,6 +1394,7 @@ export async function requireAccount(root, initialMode = 'login', {
   onAccountDeleted,
   initialNotice = '',
   initialNoticeTone = '',
+  authStylesReady = Promise.resolve(),
 } = {}) {
   const callbackErrorMessage = authCallbackErrorMessage(location);
   if (callbackErrorMessage) {
@@ -1435,6 +1430,7 @@ export async function requireAccount(root, initialMode = 'login', {
   }
 
   const authPage = async (mode, email = '', notice = '', signupProfile = null, noticeTone = '') => {
+    await authStylesReady;
     const copy = {
       login: ['Entrar na sua conta', 'Entre para continuar com seus registros.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
       'signup-profile': ['Seu perfil', 'Comece com seus dados básicos.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
@@ -1668,8 +1664,8 @@ export async function requireAccount(root, initialMode = 'login', {
         for (;;) {
           const result = await authPage('update-password');
           if (result.nextMode) continue;
-          if (!meetsPasswordRequirements(result.password)) {
-            result.message.textContent = 'A senha deve ter entre 6 e 72 caracteres, com letras minúsculas e maiúsculas, um dígito e um símbolo.';
+          if (!validatePassword(result.password).valid) {
+            result.message.textContent = PASSWORD_REQUIREMENTS_MESSAGE;
             continue;
           }
           if (result.password !== result.confirmPassword) {
@@ -1680,7 +1676,9 @@ export async function requireAccount(root, initialMode = 'login', {
           const { error: updateError } = await client.auth.updateUser({ password: result.password });
           if (updateError) {
             setSubmitPending(result.submit, false);
-            result.message.textContent = genericAuthError();
+            result.message.textContent = updateError.code === 'weak_password'
+              ? PASSWORD_REJECTED_MESSAGE
+              : genericAuthError();
             continue;
           }
           const callbackUrl = new URL(location.href);
@@ -1821,8 +1819,8 @@ export async function requireAccount(root, initialMode = 'login', {
           message = 'Os endereços de e-mail não coincidem. Confira e digite ambos novamente.';
           continue;
         }
-        if (!meetsPasswordRequirements(result.password)) {
-          message = 'A senha precisa ter de 6 a 72 caracteres, com letras minúsculas e maiúsculas, um dígito e um símbolo.';
+        if (!validatePassword(result.password).valid) {
+          message = PASSWORD_REQUIREMENTS_MESSAGE;
           continue;
         }
         setSubmitPending(result.submit, true);

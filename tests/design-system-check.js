@@ -1,5 +1,5 @@
 // Verifica se o CSS usa os tokens do design system em vez de valores soltos.
-// Regras em docs/design-system.md. Abra por HTTP no Vite ou em servidor estático.
+// Abra por HTTP no Vite ou em servidor estático.
 const results = [];
 const check = (passed, name, detail = '') => results.push({ passed: Boolean(passed), name, detail });
 
@@ -36,6 +36,26 @@ const SET_BY_SCRIPT = new Set([
   '--scroll-lock-offset-x', '--scroll-lock-offset-y',
 ]);
 const allText = files.map((item) => strip(item.text)).join('\n');
+const sharedWidths = new Set([480, 700, 900, 1200]);
+const legacyWidths = { 'pages/areas.css': [375], 'pages/planning.css': [1050] };
+const responsiveWidths = new Set();
+const unexpectedWidths = [];
+for (const { file, text } of files) {
+  for (const [, query] of strip(text).matchAll(/@media([^{}]*)/g)) {
+    for (const [, value] of query.matchAll(/width\s*[<>]=?\s*([\d.]+)px/g)) {
+      const width = Number(value);
+      responsiveWidths.add(width);
+      if (!sharedWidths.has(width) && !legacyWidths[file]?.includes(width)) {
+        unexpectedWidths.push(`${file}: ${width}px`);
+      }
+    }
+  }
+}
+check(
+  [...sharedWidths].every((width) => responsiveWidths.has(width)) && !unexpectedWidths.length,
+  'Breakpoints usam os limites compartilhados ou as exceções legadas específicas',
+  unexpectedWidths.join(', ') || [...responsiveWidths].sort((a, b) => a - b).join(', '),
+);
 const defined = new Set([...allText.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]));
 const missing = [...new Set([...allText.matchAll(/var\((--[\w-]+)\s*\)/g)].map((match) => match[1]))]
   .filter((name) => !defined.has(name) && !SET_BY_SCRIPT.has(name));
@@ -71,10 +91,13 @@ const fontSizeLiterals = offenders(/font-size:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em|
     'base.css: font-size: 16px;',
     'design-system/fields.css: font-size: max(16px, var(--text-base));',
     'design-system/custom-selects.css: font-size: max(16px, var(--text-base));',
+    'components/modals.css: font-size: max(16px, 1em);',
   ].includes(item));
 check(!fontSizeLiterals.length, 'Tamanhos de fonte usam tokens --text-* (com mínimo de 16 px nos campos)', fontSizeLiterals.slice(0, 6).join(' | '));
 const fontShorthandLiterals = offenders(/font:\s*[^;{}]*\b\d*\.?\d+(?:rem|px|em)\b[^;{}]*[;}]/g);
 check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', fontShorthandLiterals.slice(0, 6).join(' | '));
+const fontWeightLiterals = offenders(/(?:font-weight:\s*\d+|font:\s*(?:400|500|600|650|700|750|800)\b)/g);
+check(!fontWeightLiterals.length, 'Pesos de fonte usam os quatro tokens compartilhados', fontWeightLiterals.slice(0, 6).join(' | '));
 
 const radiusLiterals = offenders(/border-radius:\s*[^;{}]*\d+(?:\.\d+)?px[^;{}]*[;}]/g);
 check(!radiusLiterals.length, 'Raios usam tokens --r-*', radiusLiterals.slice(0, 6).join(' | '));
@@ -84,12 +107,96 @@ check(!heightLiterals.length, 'Alturas mínimas de controle usam --control-*', h
 
 const hexLiterals = offenders(/(?:color|background|border-color|fill|stroke):\s*#(?:fff|ffffff|000|000000)(?![\w])/gi);
 check(!hexLiterals.length, 'Cores sólidas em branco/preto usam --on-solid ou tokens de tema (misturas com color-mix são permitidas)', hexLiterals.slice(0, 6).join(' | '));
+const directHexColors = offenders(/(?:^|[;{]\s*)(?:--[\w-]+|color|background(?:-color)?|border(?:-color)?|fill|stroke)\s*:[^;{}]*#[\da-f]{3,8}\b/gi);
+check(!directHexColors.length, 'Cores CSS usam tokens, sem valores hex literais fora de tokens.css', directHexColors.slice(0, 6).join(' | '));
 
-const scale = new Set([...allText.matchAll(/--text-(2xs|xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
-check(scale.size === 12, 'A escala de tipografia tem os 12 degraus', [...scale].join(', '));
+const importantBaseline = {
+  'base.css': 9,
+  'components/navigation-responsive.css': 5,
+  'components/preferences.css': 1,
+  'design-system/buttons.css': 1,
+  'pages/account.css': 4,
+  'pages/home.css': 2,
+  'pages/legal.css': 1,
+};
+const addedImportant = outsideTokens.flatMap(({ file, text }) => {
+  const count = [...strip(text).matchAll(/!important\b/g)].length;
+  const baseline = importantBaseline[file] || 0;
+  return count > baseline ? [`${file}: ${count} (limite ${baseline})`] : [];
+});
+check(!addedImportant.length, 'Não foram adicionadas declarações !important',
+  addedImportant.join(', ') || 'inventário legado preservado');
+
+const sizeTokens = files.find((item) => item.file === 'design-system/tokens.css')?.text || '';
+const undersizedTokens = [...sizeTokens.matchAll(/--text-([\w-]+)\s*:\s*([^;]+);/g)].flatMap(([, name, value]) => {
+  if (['loading-spark', 'loading-spark-compact'].includes(name)) return [];
+  const match = /^\s*(\d*\.?\d+)(px|rem|em)\b/.exec(value);
+  if (!match) return [];
+  const pixels = Number(match[1]) * (match[2] === 'px' ? 1 : 16);
+  return pixels < 12 ? [`--text-${name}: ${value.trim()}`] : [];
+});
+check(!undersizedTokens.length, 'Tokens tipográficos funcionais não ficam abaixo de 12 px',
+  undersizedTokens.join(', ') || 'mínimo legível mantido');
+
+const spacingBaseline = {
+  'base.css': [0, 2],
+  'components/accessibility.css': [2, 1],
+  'components/controls.css': [1, 0],
+  'components/footer.css': [1, 8],
+  'components/modals.css': [53, 59],
+  'components/navigation-responsive.css': [20, 23],
+  'components/navigation.css': [12, 13],
+  'components/preferences.css': [25, 13],
+  'components/responsive.css': [1, 1],
+  'components/task-actions.css': [2, 2],
+  'components/task-details.css': [4, 3],
+  'components/tasks.css': [20, 7],
+  'design-system/buttons.css': [0, 1],
+  'design-system/custom-selects.css': [2, 8],
+  'design-system/feedback.css': [5, 1],
+  'design-system/fields.css': [3, 6],
+  'design-system/selectors.css': [6, 9],
+  'design-system/touch.css': [2, 9],
+  'layout.css': [3, 8],
+  'pages/account-auth.css': [0, 4],
+  'pages/account-profile.css': [0, 7],
+  'pages/account-settings.css': [0, 20],
+  'pages/areas.css': [57, 36],
+  'pages/finance-responsive.css': [6, 4],
+  'pages/finance.css': [58, 38],
+  'pages/habits.css': [59, 39],
+  'pages/home.css': [50, 29],
+  'pages/landing.css': [1, 3],
+  'pages/layouts.css': [24, 25],
+  'pages/legal.css': [0, 1],
+  'pages/planning.css': [18, 6],
+  'pages/settings.css': [7, 6],
+};
+const spacingPatterns = [
+  /(?<![\w-])(?:gap|row-gap|column-gap)\s*:\s*[^;{}]*\b\d*\.?\d+(?:px|rem)\b[^;{}]*(?=[;}])/g,
+  /(?<![\w-])padding(?:-(?:block|inline|top|bottom|left|right|block-start|block-end|inline-start|inline-end))?\s*:\s*[^;{}]*\b\d*\.?\d+(?:px|rem)\b[^;{}]*(?=[;}])/g,
+];
+for (const [index, label] of ['gap', 'padding'].entries()) {
+  const increased = [];
+  let total = 0;
+  for (const { file, text } of outsideTokens) {
+    const count = [...strip(text).matchAll(spacingPatterns[index])].length;
+    total += count;
+    const limit = index === 0 ? 0 : (spacingBaseline[file]?.[index] ?? 0);
+    if (count > limit) increased.push(`${file}: ${count} (limite ${limit})`);
+  }
+  check(!increased.length, `${label}: sem aumento de literais px/rem por arquivo`,
+    `${total} declarações legadas; ${increased.length ? increased.join(' | ') : 'conversão gradual pendente'}`);
+}
+
+const scale = new Set([...allText.matchAll(/--text-(xs|meta|sm|md|base|lg|xl|title|2xl|3xl|4xl)\s*:/g)].map((match) => match[1]));
+check(scale.size === 11, 'A escala de tipografia tem 11 degraus distintos', [...scale].join(', '));
 for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
-  '--r-xs', '--r-sm', '--r-control', '--r-group', '--r', '--r-large', '--r-pill', '--on-solid',
+  '--r-sm', '--r-card', '--r-hero', '--r-pill', '--r-control', '--r-group', '--r', '--on-solid',
+  '--elev-0', '--elev-1', '--elev-2',
+  '--icon-box-sm', '--icon-box-md', '--icon-box-lg',
+  '--row-height-compact', '--row-height-standard', '--row-height-card',
   '--priority-low',
   '--text-4xl', '--text-timer',
   '--card-padding', '--card-padding-compact', '--card-content-gap',
@@ -102,6 +209,8 @@ for (const name of [
 }
 const buttonRadius = allText.match(/--button-radius\s*:\s*var\((--[\w-]+)\)/);
 check(buttonRadius?.[1] === '--r-group', 'Botões usam o raio arredondado --r-group');
+const retiredTokens = ['--r-xs', '--r-large', '--r-detail', '--r-detail-sm', '--text-2xs', '--weight-strong'];
+check(!retiredTokens.some((name) => defined.has(name) || allText.includes(`var(${name})`)), 'Tokens duplicados foram removidos');
 
 const failed = results.filter((item) => !item.passed).length;
 document.querySelector('#status').textContent = failed

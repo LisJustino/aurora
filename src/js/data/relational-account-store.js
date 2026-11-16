@@ -555,6 +555,9 @@ function buildRows(userId, state, idMap) {
       target_cents: record.targetCents,
       saved_cents: record.savedCents,
       deadline: record.deadline || null,
+      linked_account_id: record.linkedAccountId
+        ? databaseId(idMap, 'finance_accounts', record.linkedAccountId)
+        : null,
       is_test_data: record.sample === true,
       deleted_at: deletedAtFor(settings, 'finance.goals', record.id),
     }));
@@ -595,11 +598,19 @@ function buildRows(userId, state, idMap) {
     note: log.note || null,
     pain: log.pain || [],
     mood: log.mood || [],
+    social: log.social || [],
+    weight_kg: log.weightKg ?? null,
+    ovulation_test_result: log.ovulationTestResult || null,
+    pregnancy_test_result: log.pregnancyTestResult || null,
+    medication_taken: log.medicationTaken ?? null,
     digestion: log.digestion || [],
     skin: log.skin || [],
     sexual_activity: log.sexualActivity ?? null,
     contraception_methods: log.contraceptionMethods || [],
     masturbation_activity: log.masturbationActivity ?? null,
+    sex_toys_used: log.sexToysUsed ?? null,
+    libido_level: log.libido || null,
+    orgasm_occurred: log.orgasmOccurred ?? null,
     orgasm_count: log.orgasmCount ?? null,
     is_test_data: log.sample === true,
     deleted_at: deletedAtFor(settings, 'cycleLog', day),
@@ -668,10 +679,11 @@ function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
   if (table === 'finance_accounts') return {
     id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
-    bank: row.bank || undefined,
+    ...(row.bank ? { bank: row.bank } : {}),
     ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
-    limitCents: row.limit_cents == null ? undefined : numeric(row.limit_cents),
-    closingDay: row.closing_day ?? undefined, dueDay: row.due_day ?? undefined,
+    ...(row.limit_cents == null ? {} : { limitCents: numeric(row.limit_cents) }),
+    ...(row.closing_day == null ? {} : { closingDay: row.closing_day }),
+    ...(row.due_day == null ? {} : { dueDay: row.due_day }),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_transactions') return {
@@ -694,6 +706,9 @@ function financeRecordFromRow(row, table, idMap) {
   if (table === 'finance_goals') return {
     id, name: row.name, targetCents: numeric(row.target_cents),
     savedCents: numeric(row.saved_cents), deadline: row.deadline,
+    ...(row.linked_account_id
+      ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) }
+      : {}),
     sample: row.is_test_data || undefined,
   };
   if (table === 'finance_recurrences') return {
@@ -802,11 +817,19 @@ function cycleLogFromRow(row) {
     ...(row.note ? { note: row.note } : {}),
     ...(row.pain?.length ? { pain: row.pain } : {}),
     ...(row.mood?.length ? { mood: row.mood } : {}),
+    ...(row.social?.length ? { social: row.social } : {}),
+    ...(row.weight_kg != null ? { weightKg: Number(row.weight_kg) } : {}),
+    ...(row.ovulation_test_result ? { ovulationTestResult: row.ovulation_test_result } : {}),
+    ...(row.pregnancy_test_result ? { pregnancyTestResult: row.pregnancy_test_result } : {}),
+    ...(row.medication_taken != null ? { medicationTaken: row.medication_taken } : {}),
     ...(row.digestion?.length ? { digestion: row.digestion } : {}),
     ...(row.skin?.length ? { skin: row.skin } : {}),
     ...(row.sexual_activity !== null ? { sexualActivity: row.sexual_activity } : {}),
     ...(row.contraception_methods?.length ? { contraceptionMethods: row.contraception_methods } : {}),
     ...(row.masturbation_activity != null ? { masturbationActivity: row.masturbation_activity } : {}),
+    ...(row.sex_toys_used != null ? { sexToysUsed: row.sex_toys_used } : {}),
+    ...(row.libido_level ? { libido: row.libido_level } : {}),
+    ...(row.orgasm_occurred != null ? { orgasmOccurred: row.orgasm_occurred } : {}),
     ...(row.orgasm_count != null ? { orgasmCount: row.orgasm_count } : {}),
     sample: row.is_test_data || undefined,
   };

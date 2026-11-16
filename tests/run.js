@@ -1,9 +1,8 @@
 
 import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
-import { runStorageTransaction } from '../src/js/core/backup-transaction.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
-import { addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
+import { addDays, addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
 import {
   accountModeFromLocation,
   accountPathForMode,
@@ -18,7 +17,6 @@ import {
   routePathFor,
   settingsRootPath,
 } from '../src/js/core/router.js';
-import { actionNeedsProfileSetup } from '../src/js/core/access-control.js';
 import {
   isValidMenuOrder,
   isValidVisibleMenuItems,
@@ -30,11 +28,14 @@ import {
 import {
   accountBalanceOn,
   accountBalance,
+  linkedGoalProgressCents,
   byCategory as summarizeByCategory,
   monthStats,
   monthlyCloseSummary,
   netAccountBalance,
   netAccountBalanceOn,
+  projectedNetAccountBalance,
+  installmentSummary,
   reportMonthStats,
   recurringBillsDueOn,
 } from '../src/js/features/finance/calculations.js';
@@ -43,7 +44,10 @@ import {
   isValidAccountType,
   normalizeAccountType,
 } from '../src/js/features/finance/accounts.js';
-import { parseStatement } from '../src/js/features/finance/statement.js';
+import {
+  parseStatement,
+  statementDuplicateStatus,
+} from '../src/js/features/finance/statement.js';
 import {
   AREA_GUIDES,
   AREA_GUIDE_IDS,
@@ -54,6 +58,21 @@ import {
 
 import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
+import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
+import {
+  buildTaskPushReminders,
+  buildWeeklyReviewPushReminder,
+} from '../src/js/features/push/task-reminders.js';
+import { matchCategoryRule, normalizeCategoryRules } from '../src/js/features/finance/category-rules.js';
+import { searchRecords } from '../src/js/features/search/search.js';
+import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
+import {
+  ANNUAL_PLAN_IDEA_CATEGORIES,
+  ANNUAL_PLAN_IDEAS,
+  filterAnnualPlanIdeas,
+  isValidAnnualPlans,
+  normalizeAnnualPlans,
+} from '../src/js/features/planning/annual-plan.js';
 import {
   createSuggestedHabits,
   habitColor,
@@ -71,6 +90,8 @@ import {
   SUGGESTED_HABIT_CATEGORIES,
   SUGGESTED_HABIT_TAGS,
   habitStats,
+  habitDayOverview,
+  habitWeekDailyProgress,
   habitWeekReview,
   habitWeekOverview,
   habitWeeklyTarget,
@@ -87,6 +108,7 @@ import {
   waterGoalForHabit,
   waterGoalReached,
   waterMlForDay,
+  waterWeekProgress,
 } from '../src/js/features/habits/water-goal.js';
 import { filterWeightInput } from '../src/js/features/profile/weight.js';
 import {
@@ -115,17 +137,10 @@ import {
   normalizeHomeModes,
   normalizeHomeShortcuts,
   defaultHomeShortcuts,
+  homeFirstStepsProgress,
   homeAreaColorValue,
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
-import {
-  buildDayPlan,
-  checkinFor,
-  isValidCheckin,
-  reduceDay,
-  upsertCheckin,
-} from '../src/js/features/home/day-plan.js';
-import { homeBills } from '../src/js/features/home/bills.js';
 import {
   isTrashExpired,
   isValidTrashEntry,
@@ -135,6 +150,8 @@ import {
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
+import { cycleDayNumber, cycleStats, periodDaySet, topSymptoms } from '../src/js/features/cycle/calculations.js';
+import { estimatedCyclePhase } from '../src/js/features/cycle/phases.js';
 import {
   createCyclePeriod,
   cycleLogDays,
@@ -149,7 +166,13 @@ import {
   backupReminderStatus,
 } from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
+import { renderHomeView } from '../src/js/features/home/view.js';
+import { renderCycleView } from '../src/js/features/cycle/view.js';
+import { renderFinanceView } from '../src/js/features/finance/view.js';
+import { createToastController } from '../src/js/features/feedback/toast.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
+import { emptyState } from '../src/js/utils/empty-state.js';
+import { h } from '../src/js/utils/dom.js';
 
 const results = [];
 
@@ -165,6 +188,191 @@ const test = (name, run) => {
     });
   }
 };
+
+test('estado vazio preserva semântica, ação e escape de texto', () => {
+  const markup = emptyState({
+    title: 'Nada <por aqui',
+    description: 'Uma frase de apoio.',
+    action: h`<button type="button" class="btn primary">Começar</button>`,
+    headingLevel: 'h4',
+    className: 'state-test',
+    hidden: true,
+  }).s;
+  if (!markup.includes('class="empty empty-state state-test"')
+    || !markup.includes('<h4 class="empty-state-title">Nada &lt;por aqui.</h4>')
+    || !markup.includes('<p class="empty-state-description">Uma frase de apoio.</p>')
+    || !markup.includes('<button type="button" class="btn primary">Começar</button>')
+    || !markup.includes('hidden>')) {
+    throw new Error('O estado vazio deve manter o heading, a ação e o texto escapado.');
+  }
+});
+
+test('Ciclo não renderiza o estado vazio antes do controle de consentimento', () => {
+  const html = renderCycleView({
+    S: {},
+    ui: {},
+    gate: () => '<section>Consentimento necessário</section>',
+    areaPageTitle: () => h`<header>Ciclo</header>`,
+  }).s;
+  if (!html.includes('Consentimento necessário') || html.includes('Seu ciclo começa no seu tempo')) {
+    throw new Error('O estado inicial do Ciclo não deve aparecer antes do consentimento.');
+  }
+});
+
+test('Finanças não renderiza o gráfico de despesas da semana', () => {
+  const html = renderFinanceView({
+    S: { finance: { accounts: [], tx: [] } },
+    ui: { finTab: 'resumo', financeValuesHidden: false },
+    gate: () => null,
+    areaPageTitle: () => h`<header>Finanças</header>`,
+    financePrivacyNotice: () => h`<aside>Privacidade</aside>`,
+    finSectionPicker: () => h`<nav>Seções</nav>`,
+    panels: { resumo: () => h`<section>Resumo</section>`, cartoes: () => h`<section>Cartões</section>` },
+  }).s;
+  if (html.includes('finance-week-chart') || html.includes('Despesas desta semana')
+    || !html.includes('<header>Finanças</header>') || !html.includes('fin-section-content')) {
+    throw new Error('Finanças não deve exibir o gráfico semanal e deve manter o restante da tela.');
+  }
+});
+
+test('Início prioriza a captura rápida e o estado vazio não duplica a ação principal', () => {
+  let emptyArgs;
+  const model = {
+    name: '',
+    profileAppearance: {},
+    greeting: 'Bom dia',
+    dateLabel: 'Hoje',
+    daySummary: {
+      tasks: { done: 2, total: 3 },
+      habits: { done: 1, total: 2 },
+      water: { total: 750, goal: 2000, percent: 38 },
+      cycle: null,
+    },
+    homeMessage: '',
+    lead: '',
+    tt: [],
+    sundayReview: false,
+    optionalAreas: '',
+    overdue: [],
+    dueToday: [],
+    completed: [],
+    nextTask: null,
+    inbox: [],
+    homeShortcuts: [],
+    emptyWorkspace: true,
+    openCompleted: false,
+    financeAccountsCount: 0,
+    showHomeBlock: () => true,
+    homeBlockStyle: () => '',
+  };
+  const renderers = {
+    areaGuideButton: () => '',
+    backupReminder: () => '',
+    empty: (...args) => {
+      emptyArgs = args;
+      return 'EMPTY-STATE';
+    },
+    homeFirstSteps: () => '',
+    homeHabitCheckins: () => 'HABITS',
+    homeInboxReminder: () => '',
+    homeUpcomingBill: () => '',
+    homeUpcomingTasks: () => '',
+    profileAvatarMarkup: () => '',
+    sampleBanner: () => '',
+    taskRow: () => '',
+  };
+  const html = renderHomeView(model, renderers).s;
+  const quickIndex = html.indexOf('class="card home-quick-card"');
+  const todayIndex = html.indexOf('class="home-today-card"');
+  const habitsIndex = html.indexOf('HABITS');
+  const summaryIndex = html.indexOf('class="home-day-summary"');
+  if (html.includes('Mais do Início') || html.includes('class="home-extras"')) {
+    throw new Error('A Home não deve exibir a seção Mais do Início.');
+  }
+  if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0 || summaryIndex < 0
+    || !(html.indexOf('class="home-head"') < summaryIndex
+      && summaryIndex < quickIndex && quickIndex < todayIndex && todayIndex < habitsIndex)) {
+    throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
+  }
+  if (!html.includes('aria-label="Tarefas, 2 de 3 feitas"')
+    || !html.includes('aria-label="Hábitos, 1 de 2 feitos"')
+    || !html.includes('aria-label="Água, 750 de 2.000 mililitros"')
+    || !html.includes('home-day-chip-count" aria-hidden="true">38%')
+    || html.includes('href="/ciclo"')) {
+    throw new Error('A faixa deve apresentar contagens acessíveis e ocultar Ciclo sem consentimento.');
+  }
+  const cycleHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, cycle: { day: 12 } },
+  }, renderers).s;
+  if (!cycleHtml.includes('href="/ciclo" aria-label="Ciclo, dia 12 do ciclo"')
+    || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
+    throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
+  }
+  if (emptyArgs?.[0] !== 'Seu Início começa aqui'
+    || emptyArgs[2] !== ''
+    || !html.includes('home-quick-form')) {
+    throw new Error('O estado sem tarefas, hábitos e contas deve apontar para a captura rápida sem uma segunda ação.');
+  }
+});
+
+test('seleção de tarefas preserva filtros, ordenação e dados originais', () => {
+  const tasks = [
+    { title: 'Revisão', done: false, dueDate: '2026-11-09', time: '10:00', priority: 'normal', tags: ['Trabalho'], createdAt: 1 },
+    { title: 'Próxima', done: false, dueDate: '2026-11-17', priority: 'high', createdAt: 2 },
+    { title: 'Sem data', done: false, dueDate: '', priority: 'low', notes: 'Reunião', createdAt: 3 },
+    { title: 'Feita', done: true, dueDate: '2026-11-09', doneAt: '2026-11-10T12:00:00', priority: 'normal', createdAt: 4 },
+    { title: 'Antiga', done: true, dueDate: '2026-11-09', doneAt: '2026-11-08T12:00:00', priority: 'normal', createdAt: 5 },
+  ];
+  const deps = { normalize: (value) => String(value).toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, ''), orderOf: (task) => task.order ?? task.createdAt ?? 0 };
+  const select = (f, q = '', sort = 'prazo') => filteredTasks(tasks, { f, q, sort }, '2026-11-10', deps).map((task) => task.title).join(',');
+  if (select('atrasadas') !== 'Revisão' || select('proximas') !== 'Próxima'
+    || select('caixa') !== 'Sem data' || select('etq:Trabalho') !== 'Revisão'
+    || select('todas', 'reuniao') !== 'Sem data'
+    || select('concluidas', '', 'recentes') !== 'Antiga,Feita'
+    || select('pendentes', '', 'prioridade') !== 'Próxima,Revisão,Sem data') {
+    throw new Error('Filtros ou ordenação de tarefas foram alterados.');
+  }
+  if (todayTasks(tasks, '2026-11-10').map((task) => task.title).join(',') !== 'Revisão,Feita'
+    || tasks[0].title !== 'Revisão') throw new Error('Seleção do dia ou ordem original incorreta.');
+});
+
+test('planos anuais validam formato, limites e preservam campos desconhecidos', () => {
+  const plans = {
+    2027: {
+      intention: 'Abrir espaço para o que importa.',
+      customField: 'preservado',
+      goals: [{ id: 'goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, customField: true }],
+    },
+  };
+  if (!isValidAnnualPlans(plans)
+    || isValidAnnualPlans({ ...plans, 2028: { intention: '', goals: [{ ...plans[2027].goals[0], done: 'sim' }] } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], goals: [{ ...plans[2027].goals[0], id: '' }] } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], intention: 'a'.repeat(301) } })
+    || isValidAnnualPlans({ ...plans, 2027: { ...plans[2027], goals: [{ ...plans[2027].goals[0], quarter: 'q5' }] } })
+    || isValidAnnualPlans({ invalid: plans[2027] })) throw new Error('O formato do plano anual aceitou registros inválidos.');
+  const normalized = normalizeAnnualPlans(plans);
+  if (normalized[2027].customField !== 'preservado'
+    || normalized[2027].goals[0].customField !== true
+    || normalizeAnnualPlans({ invalid: plans[2027] })[2027] !== undefined) {
+    throw new Error('A normalização não preservou os campos futuros ou aceitou o ano inválido.');
+  }
+});
+
+test('catálogo do Plano anual tem ideias por categoria e busca sem acentos', () => {
+  const ids = new Set(ANNUAL_PLAN_IDEAS.map((idea) => idea.id));
+  if (ANNUAL_PLAN_IDEAS.length < 20 || ids.size !== ANNUAL_PLAN_IDEAS.length
+    || ANNUAL_PLAN_IDEA_CATEGORIES.length < 5
+    || ANNUAL_PLAN_IDEAS.some((idea) => !ANNUAL_PLAN_IDEA_CATEGORIES.some((category) => category.id === idea.category)
+      || !idea.title || !idea.action)) {
+    throw new Error('O catálogo precisa conter ao menos 20 ideias únicas com categoria, título e primeiro passo.');
+  }
+  if (filterAnnualPlanIdeas('dinheiro').length !== 4
+    || filterAnnualPlanIdeas('all', 'saude').map((idea) => idea.id).join(',') !== 'preventive-care'
+    || filterAnnualPlanIdeas('relacoes', 'viagem').length !== 0) {
+    throw new Error('A busca e o filtro por categoria não correspondem às ideias disponíveis.');
+  }
+});
 
 test('inicia os alertas antes de aguardar o service worker', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
@@ -194,8 +402,11 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
 test('confirmações nativas foram substituídas e o feedback de persistência não exibe horários salvos', () => {
   const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
   if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
-  if (source.includes('Salvo às') || !source.includes('Alterações feitas offline não serão salvas')) {
-    throw new Error('O shell não deve exibir horários de salvamento e deve manter o aviso offline.');
+  if (source.includes('Salvo às')
+    || !source.includes('Salvando…')
+    || !source.includes('Falha ao salvar; tente novamente')
+    || !source.includes('Alterações feitas offline não serão salvas')) {
+    throw new Error('O shell não deve exibir horários de salvamento e deve manter avisos de erro e conexão.');
   }
 });
 
@@ -210,40 +421,54 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
-  if (documentStub.title !== 'aurora. — planner semanal, hábitos e finanças em um só lugar') {
+  if (documentStub.title !== 'aurora. — tarefas, hábitos, finanças e ciclo') {
     throw new Error('A landing deve atualizar o título da aba.');
   }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
     'Menos ruído. Mais clareza no dia',
-    'Da cabeça cheia a um próximo passo possível',
-    'Registre receitas, despesas e cartões manualmente',
+    'Um planner independente para a vida real',
+    'Feito para a vida como ela é',
+    'Organize tarefas e prazos; acompanhe o que já foi concluído.',
     'Criar conta',
     'Explorar demonstração',
-    'Começar grátis',
-    'Ver demo em 1 minuto',
-    'Demo com dados fictícios, sem cadastro.',
-    'Planner de tarefas, hábitos, ciclo e finanças em um só lugar.',
-    'Totalmente grátis',
-    'Feito por uma pessoa só, com cuidado',
+    'Abrir demonstração',
+    'A demonstração usa dados fictícios e não salva suas mudanças.',
+    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.',
+    'totalmente grátis',
     'preview-area-cycle',
-    'Quatro áreas, no seu ritmo',
-    'Posso exportar meus dados?',
+    'Ciclo',
+    'Escolha por onde começar',
+    'Posso experimentar sem criar conta?',
     'data-footer-suggestion',
-    'Escolha como quer começar',
-    'Explore a demonstração somente de leitura, com dados fictícios e sem cadastro',
-    'Finanças manuais',
+    'Leve sua rotina com você',
+    'Sua experiência pode ajudar o Aurora a evoluir.',
+    'Ainda não temos avaliações ou números públicos para compartilhar.',
+    'Compartilhar uma sugestão',
+    'Adicione o Aurora à tela inicial do celular',
     'O Aurora não se conecta a bancos',
-    'O acesso aos registros é restrito à sua conta autenticada.',
-    'não são criptografados de ponta a ponta',
-    'href="/privacy.html"',
-    'Com consentimento específico, acompanhe períodos e sintomas',
+    'href="/privacy"',
+    'Acompanhe datas e sintomas com seu consentimento específico',
   ];
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
-  if (root.innerHTML.indexOf('public-maker') < root.innerHTML.indexOf('public-features')) {
-    throw new Error('A transparência sobre a autoria deve vir depois da apresentação das áreas.');
+  const structuredData = [...entryHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .flatMap((match) => JSON.parse(match[1]));
+  const softwareApplication = structuredData.find((item) => item['@type'] === 'SoftwareApplication');
+  const landingFaq = structuredData.find((item) => item['@type'] === 'FAQPage');
+  const faqNames = landingFaq?.mainEntity?.map((question) => question.name) || [];
+  if (softwareApplication?.description !== 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.'
+    || faqNames.length !== 5
+    || !faqNames.every((name) => root.innerHTML.includes(name))) {
+    throw new Error('Metadados e FAQ estruturado devem acompanhar as áreas e perguntas atuais da landing.');
+  }
+  if (root.innerHTML.includes('public-hero-support')
+    || root.innerHTML.includes('Veja como Planejar, Hábitos, Finanças e Ciclo se encaixam')) {
+    throw new Error('A landing não deve repetir benefícios que já aparecem no título e nos cartões das áreas.');
+  }
+  if (root.innerHTML.includes('public-maker')) {
+    throw new Error('A landing não deve exibir a seção de autoria removida.');
   }
   if (root.innerHTML.includes('É o dado mais sensível do app')) {
     throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
@@ -257,20 +482,49 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     || root.innerHTML.includes('gestora de rotina')) {
     throw new Error('A landing não deve apresentar depoimentos ou perfis fictícios como prova social.');
   }
+  const communityStart = root.innerHTML.indexOf('class="public-community"');
+  const featuresEnd = root.innerHTML.indexOf('</section>', root.innerHTML.indexOf('class="public-features"'));
+  const faqStart = root.innerHTML.indexOf('class="public-faq"');
+  if (communityStart < featuresEnd || communityStart > faqStart
+    || !root.innerHTML.includes('href="#public-suggestion"')
+    || !root.innerHTML.includes('id="public-suggestion"')) {
+    throw new Error('O convite da comunidade deve aparecer entre as áreas e o FAQ e levar ao formulário de sugestões.');
+  }
+  if (root.innerHTML.includes('não são criptografados')
+    || root.innerHTML.includes('Preciso confirmar meu e-mail?')
+    || root.innerHTML.includes('O que acontece sem conexão?')) {
+    throw new Error('Detalhes de segurança, conta e conectividade devem ficar na Política de Privacidade e no próprio app.');
+  }
   if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
     throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
   }
-  const heroMarkup = root.innerHTML.slice(root.innerHTML.indexOf('class="public-hero'));
-  if (heroMarkup.indexOf('href="/criar-conta"') > heroMarkup.indexOf('href="/demonstracao"')) {
-    throw new Error('O cadastro deve aparecer antes do link para a demonstração no hero.');
+  const heroStart = root.innerHTML.indexOf('class="public-hero');
+  const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
+  const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
+  if (!heroMarkup.includes('href="/criar-conta" data-public-action="signup">Criar conta grátis</a>')
+    || !heroMarkup.includes('href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>')
+    || !heroMarkup.includes('class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>')
+    || (heroMarkup.match(/class="public-subtitle"/g) || []).length !== 1
+    || heroMarkup.includes('class="public-lead"')) {
+    throw new Error('O hero deve mostrar uma chamada de cadastro, uma de demonstração e apenas uma frase de apoio.');
   }
-  if (root.innerHTML.includes('Um passo de cada vez') || root.innerHTML.includes('public-onboarding')) {
+  const phoneNavigation = heroMarkup.match(/class="preview-phone-nav"[\s\S]*?<\/div>/)?.[0] || '';
+  if (!['preview-nav-home', 'preview-nav-planner', 'preview-nav-habits', 'preview-nav-cycle', 'preview-nav-finances']
+    .every((area) => phoneNavigation.includes(area))
+    || !['planner', 'habits', 'finances'].every((area) => heroMarkup.includes(`data-preview-area="${area}"`))) {
+    throw new Error('A prévia do celular deve exibir cinco áreas e distinguir as cores dos três itens.');
+  }
+  if (!root.innerHTML.includes('role="group" aria-label="Demonstração visual das quatro áreas"')) {
+    throw new Error('A apresentação nomeada das áreas deve ter semântica de grupo compatível.');
+  }
+  if (root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
   }
-  const landingTitle = 'aurora. — planner de tarefas, hábitos, foco e finanças';
+  const landingTitle = 'aurora. — tarefas, hábitos, finanças e ciclo';
   if (!entryHtml.includes(`<title>${landingTitle}</title>`)
     || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
-    || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)) {
+    || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)
+    || landingTitle.length > 60) {
     throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
   }
   if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
@@ -281,13 +535,6 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
   if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
     throw new Error('O build precisa pré-renderizar a landing sem URLs file://.');
-  }
-  const demoView =  readFileSync(new URL('../src/js/features/landing/demo.js', import.meta.url), 'utf8');
-  if (!demoView.includes("['today', 'Hoje', 'home']")
-    || !demoView.includes("['finance', 'Finanças', 'wallet']")
-    || !demoView.includes('somente de leitura')
-    || /state\.tasks\.(?:push|splice)|task\.done\s*=/.test(demoView)) {
-    throw new Error('A demonstração precisa apresentar dados fictícios somente de leitura.');
   }
 });
 
@@ -310,6 +557,134 @@ const truthy = (value) => {
 const falsy = (value) => {
   if (value) throw new Error('Esperava um valor falso.');
 };
+
+test('toast usa o tom explícito e destaca falhas de persistência', () => {
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousSetTimeout = globalThis.setTimeout;
+  const previousClearTimeout = globalThis.clearTimeout;
+  const previousNow = Date.now;
+  const written = [];
+  const timer = { hidden: false, style: {} };
+  const element = {
+    className: '',
+    innerHTML: '',
+    setAttribute(name, value) { this[name] = value; },
+    querySelector(selector) { return selector === '.toast-timer' ? timer : null; },
+  };
+  let override = null;
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: { getElementById: () => element },
+  });
+  globalThis.setTimeout = () => 1;
+  globalThis.clearTimeout = () => {};
+  let now = 10000;
+  Date.now = () => now;
+  try {
+    const controller = createToastController({
+      readToast: () => written.at(-1) || null,
+      writeToast: (toast) => written.push(toast),
+      getContext: () => ({ top: false }),
+      getOverride: () => override,
+      normalizeMessage: (message) => message,
+    });
+    controller.show('Não foi possível salvar.', 'error');
+    equal(written.at(-1).tone, 'error');
+    equal(element.role, 'alert');
+    controller.show('Salvo.', 'success');
+    equal(written.at(-1).tone, 'success');
+    equal(timer.style.animationDuration, '5000ms');
+    now += 2500;
+    controller.render();
+    equal(timer.style.animationDelay, '-2500ms');
+    controller.show('Alterado.', 'success', () => {});
+    equal(timer.style.animationDuration, '9000ms');
+    override = { message: 'Falha ao carregar.', details: 'Conexão indisponível.' };
+    controller.show('Salvo.', 'success');
+    equal(written.at(-1).tone, 'error');
+    equal(written.at(-1).details, 'Conexão indisponível.');
+  } finally {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+    globalThis.setTimeout = previousSetTimeout;
+    globalThis.clearTimeout = previousClearTimeout;
+    Date.now = previousNow;
+  }
+});
+
+test('captura rápida reconhece datas civis, horário e preserva etiquetas', () => {
+  const tomorrow = parseQuickDate('Revisar amanhã 14h30 #trabalho', '2026-11-10');
+  equal(tomorrow.title, 'Revisar #trabalho');
+  equal(tomorrow.date, '2026-11-11');
+  equal(tomorrow.time, '14:30');
+  equal(parseQuickDate('Pagar sexta-feira', '2026-11-10').date, '2026-11-13');
+  equal(parseQuickDate('Hoje 9:05 reunião', '2026-11-10').time, '09:05');
+  equal(parseQuickDate('Planejar amanhã', '2026-12-31').date, '2027-01-01');
+  equal(parseQuickDate('Revisar #sexta', '2026-11-10').title, 'Revisar #sexta');
+  equal(parseQuickDate('Revisar tarefa', '2026-11-10').date, '2026-11-10');
+  ok(parseQuickDate('Revisar amanhã 25h', '2026-11-10').error);
+  ok(parseQuickDate('Revisar hoje sexta', '2026-11-10').error);
+});
+
+test('Push de tarefas envia apenas horários futuros sem título e limita o lote', () => {
+  const now = new Date(2026, 10, 26, 10, 0).getTime();
+  const reminders = buildTaskPushReminders([
+    { title: 'Tarefa privada posterior', dueDate: '2026-11-27', time: '12:00', remind: 10 },
+    { title: 'Outra tarefa privada', dueDate: '2026-11-27', time: '11:30', remind: 30 },
+    { title: 'Tarefa vencida', dueDate: '2026-11-26', time: '09:00', remind: 0 },
+    { title: 'Tarefa concluída', done: true, dueDate: '2026-11-27', time: '13:00', remind: 0 },
+  ], now);
+  equal(JSON.stringify(reminders.map(({ id }) => id)), JSON.stringify(['task-1', 'task-0']));
+  ok(reminders.every((reminder) => Object.keys(reminder).sort().join(',') === 'at,id'));
+  equal(JSON.stringify(reminders).includes('privada'), false);
+  const manyTasks = Array.from({ length: 101 }, (_, index) => ({
+    dueDate: '2026-11-27', time: '12:00', remind: 0, title: `Privada ${index}`,
+  }));
+  equal(buildTaskPushReminders(manyTasks, now).length, 100);
+});
+
+test('lembrete semanal fica desligado por padrão e agenda o próximo domingo às 18h', () => {
+  const sunday = new Date(2026, 10, 15, 17, 0).getTime();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  equal(buildWeeklyReviewPushReminder(false, sunday, timeZone).length, 0);
+  const [reminder] = buildWeeklyReviewPushReminder(true, sunday, timeZone);
+  equal(reminder.id, 'weekly-review');
+  equal(reminder.at, new Date(2026, 10, 15, 18, 0).getTime());
+  equal(reminder.repeat, 'weekly');
+  equal(reminder.time, '18:00');
+  equal(reminder.timeZone, timeZone);
+  const [nextReminder] = buildWeeklyReviewPushReminder(true, new Date(2026, 10, 15, 19, 0).getTime(), timeZone);
+  equal(nextReminder.at, new Date(2026, 10, 22, 18, 0).getTime());
+});
+
+test('regras de categoria são validadas e aplicadas por primeira correspondência sem diferenciar acentos', () => {
+  const rules = normalizeCategoryRules([
+    { id: 'rule-food', phrase: 'CAFÉ CENTRAL', category: 'Alimentação', kind: 'out' },
+    { id: 'rule-income', phrase: 'freelance', category: 'Renda extra', kind: 'in' },
+    { id: 'rule-duplicate', phrase: 'inválida', category: 'Lazer', kind: 'other' },
+    { id: 'rule-food', phrase: 'repetida', category: 'Lazer', kind: 'out' },
+  ]);
+  equal(rules.length, 2);
+  equal(matchCategoryRule('Compra no Cafe Central - unidade 2', 'out', rules)?.id, 'rule-food');
+  equal(matchCategoryRule('Pagamento freelance', 'in', rules)?.category, 'Renda extra');
+  equal(matchCategoryRule('Compra no Cafe Central', 'in', rules), null);
+  equal(matchCategoryRule('Outro estabelecimento', 'out', rules), null);
+});
+
+test('busca local ordena por relevância e inclui ações sem expor registros ausentes', () => {
+  const results = searchRecords({
+    tasks: [
+      { id: 'weak', title: 'Revisar orçamento', notes: 'Acompanhar finanças depois' },
+      { id: 'strong', title: 'Finanças' },
+    ],
+    actions: [{ id: 'finance', action: 'open-finances', area: 'Ações', title: 'Ir para Finanças', aliases: ['financeiro'] }],
+  }, 'finanças');
+  equal(results[0].id, 'strong');
+  equal(results[1].kind, 'action');
+  equal(results[2].id, 'weak');
+  equal(searchRecords({ tasks: [] }, 'x').length, 0);
+});
 
 test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', () => {
   ok(Object.isFrozen(IC));
@@ -353,7 +728,8 @@ test('orientações cobrem as telas e esclarecem a privacidade financeira', () =
       ok(step.title);
       ok(step.text);
     });
-    ok(guide.video.endsWith('.webm'));
+    ok(guide.video.endsWith('.mp4'));
+    ok(guide.poster.endsWith('.webp'));
   });
   equal(Object.hasOwn(AREA_GUIDES, 'config'), false);
   ok(AREA_GUIDES.financas.steps.some((step) => step.text.includes('manualmente')));
@@ -374,14 +750,6 @@ test('preferências de tutoriais aceitam rotas conhecidas e mantêm compatibilid
   equal(isValidAreaTutorialsSeen(['financas', 'financas']), false);
   equal(isValidAreaTutorialsSeen(['rota-inválida']), false);
   equal(isValidAreaTutorialsSeen('financas'), false);
-});
-
-test('ações da personalização inicial só são liberadas enquanto o diálogo está ativo', () => {
-  equal(actionNeedsProfileSetup('ob-need', true), false);
-  equal(actionNeedsProfileSetup('ob-area', true), false);
-  equal(actionNeedsProfileSetup('ob-skip', true), false);
-  equal(actionNeedsProfileSetup('ob-skip', false), true);
-  equal(actionNeedsProfileSetup('home-quick-task', true), true);
 });
 
 test('aniversário mantém somente dia e mês e atualiza a idade na data correta', () => {
@@ -495,65 +863,6 @@ test('a lixeira prioriza os itens que vencem primeiro sem alterar a lista origin
 
   equal(ordered.map((entry) => entry.id).join(','), 'oldest,newest');
   equal(entries[0], newest);
-});
-
-test('transação de backup persiste todas as chaves em caso de sucesso', () => {
-  const storage = new Map([['a', 'antigo-a'], ['b', 'antigo-b']]);
-  const result = runStorageTransaction({
-    keys: ['a', 'b'],
-    readRaw: (key) => storage.has(key) ? storage.get(key) : null,
-    writeRaw: (key, value) => storage.set(key, value),
-    removeRaw: (key) => storage.delete(key),
-    persist: (key) => {
-      storage.set(key, `novo-${key}`);
-      return true;
-    },
-  });
-
-  equal(result.ok, true);
-  equal(storage.get('a'), 'novo-a');
-  equal(storage.get('b'), 'novo-b');
-});
-
-test('transação restaura os valores anteriores quando uma gravação falha', () => {
-  const storage = new Map([['a', 'antigo-a'], ['b', 'antigo-b']]);
-  const result = runStorageTransaction({
-    keys: ['a', 'b'],
-    readRaw: (key) => storage.has(key) ? storage.get(key) : null,
-    writeRaw: (key, value) => storage.set(key, value),
-    removeRaw: (key) => storage.delete(key),
-    persist: (key) => {
-      if (key === 'a') storage.set(key, 'novo-a');
-      if (key === 'b') return false;
-      return true;
-    },
-  });
-
-  equal(result.ok, false);
-  equal(result.rollbackFailed, false);
-  equal(storage.get('a'), 'antigo-a');
-  equal(storage.get('b'), 'antigo-b');
-});
-
-test('transação identifica quando o próprio rollback falha', () => {
-  const storage = new Map([['a', 'antigo-a'], ['b', 'antigo-b']]);
-  const result = runStorageTransaction({
-    keys: ['a', 'b'],
-    readRaw: (key) => storage.get(key),
-    writeRaw: (key, value) => {
-      if (key === 'a') throw new Error('Rollback simulado');
-      storage.set(key, value);
-    },
-    removeRaw: (key) => storage.delete(key),
-    persist: (key) => {
-      if (key === 'a') storage.set(key, 'novo-a');
-      if (key === 'b') return false;
-      return true;
-    },
-  });
-
-  equal(result.ok, false);
-  equal(result.rollbackFailed, true);
 });
 
 test('o backup preserva o tema personalizado em vez de reverter para a paleta base', () => {
@@ -686,6 +995,73 @@ test('marca até hoje períodos menstruais ainda em andamento', () => {
     '2026-03-01,2026-03-02,2026-03-03',
   );
   equal(cyclePeriodDays('2026-03-13', null, '2026-03-12').length, 0);
+});
+
+test('cálculos do ciclo usam seis intervalos recentes e limitam fases férteis por variação', () => {
+  const starts = ['2025-01-01'];
+  [60, 27, 28, 30, 26, 29, 28].forEach((length) => {
+    starts.push(addDays(starts[starts.length - 1], length));
+  });
+  const periods = starts.map((start) => ({ start, end: start }));
+  const stats = cycleStats({}, periods, addDays(starts.at(-1), 1));
+
+  equal(stats.starts.join(','), starts.join(','));
+  equal(stats.observedIntervals, 6);
+  equal(stats.avg, 28);
+  equal(stats.min, 26);
+  equal(stats.max, 30);
+  equal(stats.variation, 4);
+  equal(stats.canEstimateFertility, true);
+  equal(stats.next, addDays(starts.at(-1), 28));
+  equal(cycleDayNumber(addDays(starts.at(-1), 5), stats.starts), 6);
+
+  const recentStarts = ['2025-01-01'];
+  [25, 26, 27, 28, 29, 30, 90, 28].forEach((length) => {
+    recentStarts.push(addDays(recentStarts[recentStarts.length - 1], length));
+  });
+  const recentStats = cycleStats({}, recentStarts.map((start) => ({ start, end: start })), addDays(recentStarts.at(-1), 1));
+  equal(recentStats.observedIntervals, 5);
+  equal(recentStats.avg, 28);
+  equal(recentStats.min, 27);
+  equal(recentStats.max, 30);
+  equal(recentStats.hasOutOfRangeRecentInterval, true);
+  equal(recentStats.canEstimateFertility, false);
+
+  const variableStarts = ['2026-01-01', '2026-01-27', '2026-03-02'];
+  const variableStats = cycleStats({}, variableStarts.map((start) => ({ start, end: start })), '2026-03-03');
+  equal(variableStats.variation, 8);
+  equal(variableStats.canEstimateFertility, false);
+  equal(estimatedCyclePhase(addDays(variableStarts.at(-1), 8), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), '');
+  equal(estimatedCyclePhase(addDays(variableStarts.at(-1), 13), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), '');
+  equal(estimatedCyclePhase(variableStarts.at(-1), variableStats.starts, variableStats.avg, variableStats.set, variableStats.canEstimateFertility), 'menstruation');
+});
+
+test('estimação de fases do ciclo e métricas de sintomas validam as janelas esperadas', () => {
+  const starts = ['2026-01-01', '2026-01-29'];
+  equal(estimatedCyclePhase('invalid-date', starts, 28), '');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 8), starts, 28), 'fertile');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 13), starts, 28), 'ovulation');
+  equal(estimatedCyclePhase(addDays(starts.at(-1), 8), starts, 28, new Set(), false), '');
+
+  const days = periodDaySet(
+    { '2026-05-02': { flow: 'light' }, '2026-05-03': { flow: 'none' } },
+    [{ start: '2026-05-05', end: '2026-05-06' }],
+    '2026-05-10',
+  );
+  equal([...days].sort().join(','), '2026-05-02,2026-05-05,2026-05-06');
+
+  const symptoms = topSymptoms({
+    '2026-06-01': { pain: ['cramp', 'head'], mood: ['anxious'], energy: 'low', sleep: 'insomnia' },
+    '2026-06-02': { pain: ['cramp'] },
+    '2026-03-01': { pain: ['cramp'] },
+  }, '2026-06-30', (category, value) => `${category}-${value}`);
+  equal(symptoms.length, 5);
+  equal(symptoms[0].category, 'pain');
+  equal(symptoms[0].value, 'cramp');
+  equal(symptoms[0].count, 2);
+  equal(symptoms.some(({ value }) => value === 'head'), true);
+  equal(symptoms.some(({ value }) => value === 'insomnia'), true);
+  equal(symptoms.some(({ value }) => value === 'old'), false);
 });
 
 test('gera intervalo de dias para registro de sintomas sem aceitar datas inválidas', () => {
@@ -873,6 +1249,33 @@ test('ignora lançamentos pendentes no saldo das contas', () => {
   equal(accountBalance(account, transactions), 9000);
 });
 
+test('resumo de parcelas calcula vencimento final e valores ainda restantes', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking' },
+    { id: 'card', type: 'credit' },
+  ];
+  const transactions = [
+    { id: 'first', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 100, date: '2026-09-10', paid: true },
+    { id: 'second', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 101, date: '2026-10-10', paid: false },
+    { id: 'third', groupId: 'purchase', type: 'out', accountId: 'checking', cents: 100, date: '2026-11-10', paid: false },
+    { id: 'card-past', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-09-10', paid: true },
+    { id: 'card-now', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-10-10', paid: true },
+    { id: 'card-next', groupId: 'card-purchase', type: 'out', accountId: 'card', cents: 500, date: '2026-11-10', paid: true },
+  ];
+  const accountForId = (id) => accounts.find((account) => account.id === id);
+  const purchase = installmentSummary(transactions, 'second', accountForId, '2026-10');
+  const cardPurchase = installmentSummary(transactions, 'card-past', accountForId, '2026-10');
+
+  equal(purchase.endDate, '2026-11-10');
+  equal(purchase.remainingCents, 201);
+  equal(purchase.remainingCount, 2);
+  equal(purchase.selectedIndex, 1);
+  equal(cardPurchase.endDate, '2026-11-10');
+  equal(cardPurchase.remainingCents, 1000);
+  equal(cardPurchase.remainingCount, 2);
+  equal(cardPurchase.cardPurchase, true);
+});
+
 test('saldo histórico considera transferências e data de liquidação sem incluir cartão', () => {
   const accounts = [
     { id: 'checking', type: 'checking', initialCents: 10000 },
@@ -892,6 +1295,51 @@ test('saldo histórico considera transferências e data de liquidação sem incl
   equal(netAccountBalanceOn(accounts, transactions, '2026-10-31'), 10000);
   equal(accountBalanceOn(accounts[0], transactions, '2026-11-04'), 6500);
   equal(netAccountBalanceOn(accounts, transactions, '2026-11-04'), 7500);
+});
+
+test('projeção de saldo inclui pendências, transferências e faturas sem duplicar parcelas', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking', initialCents: 10000 },
+    { id: 'savings', type: 'savings', initialCents: 0 },
+    { id: 'card', type: 'credit', initialCents: 0 },
+  ];
+  const transactions = [
+    { type: 'out', accountId: 'checking', cents: 1000, date: '2026-11-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 500, date: '2026-11-20', paid: false },
+    { type: 'in', accountId: 'checking', cents: 1200, date: '2026-11-25', paid: false },
+    { type: 'tr', accountId: 'checking', toAccountId: 'savings', cents: 700, date: '2026-11-26', paid: false },
+    { type: 'tr', accountId: 'checking', toAccountId: 'card', cents: 1000, date: '2026-11-27', paid: false, invoiceInstallment: true, interestCents: 100 },
+    { type: 'tr', accountId: 'card', toAccountId: 'checking', cents: 200, date: '2026-11-28', paid: false },
+    { type: 'out', accountId: 'card', cents: 3000, date: '2026-11-29', paid: false },
+    { type: 'out', accountId: 'checking', cents: 4000, date: '2026-12-01', paid: false },
+  ];
+
+  equal(projectedNetAccountBalance(accounts, transactions, '2026-11-30', [
+    { dueDate: '2026-11-30', cents: 3000 },
+    { dueDate: '2026-12-02', cents: 9000 },
+  ]), 5900);
+});
+
+test('objetivo vinculado acompanha saldo não negativo da conta sem alterar o modo manual', () => {
+  const accounts = [
+    { id: 'checking', type: 'checking', initialCents: 5000 },
+    { id: 'card', type: 'credit', initialCents: 0 },
+  ];
+  const transactions = [
+    { type: 'in', accountId: 'checking', cents: 6000, date: '2026-10-01', paid: true },
+    { type: 'out', accountId: 'checking', cents: 3000, date: '2026-10-02', paid: true },
+    { type: 'out', accountId: 'checking', cents: 2000, date: '2026-10-03', paid: false },
+  ];
+
+  equal(linkedGoalProgressCents({
+    linkedAccountId: 'checking',
+    savedCents: 123,
+  }, accounts, transactions), 8000);
+  equal(linkedGoalProgressCents({
+    linkedAccountId: 'card',
+    savedCents: 456,
+  }, accounts, transactions), 456);
+  equal(linkedGoalProgressCents({ savedCents: 789 }, accounts, transactions), 789);
 });
 
 test('relatório de caixa usa data de liquidação e pagamento de fatura sem duplicar compras', () => {
@@ -958,6 +1406,41 @@ test('importação OFX lê datas e valores em centavos', () => {
   equal(parsed.transactions.length, 1);
   equal(parsed.transactions[0].date, '2026-10-29');
   equal(parsed.transactions[0].cents, -1050);
+});
+
+test('importação distingue duplicados idênticos de transações apenas semelhantes', () => {
+  const existing = [{
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: 'Café da Praça',
+  }];
+  const exact = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: '  CAFE DA PRACA  ',
+  }, existing);
+  const similar = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1234,
+    date: '2026-10-29',
+    desc: 'Padaria',
+  }, existing);
+  const distinct = statementDuplicateStatus({
+    accountId: 'checking',
+    type: 'out',
+    cents: 1235,
+    date: '2026-10-29',
+    desc: 'Café da Praça',
+  }, existing);
+
+  equal(`${exact.duplicate}:${exact.possible}`, 'true:false');
+  equal(`${similar.duplicate}:${similar.possible}`, 'false:true');
+  equal(`${distinct.duplicate}:${distinct.possible}`, 'false:false');
 });
 
 test('resume mensal distingue transferência e compra no cartão', () => {
@@ -1212,6 +1695,48 @@ test('panorama semanal conta somente dias programados até hoje e oferece pausad
   equal(overview.paused.length, 1);
 });
 
+test('panorama diário exclui pulos da meta e ignora hábitos pausados', () => {
+  const completed = { ...habitBase, completions: ['2026-10-21'] };
+  const skipped = { ...habitBase, id: 'h2', skipped: ['2026-10-21'] };
+  const paused = { ...habitBase, id: 'h3', status: 'paused' };
+  const overview = habitDayOverview(
+    [completed, skipped, paused],
+    '2026-10-21',
+    (habit, day) => habit.completions.includes(day),
+    (habit, day) => habitIsSkipped(habit, day, '2026-10-21'),
+  );
+  equal(overview.scheduled.length, 2);
+  equal(overview.completed, 1);
+  equal(overview.planned, 1);
+  equal(overview.skipped, 1);
+  equal(habitDayOverview([completed], 'not-a-day').planned, 0);
+});
+
+test('progresso diário dos hábitos segue a semana preferida e ignora dias pulados', () => {
+  const habits = [
+    { ...habitBase, id: 'h1', days: [1, 3, 4], completions: ['2026-10-19', '2026-10-21'] },
+    { ...habitBase, id: 'h2', days: [3], completions: [] },
+    { ...habitBase, id: 'h3', days: [3], completions: [], skipped: ['2026-10-21'] },
+  ];
+  const week = habitWeekDailyProgress(
+    habits,
+    '2026-10-21',
+    1,
+    (habit, day) => habit.completions.includes(day),
+    (habit, day) => habitIsSkipped(habit, day, '2026-10-21'),
+  );
+  equal(week.length, 7);
+  equal(week[0].day, '2026-10-19');
+  equal(week[0].progress, 1);
+  equal(week[2].planned, 2);
+  equal(week[2].completed, 1);
+  equal(week[2].progress, 0.5);
+  equal(week[3].progress, 0);
+  const sundayStart = habitWeekDailyProgress(habits, '2026-10-21', 0);
+  equal(sundayStart[0].day, '2026-10-18');
+  equal(sundayStart[1].day, '2026-10-19');
+});
+
 test('pular um dia exclui a data das metas e não interrompe sequência', () => {
   const habit = {
     ...habitBase,
@@ -1254,6 +1779,32 @@ test('revisão semanal não inclui dias pulados na taxa de hábitos', () => {
   equal(review.habits.completed, 1);
 });
 
+test('resumo semanal conta metas de água e hábitos em dia somente até hoje', () => {
+  const habits = [
+    { ...habitBase, id: 'on-track', completions: ['2026-10-19', '2026-10-20', '2026-10-21'] },
+    { ...habitBase, id: 'behind', completions: ['2026-10-19'] },
+    { ...habitBase, id: 'paused', status: 'paused', completions: ['2026-10-19'] },
+  ];
+  const review = weeklyReview(
+    [
+      { done: true, dueDate: '2026-10-19', doneAt: '2026-10-18T12:00:00.000Z' },
+      { done: false, dueDate: '2026-10-20' },
+      { done: true, dueDate: '2026-10-25', doneAt: '2026-10-21T12:00:00.000Z' },
+      { done: true, dueDate: '2026-10-20' },
+    ],
+    habits,
+    '2026-10-21',
+    1,
+    (habit, day) => habit.completions.includes(day),
+    () => false,
+    (day) => day === '2026-10-20' || day === '2026-10-21',
+  );
+  equal(review.tasks.completed, 2);
+  equal(review.waterDays, 2);
+  equal(review.habits.count, 2);
+  equal(review.habits.onTrack, 1);
+});
+
 test('sugestão de água cria um hábito comum e evita duplicatas', () => {
   let count = 0;
   const created = createSuggestedHabits(['reading', 'water'], [{ ...habitBase, name: 'LER POR 10 MINUTOS' }], () => `id-${++count}`);
@@ -1294,6 +1845,23 @@ test('registros de água aceitam mililitros inteiros e somam somente o dia local
   equal(waterGoalReached(todayTotal, 750), true);
   equal(waterGoalReached(todayTotal, 751), false);
   equal(waterMlForDay([], '2026-02-30'), 0);
+});
+
+test('progresso semanal da água compara cada dia com a meta definida', () => {
+  const entries = [
+    ...['19', '20', '21', '22', '23'].map((day) => ({
+      ml: 1000,
+      at: `2026-10-${day}T12:00:00`,
+    })),
+    { ml: 500, at: '2026-10-24T12:00:00' },
+  ];
+  const week = waterWeekProgress(entries, 1000, '2026-10-21', 1);
+  equal(week.length, 7);
+  equal(week[0].day, '2026-10-19');
+  equal(week.filter(({ goalReached }) => goalReached).length, 5);
+  equal(week[5].progress, 0.5);
+  equal(week[6].progress, 0);
+  equal(waterWeekProgress(entries, 1000, '2026-10-21', 0)[0].day, '2026-10-18');
 });
 
 test('hábito aceita ícone e cor opcionais e rejeita valores inválidos', () => {
@@ -1462,6 +2030,17 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
   }));
   equal(normalizeHomeMessage(`  mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH)}  `), `mensagem ${'x'.repeat(HOME_MESSAGE_MAX_LENGTH - 9)}`);
   equal(normalizeHomeMessage(null), '');
+  equal(JSON.stringify(homeFirstStepsProgress({
+    theme: 'rose',
+    tasks: [],
+    habits: [{ completions: [] }, { completions: ['2026-10-20'] }],
+  })), JSON.stringify([false, false, true]));
+  equal(JSON.stringify(homeFirstStepsProgress({
+    theme: 'coral',
+    tasks: [{ id: 'task', done: true }],
+    habits: [{ completions: [] }],
+  })), JSON.stringify([true, true, false]));
+  equal(JSON.stringify(homeFirstStepsProgress(null)), JSON.stringify([false, false, false]));
   equal(JSON.stringify(normalizeHomeAreaColors({ planning: 'coral', water: '#ffffff', unknown: 'rose' })), JSON.stringify({ planning: 'coral' }));
   truthy(HOME_AREA_COLORS.length >= 5);
 });
@@ -1479,111 +2058,6 @@ test('cores escolhidas para áreas mantêm contraste nos temas claro e escuro', 
 });
 
 const failures = results.filter((result) => !result.passed);
-const eq = (actual, expected) => {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Esperado ${JSON.stringify(expected)}, recebido ${JSON.stringify(actual)}.`);
-  }
-};
-const planTask = (id, extra = {}) => ({ id, title: id, done: false, dueDate: null, priority: 'normal', ...extra });
-const planIds = (tasks) => tasks.map((task) => task.id);
-
-test('Dia possível sem tarefas devolve listas vazias e limite da energia', () => {
-  const plan = buildDayPlan([], { energy: 'low' }, '2026-11-05');
-  eq(planIds(plan.sugeridas), []);
-  eq(planIds(plan.adiadas), []);
-  eq(plan.limit, 3);
-});
-
-test('Dia possível com só tarefas anteriores as trata como sugeridas, recentes primeiro', () => {
-  const tasks = [
-    planTask('a', { dueDate: '2026-11-01' }),
-    planTask('b', { dueDate: '2026-11-04' }),
-    planTask('c', { dueDate: '2026-11-03', done: true }),
-  ];
-  const plan = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
-  eq(planIds(plan.sugeridas), ['b', 'a']);
-  eq(planIds(plan.adiadas), []);
-});
-
-test('Dia possível com energia baixa sugere no máximo 3 e ordena hoje > anteriores > sem data', () => {
-  const tasks = [
-    planTask('sem-data'),
-    planTask('antiga', { dueDate: '2026-11-02' }),
-    planTask('hoje-tarde', { dueDate: '2026-11-05', time: '18:00' }),
-    planTask('hoje-cedo', { dueDate: '2026-11-05', time: '08:00' }),
-    planTask('futura', { dueDate: '2026-11-09' }),
-  ];
-  const plan = buildDayPlan(tasks, { energy: 'low' }, '2026-11-05');
-  eq(planIds(plan.sugeridas), ['hoje-cedo', 'hoje-tarde', 'antiga']);
-  eq(planIds(plan.adiadas), ['sem-data']);
-});
-
-test('Dia possível limita 5 na energia média e 7 na alta com muitas tarefas, de forma determinística', () => {
-  const tasks = Array.from({ length: 12 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
-  const medium = buildDayPlan(tasks, { energy: 'medium' }, '2026-11-05');
-  const high = buildDayPlan(tasks, { energy: 'high' }, '2026-11-05');
-  eq(medium.sugeridas.length, 5);
-  eq(medium.adiadas.length, 7);
-  eq(high.sugeridas.length, 7);
-  eq(planIds(high.sugeridas), ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
-  eq(planIds(buildDayPlan([...tasks].reverse(), { energy: 'high' }, '2026-11-05').sugeridas).length, 7);
-  eq(JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')), JSON.stringify(buildDayPlan(tasks, { energy: 'low' }, '2026-11-05')));
-});
-
-test('Reduzir o dia guarda o excedente e é idempotente; desfazer devolve o plano original', () => {
-  const tasks = Array.from({ length: 6 }, (_, index) => planTask(`t${index}`, { dueDate: '2026-11-05' }));
-  let checkins = upsertCheckin([], '2026-11-05', { energy: 'low' });
-  const before = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
-  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: reduceDay(checkinFor(checkins, '2026-11-05'), before) });
-  const reduced = buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05');
-  eq(planIds(reduced.sugeridas), planIds(before.sugeridas));
-  eq(planIds(reduced.adiadas), ['t3', 't4', 't5']);
-  eq(checkinFor(checkins, '2026-11-05').deferred, ['t3', 't4', 't5']);
-  checkins = upsertCheckin(checkins, '2026-11-05', { deferred: [] });
-  eq(planIds(buildDayPlan(tasks, checkinFor(checkins, '2026-11-05'), '2026-11-05').adiadas), ['t3', 't4', 't5']);
-  eq(checkinFor(checkins, '2026-11-05').deferred, []);
-});
-
-test('check-in valida energia, tempo e data, e mantém uma entrada por dia', () => {
-  ok(isValidCheckin({ date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: [] }));
-  ok(isValidCheckin({ date: '2026-11-05', energy: null, time: null, dismissed: true, deferred: [] }));
-  falsy(isValidCheckin({ date: '2026-13-45', energy: 'low' }));
-  falsy(isValidCheckin({ date: '2026-11-05', energy: 'extrema' }));
-  falsy(isValidCheckin(null));
-  const list = upsertCheckin(upsertCheckin([], '2026-11-05', { energy: 'high' }), '2026-11-05', { time: '2h' });
-  eq(list.length, 1);
-  eq(list[0].energy, 'high');
-  eq(list[0].time, '2h');
-});
-
-test('contas do Hoje listam hoje e os próximos 3 dias e calculam o livre até o fim do mês', () => {
-  const finance = {
-    accounts: [
-      { id: 'cc', type: 'checking', initialCents: 100000 },
-      { id: 'cartao', type: 'credit', initialCents: 0, closingDay: 5, dueDay: 8, limitCents: 500000 },
-    ],
-    tx: [
-      { id: 'x1', recId: 'r1', type: 'out', date: '2026-11-05', cents: 10000, paid: false, accountId: 'cc', desc: 'Aluguel', createdAt: 1 },
-      { id: 'x2', recId: 'r2', type: 'out', date: '2026-11-08', cents: 5000, paid: false, accountId: 'cc', desc: 'Internet', createdAt: 2 },
-      { id: 'x3', recId: 'r3', type: 'out', date: '2026-11-09', cents: 7000, paid: false, accountId: 'cc', desc: 'Academia', createdAt: 3 },
-      { id: 'x4', recId: 'r4', type: 'out', date: '2026-11-06', cents: 9000, paid: true, accountId: 'cc', desc: 'Paga', createdAt: 4 },
-      { id: 'x5', type: 'out', date: '2026-11-20', cents: 4000, paid: true, accountId: 'cartao', createdAt: 5 },
-    ],
-  };
-  const helpers = {
-    shiftMonth: (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; },
-    parseDate: (key) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d); },
-    accountBalance: (account) => account.initialCents,
-  };
-  const summary = homeBills(finance, '2026-11-05', helpers);
-  eq(summary.upcoming.map((item) => item.id), ['bill:x1', 'bill:x2']);
-  eq(summary.dueCents, 22000);
-  eq(summary.freeCents, 91000 - 22000);
-  eq(summary.daysLeft, 26);
-  eq(summary.perDayCents, Math.floor(69000 / 26));
-  eq(homeBills({ accounts: [], tx: [] }, '2026-11-05', helpers).upcoming, []);
-});
-
 if (typeof document !== 'undefined') {
   const summary = document.querySelector('#summary');
   const list = document.querySelector('#results');

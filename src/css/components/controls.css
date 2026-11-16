@@ -1,6 +1,6 @@
 .scroll-x {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   overflow-x: auto;
   margin-inline: calc(var(--gut-l) * -1) calc(var(--gut-r) * -1);
   padding-inline: var(--gut-l) var(--gut-r);
@@ -9,13 +9,13 @@
 }
 .scroll-x::-webkit-scrollbar { height: 4px; }
 .scroll-x::-webkit-scrollbar-thumb { border-radius: var(--r-pill); background: var(--line-strong); }
-@media (max-width: 640px) {
-  .areanav, .scroll-x {
+@media (width < 700px) {
+  .scroll-x {
     scrollbar-width: none;
     -webkit-mask-image: linear-gradient(to right, transparent, var(--surface) 10px, var(--surface) calc(100% - 10px), transparent);
     mask-image: linear-gradient(to right, transparent, var(--surface) 10px, var(--surface) calc(100% - 10px), transparent);
   }
-  .areanav::-webkit-scrollbar, .scroll-x::-webkit-scrollbar { display: none; }
+  .scroll-x::-webkit-scrollbar { display: none; }
 }
 
 /* Contraste dedicado ao modo escuro para superfícies e controles frequentes. */

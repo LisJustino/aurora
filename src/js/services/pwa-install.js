@@ -89,11 +89,14 @@ export function startPwaInstallPrompt() {
   const onBeforeInstallPrompt = (event) => {
     event.preventDefault();
     deferredPrompt = event;
-    if (installNotice && !installNotice.querySelector('button.btn.primary')) {
+    const requestedNotice = installNotice?.isConnected && !installNotice.querySelector('button.btn.primary');
+    if (requestedNotice) {
       installNotice.remove();
       installNotice = null;
     }
-    showInstallNotice('Instale o Aurora para abrir como um aplicativo.', true);
+    if (requestedNotice) {
+      showInstallNotice('Instale o Aurora para abrir como um aplicativo.', true);
+    }
   };
   const onAppInstalled = () => {
     deferredPrompt = null;

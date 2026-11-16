@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aurora-static-v13';
+const CACHE_NAME = 'aurora-static-v14';
 const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
 const APP_ROUTE = /^\/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?$/i;
 const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
@@ -6,6 +6,21 @@ const APP_SHELL_ASSET = /^\/(?:(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf))|(?:ic
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+  if (event.data?.type === 'CACHE_PUBLIC_STYLES') {
+    event.waitUntil((async () => {
+      const url = new URL(event.data.url, self.location.origin);
+      if (url.origin !== self.location.origin || !/^\/assets\/[a-zA-Z0-9_-]+\.css$/.test(url.pathname) || url.search || url.hash) {
+        throw new Error('A URL dos estilos offline é inválida.');
+      }
+      const cache = await caches.open(CACHE_NAME);
+      if (await cache.match(url.href)) return;
+      const response = await fetch(url.href, { priority: 'low' });
+      if (!response.ok || response.type !== 'basic') throw new Error('Os estilos offline não puderam ser carregados.');
+      await cache.put(url.href, response);
+    })().catch((error) => {
+      console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
+    }));
+  }
 });
 
 self.addEventListener('install', (event) => {
@@ -59,7 +74,8 @@ self.addEventListener('fetch', (event) => {
   if (APP_SHELL_ASSET.test(url.pathname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(request);
+      // O CSS antecipado e o link com crossorigin podem enviar Origin diferente.
+      const cached = await cache.match(request, url.pathname.endsWith('.css') ? { ignoreVary: true } : undefined);
       if (cached) return cached;
 
       const response = await fetch(request);
@@ -107,15 +123,36 @@ self.addEventListener('push', (event) => {
     } catch {
       payload = {};
     }
-    const habitReminder = payload.kind === 'habit-reminder';
-    if (!habitReminder) return;
-    await self.registration.showNotification('aurora. · Hábitos', {
-      body: 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.',
+    const notification = payload.kind === 'habit-reminder'
+      ? {
+        title: 'aurora. · Hábitos',
+        body: 'Um horário de hábito chegou. Abra o Aurora para conferir sua rotina.',
+        tag: 'aurora-habits',
+        route: 'habitos',
+      }
+      : payload.kind === 'task-reminder'
+        ? {
+          title: 'aurora. · Planejar',
+          body: 'Um lembrete de tarefa chegou. Abra o Aurora para conferir sua lista.',
+          tag: 'aurora-tasks',
+          route: 'planejar',
+        }
+        : payload.kind === 'weekly-review'
+          ? {
+            title: 'aurora. · Sua semana',
+            body: 'Um convite gentil para olhar sua semana, quando for um bom momento.',
+            tag: 'aurora-weekly-review',
+            route: 'planejar?revisao=semana',
+          }
+        : null;
+    if (!notification) return;
+    await self.registration.showNotification(notification.title, {
+      body: notification.body,
       icon: new URL('./icons/aurora-192.png', self.registration.scope).href,
       badge: new URL('./icons/aurora-192.png', self.registration.scope).href,
-      tag: 'aurora-habits',
+      tag: notification.tag,
       renotify: false,
-      data: { route: 'habitos' },
+      data: { route: notification.route },
     });
   })());
 });
@@ -123,10 +160,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
-    if (event.notification.data?.route !== 'habitos') return;
+    const route = event.notification.data?.route;
+    if (!['habitos', 'planejar', 'planejar?revisao=semana'].includes(route)) return;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
-    const targetUrl = new URL('./habitos', self.registration.scope).href;
+    const targetUrl = new URL(`./${route}`, self.registration.scope).href;
     if (existing) {
       if (typeof existing.navigate === 'function') await existing.navigate(targetUrl);
       await existing.focus();

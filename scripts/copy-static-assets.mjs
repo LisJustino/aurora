@@ -10,6 +10,7 @@ await mkdir(output, { recursive: true });
 await mkdir(outputAssets, { recursive: true });
 await Promise.all([
   cp(resolve(root, 'icons'), resolve(output, 'icons'), { recursive: true }),
+  cp(resolve(root, 'src', 'assets', 'tutorials'), resolve(output, 'src', 'assets', 'tutorials'), { recursive: true }),
   copyFile(resolve(root, 'service-worker.js'), resolve(output, 'service-worker.js')),
   copyFile(resolve(root, '404.html'), resolve(output, '404.html')),
   copyFile(resolve(root, '_headers'), resolve(output, '_headers')),

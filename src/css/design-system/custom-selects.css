@@ -70,7 +70,7 @@ select.ds-select__native {
   border-color: var(--accent);
   background: var(--surface);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent);
-  outline: 0;
+  outline-offset: var(--space-half);
 }
 
 .ds-select__trigger[aria-invalid="true"] {
@@ -78,7 +78,7 @@ select.ds-select__native {
 }
 
 .ds-select__trigger[aria-invalid="true"]:focus-visible {
-  outline-color: var(--bad);
+  outline-color: var(--focus);
 }
 
 .ds-select__trigger[aria-disabled="true"] {
@@ -92,7 +92,7 @@ select.ds-select__native {
   display: block;
   min-width: 0;
   max-height: var(--select-menu-max-height);
-  padding: 4px;
+  padding: var(--space-2);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -108,14 +108,14 @@ select.ds-select__native {
 .ds-select__group + .ds-select__group,
 .ds-select__group + .ds-select__option,
 .ds-select__option + .ds-select__group {
-  margin-top: 4px;
+  margin-top: var(--space-2);
   border-top: 1px solid var(--line);
-  padding-top: 4px;
+  padding-top: var(--space-2);
 }
 
 .ds-select__group-label {
   display: block;
-  padding: 8px 10px 4px;
+  padding: var(--space-2) var(--space-3) var(--space-1);
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
@@ -124,15 +124,46 @@ select.ds-select__native {
 .ds-select__option {
   position: relative;
   display: flex;
-  min-height: var(--control-md);
+  min-height: var(--control-field);
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: 8px 10px;
-  border-radius: var(--r-sm);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-group);
   color: var(--ink);
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.ds-select__category-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-group);
+  background: color-mix(in srgb, var(--select-option-color, var(--accent)) 14%, var(--surface));
+  color: var(--select-option-color, var(--accent));
+}
+
+.ds-select__category-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.ds-select__trigger:has(.ds-select__category-icon) {
+  gap: var(--space-2);
+}
+
+.ds-select__trigger .ds-select__category-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.ds-select__option:has(.ds-select__category-icon) {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding-block: 6px;
 }
 
 .ds-select__option:hover,
