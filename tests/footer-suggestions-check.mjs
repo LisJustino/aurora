@@ -3,6 +3,7 @@ import { CONTACT_EMAIL, createSuggestionMailto } from '../src/js/features/footer
 import { renderFooterContent, renderSuggestionForm } from '../src/js/features/footer/view.js';
 
 const publicFooter = renderFooterContent({ demoAvailable: true });
+const authenticatedFooter = renderFooterContent({ authenticated: true });
 const footerWithSuggestions = renderFooterContent({ suggestionForm: true });
 const suggestionForms = [...footerWithSuggestions.matchAll(/<form class="footer-suggestion-form"[\s\S]*?<\/form>/g)]
   .map(([form]) => form);
@@ -18,6 +19,8 @@ assert.match(publicFooter, /href="\/demonstracao" data-public-action="demo">Expl
 assert.match(publicFooter, /data-action="copy-contact-email">Copiar e-mail de contato/);
 assert.match(publicFooter, /data-suggestion-copy-status role="status"/);
 assert.match(renderFooterContent(), /data-action="copy-contact-email"/);
+assert.match(authenticatedFooter, /href="\/config">Perfil e ajustes<\/a>/);
+assert.doesNotMatch(authenticatedFooter, /data-account-signout|Sair da conta/);
 assert.match(publicFooter, /class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo/);
 assert.doesNotMatch(publicFooter, /Supabase|service_role|\.env\.local/);
 

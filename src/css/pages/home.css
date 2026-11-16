@@ -175,11 +175,6 @@
 .home-day-complete { display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3); border-radius: var(--r-control); background: var(--soft); color: var(--ink); }
 .home-day-complete > .ic { flex: none; color: var(--accent); }
 .home-day-complete p { margin: var(--space-1) 0 0; color: var(--muted); }
-.home-extras { min-width: 0; grid-column: 1 / -1; }
-.home-extras > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--r-control); color: var(--ink); font-weight: var(--weight-semibold); cursor: pointer; list-style: none; }
-.home-extras > summary::-webkit-details-marker { display: none; }
-.home-extras[open] > summary .ic { transform: rotate(180deg); }
-.home-extras-content { display: grid; gap: var(--space-5); margin-top: var(--space-4); }
 .home-task-group { display: grid; gap: var(--space-2); }
 .home-task-group h3, .home-completed summary { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--muted); font-size: var(--text-meta); font-weight: var(--weight-semibold); letter-spacing: .04em; }
 .home-task-group h3 span, .home-completed-count { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: var(--r-pill); background: var(--soft2); font-size: var(--text-xs); letter-spacing: 0; }
@@ -404,6 +399,7 @@
   .main[data-route="inicio"] > .topbar,
   .main[data-route="inicio"] > .welcome-card,
   .main[data-route="inicio"] > .home-head,
+  .main[data-route="inicio"] > .home-day-summary,
   .main[data-route="inicio"] > .home-quick-card,
   .main[data-route="inicio"] > .notice,
   .main[data-route="inicio"] > .home-tools,
@@ -623,6 +619,7 @@
     row-gap: var(--space-5);
   }
   .main[data-route="inicio"] > .home-head { grid-column: 1 / -1; min-height: 0; }
+  .main[data-route="inicio"] > .home-day-summary { grid-column: 1 / -1; }
   .main[data-route="inicio"] > .home-quick-card { grid-column: 1 / -1; }
   .main[data-route="inicio"] > .home-tools { grid-column: 1 / -1; }
   .main[data-route="inicio"] .home-tools > .head h2 { font-size: var(--text-title); }

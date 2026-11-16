@@ -143,7 +143,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       assert.equal(roadmapColumns, width < 480 ? 1 : width >= 1050 ? 4 : 2);
     }
     await page.goto(`${base}/?preview#financas`);
-    await page.locator('.fin-section-option[data-t="orcamento"]').click();
+    await page.locator('.fin-section-option[data-t="planejamento"]').click();
     const goal = page.locator('.goal-item').first();
     await goal.waitFor();
     await goal.locator('[data-action="goal-edit"]').click();
@@ -180,13 +180,13 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.locator('#dlg [data-dlg="target"]').fill('10000');
     await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
     assert.equal(await page.locator('.goal-item').filter({ hasText: 'Novo objetivo de teste' }).count(), 1);
-    await page.locator('[data-t="lancamentos"].fin-section-option').click();
+    await page.locator('[data-t="planejamento"].fin-section-option').click();
     await page.locator('[data-action="rec-list"]').first().click();
     const recurringEmpty = page.locator('#dlg .empty[role="status"]').filter({ hasText: 'Nenhuma fixa ainda' });
     await recurringEmpty.getByRole('button', { name: 'Novo lançamento' }).click();
     assert.equal(await page.locator('#dlg [data-form="dlg-tx"]').count(), 1);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
-    await page.locator('[data-t="orcamento"].fin-section-option').click();
+    await page.locator('[data-t="planejamento"].fin-section-option').click();
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => document.documentElement.setAttribute('data-theme', value), theme);
       assert.equal(await page.locator('.goal-item.is-complete').isVisible(), true);

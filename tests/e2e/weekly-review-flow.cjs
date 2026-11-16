@@ -52,6 +52,10 @@ const check = (passed, name, detail = '') => {
   await page.waitForTimeout(350);
   check(await reminder.isChecked(),
     'a opção de lembrete pode ser ativada sem solicitar permissão Push');
+  await page.locator('a[href="/habitos"]:visible').first().click();
+  await page.locator('[data-action="habit-push-toggle"]').waitFor({ state: 'visible' });
+  check(await page.locator('[data-action="habit-push-toggle"]').isVisible(),
+    'o controle de avisos aparece em Hábitos quando só o lembrete semanal está ativo');
   check(errors.length === 0, 'sem erros no console', errors.join(' | '));
 
   await browser.close();

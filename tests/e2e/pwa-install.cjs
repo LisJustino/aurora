@@ -33,9 +33,11 @@ async function dispatchInstallPrompt(page) {
     let notice = page.locator('#pwa-install-notice');
     assert.equal(await dispatchInstallPrompt(page), true);
     await page.clock.fastForward(14999);
-    assert.equal(await notice.count(), 0, 'aviso automático não aparece antes de 15 segundos');
+    assert.equal(await notice.count(), 0, 'evento de instalação não exibe aviso sem solicitação');
     await page.clock.fastForward(1);
-    assert.equal(await notice.isVisible(), true, 'aviso aparece após 15 segundos');
+    assert.equal(await notice.count(), 0, 'tempo decorrido não exibe aviso automaticamente');
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
+    assert.equal(await notice.isVisible(), true, 'pedido explícito mostra o aviso');
     for (const width of [320, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       assert.equal(await notice.evaluate((element) => {
@@ -51,11 +53,10 @@ async function dispatchInstallPrompt(page) {
     page = await newPage();
     notice = page.locator('#pwa-install-notice');
     await dispatchInstallPrompt(page);
-    await page.evaluate(() => window.scrollTo(0, document.querySelector('.public-hero').getBoundingClientRect().bottom + window.scrollY + 1));
-    await notice.waitFor({ state: 'visible' });
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
     await notice.getByRole('button', { name: 'Agora não' }).click();
+    await page.evaluate(() => window.scrollTo(0, document.querySelector('.public-hero').getBoundingClientRect().bottom + window.scrollY + 1));
     await page.clock.fastForward(15000);
-    await dispatchInstallPrompt(page);
     assert.equal(await notice.count(), 0, 'aviso dispensado não reaparece automaticamente');
     await page.context().close();
 
@@ -65,15 +66,27 @@ async function dispatchInstallPrompt(page) {
     await page.waitForFunction(() => document.querySelector('.public-hero').getBoundingClientRect().bottom <= 0);
     assert.equal(await notice.count(), 0, 'rolagem não cria aviso sem evento de instalação');
     await dispatchInstallPrompt(page);
-    await notice.waitFor({ state: 'visible' });
+    assert.equal(await notice.count(), 0, 'evento de instalação isolado não exibe aviso');
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
+    assert.equal(await notice.isVisible(), true, 'pedido explícito continua disponível após rolar a página');
     await page.context().close();
 
     page = await newPage();
     notice = page.locator('#pwa-install-notice');
     await page.clock.fastForward(15000);
-    assert.equal(await notice.count(), 0, 'não há aviso automático sem evento de instalação');
+    assert.equal(await notice.count(), 0, 'não há aviso automático após aguardar');
     await dispatchInstallPrompt(page);
-    assert.equal(await notice.isVisible(), true, 'evento tardio aproveita o tempo já decorrido');
+    assert.equal(await notice.count(), 0, 'evento tardio não exibe aviso sem solicitação');
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
+    assert.equal(await notice.isVisible(), true, 'pedido explícito funciona após aguardar');
+    await page.context().close();
+
+    page = await newPage();
+    notice = page.locator('#pwa-install-notice');
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
+    await notice.getByRole('button', { name: 'Agora não' }).click();
+    await dispatchInstallPrompt(page);
+    assert.equal(await notice.count(), 0, 'evento tardio não reabre aviso dispensado');
     await page.context().close();
 
     page = await newPage();
@@ -84,8 +97,9 @@ async function dispatchInstallPrompt(page) {
     assert.equal(await notice.getByRole('button', { name: 'Instalar', exact: true }).isVisible(), true,
       'evento tardio atualiza as instruções solicitadas');
     await notice.getByRole('button', { name: 'Agora não' }).click();
+    await dispatchInstallPrompt(page);
     await page.clock.fastForward(15000);
-    assert.equal(await notice.count(), 0, 'pedido explícito não agenda outro aviso');
+    assert.equal(await notice.count(), 0, 'aviso dispensado não reaparece após evento ou tempo');
     await page.context().close();
 
     page = await newPage();
@@ -99,12 +113,13 @@ async function dispatchInstallPrompt(page) {
     page = await newPage();
     notice = page.locator('#pwa-install-notice');
     await dispatchInstallPrompt(page);
+    await page.locator('.public-cta-panel [data-action="pwa-install"]').evaluate((button) => button.click());
+    assert.equal(await notice.isVisible(), true);
     await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
-    await page.clock.fastForward(15000);
-    assert.equal(await notice.count(), 0, 'instalação concluída cancela o aviso pendente');
+    assert.equal(await notice.count(), 0, 'instalação concluída cancela o aviso visível');
     await page.context().close();
     assert.deepEqual(errors, []);
-    console.log('PWA: instalação automática adiada, rolagem e pedido explícito verificados.');
+    console.log('PWA: aviso somente após pedido explícito e instalação verificados.');
   } finally {
     await browser.close();
   }

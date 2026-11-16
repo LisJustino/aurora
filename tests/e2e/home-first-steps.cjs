@@ -176,6 +176,8 @@ const check = (passed, name, detail = '') => {
   await page.locator('.profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="account"]').click();
+  check(await page.locator('.account-session-card [data-account-signout]').count() === 0,
+    'sair da conta fica disponível apenas no menu de perfil');
   await page.locator('.account-resources-card').waitFor({ state: 'visible' });
   await page.locator('.account-resources-card [data-legal-document="terms"]').click();
   await page.locator('dialog[data-legal-modal][open] .legal-document').waitFor({ state: 'visible' });

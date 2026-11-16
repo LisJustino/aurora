@@ -38,7 +38,6 @@ import {
   installmentSummary,
   reportMonthStats,
   recurringBillsDueOn,
-  expenseWeekTotals,
 } from '../src/js/features/finance/calculations.js';
 import {
   ACCOUNT_TYPES,
@@ -169,6 +168,7 @@ import {
 import { renderLanding } from '../src/js/features/landing/view.js';
 import { renderHomeView } from '../src/js/features/home/view.js';
 import { renderCycleView } from '../src/js/features/cycle/view.js';
+import { renderFinanceView } from '../src/js/features/finance/view.js';
 import { createToastController } from '../src/js/features/feedback/toast.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 import { emptyState } from '../src/js/utils/empty-state.js';
@@ -219,6 +219,22 @@ test('Ciclo não renderiza o estado vazio antes do controle de consentimento', (
   }
 });
 
+test('Finanças não renderiza o gráfico de despesas da semana', () => {
+  const html = renderFinanceView({
+    S: { finance: { accounts: [], tx: [] } },
+    ui: { finTab: 'resumo', financeValuesHidden: false },
+    gate: () => null,
+    areaPageTitle: () => h`<header>Finanças</header>`,
+    financePrivacyNotice: () => h`<aside>Privacidade</aside>`,
+    finSectionPicker: () => h`<nav>Seções</nav>`,
+    panels: { resumo: () => h`<section>Resumo</section>`, cartoes: () => h`<section>Cartões</section>` },
+  }).s;
+  if (html.includes('finance-week-chart') || html.includes('Despesas desta semana')
+    || !html.includes('<header>Finanças</header>') || !html.includes('fin-section-content')) {
+    throw new Error('Finanças não deve exibir o gráfico semanal e deve manter o restante da tela.');
+  }
+});
+
 test('Início prioriza a captura rápida e o estado vazio não duplica a ação principal', () => {
   let emptyArgs;
   const model = {
@@ -245,7 +261,6 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     homeShortcuts: [],
     emptyWorkspace: true,
     openCompleted: false,
-    openExtras: false,
     financeAccountsCount: 0,
     showHomeBlock: () => true,
     homeBlockStyle: () => '',
@@ -271,6 +286,9 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
   const todayIndex = html.indexOf('class="home-today-card"');
   const habitsIndex = html.indexOf('HABITS');
   const summaryIndex = html.indexOf('class="home-day-summary"');
+  if (html.includes('Mais do Início') || html.includes('class="home-extras"')) {
+    throw new Error('A Home não deve exibir a seção Mais do Início.');
+  }
   if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0 || summaryIndex < 0
     || !(html.indexOf('class="home-head"') < summaryIndex
       && summaryIndex < quickIndex && quickIndex < todayIndex && todayIndex < habitsIndex)) {
@@ -1473,23 +1491,6 @@ test('resume mensal distingue transferência e compra no cartão', () => {
   equal(summary.outPaid, 2500);
   equal(summary.cardOut, 1500);
   equal(summary.tx.length, 3);
-});
-
-test('despesas da semana somam somente saídas e respeitam o início preferido', () => {
-  const transactions = [
-    { type: 'out', date: '2026-10-19', cents: 1000, paid: true },
-    { type: 'out', date: '2026-10-19', cents: 250, paid: false },
-    { type: 'out', date: '2026-10-20', cents: 800, paid: false },
-    { type: 'in', date: '2026-10-21', cents: 5000 },
-    { type: 'tr', date: '2026-10-21', cents: 6000 },
-    { type: 'out', date: '2026-10-25', cents: 450 },
-    { type: 'out', date: '2026-10-18', cents: 900 },
-  ];
-  const mondayStart = expenseWeekTotals(transactions, '2026-10-21', 1);
-  equal(mondayStart.length, 7);
-  equal(mondayStart.map(({ cents }) => cents).join(','), '1250,800,0,0,0,0,450');
-  const sundayStart = expenseWeekTotals(transactions, '2026-10-21', 0);
-  equal(sundayStart.map(({ cents }) => cents).join(','), '900,1250,800,0,0,0,0');
 });
 
 test('fechamento mensal resume pendências, fixas e cartão em centavos', () => {

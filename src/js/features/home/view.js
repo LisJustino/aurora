@@ -12,29 +12,20 @@ export function renderHomeView(model, renderers) {
     lead,
     tt,
     sundayReview,
-    optionalAreas,
     overdue,
     dueToday,
     completed,
     nextTask,
-    inbox,
-    homeShortcuts,
     emptyWorkspace,
     openCompleted,
-    openExtras,
-    financeAccountsCount,
     showHomeBlock,
     homeBlockStyle,
   } = model;
   const {
     areaGuideButton,
-    backupReminder,
     empty,
     homeFirstSteps,
     homeHabitCheckins,
-    homeInboxReminder,
-    homeUpcomingBill,
-    homeUpcomingTasks,
     profileAvatarMarkup,
     sampleBanner,
     taskRow,
@@ -86,33 +77,5 @@ export function renderHomeView(model, renderers) {
     </div>
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · sua semana</span><h2 id="home-weekly-review-title">Um momento para olhar com carinho</h2><p>Veja um retrato simples de tarefas, água e hábitos.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Ver minha semana</button></section>` : ''}
     ${homeFirstSteps()}
-    <details class="home-extras" id="d-home-extras" ${openExtras ? raw('open') : ''}>
-      <summary>Mais do Início ${icon('chevDown', 18)}</summary>
-      <div class="home-extras-content">
-        <div class="home-dashboard${optionalAreas ? '' : ' no-optional-areas'}">
-        <div class="home-primary">
-        ${showHomeBlock('summary') ? h`<section class="strip" aria-label="Resumo do dia" ${raw(homeBlockStyle('summary'))}>
-          <a href="/planejar" data-action="filter-overdue"><b>${overdue.length}</b><span>Atrasadas</span></a>
-        </section>` : ''}
-        ${homeUpcomingTasks()}
-        ${homeInboxReminder(inbox)}
-        ${homeUpcomingBill()}
-      </div>
-      ${optionalAreas ? h`<section class="home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
-    </div>
-    ${backupReminder()}
-        ${homeShortcuts.length ? h`<section class="home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><h2 id="home-tools-title">Ações favoritas<i>.</i></h2></div>
-      <div class="home-tool-grid compact-card-grid">
-        ${homeShortcuts.map((shortcut) => {
-          const action = shortcut.id === 'finance' && !financeAccountsCount ? 'quick-action-account' : shortcut.action;
-          const label = shortcut.id === 'finance'
-            ? financeAccountsCount ? 'Novo lançamento' : 'Criar conta financeira'
-            : shortcut.label;
-          return h`<button class="home-tool" type="button" data-action="${action}"><span class="home-tool-icon">${icon(shortcut.icon, 20)}</span><span><b>${label}</b><small>${shortcut.description}</small></span>${icon('chevRight', 18, 'home-tool-go')}</button>`;
-        })}
-      </div>
-        </section>` : ''}
-      </div>
-    </details>`;
+  `;
 }

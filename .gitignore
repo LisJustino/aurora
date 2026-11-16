@@ -39,7 +39,9 @@ Desktop.ini
 worker/.wrangler/
 supabase/.temp/
 
-# Documentação mantida fora do repositório público
+# Documentação interna fica fora do repositório público
 docs/
 *.md
 *.mdx
+!README.md
+!SECURITY.md

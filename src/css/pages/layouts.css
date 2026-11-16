@@ -322,13 +322,13 @@
   .main[data-route="planejar"] > .qa-card .head h2.sr { font-size: var(--text-xl); }
   .main[data-route="planejar"] > .card.plain { padding: 14px; }
   .main[data-route="planejar"] .plan-view-segments {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow: visible;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
   .main[data-route="planejar"] .plan-view-segments > .tab {
-    min-width: 0;
-    padding-inline: var(--space-2);
+    min-height: var(--target-size);
   }
 }
 

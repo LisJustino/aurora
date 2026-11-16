@@ -17,12 +17,19 @@ import {
   TERMS_DOCUMENT_VERSION,
   PRIVACY_POLICY_VERSION,
   CYCLE_DATA_CONSENT_VERSION,
-  meetsPasswordRequirements,
   passwordRecoveryErrorMessage,
   getEmailDomainSuggestions,
   requestAccountDeletion,
   signupErrorMessage,
 } from '../src/js/services/account-auth.js';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_REJECTED_MESSAGE,
+  PASSWORD_REQUIREMENTS,
+  PASSWORD_REQUIREMENTS_MESSAGE,
+  validatePassword,
+} from '../src/js/services/password-policy.js';
 import {
   NATIVE_AUTH_REDIRECT_URL,
   parseNativeAuthCallback,
@@ -207,7 +214,7 @@ assert.match(signupErrorMessage(null, {
   session: null,
   user: { identities: [] },
 }), /Ajustes → Seu perfil → Excluir conta/);
-assert.match(signupErrorMessage({ code: 'weak_password' }), /requisitos de segurança/);
+assert.equal(signupErrorMessage({ code: 'weak_password' }), PASSWORD_REJECTED_MESSAGE);
 assert.match(signupErrorMessage({ code: 'invalid_email' }), /e-mail foi digitado corretamente/);
 assert.match(signupErrorMessage({ status: 429 }), /Muitas tentativas/);
 assert.equal(
@@ -400,14 +407,19 @@ assert.doesNotMatch(accountAuthSource, /Continuar com Apple \(iCloud\)/);
 assert.match(accountAuthSource, /result\.oauthProvider !== 'google'/);
 assert.match(accountAuthSource, /oauth-profile/);
 
-assert.equal(meetsPasswordRequirements('Abc12!'), true);
-assert.equal(meetsPasswordRequirements('Abc1!'), false);
-assert.equal(meetsPasswordRequirements('abcdef1!'), false);
-assert.equal(meetsPasswordRequirements('ABCDEF1!'), false);
-assert.equal(meetsPasswordRequirements('Abcdefg!'), false);
-assert.equal(meetsPasswordRequirements('Abcdef1g'), false);
-assert.equal(meetsPasswordRequirements(`A${'b'.repeat(69)}1!`), true);
-assert.equal(meetsPasswordRequirements(`A${'b'.repeat(70)}1!`), false);
+assert.equal(PASSWORD_MIN_LENGTH, 6);
+assert.equal(PASSWORD_MAX_LENGTH, 72);
+assert.equal(PASSWORD_REQUIREMENTS[0][1], 'entre 6 e 72 caracteres');
+assert.equal(validatePassword('Abc1!').valid, false);
+assert.equal(validatePassword('Abc12!').valid, true);
+assert.equal(validatePassword('Abc12!x').valid, true);
+assert.equal(validatePassword('abcdef1!').valid, false);
+assert.equal(validatePassword('ABCDEF1!').valid, false);
+assert.equal(validatePassword('Abcdefg!').valid, false);
+assert.equal(validatePassword('Abcdef1g').valid, false);
+assert.equal(validatePassword(`A${'b'.repeat(69)}1!`).valid, true);
+assert.equal(validatePassword(`A${'b'.repeat(70)}1!`).valid, false);
+assert.equal(validatePassword(null).valid, false);
 assert.match(passwordRecoveryErrorMessage({ code: 'over_email_send_rate_limit' }), /aguarde alguns minutos/i);
 assert.match(passwordRecoveryErrorMessage({ status: 429 }), /aguarde alguns minutos/i);
 assert.equal(
