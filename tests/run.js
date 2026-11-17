@@ -309,6 +309,20 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
     throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
   }
+  const noWaterHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, water: null },
+  }, renderers).s;
+  if (noWaterHtml.includes('href="/agua"') || noWaterHtml.includes('home-day-chip--water')) {
+    throw new Error('A faixa deve ocultar Água quando o hábito de água não está ativo.');
+  }
+  const noHabitsHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, habits: null, water: null },
+  }, renderers).s;
+  if (noHabitsHtml.includes('href="/habitos"') || noHabitsHtml.includes('home-day-chip--habits')) {
+    throw new Error('A faixa deve ocultar Hábitos quando a área está desativada.');
+  }
   if (emptyArgs?.[0] !== 'Seu Início começa aqui'
     || emptyArgs[2] !== ''
     || !html.includes('home-quick-form')) {
@@ -431,9 +445,8 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Feito para a vida como ela é',
     'Organize tarefas e prazos; acompanhe o que já foi concluído.',
     'Criar conta',
-    'Explorar demonstração',
-    'Abrir demonstração',
-    'A demonstração usa dados fictícios e não salva suas mudanças.',
+    'Ver demonstração',
+    'Grátis e sem cadastro. A demonstração usa dados fictícios e não salva suas mudanças.',
     'Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.',
     'totalmente grátis',
     'preview-area-cycle',
@@ -441,10 +454,15 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     'Escolha por onde começar',
     'Posso experimentar sem criar conta?',
     'data-footer-suggestion',
+    'Onde ficam meus dados?',
+    'Posso exportar meus dados?',
+    'Posso apagar minha conta?',
+    'O que funciona offline?',
+    'Como funcionam as notificações?',
     'Leve sua rotina com você',
-    'Sua experiência pode ajudar o Aurora a evoluir.',
-    'Ainda não temos avaliações ou números públicos para compartilhar.',
-    'Compartilhar uma sugestão',
+    'Você pode exportar seus dados ou excluir sua conta.',
+    'Ajude a melhorar o Aurora',
+    'Enviar uma sugestão',
     'Adicione o Aurora à tela inicial do celular',
     'O Aurora não se conecta a bancos',
     'href="/privacy"',
@@ -459,7 +477,7 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const landingFaq = structuredData.find((item) => item['@type'] === 'FAQPage');
   const faqNames = landingFaq?.mainEntity?.map((question) => question.name) || [];
   if (softwareApplication?.description !== 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.'
-    || faqNames.length !== 5
+    || faqNames.length !== 10
     || !faqNames.every((name) => root.innerHTML.includes(name))) {
     throw new Error('Metadados e FAQ estruturado devem acompanhar as áreas e perguntas atuais da landing.');
   }
@@ -501,12 +519,15 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const heroStart = root.innerHTML.indexOf('class="public-hero');
   const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
   const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
-  if (!heroMarkup.includes('href="/criar-conta" data-public-action="signup">Criar conta grátis</a>')
-    || !heroMarkup.includes('href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>')
-    || !heroMarkup.includes('class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>')
+  if (!heroMarkup.includes('href="/demonstracao" data-public-action="demo">Ver demonstração</a>')
+    || heroMarkup.includes('data-public-action="signup"')
+    || heroMarkup.includes('data-public-action="login"')
+    || !heroMarkup.includes('class="public-price-note">Grátis e sem cadastro.')
+    || !heroMarkup.includes('class="public-account-note">Você pode exportar seus dados ou excluir sua conta.')
+    || !heroMarkup.includes('href="/privacy">Privacidade e dados</a>')
     || (heroMarkup.match(/class="public-subtitle"/g) || []).length !== 1
     || heroMarkup.includes('class="public-lead"')) {
-    throw new Error('O hero deve mostrar uma chamada de cadastro, uma de demonstração e apenas uma frase de apoio.');
+    throw new Error('O hero deve priorizar a demonstração gratuita e informar como acessar dados de privacidade.');
   }
   const phoneNavigation = heroMarkup.match(/class="preview-phone-nav"[\s\S]*?<\/div>/)?.[0] || '';
   if (!['preview-nav-home', 'preview-nav-planner', 'preview-nav-habits', 'preview-nav-cycle', 'preview-nav-finances']
@@ -2034,12 +2055,12 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
     theme: 'rose',
     tasks: [],
     habits: [{ completions: [] }, { completions: ['2026-10-20'] }],
-  })), JSON.stringify([false, false, true]));
+  })), JSON.stringify([false, true, false]));
   equal(JSON.stringify(homeFirstStepsProgress({
     theme: 'coral',
     tasks: [{ id: 'task', done: true }],
     habits: [{ completions: [] }],
-  })), JSON.stringify([true, true, false]));
+  })), JSON.stringify([true, false, true]));
   equal(JSON.stringify(homeFirstStepsProgress(null)), JSON.stringify([false, false, false]));
   equal(JSON.stringify(normalizeHomeAreaColors({ planning: 'coral', water: '#ffffff', unknown: 'rose' })), JSON.stringify({ planning: 'coral' }));
   truthy(HOME_AREA_COLORS.length >= 5);

@@ -2,6 +2,7 @@ import { iconSvg as demoIcon } from '../../utils/icons.js';
 import { animateProgressRing, playMotion, prefersReducedMotion } from '../../utils/motion.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
 import { timeBasedGreeting } from '../profile/model.js';
+import { brl, parseMoney } from '../../utils/currency.js';
 
 const DEMO_NAV_ITEMS = [
   ['today', 'Hoje', 'home'],
@@ -9,9 +10,19 @@ const DEMO_NAV_ITEMS = [
   ['habits', 'Hábitos', 'leaf'],
   ['cycle', 'Ciclo', 'heart'],
   ['finance', 'Finanças', 'wallet'],
+  ['water', 'Água', 'water'],
+  ['annual', 'Plano anual', 'target'],
+  ['calendar', 'Google Agenda', 'calendar'],
 ];
 
 const demoControllers = new WeakMap();
+
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export function stopLandingDemo(root) {
   const controller = demoControllers.get(root);
@@ -85,7 +96,6 @@ function renderToday(state) {
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
         <h1 id="demo-greeting" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span><i>.</i></h1>
         <p class="lead" aria-live="polite">${lead}</p>
-        <div class="home-head-actions"><button type="button" class="home-action" data-demo-view="tasks">${demoIcon('plus', 18)}Ver tarefas de exemplo${demoIcon('chevRight', 16)}</button></div>
       </div>
       <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
     </header>
@@ -105,8 +115,12 @@ function renderToday(state) {
         </section>
         <section class="card home-quick-card" aria-labelledby="demo-quick-title">
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Na sua conta, você pode registrar tarefas e organizar o dia.</p></div></div>
-              <p class="demo-session-note">Experimente adicionar uma tarefa. As mudanças são descartadas ao sair.</p>
-              <button type="button" class="btn" data-demo-view="tasks">Adicionar tarefa de exemplo</button>
+          <form class="home-quick-form demo-quick-form" data-demo-task-form>
+            <label class="sr" for="demo-home-task">Nova tarefa</label>
+            <input id="demo-home-task" name="title" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: caminhar por 10 minutos" required data-demo-task-input>
+            <button type="submit" class="btn primary">Adicionar</button>
+          </form>
+          <p class="demo-session-note">Experimente adicionar uma tarefa. As mudanças são descartadas ao sair.</p>
         </section>
       </div>
     </div>`;
@@ -126,30 +140,92 @@ function renderTasks(state) {
 }
 
 function renderCycle(state) {
-  const dates = [9, 10, 11, 12, 13, 14, 15];
+  const firstDay = new Date();
+  firstDay.setHours(0, 0, 0, 0);
+  firstDay.setDate(firstDay.getDate() - ((firstDay.getDay() + 6) % 7));
+  const dates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(firstDay);
+    date.setDate(firstDay.getDate() + index);
+    return date;
+  });
   const weekdays = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  const dateLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(firstDay);
   return `${renderPageHeading('Exemplo fictício', 'Ciclo', 'Veja como um registro pode ajudar a observar padrões ao longo do tempo.')}
     <section class="card demo-area-panel" aria-labelledby="demo-cycle-title">
-      <div class="head"><div><p class="section-kicker">Outubro de 2026</p><h2 id="demo-cycle-title">Escolha um dia</h2></div>${demoIcon('heart', 20)}</div>
-      <div class="demo-calendar" role="group" aria-label="Dias de exemplo no calendário">${dates.map((day, index) => `<button type="button" class="${state.cycleDay === day ? 'is-selected' : ''}" data-demo-action="cycle-day" data-day="${day}" aria-pressed="${String(state.cycleDay === day)}"><span>${weekdays[index]}</span>${day}</button>`).join('')}</div>
-      <div class="demo-cycle-detail" aria-live="polite"><p class="section-kicker">Dia ${state.cycleDay} · exemplo</p><h3>${state.cycleDay === 12 ? 'Um dia comum também é informação.' : 'Um registro fictício do seu ciclo.'}</h3><p>Os dados desta tela são ilustrativos; não representam previsão médica.</p></div>
+      <div class="head"><div><p class="section-kicker">${escapeDemoText(dateLabel)}</p><h2 id="demo-cycle-title">Escolha um dia</h2></div>${demoIcon('heart', 20)}</div>
+      <div class="demo-calendar" role="group" aria-label="Dias de exemplo no calendário">${dates.map((date, index) => {
+    const day = localDateKey(date);
+    return `<button type="button" class="${state.cycleDay === day ? 'is-selected' : ''}" data-demo-action="cycle-day" data-day="${day}" aria-pressed="${String(state.cycleDay === day)}"><span>${weekdays[index]}</span>${date.getDate()}</button>`;
+  }).join('')}</div>
+      <div class="demo-cycle-detail" aria-live="polite"><p class="section-kicker">${escapeDemoText(new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date(`${state.cycleDay}T12:00:00`)))} · exemplo</p><h3>${state.cycleSymptom ? 'Sintoma registrado: cólicas leves.' : 'Um registro fictício do seu ciclo.'}</h3><p>Os dados desta tela são ilustrativos; não representam previsão médica.</p><button class="btn sm" type="button" data-demo-action="cycle-symptom">${state.cycleSymptom ? 'Remover sintoma de exemplo' : 'Registrar cólica leve'}</button></div>
       <p class="demo-note">Este exemplo não registra nem prevê dados de saúde. Informações sobre ciclo são gerais e não substituem orientação profissional.</p>
     </section>`;
 }
 
+function dateForFinanceOffset(offset) {
+  const date = new Date();
+  date.setDate(1);
+  date.setMonth(date.getMonth() - offset);
+  return date;
+}
+
 function renderFinance(state) {
-  const months = [
-    { title: 'Outubro de 2026', income: 'R$ 3.200,00', expenses: 'R$ 600,00', items: [['Salário', 'Entrada', '+ R$ 3.200,00'], ['Mercado', 'Alimentação', '− R$ 420,00'], ['Transporte', 'Rotina', '− R$ 180,00']] },
-    { title: 'Setembro de 2026', income: 'R$ 3.200,00', expenses: 'R$ 1.590,00', items: [['Salário', 'Entrada', '+ R$ 3.200,00'], ['Moradia', 'Casa', '− R$ 1.200,00'], ['Mercado', 'Alimentação', '− R$ 390,00']] },
-  ];
-  const month = months[state.financeMonth];
+  const date = dateForFinanceOffset(state.financeMonth);
+  const title = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
+  const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const extraExpenses = state.demoExpenses.filter((item) => item.month === monthKey);
+  const items = state.financeMonth === 0
+    ? [['Moradia', 'Casa', 145000], ['Mercado', 'Alimentação', 42000], ['Transporte', 'Rotina', 9000]]
+    : [['Moradia', 'Casa', 120000], ['Mercado', 'Alimentação', 39000]];
+  const expenses = items.reduce((total, [, , cents]) => total + cents, 0)
+    + extraExpenses.reduce((total, item) => total + item.cents, 0);
   return `${renderPageHeading('Exemplo fictício', 'Finanças', 'Uma visão simples para entender como organizar entradas e saídas.')}
     <section class="card demo-area-panel" aria-labelledby="demo-finance-title">
-      <div class="head"><div><p class="section-kicker">Resumo do mês</p><h2 id="demo-finance-title">${month.title}</h2></div><div class="demo-month-controls" role="group" aria-label="Mês de exemplo"><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="-1" aria-label="Mês anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="1" aria-label="Próximo mês" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button></div></div>
-      <div class="demo-finance-summary"><article><span>Entradas</span><strong>${month.income}</strong></article><article><span>Saídas</span><strong>${month.expenses}</strong></article></div>
+      <div class="head"><div><p class="section-kicker">Resumo do mês</p><h2 id="demo-finance-title">${escapeDemoText(title)}</h2></div><div class="demo-month-controls" role="group" aria-label="Mês de exemplo"><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="-1" aria-label="Mês anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="1" aria-label="Próximo mês" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button></div></div>
+      <div class="demo-finance-summary"><article><span>Entradas</span><strong>${brl(320000)}</strong></article><article><span>Saídas</span><strong>${brl(expenses)}</strong></article></div>
       <h3 class="demo-list-heading">Movimentações de exemplo</h3>
-      <ul class="demo-finance-list">${month.items.map(([title, category, amount]) => `<li><span class="demo-finance-mark">${demoIcon('wallet', 17)}</span><span><b>${title}</b><small>${category} · exemplo</small></span><strong>${amount}</strong></li>`).join('')}</ul>
-      <p class="demo-note">Valores fictícios. Nenhuma movimentação é salva e o Aurora não se conecta a bancos.</p>
+      <ul class="demo-finance-list">${items.map(([name, category, cents]) => `<li><span class="demo-finance-mark">${demoIcon('wallet', 17)}</span><span><b>${name}</b><small>${category} · exemplo</small></span><strong>− ${brl(cents)}</strong></li>`).join('')}${extraExpenses.map((item) => `<li><span class="demo-finance-mark">${demoIcon('wallet', 17)}</span><span><b>${escapeDemoText(item.title)}</b><small>Outra despesa · exemplo</small></span><strong>− ${brl(item.cents)}</strong></li>`).join('')}</ul>
+      <form class="demo-add-form" data-demo-expense-form>
+        <label for="demo-expense-title">Lançar uma despesa fictícia</label>
+        <div><input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: café" required><input name="amount" type="text" inputmode="decimal" maxlength="16" placeholder="R$ 12,50" aria-label="Valor da despesa" required><button class="btn primary" type="submit">Adicionar</button></div>
+        <p class="demo-note" data-demo-finance-error role="status" aria-live="polite">Valores fictícios. Nada é salvo e não há conexão com bancos.</p>
+      </form>
+    </section>`;
+}
+
+function renderWater(state) {
+  const percent = Math.min(100, Math.round(state.waterMl / 2000 * 100));
+  return `${renderPageHeading('Um cuidado por vez', 'Água', 'Acompanhe uma meta diária e registre cada copo.')}
+    <section class="card demo-area-panel" aria-labelledby="demo-water-title">
+      <div class="head"><div><p class="section-kicker">Meta diária de exemplo</p><h2 id="demo-water-title">${state.waterMl.toLocaleString('pt-BR')} / 2.000 mL</h2></div>${demoIcon('water', 20)}</div>
+      <progress class="demo-water-progress" max="2000" value="${state.waterMl}" aria-label="${state.waterMl} de 2000 mililitros"></progress>
+      <p class="demo-muted" aria-live="polite">${percent}% da meta diária</p>
+      <button class="btn primary" type="button" data-demo-action="water-add">Registrar 250 mL</button>
+      <p class="demo-note">Este registro é temporário e será descartado ao sair.</p>
+    </section>`;
+}
+
+function renderAnnual(state) {
+  const year = new Date().getFullYear();
+  return `${renderPageHeading('Um passo de cada vez', 'Plano anual', 'Escolha uma intenção e experimente registrar uma conquista para o ano.')}
+    <section class="card demo-area-panel" aria-labelledby="demo-annual-title">
+      <div class="head"><div><p class="section-kicker">Seu próximo capítulo</p><h2 id="demo-annual-title">Um ano com intenção · ${year}</h2></div>${demoIcon('target', 20)}</div>
+      <p>${escapeDemoText(state.annualGoal || 'Que conquista gostaria de celebrar neste ano?')}</p>
+      <form class="demo-add-form" data-demo-annual-form>
+        <label for="demo-annual-goal">Adicionar uma conquista de exemplo</label>
+        <div><input id="demo-annual-goal" name="goal" type="text" maxlength="120" placeholder="Ex.: fazer uma viagem especial" required><button class="btn primary" type="submit">Adicionar</button></div>
+      </form>
+      <p class="demo-note">Seu plano de exemplo existe só nesta demonstração.</p>
+    </section>`;
+}
+
+function renderCalendar(state) {
+  return `${renderPageHeading('Um olhar sobre a semana', 'Google Agenda', 'No app, você pode consultar seus calendários do Google após autorizar o acesso.')}
+    <section class="card demo-area-panel" aria-labelledby="demo-calendar-title">
+      <div class="head"><div><p class="section-kicker">Prévia fictícia · somente leitura</p><h2 id="demo-calendar-title">${state.calendarConnected ? 'Agenda conectada (exemplo)' : 'Veja como a integração funciona'}</h2></div>${demoIcon('calendar', 20)}</div>
+      <ul class="demo-finance-list"><li><span class="demo-finance-mark">${demoIcon('calendarCheck', 17)}</span><span><b>Reunião de exemplo</b><small>Hoje · 10:00</small></span></li><li><span class="demo-finance-mark">${demoIcon('calendarCheck', 17)}</span><span><b>Tempo para você</b><small>Amanhã · 15:30</small></span></li></ul>
+      <button class="btn" type="button" data-demo-action="calendar-toggle">${state.calendarConnected ? 'Desconectar exemplo' : 'Simular conexão'}</button>
+      <p class="demo-note" role="status">A demonstração não acessa uma conta Google nem conecta nenhum calendário.</p>
     </section>`;
 }
 
@@ -167,7 +243,10 @@ function renderDemoArea(state) {
       </div>`;
   }
   if (state.view === 'cycle') return renderCycle(state);
-  return renderFinance(state);
+  if (state.view === 'finance') return renderFinance(state);
+  if (state.view === 'water') return renderWater(state);
+  if (state.view === 'annual') return renderAnnual(state);
+  return renderCalendar(state);
 }
 
 function renderNavigation(state) {
@@ -211,8 +290,13 @@ export function renderLandingDemo(root) {
     nextTaskId: 0,
     displayedHomeProgress: null,
     habitDays: [true, true, false, false, false, false, false],
-    cycleDay: 12,
+    cycleDay: localDateKey(new Date()),
+    cycleSymptom: false,
     financeMonth: 0,
+    demoExpenses: [],
+    waterMl: 1250,
+    annualGoal: '',
+    calendarConnected: false,
   };
   root.innerHTML = `
     <div class="app demo-app">
@@ -242,7 +326,17 @@ export function renderLandingDemo(root) {
     if (!(button instanceof HTMLButtonElement) || button.disabled) return;
     const action = button.dataset.demoAction;
     if (action === 'cycle-day') {
-      state.cycleDay = Number(button.dataset.day);
+      state.cycleDay = button.dataset.day;
+      state.cycleSymptom = false;
+      updateDemoView(root, state);
+    } else if (action === 'cycle-symptom') {
+      state.cycleSymptom = !state.cycleSymptom;
+      updateDemoView(root, state);
+    } else if (action === 'water-add') {
+      state.waterMl += 250;
+      updateDemoView(root, state);
+    } else if (action === 'calendar-toggle') {
+      state.calendarConnected = !state.calendarConnected;
       updateDemoView(root, state);
     } else if (action === 'finance-month') {
       state.financeMonth = Math.min(1, Math.max(0, state.financeMonth - Number(button.dataset.direction)));
@@ -274,8 +368,34 @@ export function renderLandingDemo(root) {
     }
   };
   const onSubmit = (event) => {
-    if (!(event.target instanceof HTMLFormElement)
-      || !event.target.matches('[data-demo-task-form]')) return;
+    if (!(event.target instanceof HTMLFormElement)) return;
+    if (event.target.matches('[data-demo-expense-form]')) {
+      event.preventDefault();
+      const form = event.target;
+      const title = form.elements.title.value.trim();
+      const cents = parseMoney(form.elements.amount.value);
+      const error = form.querySelector('[data-demo-finance-error]');
+      if (!title || !Number.isSafeInteger(cents) || cents <= 0) {
+        error.textContent = 'Informe uma descrição e um valor válido, maior que zero.';
+        error.dataset.state = 'error';
+        return;
+      }
+      const date = dateForFinanceOffset(state.financeMonth);
+      state.demoExpenses.push({
+        title: title.slice(0, 60),
+        cents,
+        month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      });
+      updateDemoView(root, state);
+      return;
+    }
+    if (event.target.matches('[data-demo-annual-form]')) {
+      event.preventDefault();
+      state.annualGoal = event.target.elements.goal.value.trim();
+      updateDemoView(root, state);
+      return;
+    }
+    if (!event.target.matches('[data-demo-task-form]')) return;
     event.preventDefault();
     const form = event.target;
     const input = form.elements.namedItem('title');

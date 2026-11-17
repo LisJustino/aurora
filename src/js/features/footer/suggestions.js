@@ -1,15 +1,12 @@
 export const CONTACT_EMAIL = 'lisjustino@gmail.com';
 
-export function createSuggestionMailto({ name = '', email = '', message } = {}) {
-  if (typeof name !== 'string' || typeof email !== 'string'
-    || typeof message !== 'string' || !message.trim()) {
-    throw new TypeError('Preencha uma sugestão válida antes de preparar o e-mail.');
+export function normalizeSuggestionMessage(value) {
+  if (typeof value !== 'string') {
+    throw new TypeError('Escreva uma sugestão antes de enviar.');
   }
-  const details = [];
-  if (name.trim()) details.push(`Nome: ${name.trim()}`);
-  if (email.trim()) details.push(`E-mail para resposta: ${email.trim()}`);
-  details.push(`Sugestão:\n${message.trim()}`);
-  const subject = encodeURIComponent('Sugestão para o Aurora');
-  const body = encodeURIComponent(details.join('\n\n'));
-  return `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+  const message = value.trim();
+  if (message.length < 10 || message.length > 2000) {
+    throw new TypeError('A sugestão deve ter entre 10 e 2.000 caracteres.');
+  }
+  return message;
 }

@@ -13,6 +13,7 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
+    await page.emulateMedia({ colorScheme: 'dark' });
     const startupRequests = [];
     page.on('request', (request) => {
       if (/\/(?:loading-appearance|landing-guard)\.js(?:\?|$)/.test(request.url())) startupRequests.push(request.url());
@@ -25,6 +26,18 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
         assert.equal(await page.locator('.public-site').count(), 0, `${path}: a landing não deve aparecer no retorno`);
         assert.equal(await page.locator('.app-skeleton[role="status"]').isVisible(), true);
         assert.equal(await page.evaluate(() => document.documentElement.dataset.auroraAuthCallback), 'true');
+        if (path === '/?code=callback-test') {
+          const loadingStyle = await page.locator('.app-skeleton').evaluate((loader) => ({
+            theme: document.documentElement.dataset.theme,
+            background: getComputedStyle(loader).backgroundColor,
+            color: getComputedStyle(loader).color,
+            skeleton: getComputedStyle(loader.querySelector('.account-loading-skeleton')).display,
+          }));
+          assert.equal(loadingStyle.theme, 'dark');
+          assert.equal(loadingStyle.background, 'rgb(247, 240, 234)');
+          assert.equal(loadingStyle.color, 'rgb(37, 35, 33)');
+          assert.equal(loadingStyle.skeleton, 'none');
+        }
         assert.equal(new URL(page.url()).search + new URL(page.url()).hash, path.slice(1));
       }
       await page.goto(`${BASE}/?utm_source=teste`, { waitUntil: 'load' });
@@ -94,12 +107,33 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
     await accountPage.goto(`${BASE}/entrar`, { waitUntil: 'domcontentloaded' });
     await accountCss;
     await accountPage.close();
-    const failurePage = await browser.newPage({ serviceWorkers: 'block' });
+    const failurePage = await browser.newPage({
+      serviceWorkers: 'block',
+      viewport: { width: 320, height: 700 },
+    });
     await failurePage.route(`**${fullCss}`, (route) => route.abort());
     await failurePage.goto(BASE, { waitUntil: 'load' });
     await failurePage.locator('.public-hero [data-public-action="demo"]').click();
     await failurePage.getByRole('alert').getByRole('heading', { name: 'Não foi possível carregar o Aurora' }).waitFor();
     assert.equal(await failurePage.locator('#app').getAttribute('aria-busy'), null);
+    const fallbackCardStyle = await failurePage.locator('#app > .account-page[role="alert"] > .account-card')
+      .evaluate((card) => {
+        const style = getComputedStyle(card);
+        const bounds = card.getBoundingClientRect();
+        return {
+          display: style.display,
+          background: style.backgroundColor,
+          borderRadius: style.borderRadius,
+          boxShadow: style.boxShadow,
+          width: bounds.width,
+          viewportWidth: document.documentElement.clientWidth,
+        };
+      });
+    assert.equal(fallbackCardStyle.display, 'grid');
+    assert.notEqual(fallbackCardStyle.background, 'rgba(0, 0, 0, 0)');
+    assert.notEqual(fallbackCardStyle.borderRadius, '0px');
+    assert.notEqual(fallbackCardStyle.boxShadow, 'none');
+    assert.ok(fallbackCardStyle.width <= fallbackCardStyle.viewportWidth, 'o cartão de erro deve caber em telas estreitas');
     await failurePage.close();
     const offlineContext = await browser.newContext();
     const offlinePage = await offlineContext.newPage();

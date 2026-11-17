@@ -751,9 +751,9 @@
 }
 .public-site .public-value {
   grid-column: auto;
-  justify-self: stretch;
+  justify-self: center;
   width: 100%;
-  max-width: none;
+  max-width: var(--card-compact-max-width);
 }
 
 @media (width <= 900px) {
@@ -1337,37 +1337,6 @@
 .public-site .public-footer .footer-brand p,
 .public-site .public-footer .footer-meta { font-size: var(--text-sm); }
 
-.public-final-cta {
-  box-sizing: border-box;
-  width: 100%;
-  padding: clamp(var(--space-7), 5vw, var(--space-10)) var(--public-page-gutter);
-  background: linear-gradient(135deg, var(--public-hero-start), var(--plum) 52%, var(--public-hero-end));
-  color: var(--public-hero-ink);
-}
-.public-final-cta-content {
-  display: flex;
-  max-width: var(--content-width);
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  margin-inline: auto;
-}
-.public-final-cta h2 {
-  margin: 0;
-  font-size: var(--text-section);
-  line-height: var(--leading-tight);
-}
-.public-final-cta p { margin: var(--space-2) 0 0; line-height: var(--leading-relaxed); }
-.public-final-cta .btn.primary {
-  flex: none;
-  border-color: transparent;
-  background: var(--public-hero-ink);
-  color: var(--public-hero-button-ink);
-}
-@media (width <= 700px) {
-  .public-final-cta-content { flex-direction: column; align-items: flex-start; }
-}
-
 .public-site .public-main {
   gap: clamp(var(--space-5), 4vw, var(--space-8));
   padding-block: clamp(var(--space-5), 4vw, var(--space-8));
@@ -1411,8 +1380,6 @@
   box-shadow: var(--elev-1);
 }
 .public-site .public-faq-item summary { min-height: var(--target-size); }
-.public-site .public-final-cta-content { max-width: var(--content-width); }
-
 @media (width <= 700px) {
   .public-site .public-main {
     gap: var(--space-6);
@@ -1870,6 +1837,7 @@
 .landing-tutorial-video {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 9;
   border: 1px solid var(--line);
   border-radius: var(--r-control);

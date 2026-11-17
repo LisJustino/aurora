@@ -33,18 +33,19 @@ export function renderHomeView(model, renderers) {
 
   return h`
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    ${homeFirstSteps()}
     <section class="home-day-summary" aria-labelledby="home-day-summary-title">
       <h2 id="home-day-summary-title">Seu dia</h2>
       <div class="home-day-chips" role="group" aria-label="Resumo das áreas de hoje">
         <a class="home-day-chip home-day-chip--plan" href="/planejar" aria-label="Tarefas, ${daySummary.tasks.done} de ${daySummary.tasks.total} feitas">
-          <span class="home-day-chip-count" aria-hidden="true">${daySummary.tasks.done}</span><span class="home-day-chip-copy">Tarefas</span>
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.tasks.done}/${daySummary.tasks.total}</span><span class="home-day-chip-copy">Tarefas</span>
         </a>
-        <a class="home-day-chip home-day-chip--habits" href="/habitos" aria-label="Hábitos, ${daySummary.habits.done} de ${daySummary.habits.total} feitos">
-          <span class="home-day-chip-count" aria-hidden="true">${daySummary.habits.done}</span><span class="home-day-chip-copy">Hábitos</span>
-        </a>
-        <a class="home-day-chip home-day-chip--water" href="/agua" aria-label="Água, ${daySummary.water.total.toLocaleString('pt-BR')} de ${daySummary.water.goal.toLocaleString('pt-BR')} mililitros">
+        ${daySummary.habits ? h`<a class="home-day-chip home-day-chip--habits" href="/habitos" aria-label="Hábitos, ${daySummary.habits.done} de ${daySummary.habits.total} feitos">
+          <span class="home-day-chip-count" aria-hidden="true">${daySummary.habits.done}/${daySummary.habits.total}</span><span class="home-day-chip-copy">Hábitos</span>
+        </a>` : ''}
+        ${daySummary.water ? h`<a class="home-day-chip home-day-chip--water" href="/agua" aria-label="Água, ${daySummary.water.total.toLocaleString('pt-BR')} de ${daySummary.water.goal.toLocaleString('pt-BR')} mililitros">
           <span class="home-day-chip-count" aria-hidden="true">${daySummary.water.percent}%</span><span class="home-day-chip-copy">Água <small>${daySummary.water.total.toLocaleString('pt-BR')} / ${daySummary.water.goal.toLocaleString('pt-BR')} mL</small></span>
-        </a>
+        </a>` : ''}
         ${daySummary.cycle ? h`<a class="home-day-chip home-day-chip--cycle" href="/ciclo" aria-label="${daySummary.cycle.day === null ? 'Ciclo, dia não calculado' : `Ciclo, dia ${daySummary.cycle.day} do ciclo`}">
           <span class="home-day-chip-count" aria-hidden="true">${daySummary.cycle.day ?? '—'}</span><span class="home-day-chip-copy">Ciclo</span>
         </a>` : ''}
@@ -76,6 +77,5 @@ export function renderHomeView(model, renderers) {
       </div>
     </div>
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · sua semana</span><h2 id="home-weekly-review-title">Um momento para olhar com carinho</h2><p>Veja um retrato simples de tarefas, água e hábitos.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Ver minha semana</button></section>` : ''}
-    ${homeFirstSteps()}
   `;
 }

@@ -71,6 +71,13 @@
   .app > .main { padding-bottom: calc(var(--nav-h) + 64px + env(safe-area-inset-bottom, 0px)); }
   .app:not(.preview-shell) > .main { padding-bottom: calc(var(--nav-h) + 88px + env(safe-area-inset-bottom, 0px)); }
   .app > .topbar { padding-inline: var(--gut-l) var(--gut-r); }
+  /* No celular o cabeçalho fica opaco: com 84% de opacidade o conteúdo rolado aparecia por trás dos botões. */
+  .topbar,
+  :root[data-scrolled="true"] .topbar {
+    background: var(--surface-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
   .topbar .wordmark { display: inline; font-size: var(--text-base); }
   .topbar .header-actions { gap: var(--space-1); }
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
@@ -97,7 +104,8 @@
   .topbar .nav::before {
     position: absolute;
     z-index: -1;
-    bottom: 100%;
+    /* +1px: o 100% parte da borda interna e o degradê cobria a borda superior da barra. */
+    bottom: calc(100% + 1px);
     left: 50%;
     width: 100vw;
     height: 24px;
@@ -114,7 +122,7 @@
     padding: 4px 1px;
     border: 1px solid transparent;
     border-radius: 14px;
-    font-size: 9.5px;
+    font-size: 10.5px;
     line-height: 1.15;
   }
   .topbar .nav .ni { display: grid; width: 24px; height: 24px; flex: none; place-items: center; }
@@ -134,7 +142,9 @@
     border-radius: 14px;
     background: transparent;
     color: var(--muted);
-    font-size: 9.5px;
+    font-size: 10.5px;
+    font-weight: var(--weight-bold);
+    letter-spacing: .01em;
     line-height: 1.15;
   }
   .topbar .nav .profile-menu-control {
@@ -150,13 +160,17 @@
     min-width: 0;
     min-height: 54px;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 2px;
+    font-weight: var(--weight-bold);
+    letter-spacing: .01em;
     padding: 4px 1px;
     border: 1px solid transparent;
     border-radius: 14px;
     background: transparent;
     color: var(--muted);
-    font-size: 9.5px;
+    font-size: 10.5px;
     line-height: 1.15;
   }
   .topbar .nav .mobile-nav-create-trigger:hover,
@@ -244,7 +258,9 @@
 
 @media (width <= 380px) {
   .topbar .nav { gap: 0; }
-  .topbar .nav a { font-size: 9px; letter-spacing: 0; }
+  .topbar .nav a,
+  .topbar .nav .mobile-nav-create-trigger,
+  .topbar .nav .profile-menu-trigger { font-size: 10px; letter-spacing: 0; }
   .topbar .nav .tab-period { display: none; }
 }
 

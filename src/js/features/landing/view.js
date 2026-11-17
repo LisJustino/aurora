@@ -70,6 +70,39 @@ export function renderLanding(root) {
   initializeAreaSelector(root);
   initializeLandingTutorials(root);
   initializeFaqDisclosure(root);
+  initializeSuggestionDisclosure(root);
+}
+
+function initializeSuggestionDisclosure(root) {
+  const disclosure = root.querySelector('[data-suggestion-disclosure]');
+  const summary = disclosure?.querySelector(':scope > summary');
+  const link = root.querySelector('.public-community-link');
+  if (!disclosure || !summary || !link || typeof window === 'undefined') return;
+
+  const openSuggestion = () => {
+    disclosure.open = true;
+    summary.focus({ preventScroll: true });
+  };
+  const onClick = (event) => {
+    if (!(event.target instanceof Element)) return;
+    const target = event.target.closest('.public-community-link');
+    if (target !== link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    openSuggestion();
+  };
+  const onHashChange = () => {
+    if (window.location.hash === `#${disclosure.id}`) openSuggestion();
+  };
+
+  root.addEventListener('click', onClick);
+  window.addEventListener('hashchange', onHashChange);
+  if (window.location.hash === `#${disclosure.id}`) openSuggestion();
+
+  const previousCleanup = landingControllers.get(root);
+  landingControllers.set(root, () => {
+    previousCleanup?.();
+    root.removeEventListener('click', onClick);
+    window.removeEventListener('hashchange', onHashChange);
+  });
 }
 
 function initializeAreaSelector(root) {
@@ -300,11 +333,10 @@ export function landingMarkup() {
             <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
             <p class="public-subtitle">Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.</p>
             <div class="public-actions">
-              <a class="btn primary large" href="/criar-conta" data-public-action="signup">Criar conta grátis</a>
-              <a class="btn large" href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>
+              <a class="btn primary large" href="/demonstracao" data-public-action="demo">Ver demonstração</a>
             </div>
-            <p class="public-price-note">A demonstração usa dados fictícios e não salva suas mudanças.</p>
-            <p class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>
+            <p class="public-price-note">Grátis e sem cadastro. A demonstração usa dados fictícios e não salva suas mudanças.</p>
+            <p class="public-account-note">Você pode exportar seus dados ou excluir sua conta. <a href="/privacy">Privacidade e dados</a></p>
           </div>
           <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
             <div class="preview-phone">
@@ -374,7 +406,7 @@ export function landingMarkup() {
             <div><h3>Finanças</h3><p>Registre receitas, despesas e cartões manualmente. O Aurora não se conecta a bancos.</p></div>
             <div class="public-value-preview preview-area-finance" aria-hidden="true">
               <div><small>Receitas</small><strong>R$ 3.200</strong></div>
-              <div><small>Despesas</small><strong>R$ 1.960</strong></div>
+              <div><small>Despesas</small>              <strong>R$ 1.960,00</strong></div>
               <span class="preview-finance-bars"><i></i><i></i><i></i><i></i><i></i><i></i></span>
             </div>
           </article>
@@ -413,7 +445,8 @@ export function landingMarkup() {
                 <button type="button" class="landing-tutorial-play" data-landing-tutorial-play aria-label="Carregar e reproduzir o vídeo de ${area.title}">${demoIcon('play', 24)}<span>Reproduzir vídeo</span></button>
                 </div>
                 <div class="landing-tutorial-summary" data-tutorial-summary>
-                  <h3>O que você vê neste vídeo</h3>
+                  <h3>Roteiro em texto</h3>
+                  <p class="landing-tutorial-transcript-note">O vídeo não tem narração. Estas etapas descrevem as ações exibidas na tela.</p>
                   <ul>${area.steps.map((step) => `<li>${step}</li>`).join('')}</ul>
                 </div>
                 <p class="landing-tutorial-status" data-landing-tutorial-status role="status" aria-live="polite" hidden></p>
@@ -424,11 +457,11 @@ export function landingMarkup() {
         </section>
         <section class="public-community" aria-labelledby="public-community-title">
           <div class="public-community-copy">
-            <p class="public-eyebrow">Convite aberto</p>
-            <h2 id="public-community-title">Sua experiência pode ajudar o Aurora a evoluir.</h2>
-            <p>Ainda não temos avaliações ou números públicos para compartilhar. Enquanto isso, conheça a demonstração e envie uma sugestão baseada na sua rotina.</p>
+            <p class="public-eyebrow">Feedback</p>
+            <h2 id="public-community-title">Ajude a melhorar o Aurora</h2>
+            <p>Conte o que tornaria sua rotina mais simples. Sua sugestão pode ajudar a priorizar melhorias.</p>
           </div>
-          <a class="btn primary large public-community-link" href="#public-suggestion">Compartilhar uma sugestão</a>
+          <a class="btn primary large public-community-link" href="#public-suggestion">Enviar uma sugestão</a>
         </section>
         <section class="public-cta-panel" aria-labelledby="public-cta-title">
           <div class="public-cta-copy">
@@ -469,6 +502,26 @@ export function landingMarkup() {
               <summary>O que posso fazer em Ciclo?${demoIcon('chevDown', 16)}</summary>
               <p>Acompanhe datas e sintomas com seu consentimento específico. As informações são gerais e não substituem orientação profissional.</p>
             </details>
+            <details class="card public-faq-item">
+              <summary>Onde ficam meus dados?${demoIcon('chevDown', 16)}</summary>
+              <p>Os registros da conta ficam no banco do Supabase, vinculados à sua conta e protegidos por regras de acesso. Não são armazenados no navegador; a sessão de acesso é gerenciada pelo cliente Supabase.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Posso exportar meus dados?${demoIcon('chevDown', 16)}</summary>
+              <p>Sim. Em Ajustes → Dados e backup, você pode exportar uma cópia dos seus registros e guardá-la em um local seguro.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Posso apagar minha conta?${demoIcon('chevDown', 16)}</summary>
+              <p>Sim. Você pode iniciar a exclusão permanente da conta e dos registros associados em Ajustes → Seu perfil. Backups baixados precisam ser apagados por você.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>O que funciona offline?${demoIcon('chevDown', 16)}</summary>
+              <p>O app pode abrir com recursos já carregados, mas precisa de conexão para entrar e gravar dados. Alterações feitas offline não são sincronizadas depois.</p>
+            </details>
+            <details class="card public-faq-item">
+              <summary>Como funcionam as notificações?${demoIcon('chevDown', 16)}</summary>
+              <p>As notificações são opcionais e dependem da permissão do dispositivo e do navegador. Você pode ativá-las ou desativá-las nas configurações de Hábitos.</p>
+            </details>
             <details class="card public-faq-item" id="public-suggestion" data-suggestion-disclosure>
               <summary>Envie uma sugestão${demoIcon('chevDown', 16)}</summary>
               ${renderSuggestionForm()}
@@ -477,6 +530,6 @@ export function landingMarkup() {
         </section>
       </main>
       ${publicFooter({ demoAvailable: true })}
-      <a class="public-mobile-cta btn primary" href="/demonstracao" data-public-action="demo" hidden>Abrir demonstração</a>
+      <a class="public-mobile-cta btn primary" href="/demonstracao" data-public-action="demo" hidden>Ver demonstração</a>
     </div>`;
 }

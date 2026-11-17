@@ -137,7 +137,7 @@ const googleCalendar = {
   getEvents: async (account, ...args) => account.service.getEvents(...args),
 };
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { CONTACT_EMAIL, createSuggestionMailto } from './features/footer/suggestions.js';
+import { CONTACT_EMAIL } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
 import {
   createCycleDataConsentMetadata,
@@ -1702,9 +1702,9 @@ function shell(body) {
     <button type="button" class="nav-quick-trigger iconbtn" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">Criar</span></button>`;
+  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">${tabLabel('Criar')}</span></button>`;
   const profileMenu = h`<details class="profile-menu-control">
-    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu"><span class="ni">${icon('user', 20)}</span><span class="mobile-nav-label">Conta</span></summary>
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu"><span class="ni">${icon('user', 20)}</span><span class="mobile-nav-label">${tabLabel('Conta')}</span></summary>
     <div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Menu da conta">
       <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
@@ -1889,16 +1889,25 @@ function applyTheme(theme) {
 }
 const systemThemeQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 let headerScrollFrame = 0;
+// Altura real do cabeçalho fixo (muda ao rolar); os títulos de dia das listas grudam logo abaixo dele.
+function syncTopbarOffset() {
+  const topbar = document.querySelector('.app > .topbar');
+  if (topbar) document.documentElement.style.setProperty('--topbar-stick', `${topbar.offsetHeight}px`);
+}
 // O atributo no documento persiste quando o shell é renderizado novamente.
 function syncHeaderScrollState() {
   if (headerScrollFrame) return;
   headerScrollFrame = requestAnimationFrame(() => {
     if (window.scrollY > 28) document.documentElement.setAttribute('data-scrolled', 'true');
     else document.documentElement.removeAttribute('data-scrolled');
+    syncTopbarOffset();
     headerScrollFrame = 0;
   });
 }
 window.addEventListener('scroll', syncHeaderScrollState, { passive: true });
+document.addEventListener('transitionend', (event) => {
+  if (event.target instanceof Element && event.target.matches('.app > .topbar')) syncTopbarOffset();
+});
 syncHeaderScrollState();
 if (systemThemeQuery) {
   const updateSystemTheme = () => { if (settingsView().look.mode === 'auto') applyTheme(); };
@@ -2605,7 +2614,7 @@ function homeFirstSteps() {
   }
   homeFirstStepsRendered = true;
 
-  const [colorComplete, taskComplete, habitComplete] = homeFirstStepsProgress({
+  const [taskComplete, habitComplete, colorComplete] = homeFirstStepsProgress({
     theme: S.settings.theme,
     tasks: S.tasks,
     habits: S.habits,
@@ -2619,12 +2628,6 @@ function homeFirstSteps() {
   }
   const steps = [
     {
-      label: 'Escolher sua cor',
-      actionLabel: 'Abrir preferências de aparência',
-      href: '/config?section=personalization',
-      icon: 'sun',
-    },
-    {
       label: 'Criar sua primeira tarefa',
       actionLabel: 'Abrir diálogo de nova tarefa',
       action: 'task-new',
@@ -2635,6 +2638,12 @@ function homeFirstSteps() {
       actionLabel: 'Abrir Hábitos',
       href: '/habitos',
       icon: 'leaf',
+    },
+    {
+      label: 'Escolher sua cor',
+      actionLabel: 'Abrir preferências de aparência',
+      href: '/config?section=personalization',
+      icon: 'sun',
     },
   ];
   return h`<section class="card home-first-steps" aria-labelledby="home-first-steps-title">
@@ -2704,6 +2713,8 @@ function viewInicio() {
     : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
   const waterTotal = waterMlForDay(S.water, todayKey);
   const waterGoal = waterGoalForHabit(S.habits.find(isWaterHabit), S.settings.prefs.waterGoalMl);
+  const showWaterSummary = areaOn('habits')
+    && S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active');
   const showCycleSummary = !ui.preview
     && !S.settings.prefs.sample
     && areaOn('cycle')
@@ -2713,12 +2724,14 @@ function viewInicio() {
       done: todayPlanTasks.filter((task) => task.done).length,
       total: todayPlanTasks.length,
     },
-    habits: { done: habitsOverview.completed, total: habitsOverview.planned },
-    water: {
-      total: waterTotal,
-      goal: waterGoal,
-      percent: Math.min(100, Math.round(waterTotal / waterGoal * 100)),
-    },
+    habits: areaOn('habits') ? { done: habitsOverview.completed, total: habitsOverview.planned } : null,
+    water: showWaterSummary
+      ? {
+        total: waterTotal,
+        goal: waterGoal,
+        percent: Math.min(100, Math.round(waterTotal / waterGoal * 100)),
+      }
+      : null,
     cycle: showCycleSummary
       ? { day: cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
       : null,
@@ -5231,6 +5244,7 @@ const ACTIONS = {
     ui.finTab = 'lancamentos';
     ui.finFilter = 'todos';
     ui.finQ = transaction.desc || transaction.category || query;
+    ui.finFiltersOpen = true;
     nav('financas');
   },
   'plan-view': (el) => {
@@ -6799,16 +6813,6 @@ document.addEventListener('click', (e) => {
   }, 0);
 });
 document.addEventListener('submit', (e) => {
-  if (e.target instanceof HTMLFormElement && e.target.matches('[data-footer-suggestion]')) {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    window.location.href = createSuggestionMailto({
-      name: formData.get('name'),
-      email: formData.get('email'),
-      message: formData.get('message'),
-    });
-    return;
-  }
   const f = e.target.closest('[data-form]'); if (!f) return;
   e.preventDefault();
   const fn = FORMS[f.dataset.form]; if (fn) fn(f, new FormData(f));
@@ -7358,18 +7362,26 @@ function txListHtml() {
   const days = []; r.forEach((t) => { const l = days[days.length - 1]; if (l && l.d === t.date) l.items.push(t); else days.push({ d: t.date, items: [t] }); });
   const netByDay = new Map();
   all.forEach((t) => netByDay.set(t.date, (netByDay.get(t.date) || 0) + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0)));
-  return h`<div class="finance-results-groups">${days.map((g) => { const net = netByDay.get(g.d); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`; })}</div>
+  return h`<div class="finance-results-groups">${days.map((g) => { const net = netByDay.get(g.d); return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span class="grow"></span><span class="gsum ${net > 0 ? 'pos' : ''}">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul class="list">${g.items.map(finRow)}</ul></section>`; })}</div>
     ${all.length > r.length ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} lançamentos</p><button type="button" class="btn" data-action="transactions-show-more">Mostrar mais lançamentos</button>` : ''}`;
 }
 function finLanc() { return h`${monthNav()}${finTools()}<div id="fin-view-panel" role="tabpanel" aria-labelledby="fin-view-${ui.finView}">${ui.finView === 'cal' ? finCal() : finLancList()}</div>`; }
 function finLancList() {
   const st = monthStats(ui.finMonth);
+  const balance = st.inAll - st.outAll;
+  const activeFilters = (ui.finQ ? 1 : 0) + (ui.finAcc ? 1 : 0) + (ui.finCat ? 1 : 0);
+  const filtersOpen = Boolean(ui.finFiltersOpen);
   return h`<section class="card"><div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(([k, l]) => h`<button class="chip" aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`)}</div>
-      <div class="row fin-filter-row"><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
+      <div class="row fin-filter-bar"><button type="button" class="btn sm fin-filter-toggle" data-action="fin-filters-toggle" aria-expanded="${String(filtersOpen)}" aria-controls="fin-filter-panel">${icon('sliders', 16)}Filtros${activeFilters ? h`<span class="fin-filter-count" aria-label="${activeFilters} ${plural(activeFilters, 'filtro ativo', 'filtros ativos')}">${activeFilters}</span>` : ''}</button>
+        <button type="button" class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}<span>Exportar <span class="case-preserve">CSV</span></span></button></div>
+      <div class="row fin-filter-row" id="fin-filter-panel" ${filtersOpen ? '' : raw('data-collapsed')}><label class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq" data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map((c) => h`<option class="expense-name" value="${c}" ${ui.finCat === c ? raw('selected') : ''}>${expenseTitle(c)}</option>`)}</select></label>
         <label><span class="sr">Filtrar por conta</span><select data-change="fin-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.finAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label></div>
-      <p class="small muted">Receitas <b class="fin-income">${money(st.inAll)}</b> · Despesas <b>${money(st.outAll)}</b></p>
-      <div class="row fin-export-actions"><button class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}Exportar <span class="case-preserve">CSV</span></button></div>
+      <div class="fin-summary" role="group" aria-label="Resumo do mês">
+        <div class="fin-sum-item"><span class="fin-sum-label">Receitas</span><b class="fin-sum-value fin-income">${money(st.inAll)}</b></div>
+        <div class="fin-sum-item"><span class="fin-sum-label">Despesas</span><b class="fin-sum-value fin-expense">${money(st.outAll)}</b></div>
+        <div class="fin-sum-item fin-sum-balance"><span class="fin-sum-label">Saldo</span><b class="fin-sum-value ${balance < 0 ? 'fin-expense' : balance > 0 ? 'fin-income' : ''}">${balance < 0 ? '−' : ''}${money(Math.abs(balance))}</b></div>
+      </div>
       <div id="tx-results" aria-live="polite" tabindex="-1">${txListHtml()}</div></section>`;
 }
 
@@ -7860,6 +7872,7 @@ Object.assign(ACTIONS, {
     });
   },
   'fin-filter': (el) => { ui.finFilter = el.dataset.f; render(); },
+  'fin-filters-toggle': () => { ui.finFiltersOpen = !ui.finFiltersOpen; render(); },
   'fin-filters-clear': () => {
     ui.finFilter = 'todos';
     ui.finQ = '';
