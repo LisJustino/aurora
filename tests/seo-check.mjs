@@ -98,7 +98,7 @@ assert.equal(meta(home, 'name', 'twitter:description'), landingDescription);
 const softwareApplication = jsonLd.find((item) => item['@type'] === 'SoftwareApplication');
 assert.equal(softwareApplication?.description, landingDescription);
 const landingFaq = jsonLd.find((item) => item['@type'] === 'FAQPage');
-assert.equal(landingFaq?.mainEntity?.length, 5, 'FAQ estruturado deve conter apenas as perguntas essenciais.');
+assert.equal(landingFaq?.mainEntity?.length, 10, 'FAQ estruturado deve acompanhar as perguntas publicadas na landing.');
 assert.ok(landingFaq.mainEntity.every((question) => home.includes(question.name)),
   'FAQ estruturado deve corresponder às perguntas da landing pré-renderizada.');
 

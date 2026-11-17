@@ -183,10 +183,10 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       await checkLanding(page, profile.name, '520px');
       await page.setViewportSize(devices[profile.name].viewport);
 
-      await page.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
+      await page.locator('.public-hero').getByRole('link', { name: 'Ver demonstração' }).click();
       await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
-      check(await page.locator('.demo-nav-link').count() === 5,
-        profile.name, 'demonstração expõe navegação sem o timer removido');
+      check(await page.locator('.demo-nav-link').count() === 8,
+        profile.name, 'demonstração expõe as áreas disponíveis sem o timer removido');
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         profile.name, 'demonstração não tem overflow horizontal');
       check(await page.locator('.demo-nav-link').evaluateAll((links) =>

@@ -21,7 +21,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const publicNav = demo ? '' : `
     <nav class="public-header-nav" aria-label="Navegação principal">
       <a href="${authMode ? '/#public-features' : '#public-features'}"><span class="ni" aria-hidden="true">${icon('grid', 20)}</span><span>Áreas</span></a>
-      <a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Demonstração</span></a>
+      <a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Ver demonstração</span></a>
       <a href="${authMode ? '/#public-faq' : '#public-faq'}"><span class="ni" aria-hidden="true">${icon('info', 20)}</span><span>Perguntas</span></a>
     </nav>`;
   const accountAction = (mode, label) => {

@@ -375,10 +375,6 @@
   .water-entry { gap: var(--space-4); }
   .habit-water-content .water-custom { grid-template-columns: minmax(0, 1fr); }
   .habit-water-content .water-custom > .btn { width: 100%; }
-  .main[data-route="ciclo"] .card:has(> .cal) > .head {
-    width: calc(100% + 2 * var(--space-4));
-    margin-inline: calc(-1 * var(--space-4));
-  }
 }
 
 /* Calendário do Ciclo: setas ao lado do mês, também em telas estreitas */

@@ -90,15 +90,19 @@ const check = (passed, name, detail = '') => {
     && selectedTutorialSource?.includes('planejar.mp4'),
   'abas de demonstração são navegáveis pelo teclado e mostram um player por vez');
   await tutorialTabs.getByRole('tab', { name: 'Início' }).click();
+  check(await page.locator('.landing-tutorial-panel:visible video').evaluate((video) => {
+    const bounds = video.getBoundingClientRect();
+    return bounds.height > 0 && Math.abs(bounds.width / bounds.height - 16 / 9) < 0.02;
+  }), 'vídeo da landing respeita a proporção 16:9 em tela estreita');
   const community = page.locator('.public-community');
   check(await community.evaluate((section) =>
     section.previousElementSibling?.classList.contains('public-tutorials')
     && section.previousElementSibling.previousElementSibling?.classList.contains('public-features')
     && section.nextElementSibling?.classList.contains('public-cta-panel'))
-    && await community.getByRole('heading', { name: 'Sua experiência pode ajudar o Aurora a evoluir.' }).count() === 1
-    && await community.getByRole('link', { name: 'Compartilhar uma sugestão' }).getAttribute('href') === '#public-suggestion'
-    && await community.getByText(/Ainda não temos avaliações ou números públicos para compartilhar/).count() === 1,
-  'convite transparente aparece após as áreas e aponta para o canal de sugestões');
+    && await community.getByRole('heading', { name: 'Ajude a melhorar o Aurora' }).count() === 1
+    && await community.getByRole('link', { name: 'Enviar uma sugestão' }).getAttribute('href') === '#public-suggestion'
+    && await community.getByText(/Conte o que tornaria sua rotina mais simples/).count() === 1,
+  'convite de feedback aparece após as áreas sem destacar falta de avaliações');
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     check(await community.evaluate((section) => {
@@ -125,9 +129,10 @@ const check = (passed, name, detail = '') => {
   check(!(await pricingDisclosure.evaluate((item) => item.open)),
     'resposta sobre gratuidade ainda pode ser recolhida');
   check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
-    && await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 5
-    && await page.locator('.public-faq-item').count() === 6
+    && await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 10
+    && await page.locator('.public-faq-item').count() === 11
     && await page.locator('.public-faq').getByText(/não são criptografados|sem conexão|confirmar meu e-mail/i).count() === 0
+    && await page.locator('.public-faq').getByText(/Onde ficam meus dados\?|Posso exportar meus dados\?|Posso apagar minha conta\?/).count() === 3
     && await page.locator('.public-footer form[data-footer-suggestion]').count() === 0
     && await suggestionDisclosure.count() === 1
     && await suggestionDisclosure.evaluate((disclosure) =>
@@ -135,7 +140,7 @@ const check = (passed, name, detail = '') => {
     && await suggestionDisclosure.locator(':scope > summary').getAttribute('aria-expanded') === 'false'
     && await suggestionDisclosure.locator('form[data-footer-suggestion]').count() === 1
     && !(await suggestionDisclosure.locator('form[data-footer-suggestion]').isVisible()),
-  'FAQ curto mantém a sugestão recolhida e detalhes técnicos fora da vitrine');
+  'FAQ mantém respostas recolhidas e o formulário de sugestão no fim');
   check(await page.locator('.public-value-preview').count() === 4
     && await page.locator('.public-value-preview video').count() === 0
     && await page.locator('.public-value-preview').evaluateAll((previews) => previews.filter((preview) => preview.getClientRects().length).every((preview) => {
@@ -169,22 +174,10 @@ const check = (passed, name, detail = '') => {
     'hero não repete ações de cadastro ou entrada');
   check(await page.locator('.public-cta-panel [data-public-action="signup"], .public-cta-panel [data-public-action="demo"]').count() === 0,
     'painel de instalação mantém sua ação própria');
-  const finalCta = page.locator('.public-final-cta');
-  const finalCtaLink = finalCta.getByRole('link', { name: 'Experimentar o Aurora' });
-  check(await finalCta.evaluate((section) => section.nextElementSibling?.matches('footer.public-footer'))
-    && await finalCtaLink.getAttribute('href') === '/demonstracao'
-    && await finalCtaLink.getAttribute('data-public-action') === 'demo',
-  'banner final antecede o rodapé e oferece a demonstração');
-  for (const width of [320, 390, 1280]) {
-    await page.setViewportSize({ width, height: 844 });
-    check(await finalCta.evaluate((section) => {
-      const bounds = section.getBoundingClientRect();
-      const link = section.querySelector('a').getBoundingClientRect();
-      return Math.abs(bounds.width - innerWidth) < 1
-        && link.left >= bounds.left && link.right <= bounds.right
-        && document.documentElement.scrollWidth <= innerWidth;
-    }), `banner final ocupa a largura disponível sem overflow em ${width}px`);
-  }
+  check(await page.locator('.public-final-cta').count() === 0
+    && await page.locator('.public-main').evaluate((main) =>
+      main.nextElementSibling?.matches('footer.public-footer')),
+  'a landing termina no conteúdo útil e segue direto ao rodapé');
   await page.setViewportSize({ width: 390, height: 844 });
   const heroTask = page.locator('.public-hero [data-landing-task]').last();
   const heroTasks = page.locator('.public-hero [data-landing-task]');
@@ -289,17 +282,20 @@ const check = (passed, name, detail = '') => {
   await page.mouse.click(backdropPoint.x, backdropPoint.y);
   await page.waitForFunction(() => !document.querySelector('dialog[data-legal-modal]').open);
   check(true, 'clique no fundo fecha o modal legal');
-  await finalCtaLink.focus();
+  const demoCtas = await page.locator('.public-site [data-public-action="demo"]').allTextContents();
+  check(demoCtas.every((label) => label.trim() === 'Ver demonstração'),
+    'todos os CTAs públicos de demonstração usam o mesmo rótulo');
+  await page.locator('.public-hero [data-public-action="demo"]').focus();
   await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(new URL(page.url()).pathname === '/demonstracao'
     && await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).isVisible(),
-  'o CTA final abre a demonstração sem cadastro pelo teclado');
+  'o CTA da landing abre a demonstração sem cadastro pelo teclado');
   mainModuleRequests.length = 0;
   await page.goto(`${BASE}/demonstracao`);
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(mainModuleRequests.length === 0, 'a demonstração direta não baixa o módulo completo');
-  check(await page.locator('.demo-nav-link').count() === 5, 'demonstração oferece navegação pelas áreas do app');
+  check(await page.locator('.demo-nav-link').count() === 8, 'demonstração oferece navegação pelas áreas do app');
   const sampleBanner = page.getByRole('note');
   check(await sampleBanner.getByText('Demonstração com dados fictícios.', { exact: true }).isVisible()
     && await sampleBanner.getByRole('link', { name: 'Criar conta', exact: true }).isVisible(),
@@ -385,27 +381,31 @@ const check = (passed, name, detail = '') => {
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
     session: Object.fromEntries(Object.keys(sessionStorage).sort().map((key) => [key, sessionStorage.getItem(key)])),
   }));
+  await page.evaluate(() => document.fonts.ready);
   collectRequests = true;
 
-  await page.getByRole('button', { name: 'Adicionar tarefa de exemplo' }).click();
-  check(await page.locator('.demo-task-list .task').count() === 3
-    && await page.locator('.demo-task-list [role="checkbox"]').count() === 3
-    && await page.locator('.demo-add-form input').count() === 1,
-  'tarefas de exemplo podem ser concluídas e uma tarefa pode ser adicionada');
-  const taskInput = page.locator('.demo-add-form input');
+  check(await page.getByRole('heading', { name: 'Qual é o próximo passo?' }).count() === 1
+    && await page.locator('[data-demo-task-form] input').count() === 1,
+  'Início da demonstração oferece o campo de tarefa usado no app');
+  const taskInput = page.locator('#demo-home-task');
   await taskInput.fill('   ');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
-  check(await page.locator('.demo-task-list .task').count() === 3
+  check(await page.locator('.home-today-card .task').count() === 3
     && await taskInput.evaluate((input) => !input.validity.valid),
   'tarefa vazia ou composta de espaços não é adicionada');
   const newTaskTitle = 'Tarefa <b>sem HTML</b>';
   await taskInput.fill(newTaskTitle);
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await page.locator('.home-today-card .task').count() === 4
+    && await page.getByText(newTaskTitle, { exact: true }).count() === 1
+    && await page.locator('.home-today-card b').count() === 0,
+  'tarefa criada no Início é exibida como texto escapado, não como HTML');
+  await page.locator('.demo-nav [data-demo-view="tasks"]').click();
   const newTask = page.getByRole('checkbox', { name: `Marcar como concluída: ${newTaskTitle}` });
   check(await page.locator('.demo-task-list .task').count() === 4
-    && await page.getByText(newTaskTitle, { exact: true }).count() === 1
-    && await page.locator('.demo-task-list b').count() === 0,
-  'tarefa nova é exibida como texto escapado, não como HTML');
+    && await page.locator('.demo-task-list [role="checkbox"]').count() === 4
+    && await page.locator('.demo-add-form input').count() === 1,
+  'tarefa criada no Início também aparece no planejamento');
   await newTask.click();
   check(await page.getByRole('checkbox', { name: `Marcar como pendente: ${newTaskTitle}` })
     .getAttribute('aria-checked') === 'true'
@@ -447,11 +447,59 @@ const check = (passed, name, detail = '') => {
   'demonstração não oferece uma área de timer');
 
   await page.getByRole('link', { name: 'Ciclo', exact: true }).click();
-  await page.locator('[data-demo-action="cycle-day"][data-day="13"]').click();
-  check(await page.getByText('Dia 13 · exemplo').count() === 1, 'calendário de ciclo permite navegar por dias fictícios');
+  const cycleDays = await page.locator('[data-demo-action="cycle-day"]').evaluateAll((buttons) =>
+    buttons.map((button) => button.dataset.day));
+  const expectedCycleDays = await page.evaluate(() => {
+    const first = new Date();
+    first.setHours(0, 0, 0, 0);
+    first.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(first);
+      date.setDate(first.getDate() + index);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    });
+  });
+  check(JSON.stringify(cycleDays) === JSON.stringify(expectedCycleDays),
+    'calendário de ciclo gera a semana a partir da data local');
+  await page.getByRole('button', { name: 'Registrar cólica leve' }).click();
+  check(await page.getByRole('heading', { name: 'Sintoma registrado: cólicas leves.' }).count() === 1,
+    'demonstração permite visualizar um sintoma fictício de ciclo');
   await page.getByRole('link', { name: 'Finanças', exact: true }).click();
+  const currentMonth = await page.evaluate(() => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
+    .format(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  check(await page.getByRole('heading', { name: new RegExp(`^${currentMonth}$`, 'i') }).count() === 1
+    && await page.getByText('R$ 1.960,00', { exact: true }).count() === 1,
+  'resumo financeiro usa o mês atual e mantém o total alinhado à landing');
+  await page.getByLabel('Lançar uma despesa fictícia').waitFor();
+  await page.locator('#demo-expense-title').fill('Café de teste');
+  await page.getByLabel('Valor da despesa').fill('12,50');
+  await page.locator('[data-demo-expense-form] button[type="submit"]').click();
+  check(await page.getByText('Café de teste', { exact: true }).count() === 1
+    && await page.getByText('R$ 1.972,50', { exact: true }).count() === 1,
+  'despesa fictícia atualiza o total usando centavos');
   await page.getByRole('button', { name: 'Mês anterior' }).click();
-  check(await page.getByRole('heading', { name: 'Setembro de 2026' }).count() === 1, 'finanças permite comparar meses fictícios');
+  const previousMonth = await page.evaluate(() => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - 1);
+    return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
+  });
+  check(await page.getByRole('heading', { name: new RegExp(`^${previousMonth}$`, 'i') }).count() === 1,
+    'finanças permite comparar o mês anterior à data atual');
+  await page.getByRole('link', { name: 'Água', exact: true }).click();
+  const waterProgress = page.locator('.demo-water-progress');
+  check(await waterProgress.getAttribute('value') === '1250', 'área de Água apresenta o registro fictício atual');
+  await page.getByRole('button', { name: 'Registrar 250 mL' }).click();
+  check(await waterProgress.getAttribute('value') === '1500', 'registro de água altera apenas a demonstração');
+  await page.getByRole('link', { name: 'Plano anual', exact: true }).click();
+  await page.locator('#demo-annual-goal').fill('Fazer uma viagem especial');
+  await page.locator('[data-demo-annual-form] button[type="submit"]').click();
+  check(await page.getByText('Fazer uma viagem especial', { exact: true }).count() === 1,
+    'Plano anual permite adicionar uma conquista fictícia');
+  await page.getByRole('link', { name: 'Google Agenda', exact: true }).click();
+  await page.getByRole('button', { name: 'Simular conexão' }).click();
+  check(await page.getByRole('heading', { name: 'Agenda conectada (exemplo)' }).count() === 1,
+    'Google Agenda é apresentada como uma prévia fictícia sem autenticar');
 
   const storageAfter = await page.evaluate(() => JSON.stringify({
     local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
@@ -505,11 +553,14 @@ const check = (passed, name, detail = '') => {
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
-  await page.locator('[data-suggestion-disclosure] > summary').click();
+  await page.locator('.public-community-link').click();
+  await page.waitForFunction(() => document.querySelector('[data-suggestion-disclosure] > summary')?.getAttribute('aria-expanded') === 'true');
   check(
     await page.locator('[data-suggestion-disclosure] > summary').getAttribute('aria-expanded') === 'true'
-      && await page.locator('[data-suggestion-disclosure] form[data-footer-suggestion]').isVisible(),
-    'sugestão fica visível ao abrir o item da FAQ',
+      && await page.locator('[data-suggestion-disclosure] form[data-footer-suggestion]').isVisible()
+      && await page.evaluate(() => document.activeElement === document.querySelector('[data-suggestion-disclosure] > summary'))
+      && new URL(page.url()).hash === '#public-suggestion',
+    'atalho de sugestão abre o formulário, atualiza o hash e posiciona o foco',
   );
   await page.locator('[name="message"]').fill('Uma sugestão de teste');
   const taskState = await page.locator('[data-landing-task]').last().getAttribute('aria-pressed');
