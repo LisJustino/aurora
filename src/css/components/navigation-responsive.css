@@ -1,8 +1,13 @@
 .nav-quick-control, .profile-menu-control { display: flex; flex: none; }
 .profile-menu-control { position: relative; }
+/* Perfil no cabeçalho: só aparece no celular, onde o menu de baixo fica ocupado pelas áreas. */
+.header-account-control { position: relative; display: none; flex: none; }
+.header-account-trigger { display: grid; place-items: center; list-style: none; cursor: pointer; }
+.header-account-trigger::-webkit-details-marker { display: none; }
+.header-account-control[open] > .header-account-trigger { background: var(--soft); color: var(--accent); }
 .nav-quick-trigger[aria-expanded="true"],
 .mobile-nav-create-trigger[aria-expanded="true"] { background: var(--soft); color: var(--accent); }
-.quick-actions-menu, .profile-menu-panel {
+.quick-actions-menu, .profile-menu-panel, .header-account-panel {
   position: absolute;
   z-index: calc(var(--z-nav) + 2);
   top: calc(100% + var(--space-2));
@@ -18,7 +23,9 @@
   background: var(--surface-raised);
   box-shadow: var(--shadow);
 }
-.quick-actions-menu[hidden], .profile-menu-control:not([open]) > .profile-menu-panel { display: none; }
+.quick-actions-menu[hidden] { display: none; }
+.topbar > .profile-menu-panel { display: none; }
+.topbar:has(.profile-menu-control[open]) > .profile-menu-panel { display: grid; }
 .quick-actions-heading {
   margin: 0;
   padding: 2px var(--space-2) var(--space-2);
@@ -63,7 +70,9 @@
 .profile-menu-control > .profile-menu-trigger { display: grid; place-items: center; list-style: none; cursor: pointer; }
 .profile-menu-control > .profile-menu-trigger::-webkit-details-marker { display: none; }
 .profile-menu-control[open] > .profile-menu-trigger { background: var(--soft); color: var(--accent); }
-.profile-menu-panel { right: 0; width: min(240px, calc(100vw - 24px)); }
+.profile-menu-panel, .header-account-panel { right: 0; width: min(240px, calc(100vw - 24px)); }
+.nav-overflow-group, .profile-menu-trigger .ni-more { display: none; }
+.nav-overflow-item[aria-current="page"] { border-color: var(--line); background: var(--surface-soft); color: var(--accent); }
 .profile-menu-signout { margin-top: var(--space-1); padding-top: var(--space-1); border-top-color: var(--line); border-top-left-radius: 0; border-top-right-radius: 0; }
 
 @media (width < 900px) {
@@ -82,10 +91,14 @@
   .topbar .header-actions { gap: var(--space-1); }
   .topbar .header-actions .iconbtn { width: 44px; height: 44px; }
   .topbar .header-actions .mobile-refresh-trigger { display: inline-grid; }
+  .topbar .header-actions .header-account-control { display: flex; }
+  .header-account-panel { top: calc(100% + var(--space-2)); right: 0; }
   .topbar .nav {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    grid-auto-rows: 54px;
+    grid-template-columns: none;
+    grid-template-rows: 54px;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     align-items: stretch;
     bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     width: min(560px, calc(100% - 16px));
@@ -178,12 +191,19 @@
   .topbar .nav a:hover { background: var(--surface-soft); }
   .topbar .nav .mobile-nav-create-trigger[aria-expanded="true"],
   .topbar .nav .profile-menu-control[open] > .profile-menu-trigger { background: var(--soft); color: var(--accent); }
-  .topbar .nav .profile-menu-panel {
+  .topbar .profile-menu-panel {
     position: fixed;
     top: auto;
     right: max(12px, env(safe-area-inset-right, 0px));
     bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));
   }
+  .topbar:has(.mobile-profile-menu[open]) > .profile-menu-panel {
+    top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-2));
+    bottom: auto;
+  }
+  .topbar:has(.mobile-profile-menu[open]) > .profile-menu-panel .nav-overflow-group { display: none; }
+  .topbar:has(.nav .profile-menu-control[open]) > .profile-menu-panel .profile-menu-account-item { display: none; }
+  .topbar .nav .profile-menu-control:not(:has(.ni-more)) { display: none; }
   .topbar .header-actions .nav-quick-trigger { display: none; }
   .topbar .quick-actions-menu {
     position: fixed;
@@ -193,11 +213,43 @@
   }
   .topbar .nav .nav-item[aria-current="page"],
   .topbar .nav .nav-item[aria-current="page"] .ni {
-    background: color-mix(in srgb, var(--area, var(--accent)) 9%, var(--surface));
+    background: var(--surface-strong);
     color: var(--area, var(--accent));
   }
   .topbar .nav .nav-item[aria-current="page"] { border-color: color-mix(in srgb, var(--area, var(--accent)) 18%, transparent); }
   .topbar .nav .mobile-nav-create-trigger .ni { border-radius: var(--r-pill); background: var(--soft2); color: var(--accent); }
+  /* Áreas além das 3 primeiras ficam dentro do Mais. */
+  .topbar .nav .nav-item[data-overflow] { display: none; }
+  .topbar .nav .profile-menu-trigger .ni-account { display: none; }
+  .topbar .nav .profile-menu-trigger .ni-more { display: grid; }
+  .topbar .nav .profile-menu-trigger:not(:has(.ni-more)) .ni-account { display: grid; }
+  .topbar .nav .profile-menu-trigger.is-current {
+    border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+    color: var(--accent);
+  }
+  .nav-overflow-group {
+    display: grid;
+    gap: var(--space-1);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--line);
+  }
+  /* Itens do painel não herdam o estilo vertical dos botões da barra: ícone e texto em linha, à esquerda. */
+  .topbar .profile-menu-panel .profile-menu-item {
+    min-height: var(--control-field);
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+    border-radius: var(--r-control);
+    color: var(--ink);
+    font-size: var(--text-sm);
+    letter-spacing: 0;
+    line-height: 1.3;
+    text-align: left;
+  }
+  .topbar .profile-menu-panel .profile-menu-item:hover { background: var(--surface-soft); }
+  .topbar .profile-menu-panel .nav-overflow-item[aria-current="page"] { color: var(--accent); }
 }
 
 @media (width >= 900px) {
@@ -234,6 +286,7 @@
   .topbar .nav .nav-item[aria-current="page"]:hover { background: var(--surface); }
   .topbar .nav a .ni { width: var(--icon-box-sm); height: var(--icon-box-sm); }
   .topbar .nav .nav-enable-areas { display: none; }
+  .topbar .nav .profile-menu-trigger .ni-more { display: none; }
   .topbar .header-actions .iconbtn { width: 40px; height: 40px; }
   .topbar .nav .profile-menu-control {
     position: absolute;
@@ -244,7 +297,7 @@
   }
   .topbar .nav .profile-menu-trigger { width: 40px; height: 40px; min-height: 40px; }
   .topbar .nav .profile-menu-trigger .mobile-nav-label { display: none; }
-  .topbar .nav .profile-menu-panel {
+  .topbar .profile-menu-panel {
     position: fixed;
     top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-2));
     right: max(12px, env(safe-area-inset-right, 0px));

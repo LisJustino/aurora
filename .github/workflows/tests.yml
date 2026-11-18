@@ -17,6 +17,10 @@ jobs:
           node-version: 24
       - name: Install application dependencies
         run: npm ci
+      - name: Build Cloudflare Pages assets
+        run: npm run build
+      - name: Check SEO metadata and public assets
+        run: npm run test:seo
       - name: Audit application dependencies
         run: npm audit --audit-level=high
       - name: Check JavaScript
@@ -41,10 +45,6 @@ jobs:
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" --set=ON_ERROR_STOP=1 --file=supabase/tests/rls_isolation.sql
       - name: Verify concurrent relational writes
         run: npm run test:supabase:concurrency
-      - name: Build Cloudflare Pages assets
-        run: npm run build
-      - name: Check SEO metadata and public assets
-        run: npm run test:seo
       - name: Install browsers for regression matrix
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Run browser smoke tests

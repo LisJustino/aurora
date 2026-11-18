@@ -1,6 +1,7 @@
 import { LOOK_DEFAULT, paletteColors } from './palettes.js';
 import { iconSvg } from '../../utils/icons.js';
 import { prefersReducedMotion } from '../../utils/motion.js';
+import { syncNativeAppearance } from '../../services/native-experience.js';
 
 const publicLook = { ...LOOK_DEFAULT };
 let accessibilityOpen = false;
@@ -20,9 +21,9 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const isLanding = !demo && !authMode;
   const publicNav = demo ? '' : `
     <nav class="public-header-nav" aria-label="Navegação principal">
-      <a href="${authMode ? '/#public-features' : '#public-features'}"><span class="ni" aria-hidden="true">${icon('grid', 20)}</span><span>Áreas</span></a>
-      <a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Ver demonstração</span></a>
-      <a href="${authMode ? '/#public-faq' : '#public-faq'}"><span class="ni" aria-hidden="true">${icon('info', 20)}</span><span>Perguntas</span></a>
+      <a href="${authMode ? '/#public-tutorials' : '#public-tutorials'}">Como funciona</a>
+      <a href="/demonstracao" data-public-action="demo">Ver demonstração</a>
+      <a href="${authMode ? '/#public-faq' : '#public-faq'}">Perguntas</a>
     </nav>`;
   const accountAction = (mode, label) => {
     const isCurrentMode = authMode === mode;
@@ -70,6 +71,7 @@ function applyPublicLook() {
   root.setAttribute('data-motion', publicLook.reduceMotion ? 'reduce' : 'normal');
   const themeColor = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
+  syncNativeAppearance(effectiveMode);
   syncPublicControls();
 }
 

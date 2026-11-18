@@ -20,7 +20,7 @@ async function checkLanding(page, profile, viewportLabel) {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   });
   if (await page.evaluate(() => innerWidth <= 700)) {
-    await page.locator('.public-hero .product-preview .preview-task-row').first().waitFor();
+    await page.locator('.public-hero .public-product-capture').waitFor();
   }
   const metrics = await page.evaluate(() => {
     const rect = (selector) => {
@@ -51,11 +51,20 @@ async function checkLanding(page, profile, viewportLabel) {
       title: rect('.public-hero h1'),
       hero: rect('.public-hero'),
       preview: rect('.public-hero .product-preview'),
+      capture: rect('.public-hero .public-product-capture'),
       demoNote: rect('.public-hero .public-price-note'),
       demoNoteText: document.querySelector('.public-hero .public-price-note')?.textContent || '',
-      previewTasks: Boolean(document.querySelector('.public-hero .product-preview .preview-task-row')),
-      featuresAfterHero: [...document.querySelector('.public-main').children][1]
-        ?.classList.contains('public-features'),
+      captureLoaded: Boolean(document.querySelector('.public-product-capture')?.naturalWidth),
+      captureSource: document.querySelector('.public-product-capture')?.currentSrc || '',
+      sectionsOrdered: (() => {
+        const sections = [...document.querySelector('.public-main').children];
+        return sections[0]?.classList.contains('public-hero')
+          && sections[1]?.classList.contains('public-tutorials')
+          && sections[2]?.classList.contains('public-trust')
+          && sections[3]?.classList.contains('public-closing')
+          && sections[4]?.classList.contains('public-community')
+          && sections[5]?.classList.contains('public-faq');
+      })(),
       heroProofRemoved: !document.querySelector('.public-hero-support'),
       targets: targets.map((element) => {
         const bounds = element.getBoundingClientRect();
@@ -75,15 +84,16 @@ async function checkLanding(page, profile, viewportLabel) {
     profile, `cabeçalho mostra o CTA de cadastro (${viewportLabel})`);
   check(metrics.viewportWidth > 700 || metrics.preview?.visible,
     profile, `prévia aparece no hero móvel (${viewportLabel})`);
-  check(metrics.viewportWidth > 700 || metrics.previewTasks,
-    profile, `prévia móvel mostra tarefas fictícias (${viewportLabel})`);
+  check(metrics.capture?.visible && metrics.captureLoaded
+    && metrics.captureSource.includes(metrics.viewportWidth <= 700 ? 'demo-mobile.png' : 'demo-wide.png'),
+  profile, `hero mostra uma captura real apropriada ao dispositivo (${viewportLabel})`);
   check(metrics.title?.visible && metrics.title.width > 0 && metrics.title.height > 0,
     profile, `título principal visível (${viewportLabel})`);
   check(metrics.demoNote?.visible
-    && /grátis e sem cadastro/i.test(metrics.demoNoteText)
-    && /dados fictícios/i.test(metrics.demoNoteText),
+    && /grátis e dá para experimentar sem criar conta/i.test(metrics.demoNoteText)
+    && /dados de exemplo e nada fica salvo/i.test(metrics.demoNoteText),
   profile, `demonstração grátis e sem cadastro fica clara (${viewportLabel})`);
-  check(metrics.featuresAfterHero, profile, `áreas aparecem logo depois do hero (${viewportLabel})`);
+  check(metrics.sectionsOrdered, profile, `landing segue o fluxo enxuto na ordem definida (${viewportLabel})`);
   check(metrics.heroProofRemoved, profile, `selos repetidos não aparecem no hero (${viewportLabel})`);
   check(metrics.hero?.visible && metrics.hero.right <= metrics.viewportWidth,
     profile, `hero cabe na largura disponível (${viewportLabel})`);
@@ -158,12 +168,12 @@ async function checkAccountScreen(page, profile, viewportLabel) {
       });
 
       await page.goto(BASE);
-      await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).waitFor();
+      await page.getByRole('heading', { name: 'Vamos por partes.' }).waitFor();
       if (profile.browser === webkit) {
         const installNotice = page.locator('#pwa-install-notice');
         check(await installNotice.count() === 0,
           profile.name, 'instruções de instalação não cobrem a landing automaticamente');
-        const installLink = page.getByRole('button', { name: 'Baixar o app' });
+        const installLink = page.getByRole('button', { name: 'Instalar no celular' });
         await installLink.scrollIntoViewIfNeeded();
         await installLink.click();
         check(await installNotice.isVisible()

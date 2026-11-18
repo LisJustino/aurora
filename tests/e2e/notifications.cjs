@@ -54,7 +54,13 @@ async function addTask(page, title, offsetMinutes) {
         return day === today;
       }, upcomingTaskDate);
 
-      await page.locator('a[href="/habitos"]:visible').first().click();
+      const habitsNavigationLink = page.locator('.topbar .nav a[href="/habitos"]:visible').first();
+      if (await habitsNavigationLink.count()) {
+        await habitsNavigationLink.click();
+      } else {
+        await page.locator('.topbar .nav .profile-menu-trigger:visible').click();
+        await page.locator('#profile-menu a[href="/habitos"]').click();
+      }
       await page.locator('[data-action="habit-push-toggle"]').waitFor({ state: 'visible' });
       assert.equal(await page.locator('[data-action="habit-push-toggle"]').isVisible(), true,
         `${name}: Push deve ficar disponível quando tarefas têm horário de lembrete`);
@@ -71,8 +77,6 @@ async function addTask(page, title, offsetMinutes) {
       assert.match(await page.locator('#notification-announcer').textContent(), /Abra Notificações para conferir\./);
       await trigger.click();
       await page.locator('#notification-panel').waitFor({ state: 'visible' });
-      assert.match(await page.locator('#notification-panel').textContent(), /hábitos, tarefas ou da revisão semanal/,
-        `${name}: painel explica quais avisos podem chegar fora do app`);
       const panelTop = await page.locator('#notification-panel').evaluate((panel) => panel.getBoundingClientRect().top);
       const headerBottom = await page.locator('.topbar').evaluate((header) => header.getBoundingClientRect().bottom);
       assert(panelTop >= headerBottom, `${name}: painel deve começar abaixo do cabeçalho`);
@@ -85,8 +89,7 @@ async function addTask(page, title, offsetMinutes) {
       } else {
         assert.equal(await page.locator('.notification-upcoming').count(), 0, `${name}: não deve mostrar como "Ainda hoje" uma tarefa de amanhã`);
       }
-      assert.equal(await page.locator('.notification-controls').evaluate((el) => getComputedStyle(el).display), 'grid', `${name}: controles devem manter espaçamento em grade`);
-      assert.equal(await page.locator('.notification-controls small').evaluate((el) => getComputedStyle(el).display), 'block', `${name}: explicação deve ficar abaixo do título`);
+      assert.equal(await page.locator('.notification-controls').evaluate((el) => getComputedStyle(el).display), 'flex', `${name}: controles devem ficar em linha`);
       assert.equal(await page.locator('.notification-settings-link').evaluate((el) => getComputedStyle(el).display), 'flex', `${name}: link de ajustes deve manter ícone e texto alinhados`);
 
       if (name === 'mobile') {
@@ -99,10 +102,10 @@ async function addTask(page, title, offsetMinutes) {
 
       await page.locator('#notification-panel [data-action="reminders-pause"]').click();
       assert.equal(await page.locator('.notification-item').count(), 0, `${name}: pausar limpa lembretes internos ativos`);
-      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Retomar lembretes', `${name}: painel informa que a pausa está ativa`);
+      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Retomar', `${name}: painel informa que a pausa está ativa`);
       assert.match(await page.locator('#toast').textContent(), /Avisos do sistema não foram alterados/, `${name}: pausa explica que notificações do sistema não foram alteradas`);
       await page.locator('#notification-panel [data-action="reminders-pause"]').click();
-      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Pausar por 1 hora', `${name}: lembretes podem ser retomados antes do prazo`);
+      assert.equal(await page.locator('#notification-panel [data-action="reminders-pause"]').textContent(), 'Pausar 1 h', `${name}: lembretes podem ser retomados antes do prazo`);
 
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: não deve haver overflow horizontal`);
       console.log(`${name}: notificações aprovadas`);

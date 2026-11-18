@@ -18,16 +18,16 @@
 
 :root {
   color-scheme: light;
-  --p: #c65a79;
-  --pd: #ab4e69;
+  --p: #d991aa;
+  --pd: #8d4665;
   --plum: #593047;
-  --bg: #f7f0ea;
-  --canvas-initial: #f8f8f6;
-  --bg-strong: #f0e7e1;
-  --surface: #fffdfa;
-  --surface-strong: #fcf8f5;
+  --bg: #f5f0e9;
+  --canvas-initial: #f5f3ed;
+  --bg-strong: #eee6de;
+  --surface: #fffdf9;
+  --surface-strong: #fffefa;
   --surface-raised: #ffffff;
-  --surface-soft: #f8f2ed;
+  --surface-soft: #f8f2ea;
   --surface-qr: #fff; /* QR codes keep a white field in both themes. */
   --ink: #252321;
   --muted: #625f5b;
@@ -55,10 +55,10 @@
   --area-finances: #397650;
   --area-cycle: #8b4e78;
   --priority-low: #3f7f93;
-  --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
+  --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
   --hero-home: color-mix(in srgb, var(--p) 3%, var(--surface));
-  --brand-surface: color-mix(in srgb, var(--p) 3%, var(--surface));
-  --brand-surface-strong: color-mix(in srgb, var(--p) 17%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 4%, var(--surface));
+  --brand-surface-strong: color-mix(in srgb, var(--p) 19%, var(--surface));
   --on-hero-home: var(--ink);
   --on-hero: var(--ink);
   --public-hero-start: #3f2b2a;
@@ -66,10 +66,10 @@
   --public-account-start: #402c2b;
   --public-account-end: #7d514e;
   --public-hero-ink: #fffaf6;
-  --public-hero-accent: #ffd7ca;
+  --public-hero-accent: #fbe7d3;
   --public-hero-marker: #eec0b3;
   --public-hero-button-ink: #503331;
-  --public-art-rose: #e8b4a6;
+  --public-art-rose: #d991aa;
   --public-art-lilac: #edc5dd;
   --public-art-ok: #81c3a0;
   --preview-phone-border: #62545e;
@@ -77,8 +77,8 @@
   --preview-phone-dark: #211d22;
   --preview-phone-camera: #746674;
   --elev-0: none;
-  --elev-1: 0 10px 24px -20px rgb(74 37 52 / 36%), 0 1px 3px rgb(74 37 52 / 7%);
-  --elev-2: 0 20px 48px -24px rgb(44 38 33 / 22%);
+  --elev-1: 0 2px 6px rgb(74 37 52 / 4%), 0 14px 32px -24px rgb(74 37 52 / 22%);
+  --elev-2: 0 24px 58px -34px rgb(44 38 33 / 28%), 0 5px 16px -12px rgb(74 37 52 / 14%);
   --shadow: var(--elev-2);
   --shadow-sm: var(--elev-1);
   --card-shadow: var(--elev-1);
@@ -172,9 +172,9 @@
   --z-popover: 55;
   --z-toast: 60;
   --z-skip: 100;
-  --r-sm: 12px;
-  --r-card: 20px;
-  --r-hero: 28px;
+  --r-sm: 14px;
+  --r-card: 24px;
+  --r-hero: 32px;
   --r-pill: 999px;
   --r-control: var(--r-sm);
   --r-group: var(--r-sm);
@@ -201,9 +201,9 @@
   --control-field: var(--control-height);
   --control-lg: 52px;
   --select-menu-max-height: 288px;
-  /* Raios: 12 · 20 · 28 · pill */
+  /* Raios: 14 · 24 · 32 · pill */
   /* Elevação e canvas */
-  --canvas-glow: color-mix(in srgb, var(--p) 12%, transparent);
+  --canvas-glow: color-mix(in srgb, var(--p) 16%, transparent);
   --public-glow: transparent;
   --canvas-grid: color-mix(in srgb, var(--ink) 2.2%, transparent);
   --nav-h: 72px;

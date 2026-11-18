@@ -17,8 +17,8 @@ const check = (passed, name, detail = '') => {
   const heroAt320 = await page.locator('.public-hero').evaluate((hero) => Math.round(hero.getBoundingClientRect().height));
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
-      && await page.locator('.public-value:visible').count() === 1,
-    'landing se ajusta a 320 px sem overflow e exibe uma área por vez',
+      && await page.locator('.landing-tutorial-panel:visible').count() === 1,
+    'landing se ajusta a 320 px sem overflow e mantém uma demonstração selecionada',
   );
   check(
     await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
@@ -33,41 +33,21 @@ const check = (passed, name, detail = '') => {
   await page.setViewportSize({ width: 768, height: 900 });
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
-      && await page.locator('.public-values').evaluate((grid) => {
-        const cards = [...grid.children].map((card) => card.getBoundingClientRect());
-        const top = cards[0].top;
-        const lefts = cards.filter((card) => Math.abs(card.top - top) < 1).map((card) => Math.round(card.left));
-        return new Set(lefts).size === 2;
-      }),
-    'grade de áreas se ajusta a tablets sem overflow',
+      && await page.locator('.landing-tutorial-tabs').isVisible(),
+    'navegação das demonstrações se ajusta a tablets sem overflow',
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   const desktopLanding = await page.evaluate(() => {
     const actions = [...document.querySelectorAll('.public-hero .public-actions .btn')]
       .map((button) => button.getBoundingClientRect());
-    const values = [...document.querySelectorAll('.public-value')]
-      .map((card) => card.getBoundingClientRect());
-    const cardsContainer = document.querySelector('.public-values').getBoundingClientRect();
-    const firstRow = values.filter((card) => Math.abs(card.top - values[0].top) < 1);
-    const secondRow = values.filter((card) => Math.abs(card.top - values[2].top) < 1);
+    const video = document.querySelector('.landing-tutorial-panel:not([hidden]) video').getBoundingClientRect();
     return {
       singleAction: actions.length === 1,
-      balancedRows: values.length === 4 && firstRow.length === 2 && secondRow.length === 2,
-      centeredRows: Math.abs(
-        (secondRow[0].left + secondRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
-      ) < 2,
-      centeredFirstRow: Math.abs(
-        (firstRow[0].left + firstRow[1].right) / 2 - (cardsContainer.left + cardsContainer.right) / 2,
-      ) < 2,
-      cardWidth: Math.max(...values.map((card) => card.width)),
+      tutorialFits: video.width > 0 && video.right <= document.documentElement.clientWidth,
     };
   });
   check(desktopLanding.singleAction, 'hero mantém uma única ação de demonstração');
-  check(
-    desktopLanding.balancedRows && desktopLanding.centeredRows && desktopLanding.centeredFirstRow,
-    'quatro áreas formam uma grade equilibrada no desktop',
-  );
-  check(desktopLanding.cardWidth <= 560, 'cards da landing permanecem dentro da coluna no desktop', `${Math.round(desktopLanding.cardWidth)}px`);
+  check(desktopLanding.tutorialFits, 'vídeo da demonstração permanece dentro da largura no desktop');
   await page.setViewportSize({ width: 320, height: 780 });
   check(
     await page.locator('.public-account-section, .public-account-access').count() === 0,
@@ -75,21 +55,21 @@ const check = (passed, name, detail = '') => {
   );
   check(
     await page.locator('#landing-main').evaluate((main) => {
-      const faq = main.lastElementChild;
-      const suggestion = faq?.querySelector('[data-suggestion-disclosure]');
-      return faq?.classList.contains('public-faq')
-        && faq.querySelectorAll('.public-faq-item').length === 11
-        && suggestion?.open === false;
+      const faq = main.querySelector('.public-faq');
+      const suggestion = main.querySelector('[data-suggestion-disclosure]');
+      return faq?.querySelectorAll('.public-faq-item').length === 5
+        && suggestion?.open === false
+        && Boolean(suggestion?.closest('.public-community'));
     }),
-    'sugestão fica recolhida na FAQ, no fim do conteúdo principal',
+    'sugestão fica recolhida junto ao convite de feedback, fora da FAQ',
   );
   const heroSignup = page.locator('.public-topbar [data-public-action="signup"]');
   check(
     await heroSignup.count() === 1 && !await heroSignup.evaluate((button) => button.classList.contains('primary')),
     'cadastro permanece disponível no cabeçalho sem competir com a demonstração',
   );
-  check(await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 10,
-    'FAQ da landing apresenta respostas de produto, dados e uso');
+  check(await page.locator('.public-faq-item').count() === 5,
+    'FAQ da landing apresenta cinco respostas essenciais');
   await page.getByRole('link', { name: /criar conta/i }).first().click();
   await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
   check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');

@@ -27,7 +27,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             const expected = getComputedStyle(probe).boxShadow;
             probe.remove();
             const heroStyle = getComputedStyle(document.querySelector(selector));
-            const card = document.querySelector(selector === '.public-hero' ? '.public-value' : '.home-quick-card');
+            const card = document.querySelector(selector === '.public-hero' ? '.public-community' : '.home-quick-card');
             const cardStyle = getComputedStyle(card);
             const cardProbe = document.createElement('div');
             cardProbe.style.boxShadow = 'var(--elev-1)';
@@ -54,13 +54,14 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
               dialogShadow,
             };
           }, route === '/' ? '.public-hero' : '.home-head');
-          assert.deepEqual(styles.tokens, ['12px', '20px', '28px', '999px', 'none']);
-          assert.deepEqual(styles.aliases, ['12px', '12px', '12px', '28px']);
-          assert.equal(styles.heroRadius, '28px', `${route} ${width}px ${theme}: raio do destaque`);
-          assert.equal(styles.heroShadow, styles.expected, `${route} ${width}px ${theme}: elevação do destaque`);
-          assert.equal(styles.cardRadius, '20px', `${route} ${width}px ${theme}: raio do cartão`);
-          assert.equal(styles.cardShadow, styles.expectedCardShadow, `${route} ${width}px ${theme}: elevação do cartão`);
-          assert.equal(styles.dialogRadius, width < 900 ? '28px 28px 0px 0px' : '28px');
+          assert.deepEqual(styles.tokens, ['14px', '24px', '32px', '999px', 'none']);
+          assert.deepEqual(styles.aliases, ['14px', '14px', '14px', '32px']);
+          const publicLanding = route === '/';
+          assert.equal(styles.heroRadius, publicLanding ? '24px' : '32px', `${route} ${width}px ${theme}: raio do destaque`);
+          assert.equal(styles.heroShadow, publicLanding ? 'none' : styles.expected, `${route} ${width}px ${theme}: elevação do destaque`);
+          assert.equal(styles.cardRadius, publicLanding ? '0px' : '24px', `${route} ${width}px ${theme}: raio da seção`);
+          assert.equal(styles.cardShadow, publicLanding ? 'none' : styles.expectedCardShadow, `${route} ${width}px ${theme}: elevação da seção`);
+          assert.equal(styles.dialogRadius, width < 900 ? '32px 32px 0px 0px' : '32px');
           assert.equal(styles.dialogShadow, styles.expected);
           themeShadows.push(styles.expected);
         }
@@ -78,7 +79,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
         assert.equal(automaticShadow, themeShadows[1], `${route} ${width}px: tema escuro automático`);
       }
     }
-    console.log('OK — raios e elevações em destaques, cartões e diálogos');
+    console.log('OK — raios e elevações em destaques, seções e diálogos');
     await page.goto(`${base}/tests/design-system-check.html`);
     await page.waitForFunction(() => !document.querySelector('#status').textContent.includes('Lendo'));
     const failures = await page.locator('#results li').filter({ hasText: 'FALHOU' }).allTextContents();

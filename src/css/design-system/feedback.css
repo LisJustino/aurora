@@ -20,6 +20,44 @@
 .badge.bad { background: var(--bad-soft); color: var(--bad); }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }
 
+.pull-refresh-indicator {
+  position: fixed;
+  z-index: var(--z-toast);
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% + var(--pull-refresh-offset, 0px)));
+  transition: opacity 120ms ease-out, transform 120ms ease-out;
+}
+.pull-refresh-icon { display: grid; place-items: center; color: var(--accent); }
+.pull-refresh-icon svg { transform: rotate(var(--pull-refresh-rotation, 0deg)); }
+.app.is-pulling-to-refresh .pull-refresh-indicator { opacity: 1; }
+.app.is-pull-refresh-ready .pull-refresh-indicator { border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); background: var(--surface-strong); }
+.app.is-refreshing .pull-refresh-icon svg { animation: pull-refresh-spin .8s linear infinite; }
+@keyframes pull-refresh-spin { to { transform: rotate(360deg); } }
+@media (width >= 900px) {
+  .pull-refresh-indicator { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh-indicator { transition: none; }
+  .app.is-refreshing .pull-refresh-icon svg { animation: none; }
+}
+:root[data-motion="reduce"] .pull-refresh-indicator { transition: none; }
+:root[data-motion="reduce"] .app.is-refreshing .pull-refresh-icon svg { animation: none; }
+
 
 /* Estados vazios usam sempre a mesma orientação: ícone, contexto e uma única ação de continuidade. */
 .empty {

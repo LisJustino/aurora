@@ -11,6 +11,26 @@ const origin = 'https://aurora-rotinas.com.br';
 const distFile = (urlPath) => resolve(dist, `.${decodeURIComponent(urlPath)}`);
 const meta = (html, attr, name) =>
   html.match(new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`))?.[1];
+const countTags = (html, pattern) =>
+  [...html.matchAll(pattern)].length;
+
+for (const page of ['index.html', '404.html', 'offline.html', 'privacy.html', 'terms.html']) {
+  const html = await readFile(resolve(dist, page), 'utf8');
+  assert.equal(countTags(html, /<title(?:\s[^>]*)?>/gi), 1, `${page}: deve conter exatamente um title.`);
+  for (const [attr, name] of [
+    ['name', 'description'],
+    ['name', 'robots'],
+    ['property', 'og:title'],
+    ['property', 'og:description'],
+    ['name', 'twitter:title'],
+    ['name', 'twitter:description'],
+  ]) {
+    const matches = countTags(html, new RegExp(`<meta\\s[^>]*${attr}="${name}"[^>]*>`, 'gi'));
+    if (matches > 1) assert.fail(`${page}: meta ${attr}="${name}" está duplicada.`);
+  }
+  const canonicals = countTags(html, /<link\s[^>]*rel="canonical"[^>]*>/gi);
+  if (canonicals > 1) assert.fail(`${page}: canonical está duplicado.`);
+}
 const redirectRules = (await readFile(resolve(dist, '_redirects'), 'utf8'))
   .split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'))
   .map((line) => line.split(/\s+/));
@@ -37,9 +57,14 @@ for (const page of ['index.html', 'privacy.html', 'terms.html']) {
   assert.ok(description && description.length >= 50 && description.length <= 160, `${page}: description ausente ou fora de 50–160 caracteres.`);
 }
 
-for (const page of ['pages/agua.html', 'pages/ajustes.html', 'pages/ciclo.html', 'pages/financas.html', 'pages/habitos.html', 'pages/inicio.html', 'pages/perfil.html', 'pages/planejar.html']) {
-  const html = await readFile(resolve(dist, page), 'utf8');
-  assert.equal(meta(html, 'name', 'robots'), 'noindex', `${page}: rota protegida deve usar noindex.`);
+for (const legacyPage of [
+  'agua', 'ajustes', 'ciclo', 'financas', 'habitos', 'inicio', 'perfil', 'planejar',
+]) {
+  await access(resolve(dist, 'pages', `${legacyPage}.html`))
+    .then(() => assert.fail(`pages/${legacyPage}.html: página legada não deve ser publicada em dist/.`))
+    .catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
 }
 
 const home = await readFile(resolve(dist, 'index.html'), 'utf8');
@@ -74,7 +99,7 @@ assert.equal(meta(home, 'property', 'og:image:width'), '1200');
 assert.equal(meta(home, 'property', 'og:image:height'), '630');
 const imageAlt = meta(home, 'property', 'og:image:alt');
 assert.equal(meta(home, 'name', 'twitter:image:alt'), imageAlt);
-assert.match(imageAlt, /Menos ruído\. Mais clareza no dia\./);
+assert.match(imageAlt, /Vamos por partes\./);
 for (const area of ['Planejar', 'Hábitos', 'Finanças', 'Ciclo']) assert.ok(imageAlt.includes(area));
 const socialImage = await readFile(distFile('/og/aurora-1200x630.png'));
 assert.equal(socialImage.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
@@ -83,24 +108,21 @@ assert.equal(socialImage.readUInt32BE(20), 630);
 
 const jsonLd = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => JSON.parse(m[1]));
 const types = jsonLd.map((item) => item['@type']);
-assert.ok(types.includes('SoftwareApplication') && types.includes('FAQPage'), 'JSON-LD sem SoftwareApplication/FAQPage.');
+assert.ok(types.includes('SoftwareApplication'), 'JSON-LD sem SoftwareApplication.');
+assert.ok(!types.includes('FAQPage'), 'FAQPage não deve gerar dados estruturados incompatíveis com os rich results atuais.');
 const landingTitle = 'aurora. — tarefas, hábitos, finanças e ciclo';
-const landingDescription = 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.';
+const landingDescription = 'Anote o que está pendente. Escolha o que cabe hoje e deixe o resto para depois.';
 assert.equal(home.match(/<title>([^<]+)<\/title>/)?.[1], landingTitle);
 const searchDescription = meta(home, 'name', 'description');
 assert.ok(searchDescription.length >= 130 && searchDescription.length <= 155,
   'A descrição de busca da landing deve ter aproximadamente 145 caracteres.');
-assert.match(searchDescription, /Aurora grátis, sem cadastro/);
+assert.match(searchDescription, /Aurora é grátis e dá para experimentar sem cadastro/);
 assert.equal(meta(home, 'property', 'og:title'), landingTitle);
 assert.equal(meta(home, 'property', 'og:description'), landingDescription);
 assert.equal(meta(home, 'name', 'twitter:title'), landingTitle);
 assert.equal(meta(home, 'name', 'twitter:description'), landingDescription);
 const softwareApplication = jsonLd.find((item) => item['@type'] === 'SoftwareApplication');
 assert.equal(softwareApplication?.description, landingDescription);
-const landingFaq = jsonLd.find((item) => item['@type'] === 'FAQPage');
-assert.equal(landingFaq?.mainEntity?.length, 10, 'FAQ estruturado deve acompanhar as perguntas publicadas na landing.');
-assert.ok(landingFaq.mainEntity.every((question) => home.includes(question.name)),
-  'FAQ estruturado deve corresponder às perguntas da landing pré-renderizada.');
 
 const manifestFiles = ['manifest.webmanifest', 'manifest-light.webmanifest', 'manifest-dark.webmanifest'];
 const manifests = await Promise.all(manifestFiles.map(async (file) =>
@@ -110,7 +132,7 @@ const expectedShortcuts = [
   { name: 'Hoje', short_name: 'Hoje', url: './inicio' },
   { name: 'Tarefas', short_name: 'Tarefas', url: './planejar' },
   { name: 'Hábitos', short_name: 'Hábitos', url: '/habitos' },
-  { name: 'Água', short_name: 'Água', url: '/agua' },
+  { name: 'Água', short_name: 'Água', url: '/habitos' },
   { name: 'Finanças', short_name: 'Finanças', url: '/financas' },
 ];
 for (const [index, item] of manifests.entries()) {
@@ -141,7 +163,7 @@ const lightBackground = tokens.match(/--canvas-initial:\s*(#[\da-f]{6})\s*;/i)?.
 assert.ok(lightBackground, 'O fundo inicial deve estar definido nos tokens.');
 assert.equal(manifest.background_color, lightBackground, 'A splash deve acompanhar o fundo inicial.');
 assert.equal(manifest.theme_color, lightBackground, 'O manifesto deve acompanhar o fundo inicial.');
-for (const page of ['index.html', 'privacy.html', 'terms.html', 'pages/agua.html', 'pages/ajustes.html', 'pages/ciclo.html', 'pages/financas.html', 'pages/habitos.html', 'pages/inicio.html', 'pages/perfil.html', 'pages/planejar.html']) {
+for (const page of ['index.html', 'privacy.html', 'terms.html']) {
   const html = await readFile(resolve(dist, page), 'utf8');
   assert.ok(html.includes(`name="theme-color" content="${lightBackground}" media="(prefers-color-scheme: light)"`),
     `${page}: theme-color claro não corresponde ao fundo inicial.`)
@@ -158,16 +180,35 @@ for (const screenshot of manifest.screenshots) {
   await assertNotRedirected(urlPath, 'manifest screenshot');
 }
 await assertServed('/offline.html', 'fallback offline');
-for (const href of ['/favicon.ico', '/icons/apple-touch-icon.png', '/icons/favicon-32.png']) {
+for (const href of ['/favicon.ico', '/icons/apple-touch-icon.png', '/icons/favicon-32.png', '/icons/favicon-512.png']) {
   await assertServed(href, 'ícone');
   await assertNotRedirected(href, 'ícone');
+}
+const faviconPng = await readFile(distFile('/icons/favicon-512.png'));
+assert.equal(faviconPng.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+assert.equal(faviconPng.readUInt32BE(16), 512);
+assert.equal(faviconPng.readUInt32BE(20), 512);
+for (const page of ['index.html', 'privacy.html', 'terms.html', '404.html', 'offline.html']) {
+  const html = await readFile(resolve(dist, page), 'utf8');
+  const faviconHref = html.match(/<link rel="icon" type="image\/png" sizes="512x512" href="([^"]*favicon-512[^"]*\.png)">/)?.[1];
+  assert.ok(faviconHref, `${page}: favicon PNG de alta resolução ausente.`);
+  await assertServed(new URL(faviconHref, origin).pathname, `${page}: favicon PNG`);
 }
 
 const robots = await readFile(resolve(dist, 'robots.txt'), 'utf8');
 assert.ok(robots.includes(`Sitemap: ${origin}/sitemap.xml`), 'robots.txt sem referência ao sitemap.');
 const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
-for (const path of ['/', '/privacy.html', '/terms.html']) {
+const sitemapPaths = [...sitemap.matchAll(/<loc>https:\/\/aurora-rotinas\.com\.br([^<]*)<\/loc>/g)]
+  .map((match) => match[1]);
+assert.deepEqual(sitemapPaths, ['/', '/privacy', '/terms'],
+  'O sitemap deve conter somente URLs públicas canônicas, sem aliases ou redirecionamentos.');
+for (const path of sitemapPaths) {
   assert.ok(sitemap.includes(`<loc>${origin}${path}</loc>`), `sitemap.xml sem ${path}.`);
+}
+for (const [path, page] of [['/privacy', 'privacy.html'], ['/terms', 'terms.html']]) {
+  const html = await readFile(resolve(dist, page), 'utf8');
+  assert.ok(html.includes(`<link rel="canonical" href="${origin}${path}">`),
+    `${path}: canonical deve apontar para a própria URL indexável.`);
 }
 
 console.log('SEO: metadados, imagem social, ícones, JSON-LD, robots e sitemap verificados em dist/.');

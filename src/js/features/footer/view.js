@@ -5,7 +5,7 @@ const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href
 
 export function renderSuggestionForm() {
   return `<div class="footer-faq-content">
-    <p>Sua sugestão será enviada ao Supabase para análise. O formulário não pede nome nem e-mail; evite incluir dados pessoais, senhas ou informações de saúde.</p>
+    <p>A mensagem vai para análise. Não pedimos seu nome nem e-mail; por segurança, evite incluir dados pessoais, senhas ou informações de saúde.</p>
     <form class="footer-suggestion-form" data-footer-suggestion>
       <label for="footer-suggestion-message">Sua sugestão</label>
       <textarea id="footer-suggestion-message" name="message" rows="4" minlength="10" maxlength="2000" required></textarea>
@@ -50,7 +50,7 @@ export function renderFooterContent({
     <div class="site-footer-content">
       <div class="footer-brand">
         <div class="footer-brand-mark"><img src="${brandLogo}" alt="" aria-hidden="true" width="32" height="32"><span class="wordmark">aurora<span>.</span></span></div>
-        <p>Organize tarefas, hábitos, finanças e ciclo no seu ritmo.</p>
+        <p>Um lugar para anotar as coisas e voltar a elas quando der.</p>
       </div>
       <nav class="footer-nav" aria-label="Conta">
         <h2>Conta</h2>
@@ -109,7 +109,7 @@ export function renderFooterContent({
 }
 
 export function initializeFaqDisclosure(root) {
-  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item, details[data-suggestion-disclosure]').forEach((details) => {
     const summary = details.querySelector(':scope > summary');
     if (!summary || summary.dataset.expandedStateBound) return;
     summary.dataset.expandedStateBound = 'true';

@@ -16,3 +16,6 @@ enabled = true
 
 [functions.submit-suggestion]
 verify_jwt = true
+
+[functions.google-calendar]
+verify_jwt = true

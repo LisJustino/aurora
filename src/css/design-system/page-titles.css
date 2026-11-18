@@ -11,7 +11,9 @@
   padding: var(--space-5) var(--space-5);
   border: 1px solid color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line));
   border-radius: var(--r-control);
-  background: linear-gradient(120deg, var(--area-heading-surface), var(--surface));
+  background:
+    radial-gradient(ellipse at 92% 24%, color-mix(in srgb, var(--area, var(--accent)) 9%, transparent), transparent 24rem),
+    linear-gradient(120deg, var(--area-heading-surface), var(--surface));
   box-shadow: var(--card-shadow);
 }
 

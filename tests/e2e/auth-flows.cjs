@@ -524,7 +524,7 @@ async function main() {
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }
-        await page.locator('.profile-menu-trigger').click();
+        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
         await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
         const signout = page.locator('#profile-menu [data-account-signout]');
         await signout.waitFor({ state: 'visible' });
@@ -542,8 +542,14 @@ async function main() {
           && profileMenuAlignment.signoutRight <= profileMenuAlignment.menuRight,
         'botão Sair da conta deve ficar alinhado dentro do menu');
         await page.keyboard.press('Escape');
-        assert.equal(await page.locator('.profile-menu-control').getAttribute('open'), null,
+        assert.equal(await page.locator('.mobile-profile-menu').getAttribute('open'), null,
           'menu da conta fecha ao pressionar Escape');
+        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
+        await page.locator('#profile-menu a[href="/config"]').click();
+        await page.locator('.settings-link[data-settings-tab="account"]').click();
+        await page.locator('.account-session-card [data-account-signout]').waitFor({ state: 'visible' });
+        await page.locator('.nav a[href="/inicio"]').click();
+        await page.locator('.main[data-route="inicio"]').waitFor({ state: 'visible' });
         const firstSteps = page.locator('.home-first-steps');
         assert.equal(await firstSteps.count(), 0,
           'cartão de primeiro acesso não aparece quando já existem tarefas');

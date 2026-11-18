@@ -11,7 +11,6 @@ const check = (passed, name, detail = '') => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
-  await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors = [];
   const interactionRequests = [];
   const mainModuleRequests = [];
@@ -25,10 +24,15 @@ const check = (passed, name, detail = '') => {
     const url = new URL(request.url());
     if (url.pathname.endsWith('/src/js/main.js')) mainModuleRequests.push(request.url());
     if (/\.(mp4|webm)$/i.test(url.pathname)) tutorialRequests.push(request.url());
-    if (collectRequests) interactionRequests.push(request.url());
+    if (collectRequests && !/\.(woff2?|ttf|otf)$/i.test(url.pathname)) interactionRequests.push(request.url());
   });
 
   await page.goto(BASE);
+  check(await page.locator('.public-site').evaluate((site) =>
+    [...site.querySelectorAll('*')].filter((element) => element.getClientRects().length > 0)
+      .every((element) => getComputedStyle(element).animationName === 'none')),
+  'landing não usa animações de entrada ou movimento automático');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.keyboard.press('Tab');
   check(await page.locator('.public-site > .skip:first-child').evaluate((link) =>
     document.activeElement === link && link.getAttribute('href') === '#landing-main'),
@@ -51,15 +55,13 @@ const check = (passed, name, detail = '') => {
     && await page.evaluate(() => document.documentElement.dataset.theme === 'light'),
   'controle de tema mantém o ciclo claro, escuro e automático');
   check(mainModuleRequests.length === 0, 'landing pública não baixa o módulo completo antes da autenticação');
-  check(await page.locator('.public-values p, .preview-cycle-week i, .preview-cycle-days i, .preview-cycle-note, .preview-cycle-privacy, .preview-task-heading small, .preview-task-row b, .preview-task-row small, .public-footer .footer-brand p, .public-footer .footer-meta').evaluateAll((elements) =>
+  check(await page.locator('.landing-tutorial-description, .landing-tutorial-summary li, .public-faq-item p, .public-trust-copy p, .public-footer .footer-brand p, .public-footer .footer-meta').evaluateAll((elements) =>
     elements.every((element) => parseFloat(getComputedStyle(element).fontSize) >= 14)),
   'texto informativo e interativo da landing tem no mínimo 14px');
-  check(await page.getByRole('heading', { name: 'Menos ruído. Mais clareza no dia.' }).count() === 1, 'landing apresenta o benefício principal do Aurora');
-  check(await page.getByText('Feito para a vida como ela é').count() === 1
-    && await page.locator('.public-values > .public-value').count() === 4
-    && await page.locator('.public-journey-grid').count() === 0,
-  'landing apresenta as áreas sem repetir uma jornada intermediária');
-  const tutorialTabs = page.getByRole('tablist', { name: 'Áreas do Aurora' });
+  check(await page.getByRole('heading', { name: 'Vamos por partes.' }).count() === 1, 'landing fala de organizar um dia de cada vez');
+  check(await page.locator('.public-problem-card, .public-value, .public-area-capture, .public-demo-invite').count() === 0,
+    'landing não repete o conteúdo das demonstrações em cards ou convites');
+  const tutorialTabs = page.getByRole('tablist', { name: 'Escolha o que quer ver' });
   check(await tutorialTabs.getByRole('tab').count() === 5
     && await page.locator('.landing-tutorial-panel:visible').count() === 1
     && await page.locator('.landing-tutorial-panel video').count() === 5
@@ -96,63 +98,59 @@ const check = (passed, name, detail = '') => {
   }), 'vídeo da landing respeita a proporção 16:9 em tela estreita');
   const community = page.locator('.public-community');
   check(await community.evaluate((section) =>
-    section.previousElementSibling?.classList.contains('public-tutorials')
-    && section.previousElementSibling.previousElementSibling?.classList.contains('public-features')
-    && section.nextElementSibling?.classList.contains('public-cta-panel'))
-    && await community.getByRole('heading', { name: 'Ajude a melhorar o Aurora' }).count() === 1
-    && await community.getByRole('link', { name: 'Enviar uma sugestão' }).getAttribute('href') === '#public-suggestion'
-    && await community.getByText(/Conte o que tornaria sua rotina mais simples/).count() === 1,
-  'convite de feedback aparece após as áreas sem destacar falta de avaliações');
+    section.parentElement?.classList.contains('public-main')
+    && section.previousElementSibling?.classList.contains('public-closing')
+    && section.nextElementSibling?.classList.contains('public-faq'))
+    && await community.getByRole('heading', { name: 'Conta pra gente' }).count() === 1
+    && await community.getByText('Mandar uma ideia', { exact: true }).count() === 1
+    && await community.getByText(/O que ficou faltando\? O que atrapalhou\?/).count() === 1,
+  'convite de feedback fica junto ao encerramento, antes do FAQ');
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     check(await community.evaluate((section) => {
       const bounds = section.getBoundingClientRect();
-      const link = section.querySelector('a').getBoundingClientRect();
-      return link.left >= bounds.left && link.right <= bounds.right
+      const summary = section.querySelector('.public-suggestion > summary').getBoundingClientRect();
+      return summary.left >= bounds.left && summary.right <= bounds.right
         && document.documentElement.scrollWidth <= innerWidth;
-    }), `convite da comunidade cabe sem overflow em ${width}px`);
+    }), `convite de feedback cabe sem overflow em ${width}px`);
   }
   await page.setViewportSize({ width: 390, height: 844 });
   check(await page.getByRole('heading', { name: 'Feito por uma pessoa só, com cuidado' }).count() === 0
-    && await page.locator('.public-main > .public-maker').count() === 0
-    && await page.locator('.public-main > .public-features').evaluate((features) =>
-      features.previousElementSibling?.classList.contains('public-hero')),
-  'landing apresenta as áreas diretamente após o hero, sem a seção removida');
+    && await page.locator('.public-main > .public-tutorials').evaluate((tutorials) =>
+      tutorials.previousElementSibling?.classList.contains('public-hero'))
+    && await page.locator('.public-main > .public-trust').evaluate((trust) =>
+      trust.previousElementSibling?.classList.contains('public-tutorials'))
+    && await page.locator('.public-main > .public-closing').evaluate((closing) =>
+      closing.previousElementSibling?.classList.contains('public-trust'))
+    && await page.locator('.public-main > .public-community').evaluate((section) =>
+      section.previousElementSibling?.classList.contains('public-closing'))
+    && await page.locator('.public-main > .public-faq').evaluate((faq) =>
+      faq.previousElementSibling?.classList.contains('public-community')),
+  'landing segue do hero ao vídeo, informações essenciais, instalação, feedback e FAQ');
   const suggestionDisclosure = page.locator('[data-suggestion-disclosure]');
   const pricingDisclosure = page.locator('.public-faq-item').first();
-  check(await pricingDisclosure.evaluate((item) => item.open)
-    && await pricingDisclosure.locator('p').isVisible()
-    && await pricingDisclosure.locator('summary').getAttribute('aria-expanded') === 'true',
-  'resposta sobre gratuidade está aberta e acessível por padrão');
+  check(!(await pricingDisclosure.evaluate((item) => item.open))
+    && !(await pricingDisclosure.locator('p').isVisible())
+    && await pricingDisclosure.locator('summary').getAttribute('aria-expanded') === 'false',
+  'respostas da FAQ começam recolhidas');
   await pricingDisclosure.locator('summary').click();
-  await page.waitForFunction(() => document.querySelector('.public-faq-item summary').getAttribute('aria-expanded') === 'false');
-  check(!(await pricingDisclosure.evaluate((item) => item.open)),
-    'resposta sobre gratuidade ainda pode ser recolhida');
+  await page.waitForFunction(() => document.querySelector('.public-faq-item summary').getAttribute('aria-expanded') === 'true');
+  check(await pricingDisclosure.evaluate((item) => item.open)
+    && await pricingDisclosure.locator('p').isVisible(),
+  'resposta sobre gratuidade abre pela pergunta');
   check(await page.locator('.public-faq-item').first().locator('summary').textContent().then((text) => /grátis/i.test(text))
-    && await page.locator('.public-faq-item:not([data-suggestion-disclosure])').count() === 10
-    && await page.locator('.public-faq-item').count() === 11
+    && await page.locator('.public-faq-item').count() === 5
     && await page.locator('.public-faq').getByText(/não são criptografados|sem conexão|confirmar meu e-mail/i).count() === 0
-    && await page.locator('.public-faq').getByText(/Onde ficam meus dados\?|Posso exportar meus dados\?|Posso apagar minha conta\?/).count() === 3
+    && await page.locator('.public-faq').getByText('Como cuido dos meus dados?', { exact: true }).count() === 0
+    && await page.locator('.public-trust a[href="/privacy.html"]').count() === 1
     && await page.locator('.public-footer form[data-footer-suggestion]').count() === 0
     && await suggestionDisclosure.count() === 1
     && await suggestionDisclosure.evaluate((disclosure) =>
-      !disclosure.open && Boolean(disclosure.closest('.public-faq-list')))
+      !disclosure.open && Boolean(disclosure.closest('.public-community')))
     && await suggestionDisclosure.locator(':scope > summary').getAttribute('aria-expanded') === 'false'
     && await suggestionDisclosure.locator('form[data-footer-suggestion]').count() === 1
     && !(await suggestionDisclosure.locator('form[data-footer-suggestion]').isVisible()),
-  'FAQ mantém respostas recolhidas e o formulário de sugestão no fim');
-  check(await page.locator('.public-value-preview').count() === 4
-    && await page.locator('.public-value-preview video').count() === 0
-    && await page.locator('.public-value-preview').evaluateAll((previews) => previews.filter((preview) => preview.getClientRects().length).every((preview) => {
-      const box = preview.getBoundingClientRect();
-      return box.width > 100 && preview.scrollWidth <= box.width + 2;
-    })),
-  'cada área tem uma prévia estática feita em HTML e CSS');
-  check(await page.locator('.public-value:visible').count() === 1, 'celular exibe uma área por vez');
-  await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
-  check(await page.locator('.public-value:visible h3').textContent() === 'Ciclo'
-    && await page.getByRole('button', { name: 'Ciclo', exact: true }).getAttribute('aria-pressed') === 'true',
-  'seletor móvel troca a área exibida');
+  'FAQ reduzido mantém cinco dúvidas e o formulário de sugestão fica separado');
   check(await page.getByText('profissional e mãe').count() === 0
     && await page.getByText('estudante e freelancer').count() === 0
     && await page.getByText('gestora de rotina').count() === 0, 'landing não apresenta depoimentos fictícios');
@@ -163,64 +161,53 @@ const check = (passed, name, detail = '') => {
   'demonstração é o único CTA primário do hero e abre como página sem cadastro');
   check(await page.locator('.public-hero .public-actions').evaluate((actions) =>
     actions.nextElementSibling?.matches('.public-price-note')
-    && actions.nextElementSibling.textContent.includes('Grátis e sem cadastro.')),
+    && actions.nextElementSibling.textContent.includes('É grátis e dá para experimentar')),
   'informação de gratuidade aparece diretamente abaixo do CTA');
-  check(await page.locator('.preview-cycle-privacy').getAttribute('href') === '/privacy'
-    && await page.locator('.public-values').getAttribute('role') === 'group',
-  'link de privacidade vai direto ao destino final e o grupo de áreas tem nome semântico');
-  check(await page.locator('.preview-phone-nav').getByText('Ciclo').count() === 1,
-    'prévia do celular mostra as quatro áreas, incluindo Ciclo');
+  check(await page.locator('.public-trust a[href="/privacy.html"]').count() === 1
+    && await page.locator('.public-header-nav .ni').count() === 0,
+  'privacidade tem link direto e a navegação pública evita ícones decorativos');
+  check(await page.locator('.public-faq-item').evaluateAll((items) => items.every((item) => {
+    const style = getComputedStyle(item);
+    return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' && style.borderRadius === '0px';
+  })), 'perguntas aparecem como linhas simples, sem caixas individuais');
+  check(await page.locator('.public-community, .public-cta-panel').evaluateAll((sections) => sections.every((section) => {
+    const style = getComputedStyle(section);
+    return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' && style.borderRadius === '0px';
+  })), 'convites de feedback e instalação não usam caixas decorativas');
+  check(await page.locator('.public-hero picture source').getAttribute('srcset') === '/screenshots/demo-mobile.png'
+    && await page.locator('.public-hero .public-product-capture').getAttribute('alt') === 'Tela da demonstração interativa do Aurora, com dados fictícios.',
+  'hero usa a captura real da demonstração e inclui a variante móvel');
   check(await page.locator('.public-hero [data-public-action="signup"], .public-hero [data-public-action="login"]').count() === 0,
     'hero não repete ações de cadastro ou entrada');
-  check(await page.locator('.public-cta-panel [data-public-action="signup"], .public-cta-panel [data-public-action="demo"]').count() === 0,
-    'painel de instalação mantém sua ação própria');
+  check(await page.locator('.public-cta-panel [data-public-action="signup"], .public-cta-panel [data-public-action="demo"]').count() === 0
+    && await page.locator('.public-cta-panel [data-action="pwa-install"]').count() === 1
+    && await page.locator('.public-cta-panel .public-actions .btn').count() === 1
+    && await page.locator('.public-footer [data-action="pwa-install"]').count() === 0,
+  'instalação é a única ação no encerramento e não se repete no rodapé');
   check(await page.locator('.public-final-cta').count() === 0
     && await page.locator('.public-main').evaluate((main) =>
       main.nextElementSibling?.matches('footer.public-footer')),
   'a landing termina no conteúdo útil e segue direto ao rodapé');
   await page.setViewportSize({ width: 390, height: 844 });
-  const heroTask = page.locator('.public-hero [data-landing-task]').last();
-  const heroTasks = page.locator('.public-hero [data-landing-task]');
-  check(await page.locator('.public-hero .preview-phone').count() === 1
-    && await page.locator('.preview-phone [data-landing-task]').count() === 3
-    && await page.locator('.public-hero .preview-float').count() === 0,
-  'hero apresenta um único celular com tarefas interativas, sem cartões flutuantes');
-  check(await page.locator('.preview-phone').evaluate((phone) => {
-    const bounds = phone.getBoundingClientRect();
-    return bounds.height / bounds.width >= 1.7;
-  })
-    && await page.locator('.preview-phone-screen').count() === 1
-    && await page.locator('.preview-phone-logo').evaluate((logo) => logo.complete && logo.naturalWidth > 0 && logo.alt === '')
-    && await page.locator('.preview-phone-wordmark').textContent() === 'aurora.',
-  'prévia mostra uma tela de celular com o logo oficial do Aurora');
-  const taskName = await heroTask.getAttribute('aria-label');
-  check(await heroTask.locator('i').evaluate((mark) => getComputedStyle(mark).color === 'rgba(0, 0, 0, 0)'),
-    'tarefa pendente não exibe uma marca de conclusão');
-  await heroTask.click();
-  check(await heroTask.getAttribute('aria-pressed') === 'true'
-    && await heroTask.getAttribute('aria-label') === taskName
-    && await heroTask.locator('small').textContent() === 'Concluída'
-    && await heroTask.locator('i').evaluate((mark) => mark.textContent === '✓' && getComputedStyle(mark).color !== 'rgba(0, 0, 0, 0)')
-    && await page.locator('[data-preview-task-summary]').textContent() === '3 de 3 feitas'
-    && await page.locator('[data-landing-task-group]').getAttribute('aria-label') === '3 de 3 tarefas de exemplo concluídas'
-    && await page.locator('.preview-task-progress i').evaluate((progress) => progress.style.width) === '100%',
-  'mock do hero permite concluir uma tarefa sem sair da landing');
-  await heroTask.focus();
-  await page.keyboard.press('Space');
-  await heroTasks.nth(0).click();
-  await heroTasks.nth(1).click();
-  check(await heroTask.getAttribute('aria-pressed') === 'false'
-    && await heroTask.getAttribute('aria-label') === taskName
-    && await heroTask.locator('i').evaluate((mark) => getComputedStyle(mark).color === 'rgba(0, 0, 0, 0)')
-    && await heroTasks.first().locator('small').textContent() === 'Seu próximo passo'
-    && await page.locator('[data-preview-task-summary]').textContent() === '0 de 3 feitas'
-    && await page.locator('.preview-task-progress i').evaluate((progress) => progress.style.width) === '0%',
-  'tarefas podem ser desmarcadas pelo teclado e pelo clique, atualizando o progresso');
-  for (const task of await heroTasks.all()) await task.click();
+  const heroCapture = page.locator('.public-product-capture');
+  check(await heroCapture.evaluate((image) =>
+    image.complete && image.naturalWidth === 390 && image.naturalHeight === 844
+      && image.currentSrc.endsWith('/screenshots/demo-mobile.png')),
+  'hero carrega a captura real em formato móvel');
+  await page.setViewportSize({ width: 1280, height: 844 });
+  check(await heroCapture.evaluate((image) =>
+    image.complete && image.naturalWidth === 1280 && image.naturalHeight === 720
+      && image.currentSrc.endsWith('/screenshots/demo-wide.png')),
+  'hero troca para a captura real em formato desktop');
+  check(await page.locator('.public-area-capture img, .public-problem-card, .public-value, .public-demo-invite').count() === 0,
+    'a landing usa os vídeos como apresentação das áreas, sem cards duplicados');
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'landing não tem overflow horizontal em 320 px');
   check(await page.locator('.public-journey-grid').count() === 0,
     'landing não repete a proposta de valor em uma jornada no celular');
+  check(await page.locator('.public-area-capture img, .public-problem-card, .public-value').count() === 0
+    && await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+  'a landing simplificada cabe na tela estreita sem rolagem horizontal');
   await page.setViewportSize({ width: 390, height: 844 });
   const termsTrigger = page.locator('[data-legal-document="terms"]').first();
   await page.evaluate(() => window.scrollTo(0, 200));
@@ -296,6 +283,21 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), pessoa/i }).waitFor();
   check(mainModuleRequests.length === 0, 'a demonstração direta não baixa o módulo completo');
   check(await page.locator('.demo-nav-link').count() === 8, 'demonstração oferece navegação pelas áreas do app');
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    const navigationLayout = await page.locator('.demo-nav').evaluate((nav) => ({
+      overflowX: getComputedStyle(nav).overflowX,
+      clientWidth: nav.clientWidth,
+      scrollWidth: nav.scrollWidth,
+      linksFit: [...nav.querySelectorAll('.demo-nav-link')].every((link) =>
+        link.getBoundingClientRect().width >= 80 && link.scrollWidth <= link.clientWidth + 1),
+      pageFits: document.documentElement.scrollWidth <= innerWidth,
+    }));
+    check(navigationLayout.overflowX === 'auto'
+      && navigationLayout.scrollWidth > navigationLayout.clientWidth
+      && navigationLayout.linksFit && navigationLayout.pageFits,
+    `menu da demonstração permite rolagem sem sobrepor rótulos em ${width}px`);
+  }
   const sampleBanner = page.getByRole('note');
   check(await sampleBanner.getByText('Demonstração com dados fictícios.', { exact: true }).isVisible()
     && await sampleBanner.getByRole('link', { name: 'Criar conta', exact: true }).isVisible(),
@@ -384,9 +386,14 @@ const check = (passed, name, detail = '') => {
   await page.evaluate(() => document.fonts.ready);
   collectRequests = true;
 
+  const taskPrompt = page.locator('.home-quick-copy p');
+  const quickTaskForm = page.locator('.home-quick-card [data-demo-task-form]');
   check(await page.getByRole('heading', { name: 'Qual é o próximo passo?' }).count() === 1
-    && await page.locator('[data-demo-task-form] input').count() === 1,
-  'Início da demonstração oferece o campo de tarefa usado no app');
+    && await taskPrompt.textContent() === 'Experimente adicionar uma tarefa.'
+    && await quickTaskForm.evaluate((form) => Boolean(form.parentElement.querySelector('.home-quick-copy p').compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING))
+    && await quickTaskForm.locator('input').count() === 1
+    && await page.locator('.home-quick-card .demo-session-note').textContent() === 'As mudanças são descartadas ao sair.',
+  'Início da demonstração convida a adicionar uma tarefa antes do campo');
   const taskInput = page.locator('#demo-home-task');
   await taskInput.fill('   ');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
@@ -516,6 +523,28 @@ const check = (passed, name, detail = '') => {
     && await page.locator('.demo-task-list .task').getByText(newTaskTitle, { exact: true }).count() === 0,
   'recarregar descarta as alterações da demonstração');
 
+  for (const width of [1024, 1200, 1280, 1366, 1400]) {
+    await page.setViewportSize({ width, height: 900 });
+    const navigationLayout = await page.locator('.demo-app > .topbar').evaluate((header) => {
+      const bounds = (selector) => header.querySelector(selector).getBoundingClientRect();
+      const brand = bounds('.brand');
+      const nav = bounds('.demo-nav');
+      const actions = bounds('.public-header-actions');
+      const menu = header.querySelector('.demo-nav');
+      return {
+        menuFits: menu.scrollWidth <= menu.clientWidth + 1,
+        menuBelowActions: nav.top >= Math.max(brand.bottom, actions.bottom),
+        pageFits: document.documentElement.scrollWidth <= innerWidth,
+      };
+    });
+    check(navigationLayout.menuFits
+      && navigationLayout.menuBelowActions
+      && navigationLayout.pageFits,
+    `menu da demonstração cabe sem corte em ${width}px`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  check(await page.locator('.demo-nav').evaluate((nav) => nav.scrollWidth <= nav.clientWidth + 1),
+    'menu da demonstração cabe em uma linha na tela larga');
   await page.setViewportSize({ width: 1280, height: 900 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'demonstração não tem overflow horizontal em desktop');
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -533,15 +562,13 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('link', { name: 'Voltar à página inicial' }).click();
   check(await page.locator('.public-journey-grid').count() === 0,
     'landing não repete a proposta de valor em uma jornada no desktop');
-  check(
-    await page.locator('.public-values').evaluate((grid) => {
-      const cards = [...grid.children];
-      const columns = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().left)));
-      const rows = new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top)));
-      return cards.length === 4 && columns.size === 2 && rows.size === 2;
-    }),
-    'as quatro áreas ficam organizadas em uma grade equilibrada no desktop',
-  );
+  check(await page.locator('.public-area-capture img, .public-problem-card, .public-value').count() === 0
+    && await page.locator('.public-hero .public-product-capture').evaluate((image) =>
+      image.complete && image.naturalWidth === 1280 && image.currentSrc.endsWith('/screenshots/demo-wide.png'))
+    && await page.locator('.landing-tutorial-panel:not([hidden]) video').evaluate((video) => {
+      const bounds = video.getBoundingClientRect();
+      return bounds.width > 0 && bounds.right <= document.documentElement.clientWidth;
+    }), 'landing mantém captura e vídeos sem cards duplicados ou overflow no desktop');
   await page.getByRole('link', { name: 'Perguntas', exact: true }).click();
   check(
     new URL(page.url()).hash === '#public-faq'
@@ -551,27 +578,34 @@ const check = (passed, name, detail = '') => {
       }),
     'o link Perguntas do cabeçalho leva ao FAQ',
   );
+  await page.getByRole('link', { name: 'Como funciona', exact: true }).click();
+  check(
+    new URL(page.url()).hash === '#public-tutorials'
+      && await page.locator('#public-tutorials').evaluate((section) => {
+        const bounds = section.getBoundingClientRect();
+        return bounds.top >= 0 && bounds.top < innerHeight;
+      }),
+    'o link Como funciona leva às demonstrações sem uma seção duplicada de áreas',
+  );
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Ciclo', exact: true }).click();
-  await page.locator('.public-community-link').click();
+  await page.getByRole('tab', { name: 'Finanças' }).click();
+  await page.locator('[data-suggestion-disclosure] > summary').click();
   await page.waitForFunction(() => document.querySelector('[data-suggestion-disclosure] > summary')?.getAttribute('aria-expanded') === 'true');
   check(
     await page.locator('[data-suggestion-disclosure] > summary').getAttribute('aria-expanded') === 'true'
       && await page.locator('[data-suggestion-disclosure] form[data-footer-suggestion]').isVisible()
-      && await page.evaluate(() => document.activeElement === document.querySelector('[data-suggestion-disclosure] > summary'))
-      && new URL(page.url()).hash === '#public-suggestion',
-    'atalho de sugestão abre o formulário, atualiza o hash e posiciona o foco',
+      && await page.evaluate(() => document.activeElement === document.querySelector('[data-suggestion-disclosure] > summary')),
+    'atalho de sugestão abre o formulário com foco no controle',
   );
   await page.locator('[name="message"]').fill('Uma sugestão de teste');
-  const taskState = await page.locator('[data-landing-task]').last().getAttribute('aria-pressed');
   await page.locator('.public-topbar [data-public-action="login"]').click();
   await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
   check(await page.title() === 'Entrar na sua conta | aurora.', 'login tem título próprio');
   await page.locator('.account-site-header .public-brand-link').click();
   await page.locator('.public-hero').waitFor();
-  check(await page.locator('.public-value:visible h3').textContent() === 'Ciclo'
+  check(await page.getByRole('tab', { name: 'Finanças' }).getAttribute('aria-selected') === 'true'
     && await page.locator('[name="message"]').inputValue() === 'Uma sugestão de teste'
-    && await page.locator('[data-landing-task]').last().getAttribute('aria-pressed') === taskState,
+    && await page.locator('.public-product-capture').count() === 1,
   'voltar do login preserva o estado da landing nesta aba');
   await page.evaluate(() => window.scrollTo(0, 600));
   await page.waitForFunction(() => !document.querySelector('.public-mobile-cta').hidden);

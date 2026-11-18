@@ -12,6 +12,7 @@ import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { normalizeSuggestionMessage } from './features/footer/suggestions.js';
 import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { hasStoredAuthSession, hasSupabaseConfig } from './data/supabase-client.js';
 import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
@@ -244,10 +245,20 @@ function normalizeLegacyRoute() {
 
 normalizeLegacyRoute();
 
+function hasSavedAccountSession() {
+  try {
+    return hasSupabaseConfig() && hasStoredAuthSession(window);
+  } catch {
+    return false;
+  }
+}
+
+// O app instalado só pula a landing quando há sessão salva; sem sessão, mostra a landing.
 const installedLanding = routeMeta
   && !isDemoLocation(location)
   && document.documentElement.dataset.auroraAuthCallback !== 'true'
   && isAppInstalled()
+  && hasSavedAccountSession()
   && isPublicLandingLocation(location);
 if (installedLanding) {
   history.replaceState(null, '', `/inicio${location.search}`);

@@ -244,10 +244,11 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     dateLabel: 'Hoje',
     daySummary: {
       tasks: { done: 2, total: 3 },
-      habits: { done: 1, total: 2 },
+      habits: { done: 1, total: 2, remaining: 1 },
       water: { total: 750, goal: 2000, percent: 38 },
       cycle: null,
     },
+    weekProgress: { completed: 3, pending: 2 },
     homeMessage: '',
     lead: '',
     tt: [],
@@ -276,7 +277,7 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     homeHabitCheckins: () => 'HABITS',
     homeInboxReminder: () => '',
     homeUpcomingBill: () => '',
-    homeUpcomingTasks: () => '',
+    homeUpcomingTasks: () => 'UPCOMING',
     profileAvatarMarkup: () => '',
     sampleBanner: () => '',
     taskRow: () => '',
@@ -285,7 +286,7 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
   const quickIndex = html.indexOf('class="card home-quick-card"');
   const todayIndex = html.indexOf('class="home-today-card"');
   const habitsIndex = html.indexOf('HABITS');
-  const summaryIndex = html.indexOf('class="home-day-summary"');
+  const summaryIndex = html.indexOf('class="home-day-summary card"');
   if (html.includes('Mais do Início') || html.includes('class="home-extras"')) {
     throw new Error('A Home não deve exibir a seção Mais do Início.');
   }
@@ -295,11 +296,16 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
   }
   if (!html.includes('aria-label="Tarefas, 2 de 3 feitas"')
-    || !html.includes('aria-label="Hábitos, 1 de 2 feitos"')
+    || !html.includes('aria-label="Hábitos, 1 de 2 feitos, 1 faltando"')
     || !html.includes('aria-label="Água, 750 de 2.000 mililitros"')
     || !html.includes('home-day-chip-count" aria-hidden="true">38%')
+    || !html.includes('aria-valuetext="3 de 5 tarefas concluídas"')
+    || !html.includes('name="kind"')
+    || !html.includes('value="appointment">Compromisso')
+    || !html.includes('name="priority"')
+    || !html.includes('UPCOMING')
     || html.includes('href="/ciclo"')) {
-    throw new Error('A faixa deve apresentar contagens acessíveis e ocultar Ciclo sem consentimento.');
+    throw new Error('A Home deve apresentar dados acessíveis, captura configurável e ocultar Ciclo sem consentimento.');
   }
   const cycleHtml = renderHomeView({
     ...model,
@@ -322,6 +328,29 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
   }, renderers).s;
   if (noHabitsHtml.includes('href="/habitos"') || noHabitsHtml.includes('home-day-chip--habits')) {
     throw new Error('A faixa deve ocultar Hábitos quando a área está desativada.');
+  }
+  const noWeekTasksHtml = renderHomeView({
+    ...model,
+    weekProgress: { completed: 0, pending: 0 },
+  }, renderers).s;
+  if (!noWeekTasksHtml.includes('Sua semana ainda está em aberto.')
+    || noWeekTasksHtml.includes('home-week-progress-track')) {
+    throw new Error('O progresso semanal sem registros deve mostrar uma orientação, sem percentuais artificiais.');
+  }
+  const hiddenBalanceHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, balance: { cents: 12345, hidden: true } },
+  }, renderers).s;
+  if (!hiddenBalanceHtml.includes('Saldo atual nas contas oculto')
+    || hiddenBalanceHtml.includes('R$ 123,45')) {
+    throw new Error('O saldo financeiro deve respeitar a preferência de ocultação.');
+  }
+  const visibleBalanceHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, balance: { cents: 12345, hidden: false } },
+  }, renderers).s;
+  if (!/Saldo atual nas contas: R\$[^0-9]*123,45/.test(visibleBalanceHtml)) {
+    throw new Error('O resumo financeiro deve apresentar o saldo real quando estiver visível.');
   }
   if (emptyArgs?.[0] !== 'Seu Início começa aqui'
     || emptyArgs[2] !== ''
@@ -440,33 +469,31 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   }
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Menos ruído. Mais clareza no dia',
-    'Um planner independente para a vida real',
-    'Feito para a vida como ela é',
-    'Organize tarefas e prazos; acompanhe o que já foi concluído.',
+    'Vamos por partes',
+    'Quando tem coisa demais na cabeça',
+    'Veja como funciona',
+    'Escolha uma área. As etapas também estão descritas abaixo.',
     'Criar conta',
     'Ver demonstração',
-    'Grátis e sem cadastro. A demonstração usa dados fictícios e não salva suas mudanças.',
-    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.',
-    'totalmente grátis',
-    'preview-area-cycle',
+    'É grátis e dá para experimentar sem criar conta. A demonstração usa dados de exemplo e nada fica salvo.',
+    'Anote o que está pendente. Escolha o que cabe hoje e deixe o resto para depois.',
+    'É grátis, e você não precisa informar cartão.',
     'Ciclo',
-    'Escolha por onde começar',
     'Posso experimentar sem criar conta?',
     'data-footer-suggestion',
-    'Onde ficam meus dados?',
-    'Posso exportar meus dados?',
-    'Posso apagar minha conta?',
-    'O que funciona offline?',
-    'Como funcionam as notificações?',
-    'Leve sua rotina com você',
-    'Você pode exportar seus dados ou excluir sua conta.',
-    'Ajude a melhorar o Aurora',
-    'Enviar uma sugestão',
-    'Adicione o Aurora à tela inicial do celular',
-    'O Aurora não se conecta a bancos',
-    'href="/privacy"',
-    'Acompanhe datas e sintomas com seu consentimento específico',
+    'Transparência e confiança',
+    'Você decide o que registrar',
+    'O navegador não é o armazenamento principal',
+    'criptografia de ponta a ponta',
+    'Em Ajustes → Dados e backup',
+    'sem conexão',
+    'Deixe o Aurora por perto',
+    'Conta pra gente',
+    'Mandar uma ideia',
+    'Instalar no celular',
+    'Não. O Aurora não acessa sua conta bancária.',
+    'href="/privacy.html"',
+    'Com seu consentimento, você pode anotar datas e sintomas.',
   ];
   expectedContent.forEach((text) => {
     if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
@@ -474,16 +501,12 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const structuredData = [...entryHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
     .flatMap((match) => JSON.parse(match[1]));
   const softwareApplication = structuredData.find((item) => item['@type'] === 'SoftwareApplication');
-  const landingFaq = structuredData.find((item) => item['@type'] === 'FAQPage');
-  const faqNames = landingFaq?.mainEntity?.map((question) => question.name) || [];
-  if (softwareApplication?.description !== 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.'
-    || faqNames.length !== 10
-    || !faqNames.every((name) => root.innerHTML.includes(name))) {
-    throw new Error('Metadados e FAQ estruturado devem acompanhar as áreas e perguntas atuais da landing.');
+  if (softwareApplication?.description !== 'Anote o que está pendente. Escolha o que cabe hoje e deixe o resto para depois.'
+    || structuredData.some((item) => item['@type'] === 'FAQPage')) {
+    throw new Error('Metadados e FAQ estruturado devem acompanhar o conteúdo atual da landing.');
   }
-  if (root.innerHTML.includes('public-hero-support')
-    || root.innerHTML.includes('Veja como Planejar, Hábitos, Finanças e Ciclo se encaixam')) {
-    throw new Error('A landing não deve repetir benefícios que já aparecem no título e nos cartões das áreas.');
+  if (root.innerHTML.includes('public-hero-support')) {
+    throw new Error('A landing não deve repetir benefícios que já aparecem no título e nas áreas.');
   }
   if (root.innerHTML.includes('public-maker')) {
     throw new Error('A landing não deve exibir a seção de autoria removida.');
@@ -500,18 +523,42 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     || root.innerHTML.includes('gestora de rotina')) {
     throw new Error('A landing não deve apresentar depoimentos ou perfis fictícios como prova social.');
   }
+  const sectionOrder = [
+    'class="public-hero',
+    'class="public-tutorials"',
+    'class="public-trust"',
+    'class="public-closing"',
+    'class="public-community"',
+    'class="public-faq"',
+  ].map((marker) => root.innerHTML.indexOf(marker));
   const communityStart = root.innerHTML.indexOf('class="public-community"');
-  const featuresEnd = root.innerHTML.indexOf('</section>', root.innerHTML.indexOf('class="public-features"'));
+  const installStart = root.innerHTML.indexOf('class="public-cta-panel"');
   const faqStart = root.innerHTML.indexOf('class="public-faq"');
-  if (communityStart < featuresEnd || communityStart > faqStart
-    || !root.innerHTML.includes('href="#public-suggestion"')
-    || !root.innerHTML.includes('id="public-suggestion"')) {
-    throw new Error('O convite da comunidade deve aparecer entre as áreas e o FAQ e levar ao formulário de sugestões.');
+  const closingStart = root.innerHTML.indexOf('class="public-closing"');
+  const closingEnd = root.innerHTML.indexOf('</main>', closingStart);
+  const suggestionStart = root.innerHTML.indexOf('id="public-suggestion"');
+  const faqCount = (root.innerHTML.match(/class="public-faq-item"/g) || []).length;
+  if (sectionOrder.some((position) => position < 0)
+    || sectionOrder.some((position, index) => index > 0 && position <= sectionOrder[index - 1])
+    || installStart < closingStart || installStart > communityStart
+    || communityStart > faqStart
+    || faqStart > closingEnd
+    || suggestionStart < communityStart || suggestionStart > faqStart || faqCount !== 5) {
+    throw new Error('A landing deve seguir o fluxo enxuto e terminar com feedback e FAQ.');
   }
-  if (root.innerHTML.includes('não são criptografados')
-    || root.innerHTML.includes('Preciso confirmar meu e-mail?')
-    || root.innerHTML.includes('O que acontece sem conexão?')) {
-    throw new Error('Detalhes de segurança, conta e conectividade devem ficar na Política de Privacidade e no próprio app.');
+  const trustStart = root.innerHTML.indexOf('class="public-trust"');
+  const trustEnd = root.innerHTML.indexOf('</section>', trustStart);
+  const trustMarkup = root.innerHTML.slice(trustStart, trustEnd);
+  const faqMarkup = root.innerHTML.slice(faqStart, root.innerHTML.indexOf('</section>', faqStart));
+  if (!trustMarkup.includes('Supabase')
+    || !trustMarkup.includes('O navegador não é o armazenamento principal')
+    || !trustMarkup.includes('criptografia de ponta a ponta')
+    || !trustMarkup.includes('Dados e backup')
+    || !trustMarkup.includes('Seu perfil')
+    || !trustMarkup.includes('exigem conexão')
+    || !trustMarkup.includes('href="/privacy.html"')
+    || faqMarkup.includes('criptografia de ponta a ponta')) {
+    throw new Error('Privacidade, armazenamento, exportação, exclusão e uso offline devem estar claros.');
   }
   if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
     throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
@@ -520,23 +567,20 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
   const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
   if (!heroMarkup.includes('href="/demonstracao" data-public-action="demo">Ver demonstração</a>')
+    || heroMarkup.includes('href="#public-tutorials"')
     || heroMarkup.includes('data-public-action="signup"')
     || heroMarkup.includes('data-public-action="login"')
-    || !heroMarkup.includes('class="public-price-note">Grátis e sem cadastro.')
-    || !heroMarkup.includes('class="public-account-note">Você pode exportar seus dados ou excluir sua conta.')
-    || !heroMarkup.includes('href="/privacy">Privacidade e dados</a>')
+    || !heroMarkup.includes('class="public-price-note">É grátis e dá para experimentar sem criar conta.')
+    || !heroMarkup.includes('src="/screenshots/demo-wide.png"')
+    || !heroMarkup.includes('srcset="/screenshots/demo-mobile.png"')
     || (heroMarkup.match(/class="public-subtitle"/g) || []).length !== 1
     || heroMarkup.includes('class="public-lead"')) {
-    throw new Error('O hero deve priorizar a demonstração gratuita e informar como acessar dados de privacidade.');
+    throw new Error('O hero deve oferecer a demonstração, o caminho para conhecer as áreas e uma captura real.');
   }
-  const phoneNavigation = heroMarkup.match(/class="preview-phone-nav"[\s\S]*?<\/div>/)?.[0] || '';
-  if (!['preview-nav-home', 'preview-nav-planner', 'preview-nav-habits', 'preview-nav-cycle', 'preview-nav-finances']
-    .every((area) => phoneNavigation.includes(area))
-    || !['planner', 'habits', 'finances'].every((area) => heroMarkup.includes(`data-preview-area="${area}"`))) {
-    throw new Error('A prévia do celular deve exibir cinco áreas e distinguir as cores dos três itens.');
-  }
-  if (!root.innerHTML.includes('role="group" aria-label="Demonstração visual das quatro áreas"')) {
-    throw new Error('A apresentação nomeada das áreas deve ter semântica de grupo compatível.');
+  if (root.innerHTML.includes('public-problem-card')
+    || root.innerHTML.includes('public-area-capture')
+    || root.innerHTML.includes('public-demo-invite')) {
+    throw new Error('A landing não deve repetir o conteúdo dos vídeos em cards ou convites.');
   }
   if (root.innerHTML.includes('public-onboarding')) {
     throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
@@ -1970,6 +2014,15 @@ const contrastOnWhite = (hex) => 1.05 / (lum(hex) + .05);
 
 test('o tema padrão do Aurora é claro', () => {
   equal(LOOK_DEFAULT.mode, 'light');
+});
+
+test('a paleta Rosé acompanha as cores do gradiente da logo', () => {
+  const logo = readFileSync(new URL('../icons/favicon.svg', import.meta.url), 'utf8');
+  const logoColors = [...logo.matchAll(/stop-color="(#[0-9a-f]{6})"/gi)].map((match) => match[1].toLowerCase());
+  equal(PALETTES.rose[0], 'Rosé');
+  equal(PALETTES.rose[1], logoColors[0]);
+  equal(PALETTES.rose[2], logoColors[1]);
+  truthy(PROFILE_AVATAR_COLORS.some(([id, label]) => id === 'rose' && label === PALETTES.rose[0]));
 });
 
 test('toda paleta nomeada gera cor de destaque com contraste mínimo 4,5 contra branco', () => {

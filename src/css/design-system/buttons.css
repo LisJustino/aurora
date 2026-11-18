@@ -43,7 +43,7 @@
 /* Primário */
 .btn.primary {
   border-color: transparent;
-  background: var(--btn);
+  background: linear-gradient(135deg, var(--btn), color-mix(in srgb, var(--btn) 84%, var(--plum)));
   color: var(--on-btn);
   box-shadow: none;
 }

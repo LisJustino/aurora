@@ -1,5 +1,5 @@
 // Mantém o HTML pré-renderizado só na landing em "/" no navegador.
-// Outras rotas, retornos de autenticação e o app instalado usam o carregamento.
+// Outras rotas, retornos de autenticação e o app instalado com sessão salva usam o carregamento.
 (function () {
   var path = window.location.pathname.replace(/index\.html$/, '');
   var query = new URLSearchParams(window.location.search);
@@ -14,7 +14,18 @@
   if (!app || !template || !app.querySelector('[data-prerendered]')) return;
   var standalone = window.navigator.standalone === true
     || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-  if (authCallback || standalone || (path !== '/' && path !== '')) {
+  var hasSession = false;
+  try {
+    for (var i = 0; i < window.localStorage.length; i += 1) {
+      if (/^sb-.+-auth-token$/.test(window.localStorage.key(i) || '')) { hasSession = true; break; }
+    }
+    if (!hasSession) {
+      for (var j = 0; j < window.sessionStorage.length; j += 1) {
+        if (/^sb-.+-auth-token$/.test(window.sessionStorage.key(j) || '')) { hasSession = true; break; }
+      }
+    }
+  } catch (error) { hasSession = false; }
+  if (authCallback || (standalone && hasSession) || (path !== '/' && path !== '')) {
     app.innerHTML = '';
     app.appendChild(template.content.cloneNode(true));
   }
