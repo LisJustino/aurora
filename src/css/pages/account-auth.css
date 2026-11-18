@@ -2103,3 +2103,194 @@
   .account-gate.is-public-account { border-radius: 0; box-shadow: none; }
   .account-gate.is-public-account > .account-card { border-left: 0; }
 }
+
+/* Autenticação alinhada à landing: mesma identidade editorial, tudo numa tela só.
+   Alturas e espaços acompanham a altura da janela para dispensar a rolagem. */
+.account-page:has(.account-gate.is-public-account) {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 82% 12%, color-mix(in oklch, var(--p) 16%, transparent), transparent 58%),
+    radial-gradient(ellipse at 4% 0%, color-mix(in oklch, var(--p) 8%, transparent), transparent 50%),
+    var(--bg);
+}
+
+.account-page > .account-site-header + .account-gate.is-public-account {
+  flex: 1;
+  align-content: center;
+  align-items: center;
+  min-height: 0;
+  margin-block-start: 0;
+  padding-block: clamp(var(--space-3), 3vh, var(--space-7));
+  row-gap: 0;
+}
+
+.account-page .account-gate.is-public-account > .account-intro {
+  align-self: center;
+  gap: clamp(var(--space-2), 2vh, var(--space-4));
+  padding: 0;
+}
+
+.account-page .account-gate.is-public-account > .account-intro h2 {
+  max-width: 13ch;
+  font-size: clamp(2.4rem, 4.4vw, 3.7rem);
+  font-weight: var(--weight-regular);
+  letter-spacing: -.025em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.account-page .account-gate.is-public-account .account-intro-description {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+}
+
+.account-page .account-gate.is-public-account > .account-card {
+  align-self: center;
+  gap: clamp(var(--space-1), 1.3vh, var(--space-3));
+  padding: clamp(var(--space-4), 3vh, var(--space-6)) clamp(var(--space-4), 2.6vw, var(--space-7));
+  container-type: inline-size;
+}
+
+.account-page .account-gate.is-public-account > .account-card h1 {
+  font-size: clamp(1.6rem, 2.6vw, 2.05rem);
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+
+.account-page .account-gate.is-public-account .account-description {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.account-page .account-gate.is-public-account .account-form { gap: clamp(var(--space-2), 1.4vh, var(--space-3)); }
+.account-page .account-gate.is-public-account .account-field { gap: var(--space-1); }
+.account-page .account-gate.is-public-account .account-field label { font-size: var(--text-sm); }
+
+.account-page .account-gate.is-public-account .account-field input.field,
+.account-page .account-gate.is-public-account .account-password-control input,
+.account-page .account-gate.is-public-account .account-birth-field input[type="date"] {
+  min-height: clamp(40px, 5.6vh, 48px);
+  height: clamp(40px, 5.6vh, 48px);
+}
+
+.account-page .account-gate.is-public-account .account-actions .btn,
+.account-page .account-gate.is-public-account .account-oauth-button {
+  min-height: clamp(42px, 5.8vh, 50px);
+}
+
+.account-page .account-gate.is-public-account .account-field-help,
+.account-page .account-gate.is-public-account .account-terms-copy {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.account-page .account-gate.is-public-account .account-message:empty {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.account-page .account-gate.is-public-account .account-step-number {
+  width: 30px;
+  height: 30px;
+  font-size: var(--text-sm);
+}
+
+/* Senha e confirmação lado a lado quando o cartão tem largura para isso. */
+.account-page .account-gate.is-public-account .account-password-group {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+@container (min-width: 420px) {
+  .account-password-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-3);
+  }
+  .account-password-group > .account-password-strength,
+  .account-password-group > .account-password-checklist { grid-column: 1 / -1; }
+}
+
+.account-page .account-gate.is-public-account .account-password-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.account-page .account-gate.is-public-account .account-oauth,
+.account-page .account-gate.is-public-account .account-links { padding-top: var(--space-1); }
+
+/* Janelas baixas (notebooks): tira o que é só enfeite. */
+@media (height <= 720px) {
+  .account-page .account-gate.is-public-account .account-intro-art { display: none; }
+  .account-page .account-gate.is-public-account .account-terms-copy { display: none; }
+}
+
+@media (width <= 700px) {
+  .account-site-header .public-header-nav { display: none; }
+  .account-site-header { min-height: 56px; }
+  .account-page > .account-site-header + .account-gate.is-public-account {
+    padding-inline: var(--space-3);
+    padding-block: var(--space-2) var(--space-3);
+  }
+  .account-page .account-gate.is-public-account > .account-card {
+    margin: 0;
+    padding: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+  }
+}
+
+/* Etapas na mesma linha do título: uma linha a menos em telas baixas. */
+.account-page .account-gate.is-public-account > .account-card:has(> .account-steps) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+}
+.account-page .account-gate.is-public-account > .account-card:has(> .account-steps) > * { grid-column: 1 / -1; }
+.account-page .account-gate.is-public-account > .account-card:has(> .account-steps) > h1 { grid-column: 1; grid-row: 1; }
+.account-page .account-gate.is-public-account > .account-card:has(> .account-steps) > .account-steps { grid-column: 2; grid-row: 1; }
+@container (max-width: 400px) {
+  .account-steps .account-step-label { display: none; }
+}
+
+/* Cartões de exemplo com a altura natural de cada um. */
+.account-page .account-gate.is-public-account .account-preview { align-items: start; max-width: 400px; }
+
+/* Até 900px: um cartão centralizado, sem a coluna de texto. */
+@media (width <= 900px) {
+  .account-page .account-site-header .public-header-nav { display: none; }
+  .account-page > .account-site-header + .account-gate.is-public-account {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: var(--space-5);
+  }
+  .account-page .account-gate.is-public-account > .account-intro { display: none; }
+  .account-page .account-gate.is-public-account > .account-card {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: center;
+    width: min(100%, 520px);
+  }
+}
+
+@media (width <= 700px) {
+  .account-page .account-gate.is-public-account .account-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+  }
+}
+
+.account-page .account-gate.is-public-account .account-age-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
