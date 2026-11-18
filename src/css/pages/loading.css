@@ -46,11 +46,14 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
 
 .account-loading,
 .app-skeleton {
-  --loading-canvas: #f7f0ea;
-  --loading-ink: #252321;
-  --loading-muted: #625f5b;
-  --loading-line: rgb(91 81 73 / 18%);
-  --loading-accent: #ab4e69;
+  --loading-canvas: var(--bg);
+  --loading-ink: var(--ink);
+  --loading-muted: var(--muted);
+  --loading-line: var(--line);
+  --loading-accent: var(--accent);
+  --loading-card: color-mix(in srgb, var(--surface) 88%, transparent);
+  --loading-skeleton-base: color-mix(in srgb, var(--ink) 8%, transparent);
+  --loading-skeleton-shine: color-mix(in srgb, var(--ink) 5%, transparent);
   position: fixed;
   inset: 0;
   display: grid;
@@ -59,10 +62,9 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   padding: max(var(--space-5), env(safe-area-inset-top, 0px)) var(--space-4)
     max(var(--space-5), env(safe-area-inset-bottom, 0px));
   background:
-    radial-gradient(ellipse at 12% 8%, rgb(198 90 121 / 8%), transparent 42%),
+    radial-gradient(ellipse at 12% 8%, color-mix(in srgb, var(--p) 8%, transparent), transparent 42%),
     var(--loading-canvas);
   color: var(--loading-ink);
-  color-scheme: light;
 }
 .account-loading-content {
   display: grid;
@@ -92,7 +94,82 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
   font-size: var(--text-sm);
 }
 .account-loading-message { margin: 0; }
-.account-loading-skeleton { display: none; }
+/* Esqueletos: mostram o formato do conteúdo enquanto os dados chegam. */
+.account-loading-skeleton {
+  display: grid;
+  width: 100%;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  text-align: left;
+}
+.loading-skeleton-hero,
+.loading-skeleton-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--loading-line);
+  border-radius: var(--r-card, 20px);
+  background: var(--loading-card);
+}
+.loading-skeleton-dashboard { display: grid; gap: var(--space-3); }
+.loading-skeleton-line,
+.loading-skeleton-field,
+.loading-skeleton-button,
+.skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  height: 12px;
+  border-radius: var(--r-pill, 999px);
+  background: var(--skeleton-base, var(--loading-skeleton-base));
+}
+.loading-skeleton-line.short { width: 38%; }
+.loading-skeleton-line.medium { width: 64%; }
+.loading-skeleton-line.title { height: 22px; width: 78%; }
+.loading-skeleton-field { height: 40px; border-radius: var(--r-control, 14px); }
+.loading-skeleton-button { width: 132px; height: 40px; margin-top: var(--space-2); }
+.loading-skeleton-line::after,
+.loading-skeleton-field::after,
+.loading-skeleton-button::after,
+.skeleton::after,
+.habit-loading span:not(.sr)::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--skeleton-shine, var(--loading-skeleton-shine)), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.habit-loading span:not(.sr) { position: relative; overflow: hidden; }
+@keyframes skeleton-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-skeleton-line::after, .loading-skeleton-field::after, .loading-skeleton-button::after,
+  .skeleton::after, .habit-loading span:not(.sr)::after { animation: none; }
+}
+:root[data-motion="reduce"] .loading-skeleton-line::after,
+:root[data-motion="reduce"] .loading-skeleton-field::after,
+:root[data-motion="reduce"] .loading-skeleton-button::after,
+:root[data-motion="reduce"] .skeleton::after,
+:root[data-motion="reduce"] .habit-loading span:not(.sr)::after { animation: none; }
+
+/* Esqueleto de página dentro do app (áreas carregadas sob demanda). */
+.skeleton-page { display: grid; gap: var(--space-4); }
+.skeleton-page > div { display: grid; gap: var(--space-4); }
+.skeleton-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card, 20px);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.skeleton-card .skeleton { --skeleton-base: var(--soft2); --skeleton-shine: color-mix(in srgb, var(--surface) 70%, transparent); }
+.skeleton-title { width: 46%; height: 28px; }
+.skeleton-line-lg { width: 82%; }
+.skeleton-line-md { width: 58%; }
+.skeleton-line-sm { width: 34%; }
+.skeleton-block { height: 64px; border-radius: var(--r-control, 14px); }
 .account-loading-indicator {
   width: 20px;
   height: 20px;

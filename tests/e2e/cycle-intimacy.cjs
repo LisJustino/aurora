@@ -24,7 +24,13 @@ const check = (passed, name) => {
   await lazyPage.goto(`${BASE}/?preview#inicio`);
   await lazyPage.locator('.home-head').waitFor();
   check(cycleViewRequests.length === 0, 'a tela de Ciclo não é carregada ao abrir o Início');
-  await lazyPage.locator('.nav a[href="/ciclo"]').click();
+  const cycleDirect = lazyPage.locator('.nav a.nav-item[href="/ciclo"]:visible');
+  if (await cycleDirect.count()) {
+    await cycleDirect.first().click();
+  } else {
+    await lazyPage.locator('.profile-menu-trigger').click();
+    await lazyPage.locator('#profile-menu a[href="/ciclo"]').click();
+  }
   await lazyPage.locator('.cycle-health-card').waitFor();
   check(cycleViewRequests.length === 1, 'a tela de Ciclo é carregada ao acessar a área');
   await lazyPage.close();

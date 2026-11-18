@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,8 +19,9 @@ let markup = landingMarkup()
 if (markup.includes('file://')) throw new Error('Landing pré-renderizada contém URL file://.');
 
 const html = await readFile(indexPath, 'utf8');
-const appHtml = await readFile(resolve(root, 'dist', 'pages', 'inicio.html'), 'utf8');
-const appStylesheet = appHtml.match(/<link rel="stylesheet"[^>]*href="(\/assets\/[a-zA-Z0-9_-]+\.css)"/)?.[1];
+const assetFiles = await readdir(resolve(root, 'dist', 'assets'));
+const appStylesheetFile = assetFiles.find((file) => /^main-[A-Za-z0-9_-]+\.css$/.test(file));
+const appStylesheet = appStylesheetFile ? `/assets/${appStylesheetFile}` : null;
 if (!appStylesheet) throw new Error('Folha de estilos da aplicação não encontrada no build.');
 const headers = await readFile(resolve(root, 'dist', '_headers'), 'utf8');
 const scriptPolicy = headers.match(/^\s*Content-Security-Policy:.*?script-src\s+([^;]+)/m)?.[1];

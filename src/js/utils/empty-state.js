@@ -16,7 +16,7 @@ export function emptyState({
   title,
   description,
   action,
-  iconName = 'sparkles',
+  iconName = 'inbox',
   headingLevel = 'h3',
   className = '',
   hidden = false,

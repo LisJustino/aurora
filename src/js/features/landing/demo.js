@@ -114,13 +114,13 @@ function renderToday(state) {
           <a href="/demonstracao" data-demo-view="tasks"><b>${open.length}</b><span>Pendentes</span></a>
         </section>
         <section class="card home-quick-card" aria-labelledby="demo-quick-title">
-          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Na sua conta, você pode registrar tarefas e organizar o dia.</p></div></div>
+          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Experimente adicionar uma tarefa.</p></div></div>
           <form class="home-quick-form demo-quick-form" data-demo-task-form>
             <label class="sr" for="demo-home-task">Nova tarefa</label>
             <input id="demo-home-task" name="title" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: caminhar por 10 minutos" required data-demo-task-input>
             <button type="submit" class="btn primary">Adicionar</button>
           </form>
-          <p class="demo-session-note">Experimente adicionar uma tarefa. As mudanças são descartadas ao sair.</p>
+          <p class="demo-session-note">As mudanças são descartadas ao sair.</p>
         </section>
       </div>
     </div>`;

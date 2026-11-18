@@ -6,7 +6,12 @@
     : null;
 
   function applyInitialTheme() {
-    root.setAttribute('data-theme', systemTheme && systemTheme.matches ? 'dark' : 'light');
+    var isDark = Boolean(systemTheme && systemTheme.matches);
+    root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+    root.style.backgroundColor = isDark ? '#1c1b19' : '#f5f3ed';
+    var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (statusBar) statusBar.content = isDark ? 'black' : 'default';
   }
 
   function syncManifest(mode) {

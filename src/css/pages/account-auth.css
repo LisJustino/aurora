@@ -911,7 +911,6 @@
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse at 16% 58%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 38%),
     var(--bg);
 }
 
@@ -926,7 +925,6 @@
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
   border-radius: var(--r-control);
   background:
-    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 46%),
     linear-gradient(145deg, color-mix(in srgb, var(--soft) 72%, var(--surface)), var(--surface-strong));
   box-shadow: none;
 }
@@ -1083,13 +1081,11 @@
 
 .account-gate:has(> .account-public-header) {
   background:
-    radial-gradient(ellipse at 16% 58%, var(--public-glow), transparent 40%),
     var(--bg);
 }
 
 .account-gate:has(> .account-public-header) > .account-intro {
   background:
-    radial-gradient(ellipse at 100% 4%, var(--canvas-glow), transparent 48%),
     linear-gradient(145deg, color-mix(in srgb, var(--soft) 72%, var(--surface)), var(--surface-strong));
 }
 
@@ -1118,7 +1114,6 @@
 
 .account-page:has(.account-gate.is-public-account) {
   background:
-    radial-gradient(ellipse at 9% 12%, var(--public-glow), transparent 38%),
     var(--bg);
   padding: clamp(var(--space-3), 2.4vw, var(--space-6));
 }
@@ -1418,7 +1413,6 @@
 
 :root[data-theme="dark"] .account-page:has(.account-gate.is-public-account) {
   background:
-    radial-gradient(ellipse at 9% 12%, var(--public-glow), transparent 38%),
     var(--bg);
 }
 
@@ -2042,7 +2036,6 @@
 /* Autenticação como continuação da landing: uma coluna de marca e uma tarefa clara. */
 .account-page:has(.account-gate.is-public-account) {
   background:
-    radial-gradient(circle at 78% 0%, rgb(200 161 158 / 19%), transparent 25rem),
     var(--bg);
 }
 .account-gate.is-public-account {

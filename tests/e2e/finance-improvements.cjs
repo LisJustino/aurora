@@ -6,6 +6,26 @@ const check = (passed, name, detail = '') => {
   results.push(passed);
   console.log(`${passed ? 'OK   ' : 'FALHA'} — ${name}${detail ? ` (${detail})` : ''}`);
 };
+const swipe = async (page, locator, direction) => {
+  await locator.evaluate((target, direction) => {
+    const bounds = target.getBoundingClientRect();
+    const startX = bounds.left + bounds.width / 2;
+    const startY = bounds.top + bounds.height / 2;
+    const pointer = (type, x) => new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 73,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: x,
+      clientY: startY,
+    });
+    target.dispatchEvent(pointer('pointerdown', startX));
+    document.dispatchEvent(pointer('pointermove', startX + (direction === 'left' ? -120 : 120)));
+    document.dispatchEvent(pointer('pointerup', startX + (direction === 'left' ? -120 : 120)));
+  }, direction);
+  await page.waitForTimeout(240);
+};
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -304,11 +324,9 @@ const check = (passed, name, detail = '') => {
   'modal parcelado não cria overflow horizontal em 320 px');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
-  await editInstallment(
-    page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }),
-    '4 de 10',
-  );
-  await page.locator('#dlg [data-action="tx-del-dlg"]').click();
+  const installmentRow = page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' });
+  await swipe(page, installmentRow.locator('.fr-main'), 'left');
+  await page.locator('#dlg .finance-series-delete-option').first().waitFor({ state: 'visible' });
   const seriesDeleteOptions = page.locator('#dlg .finance-series-delete-option');
   const seriesDeleteDetails = {
     count: await seriesDeleteOptions.count(),
@@ -595,6 +613,18 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   const recentFixedCount = await page.locator('.finance-recent .ttl').filter({ hasText: /^icloud$/i }).count();
   check(recentFixedCount === 1, 'fixa criada aparece uma vez no resumo, sem meses futuros', String(recentFixedCount));
+  const fixedTitle = page.locator('.finance-recent .ttl').filter({ hasText: /^icloud$/i });
+  const fixedRow = fixedTitle.locator('xpath=ancestor::li');
+  const fixedInitiallyPending = await fixedRow.evaluate((row) => row.classList.contains('pend'));
+  await swipe(page, fixedRow.locator('.fr-main'), 'right');
+  check(await fixedRow.count() === 1
+    && await fixedRow.evaluate((row) => row.classList.contains('pend')) === fixedInitiallyPending,
+  'deslizar à direita não altera o status financeiro');
+  await swipe(page, fixedRow.locator('.fr-main'), 'left');
+  await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).waitFor({ state: 'visible' });
+  check(await fixedRow.count() === 0, 'deslizar à esquerda envia um lançamento individual à lixeira');
+  await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).click();
+  check(await fixedRow.count() === 1, 'desfazer restaura o lançamento financeiro');
   await openFinanceQuickActions();
   await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="accountId"]').inputValue() === latestAccount, 'novo lançamento reutiliza a conta usada por último');

@@ -33,9 +33,9 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 /* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
 @keyframes check-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
-.habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: check-pop .42s var(--ease-standard); }
+.habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .chk span { animation: check-pop .42s var(--ease-standard); }
 @media (prefers-reduced-motion: reduce) {
-  .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: none; }
+  .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .chk span { animation: none; }
 }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
@@ -91,6 +91,30 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 .dlg-handle { display: none; }
 @media (width < 900px) {
+  /* Zona de arrasto: a barrinha é pequena, mas a área tocável tem altura confortável. */
+  .dlg:not(.intro-dialog) > .dlg-handle {
+    position: relative;
+    display: block;
+    flex: none;
+    height: 24px;
+    margin-bottom: -8px;
+    cursor: grab;
+    touch-action: none;
+  }
+  .dlg:not(.intro-dialog) > .dlg-handle::before {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 40px;
+    height: 5px;
+    border-radius: var(--r-pill);
+    background: var(--line-strong);
+    content: "";
+    transform: translateX(-50%);
+  }
+  .dlg:not(.intro-dialog) .head { touch-action: none; }
+  .dlg.is-dragging { transition: none; will-change: transform; }
+  .dlg.is-settling { transition: transform var(--duration-base) var(--ease-standard); }
   .dlg-back {
     display: flex;
     align-items: flex-end;

@@ -134,6 +134,12 @@ const googleCalendar = {
     if (!googleCalendarPendingService) throw new Error('Prepare a conexão com o Google antes de autorizar.');
     return googleCalendarPendingService.authorize({ prompt: 'select_account' });
   },
+  // Com conta Aurora ativa a conexão fica guardada no servidor e se renova sozinha.
+  persistent: () => Boolean(accountSession?.client && !ui.preview),
+  connections: async () => {
+    const { createGoogleConnections } = await import('./services/google-calendar-connections.js');
+    return createGoogleConnections(accountSession.client);
+  },
   getEvents: async (account, ...args) => account.service.getEvents(...args),
 };
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
@@ -252,6 +258,12 @@ import { weekDays, weeklyReview } from './features/planning/week.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
 import { renderTaskRow } from './features/planning/task-row.js';
 import { renderHomeView } from './features/home/view.js';
+import { createHomeDaySummary, homeBadgeCount } from './features/home/day-summary.js';
+import {
+  syncNativeAppearance,
+  triggerHapticFeedback,
+  updateAppIconBadge,
+} from './services/native-experience.js';
 import {
   renderGoogleCalendarPlanPanel,
   renderPlanningView,
@@ -1422,6 +1434,31 @@ function moveRecordsToTrash(label, records, sourceSlices, removeRecords) {
   removeRecords();
   return saveSlicesWithRollback(slices, snapshot) ? entry : null;
 }
+function moveFinanceTransactionsToTrash(transactions) {
+  const removed = transactions.filter((transaction) => S.finance.tx.includes(transaction));
+  if (!removed.length) return false;
+  const records = removed.map((transaction) => createTrashRecord(
+    'finance.tx',
+    transaction.id,
+    S.finance.tx.indexOf(transaction),
+    transaction,
+  ));
+  const first = removed[0];
+  const label = removed.length > 1
+    ? `Lançamentos financeiros (${removed.length})`
+    : `Lançamento: ${first.desc || first.category || 'Finanças'}`;
+  const entry = moveRecordsToTrash(label, records, ['finance'], () => {
+    const ids = new Set(removed.map((transaction) => transaction.id));
+    S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
+    ui.dlg = null;
+  });
+  if (entry) toast(
+    removed.length > 1 ? 'Lançamentos movidos para a lixeira.' : 'Lançamento movido para a lixeira.',
+    'action',
+    () => restoreTrashEntry(entry.id),
+  );
+  return Boolean(entry);
+}
 function trashCollection(draft, collection) {
   if (collection === 'cycleLog') return draft.cycleLog;
   if (collection === 'finance.budgets') return draft.finance.budgets;
@@ -1597,19 +1634,18 @@ function notificationsHtml() {
   const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
   return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
     <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
-    <p class="small muted">Este painel reúne lembretes de tarefas e hábitos enquanto o Aurora está aberto. Configure horários em Planejar ou Hábitos. Para receber avisos com o app fechado — de hábitos, tarefas ou da revisão semanal — ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo.</p>
-    ${canPauseReminders ? h`<div class="notification-controls"><div><b>${remindersPaused ? 'Lembretes pausados' : 'Controle de lembretes'}</b><small>${remindersPaused ? `Pausa nesta sessão até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Avisos do sistema não são afetados.` : 'Pause por uma hora nesta sessão do app; avisos do sistema não são alterados.'}</small></div><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar lembretes' : 'Pausar por 1 hora'}</button></div>` : ''}
+    ${canPauseReminders ? h`<div class="notification-controls"><b>${remindersPaused ? `Pausados até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Lembretes'}</b><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar' : 'Pausar 1 h'}</button></div>` : ''}
     ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
       const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
       return h`<article class="notification-item is-${a.kind || 'task'}" ${habit ? raw(`style="--nc:${habitColor(habit)}"`) : ''}>
       <span class="notification-icon">${icon(habit ? habitIconKey(habit) : 'bell', 18)}</span>
-      <div class="notification-copy"><div class="notification-meta"><span class="notification-kind">${kindLabel(a)}</span><span class="notification-ago">${agoLabel(a.at)}</span><button class="ibtn notification-x" data-action="rem-dismiss" data-k="${k}" aria-label="Dispensar: ${a.title}">${icon('close', 16)}</button></div><b class="user-value">${a.title}</b><small>${a.kind === 'habit' ? `lembrete das ${a.time}` : `tarefa das ${a.time}`}</small>${a.detail ? h`<p>${a.detail}</p>` : ''}</div>
+      <div class="notification-copy"><div class="notification-meta"><span class="notification-kind">${kindLabel(a)}</span><span class="notification-ago">${agoLabel(a.at)}</span><button class="ibtn notification-x" data-action="rem-dismiss" data-k="${k}" aria-label="Dispensar: ${a.title}">${icon('close', 16)}</button></div><b class="user-value">${a.title}</b><small>${a.time}</small></div>
       <div class="notification-actions">${a.kind === 'habit'
-          ? h`<button class="btn sm primary" data-action="habit-reminder-done" data-k="${k}" data-id="${a.id}">Marcar hábito</button>`
+          ? h`<button class="btn sm primary" data-action="habit-reminder-done" data-k="${k}" data-id="${a.id}">Feito</button>`
           : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
-    </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nenhuma notificação por enquanto</b><span>Lembretes de tarefas e hábitos aparecem aqui.</span></div>`}
+    </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nada pendente</b></div>`}
     ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
-    ${canPauseReminders && areaOn('habits') ? h`<a class="notification-settings-link" href="/habitos">${icon('sliders', 16)}Gerenciar horários e avisos do sistema</a>` : ''}
+    ${canPauseReminders && areaOn('habits') ? h`<a class="notification-settings-link" href="/habitos">${icon('sliders', 16)}Horários e avisos</a>` : ''}
   </section>`;
 }
 function closeNotifications(restoreFocus = true) {
@@ -1651,8 +1687,8 @@ function completionFeedback(selector) {
   });
 }
 function vibrateFeedback() {
-  if (!S.settings.prefs.vibrationEnabled || typeof navigator.vibrate !== 'function') return;
-  try { navigator.vibrate(15); } catch { /* A vibração é opcional. */ }
+  if (!S.settings.prefs.vibrationEnabled) return;
+  triggerHapticFeedback();
 }
 function updateAccessibilityLook(updates, focusId) {
   updateSettingsDraft((settings) => {
@@ -1678,7 +1714,10 @@ function shell(body) {
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
-  const navLink = ({ id, label, icon: iconName, area }) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
+  // No celular a barra tem 5 espaços: 3 áreas + Criar + Mais. As demais áreas ficam dentro do Mais.
+  const MOBILE_NAV_PRIMARY = 3;
+  const overflowItems = menuItems.slice(MOBILE_NAV_PRIMARY);
+  const navLink = ({ id, label, icon: iconName, area }, index) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${index >= MOBILE_NAV_PRIMARY ? raw('data-overflow="true"') : ''} ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
     ? h`<button type="button" data-action="quick-action-account"><span class="ni">${icon('wallet', 18)}</span><span>Criar conta financeira</span></button>`
     : ui.route === 'financas'
@@ -1703,18 +1742,30 @@ function shell(body) {
     <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
   const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">${tabLabel('Criar')}</span></button>`;
+  const hasOverflow = overflowItems.length > 0;
+  const overflowCurrent = overflowItems.some(({ id }) => isCurrent(id));
   const profileMenu = h`<details class="profile-menu-control">
-    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Menu da conta" title="Conta" aria-controls="profile-menu"><span class="ni">${icon('user', 20)}</span><span class="mobile-nav-label">${tabLabel('Conta')}</span></summary>
-    <div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Menu da conta">
+    <summary class="profile-link iconbtn profile-menu-trigger${overflowCurrent ? ' is-current' : ''}" aria-label="${hasOverflow ? 'Mais áreas' : 'Menu da conta'}" title="${hasOverflow ? 'Mais' : 'Conta'}" aria-controls="profile-menu"><span class="ni${hasOverflow ? ' ni-account' : ''}">${icon('user', 20)}</span>${hasOverflow ? h`<span class="ni ni-more">${icon('more', 20)}</span>` : ''}<span class="mobile-nav-label">${tabLabel(hasOverflow ? 'Mais' : 'Conta')}</span></summary>
+  </details>`;
+  const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="${hasOverflow ? 'Mais áreas e conta' : 'Menu da conta'}">
+    ${hasOverflow ? h`<div class="nav-overflow-group" role="group" aria-label="Mais áreas">${overflowItems.map(({ id, label, icon: iconName }) => h`<a class="profile-menu-item nav-overflow-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}>${icon(iconName, 18)}<span>${label}</span></a>`)}</div>` : ''}
+    <a class="profile-menu-item profile-menu-account-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
+    ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout profile-menu-account-item" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
+  </div>`;
+  const headerAccountMenu = h`<details class="header-account-control">
+    <summary class="iconbtn header-account-trigger" aria-label="Perfil e conta" title="Perfil e conta">${icon('user', 20)}</summary>
+    <div class="header-account-panel" role="group" aria-label="Perfil e conta">
       <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
     </div>
   </details>`;
-  const navMenuItems = [...menuItems.map(navLink), profileMenu];
-  const navMiddle = Math.floor(navMenuItems.length / 2);
-  const navItems = h`${navMenuItems.slice(0, navMiddle)}${mobileQuickActionsTrigger}${navMenuItems.slice(navMiddle)}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navLinks = menuItems.map(navLink);
+  // Criar fica no meio da barra do celular (2 áreas à esquerda, 1 à direita + Mais); no desktop ele fica oculto.
+  const createAt = Math.min(2, navLinks.length);
+  const navItems = h`${navLinks.slice(0, createAt)}${mobileQuickActionsTrigger}${navLinks.slice(createAt)}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
-    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav><div class="header-actions">${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}<button type="button" class="iconbtn mobile-refresh-trigger" data-action="reload-app" aria-label="Atualizar app" title="Atualizar app">${icon('refresh', 20)}</button></div></header>
+    <div class="pull-refresh-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="pull-refresh-icon" aria-hidden="true">${icon('refresh', 20)}</span><span class="pull-refresh-label"></span></div>
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerAccountMenu}${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}</div></header>
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${persistenceNotice()}
       ${notificationsHtml()}
@@ -1801,8 +1852,8 @@ const pageTitle = (title, action = '') => {
   const [eyebrow, description] = PAGE_CONTEXT[title] || [];
   return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
-const empty = (title, text, action = '', iconName = 'sparkles') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
-const areaEmpty = (title, description, action, iconName = 'sparkles', headingLevel = 'h3', className = '') => emptyState({
+const empty = (title, text, action = '', iconName = 'inbox') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
+const areaEmpty = (title, description, action, iconName = 'inbox', headingLevel = 'h3', className = '') => emptyState({
   title,
   description,
   action,
@@ -1886,6 +1937,7 @@ function applyTheme(theme) {
   r.setAttribute('data-motion', L.reduceMotion ? 'reduce' : 'normal');
   const themeColor = getComputedStyle(r).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
+  syncNativeAppearance(effectiveMode);
 }
 const systemThemeQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 let headerScrollFrame = 0;
@@ -1978,14 +2030,59 @@ function cycleDataConsentGate() {
       </form>
     </section>`;
 }
+// A transição entre telas segue a ordem das abas: avançar entra pela direita, voltar pela esquerda.
+function setRouteDirection(from, to) {
+  const order = [...document.querySelectorAll('.topbar .nav [data-route]')].map((link) => link.dataset.route);
+  const position = (route) => {
+    const index = order.indexOf(route);
+    return index < 0 ? order.length : index;
+  };
+  document.documentElement.dataset.routeDir = position(to) >= position(from) ? 'forward' : 'back';
+}
+const clearRouteDirection = () => { delete document.documentElement.dataset.routeDir; };
 function render() {
+  if (!ui.preview && !S.settings.prefs.sample) {
+    const day = today();
+    void updateAppIconBadge(homeBadgeCount({
+      tasks: S.tasks,
+      habits: S.habits,
+      day,
+      weekday: pk(day).getDay(),
+      habitsEnabled: areaOn('habits'),
+      isComplete: habitCompletedFor,
+      isSkipped: (habit, targetDay) => habitIsSkipped(habit, targetDay, targetDay),
+    }));
+  }
   const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
   const reducedMotion = prefersReducedMotion(settingsView().look.reduceMotion);
+  if (routeChanged && !reducedMotion) setRouteDirection(renderedRoute, ui.route);
   if (routeChanged && !reducedMotion && typeof document.startViewTransition === 'function') {
-    document.startViewTransition(() => renderApp(true, true));
+    const transition = document.startViewTransition(() => renderApp(true, true));
+    transition.finished.catch(() => {}).finally(clearRouteDirection);
     return;
   }
+  if (routeChanged && !reducedMotion) setTimeout(clearRouteDirection, 400);
   renderApp(routeChanged, false);
+}
+
+/* Esqueleto de página: aparece se uma área carregada sob demanda demorar, no lugar de uma tela parada. */
+const ROUTE_SKELETON_HTML = `<div class="skeleton-page" role="status" aria-live="polite"><span class="sr">Carregando…</span><div aria-hidden="true">
+  <div class="skeleton-card"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-line-lg"></span><span class="skeleton skeleton-line-md"></span></div>
+  <div class="skeleton-card"><span class="skeleton skeleton-line-sm"></span><span class="skeleton skeleton-block"></span><span class="skeleton skeleton-block"></span></div>
+  <div class="skeleton-card"><span class="skeleton skeleton-line-md"></span><span class="skeleton skeleton-block"></span></div>
+</div></div>`;
+function scheduleRouteSkeleton(delay = 120) {
+  const timer = setTimeout(() => {
+    const main = document.querySelector('.app > .main');
+    if (!main || main.dataset.skeleton) return;
+    main.dataset.skeleton = 'true';
+    main.setAttribute('aria-busy', 'true');
+    main.innerHTML = ROUTE_SKELETON_HTML;
+  }, delay);
+  return () => {
+    clearTimeout(timer);
+    return Boolean(document.querySelector('.app > .main[data-skeleton]'));
+  };
 }
 function renderApp(routeChanged, viewTransition) {
   acquireActiveScrollLocks();
@@ -2347,9 +2444,12 @@ function onRoute() {
       : 'Preencha sua identidade de gênero em Ajustes → Seu perfil. Ciclo está disponível apenas para mulheres.', 'info');
   }
   if (resolved.route === 'ciclo' && !cycleDialogViews) {
+    const stopSkeleton = scheduleRouteSkeleton();
     void loadCycleModules().then(() => {
+      stopSkeleton();
       if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'ciclo') onRoute();
     }).catch((error) => {
+      if (stopSkeleton()) render();
       console.error('Aurora: não foi possível carregar a área de Ciclo.', error);
       history.replaceState(null, '', '/inicio');
       toast('Não foi possível carregar Ciclo. Atualize a página e tente novamente.', 'error');
@@ -2357,9 +2457,12 @@ function onRoute() {
     return;
   }
   if (resolved.route === 'financas' && !financeDialogViews) {
+    const stopSkeleton = scheduleRouteSkeleton();
     void loadFinanceModules().then(() => {
+      stopSkeleton();
       if (routeFromLocation(location, new Set(Object.keys(ROUTES))).route === 'financas') onRoute();
     }).catch((error) => {
+      if (stopSkeleton()) render();
       console.error('Aurora: não foi possível carregar a área de Finanças.', error);
       history.replaceState(null, '', '/inicio');
       toast('Não foi possível carregar Finanças. Atualize a página e tente novamente.', 'error');
@@ -2719,29 +2822,31 @@ function viewInicio() {
     && !S.settings.prefs.sample
     && areaOn('cycle')
     && hasCurrentCycleDataConsent(accountSession?.user);
-  const daySummary = {
-    tasks: {
-      done: todayPlanTasks.filter((task) => task.done).length,
-      total: todayPlanTasks.length,
-    },
-    habits: areaOn('habits') ? { done: habitsOverview.completed, total: habitsOverview.planned } : null,
-    water: showWaterSummary
+  const showFinanceSummary = areaOn('finances') && S.finance.accounts.length > 0;
+  const daySummary = createHomeDaySummary({
+    todayTasks: todayPlanTasks,
+    overdueTasks: overdue,
+    dueTodayTasks: dueToday,
+    habits: areaOn('habits') ? habitsOverview : null,
+    water: showWaterSummary ? { total: waterTotal, goal: waterGoal } : null,
+    balance: showFinanceSummary
       ? {
-        total: waterTotal,
-        goal: waterGoal,
-        percent: Math.min(100, Math.round(waterTotal / waterGoal * 100)),
+        cents: netAccountBalance(S.finance.accounts, S.finance.tx),
+        hidden: S.settings.prefs.financeValuesHidden,
       }
       : null,
     cycle: showCycleSummary
       ? { day: cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
       : null,
-  };
+  });
+  const weekProgress = weeklyReview(S.tasks, [], todayKey).tasks;
   return renderHomeView({
     name,
     profileAppearance,
     greeting,
     dateLabel: cap(longDate(today())),
     daySummary,
+    weekProgress,
     homeMessage,
     lead,
     tt,
@@ -2841,7 +2946,7 @@ function googleCalendarSettingsPanel() {
     <div class="head">
       <div><h2 id="google-calendar-settings-title">Google Calendar<i>.</i></h2><span class="badge">Somente leitura</span></div>
     </div>
-    <p class="small muted">Conecte várias contas Google e escolha quais calendários aparecem em Planejar. O Aurora não cria nem altera eventos. Autorizações e eventos ficam somente nesta aba e precisam ser conectados novamente depois de recarregar ou fechar a página.</p>
+    <p class="small muted">Conecte várias contas Google e escolha quais calendários aparecem em Planejar. O Aurora não cria nem altera eventos. ${googleCalendar.persistent() ? 'A conexão fica guardada com segurança na sua conta Aurora e se renova sozinha: você só precisa autorizar uma vez, até remover a conta aqui ou nas permissões do Google.' : 'Nesta demonstração, autorizações e eventos ficam somente nesta aba e precisam ser conectados novamente ao recarregar a página.'}</p>
     ${!configured ? h`<p class="small" role="alert">Integração indisponível: configure <code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code> neste ambiente.</p>` : ''}
     ${configured && !prepared && !busy ? h`<button type="button" class="btn" data-action="google-calendar-prepare">${state.status === 'error' ? 'Tentar novamente' : 'Adicionar conta Google'}</button>` : ''}
     ${configured && prepared && !busy ? h`<button type="button" class="btn primary" data-action="google-calendar-authorize">Autorizar acesso do Google Calendar</button>` : ''}
@@ -2933,9 +3038,9 @@ async function loadGoogleCalendarEvents(accountIds = connectedGoogleCalendarAcco
   });
   render();
 }
-async function loadGoogleCalendarList() {
+async function loadGoogleCalendarList(connection = null, restoredService = null) {
   const state = ui.googleCalendar;
-  const service = googleCalendarPendingService;
+  const service = restoredService || googleCalendarPendingService;
   if (!service) throw new Error('A autorização do Google foi perdida. Inicie a conexão novamente.');
   const requestId = ++state.requestId;
   state.status = 'loading-calendars';
@@ -2943,20 +3048,25 @@ async function loadGoogleCalendarList() {
   render();
   try {
     const calendars = await service.getCalendars();
-    if (ui.googleCalendar !== state || state.requestId !== requestId || googleCalendarPendingService !== service) return;
+    if (ui.googleCalendar !== state || state.requestId !== requestId || (!restoredService && googleCalendarPendingService !== service)) return;
     if (!calendars.length) throw new Error('Nenhum calendário com permissão de leitura foi encontrado.');
     const primary = calendars.find((calendar) => calendar.primary);
-    const accountIdentity = primary?.id || '';
+    const accountIdentity = connection?.email || primary?.id || '';
     if (accountIdentity && state.accounts.some((account) => account.identity === accountIdentity)) {
       throw new Error('Esta conta Google já está conectada nesta aba.');
     }
     const primaryIds = calendars.filter((calendar) => calendar.primary).map((calendar) => calendar.id);
-    const selectedIds = primaryIds.length
-      ? primaryIds
-      : calendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
+    const knownIds = new Set(calendars.map((calendar) => calendar.id));
+    const savedIds = (connection?.selectedCalendarIds || []).filter((id) => knownIds.has(id));
+    const selectedIds = savedIds.length
+      ? savedIds
+      : primaryIds.length
+        ? primaryIds
+        : calendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id);
     if (!selectedIds.length) selectedIds.push(calendars[0].id);
     const account = {
       id: String(++googleCalendarConnectionSequence),
+      serverId: connection?.id || '',
       identity: accountIdentity,
       label: accountIdentity.includes('@') ? accountIdentity : `Conta Google ${state.accounts.length + 1}`,
       service,
@@ -2968,7 +3078,7 @@ async function loadGoogleCalendarList() {
       loadedMonth: '',
     };
     state.accounts.push(account);
-    googleCalendarPendingService = null;
+    if (!restoredService) googleCalendarPendingService = null;
     state.status = 'connected';
     state.error = '';
     render();
@@ -2979,7 +3089,27 @@ async function loadGoogleCalendarList() {
     state.error = error instanceof Error ? error.message : 'Não foi possível carregar seus calendários do Google.';
     service.clear();
     if (googleCalendarPendingService === service) googleCalendarPendingService = null;
+    if (restoredService) state.status = state.accounts.length ? 'connected' : 'disconnected';
     render();
+  }
+}
+// Reabre as contas guardadas no servidor assim que o app inicia, sem pedir nova autorização.
+async function restoreGoogleCalendarAccounts() {
+  if (!googleCalendar.isConfigured() || !googleCalendar.persistent()) return;
+  const state = ui.googleCalendar;
+  try {
+    const [createService, connections] = await Promise.all([loadGoogleCalendarServiceFactory(), googleCalendar.connections()]);
+    const saved = await connections.list();
+    if (ui.googleCalendar !== state) return;
+    for (const connection of saved) {
+      if (ui.googleCalendar !== state) return;
+      if (state.accounts.some((account) => account.serverId === connection.id)) continue;
+      const service = createService();
+      service.useTokenProvider(() => connections.token(connection.id));
+      await loadGoogleCalendarList(connection, service);
+    }
+  } catch (error) {
+    console.error('Aurora: não foi possível restaurar o Google Agenda.', error);
   }
 }
 function prepareGoogleCalendar() {
@@ -3003,8 +3133,11 @@ function authorizeGoogleCalendar() {
   const state = ui.googleCalendar;
   const requestId = ++state.requestId;
   let authorization;
+  const persistent = googleCalendar.persistent();
   try {
-    authorization = googleCalendar.authorize();
+    authorization = persistent
+      ? googleCalendarPendingService.authorizeCode()
+      : googleCalendar.authorize();
   } catch (error) {
     ui.googleCalendar.status = 'error';
     ui.googleCalendar.error = error instanceof Error ? error.message : 'Não foi possível iniciar a autorização do Google Calendar.';
@@ -3014,9 +3147,17 @@ function authorizeGoogleCalendar() {
   state.status = 'authorizing';
   state.error = '';
   render();
-  void authorization.then(() => {
+  void authorization.then(async (code) => {
     if (ui.googleCalendar !== state || state.requestId !== requestId) return;
-    return loadGoogleCalendarList();
+    if (!persistent) return loadGoogleCalendarList();
+    state.status = 'loading-calendars';
+    render();
+    const service = googleCalendarPendingService;
+    const connections = await googleCalendar.connections();
+    const result = await connections.connect(code);
+    if (ui.googleCalendar !== state || state.requestId !== requestId) return;
+    service.useTokenProvider(() => connections.token(result.account.id), result);
+    return loadGoogleCalendarList(result.account);
   }).catch((error) => {
     if (ui.googleCalendar !== state || state.requestId !== requestId) return;
     state.status = googleCalendar.isPrepared() ? 'ready' : 'error';
@@ -3030,6 +3171,11 @@ function toggleGoogleCalendar(accountId, calendarId) {
   account.selectedIds = account.selectedIds.includes(calendarId)
     ? account.selectedIds.filter((id) => id !== calendarId)
     : [...account.selectedIds, calendarId];
+  if (account.serverId) {
+    void googleCalendar.connections()
+      .then((connections) => connections.select(account.serverId, account.selectedIds))
+      .catch(() => toast('Não foi possível guardar a seleção de calendários. Ela vale apenas até recarregar.', 'info'));
+  }
   void loadGoogleCalendarEvents([account.id]);
 }
 function disconnectGoogleCalendar(accountId) {
@@ -3040,6 +3186,13 @@ function disconnectGoogleCalendar(accountId) {
   ui.googleCalendar.requestId += 1;
   render();
   void loadGoogleCalendarEvents();
+  if (account.serverId) {
+    void googleCalendar.connections()
+      .then((connections) => connections.disconnect(account.serverId))
+      .then(() => toast('A conta Google foi desconectada e o acesso foi revogado.', 'success'))
+      .catch(() => toast('Removemos a conta aqui, mas não foi possível revogar o acesso. Remova o Aurora nas permissões da sua Conta Google.', 'warning'));
+    return;
+  }
   toast('A conta foi desconectada desta aba.', 'success');
 }
 function viewPlanejar() {
@@ -3193,26 +3346,11 @@ function habitWaterTracker(habit) {
   return h`<section class="water-tracker" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
-    <div class="water-week-chart">
-      <div class="water-week-chart-grid">${week.map(({ day, total: dayTotal, progress, goalReached }) => {
-        const percentage = Math.round(progress * 100);
-        const label = day > currentDay
-          ? `${longDate(day)}: dia futuro`
-          : `${longDate(day)}: ${dayTotal.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL, ${goalReached ? 'meta batida' : 'meta não batida'}`;
-        return h`<div class="water-week-chart-column">
-          <div class="water-week-chart-bar${day === currentDay ? ' is-today' : ''}" role="img" aria-label="${label}">
-            <span style="--week-fill:${percentage}%"></span>
-          </div>
-          <span class="water-week-chart-day" aria-hidden="true">${DIAS[pk(day).getDay()]}</span>
-        </div>`;
-      })}</div>
-      <span class="sr">Água: ${goalDays} de 7 dias com meta batida.</span>
-    </div>
     ${habit.status === 'active' ? h`<form class="water-add-form" data-form="water-add" data-id="${habit.id}">
       <label for="water-amount-${habit.id}">Quantidade consumida (mL)</label>
       <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="Ex.: 250" required><button type="submit" class="btn sm">Adicionar</button></div>
     </form>` : ''}
-    <p class="small muted" aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'}</p>
+    <p class="small muted" aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'} · Meta diária cumprida em ${goalDays} de 7 dias nesta semana.</p>
   </section>`;
 }
 function habitRow(habit) {
@@ -3245,7 +3383,7 @@ function habitRow(habit) {
         ${habitWaterTracker(habit)}
         <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
         ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
-        ${saved ? h`<details class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div class="row habit-actions">${status !== 'archived' ? h`<button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button><button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>` : ''}${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm ghost" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button type="button" class="btn sm ghost" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>` : ''}
+        ${saved ? h`<details class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div class="habit-actions" role="group" aria-label="Ações de ${habit.name}">${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm habit-action-wide" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${icon(skipped ? 'undo' : 'chevRight', 15)}${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button>${status !== 'archived' ? h`<button type="button" class="btn sm" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 15)}Subir</button><button type="button" class="btn sm" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 15)}Descer</button>` : ''}<button type="button" class="btn sm" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>` : ''}
       </div>
     </details>
     <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
@@ -3411,7 +3549,7 @@ function aparencia(s) {
     && L.density === LOOK_DEFAULT.density && L.font === LOOK_DEFAULT.font
     && !L.contrast && !L.readable && !L.highlightLinks && !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
-    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Personalização<i>.</i></h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
+    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Aparência e leitura<i>.</i></h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
     ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
     ${group('appearance-mode-title', 'Tema', 'Claro, escuro ou o mesmo do seu aparelho. O tema é salvo ao tocar.', h`<div class="seg" role="group" aria-label="Tema">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="personalization-mode-${value}" aria-pressed="${String(L.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>`)}
     ${group('appearance-color-title', 'Cor de destaque', `Paleta atual: ${currentPalette}.`, h`<div class="swatches appearance-swatches" role="group" aria-label="Paletas de cor">${Object.entries(PALETTES).map(([k, [n, c]]) => h`<button type="button" class="swatch" aria-label="Cor ${n}" aria-pressed="${String(s.theme === k)}" data-action="set-theme" data-v="${k}"><i style="background:${c}" aria-hidden="true"></i><span>${n}</span></button>`)}
@@ -3492,7 +3630,7 @@ function profileSettings(s) {
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div></div>
+      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
     </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
@@ -3524,11 +3662,9 @@ const SETTINGS_SECTIONS = [
   ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
-  { label: 'Perfil', items: ['profile'] },
-  { label: 'Aplicativo', items: ['personalization', 'home', 'areas-navigation'] },
-  { label: 'Dados', items: ['data'] },
-  { label: 'Conexões', items: ['calendars'] },
-  { label: 'Conta', items: ['mental-health', 'account'] },
+  { label: 'Preferências', items: ['profile', 'personalization', 'home', 'areas-navigation'] },
+  { label: 'Dados e conexões', items: ['data', 'calendars'] },
+  { label: 'Conta e suporte', items: ['account', 'mental-health'] },
 ];
 function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
@@ -3948,7 +4084,7 @@ function dataSettings(p) {
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Backup e restauração<i>.</i></h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
+    <div class="settings-section-heading"><h2>Dados e backup<i>.</i></h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
     <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
@@ -4426,7 +4562,7 @@ function dlgOnboard() {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
       ${hasOrganizationNeed ? h`<article class="onboard-solution-note"><span class="mk">${icon('calendarCheck', 22)}</span><span class="tx"><b>Planejar</b><span>Tarefas, prazos e prioridades já estão disponíveis para organizar seu dia.</span></span><span class="onboard-always-on">Sempre disponível</span></article>` : ''}
       ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
-      <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e navegação.</p>`;
+      <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e menu.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else if (st === 3) {
     body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
@@ -4639,6 +4775,87 @@ window.addEventListener('popstate', (event) => {
   }
   restoreDialogHistoryScroll(scrollPosition);
 });
+/* ---- Modal como folha no celular: saída animada e arrastar para fechar ---- */
+const isSheetViewport = () => window.matchMedia('(width < 900px)').matches;
+function animateSheetExit(dialogEl) {
+  if (!isSheetViewport() || prefersReducedMotion(settingsView().look.reduceMotion)) return;
+  const sheet = dialogEl.querySelector('.dlg:not(.intro-dialog)');
+  if (!sheet || typeof sheet.animate !== 'function') return;
+  const rect = sheet.getBoundingClientRect();
+  if (!rect.height) return;
+  const ghost = document.createElement('div');
+  ghost.className = 'dlg-ghost';
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.inert = true;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'dlg-ghost-backdrop';
+  const copy = sheet.cloneNode(true);
+  copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  copy.classList.remove('is-dragging', 'is-settling');
+  copy.style.cssText = `top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px;max-height:none;`;
+  ghost.append(backdrop, copy);
+  document.body.appendChild(ghost);
+  const distance = window.innerHeight - rect.top;
+  const timing = { duration: 220, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' };
+  const startOpacity = Number.parseFloat(dialogEl.style.getPropertyValue('--sheet-progress')) || 1;
+  backdrop.animate([{ opacity: startOpacity }, { opacity: 0 }], { ...timing, easing: 'ease' });
+  const slide = copy.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${distance}px)` }], timing);
+  const cleanup = () => ghost.remove();
+  slide.addEventListener('finish', cleanup);
+  slide.addEventListener('cancel', cleanup);
+  setTimeout(cleanup, 600);
+}
+function setupSheetDrag() {
+  const CLOSE_DISTANCE = 110;
+  const CLOSE_VELOCITY = 0.6;
+  let drag = null;
+  const interactive = 'button, a, input, select, textarea, label, summary, [role="button"], [contenteditable]';
+  const reset = (sheet, dialogEl) => {
+    sheet.classList.remove('is-dragging');
+    sheet.classList.add('is-settling');
+    sheet.style.transform = '';
+    dialogEl.style.removeProperty('--sheet-progress');
+    setTimeout(() => sheet.classList.remove('is-settling'), 260);
+  };
+  document.addEventListener('pointerdown', (event) => {
+    if (drag || !event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (!(event.target instanceof Element) || !isSheetViewport()) return;
+    const dialogEl = event.target.closest('#dlg');
+    const sheet = dialogEl?.querySelector('.dlg:not(.intro-dialog)');
+    if (!dialogEl || !sheet || !sheet.contains(event.target)) return;
+    const onHandle = Boolean(event.target.closest('.dlg-handle'));
+    const head = event.target.closest('.head');
+    const onHead = Boolean(head) && head === sheet.querySelector('.head') && !event.target.closest(interactive);
+    if (!onHandle && !onHead) return;
+    drag = { sheet, dialogEl, pointerId: event.pointerId, startY: event.clientY, lastY: event.clientY, lastTime: event.timeStamp, velocity: 0, offset: 0, height: sheet.offsetHeight || 1 };
+  }, { passive: true });
+  document.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const offset = Math.max(0, event.clientY - drag.startY);
+    const elapsed = event.timeStamp - drag.lastTime;
+    if (elapsed > 0) drag.velocity = (event.clientY - drag.lastY) / elapsed;
+    drag.lastY = event.clientY;
+    drag.lastTime = event.timeStamp;
+    drag.offset = offset;
+    if (offset > 4) drag.sheet.classList.add('is-dragging');
+    drag.sheet.style.transform = `translateY(${offset}px)`;
+    drag.dialogEl.style.setProperty('--sheet-progress', String(Math.max(0.15, 1 - offset / drag.height)));
+  });
+  const finish = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const { sheet, dialogEl, offset, velocity } = drag;
+    drag = null;
+    if (offset <= 4) { sheet.style.transform = ''; sheet.classList.remove('is-dragging'); return; }
+    const shouldClose = event.type === 'pointerup' && (offset > CLOSE_DISTANCE || velocity > CLOSE_VELOCITY);
+    if (!shouldClose) { reset(sheet, dialogEl); return; }
+    dlgClose();
+    // Se o fechamento foi barrado (ex.: confirmação de descarte), a folha volta para o lugar.
+    if (sheet.isConnected && document.getElementById('dlg')?.contains(sheet)) reset(sheet, dialogEl);
+  };
+  document.addEventListener('pointerup', finish);
+  document.addEventListener('pointercancel', finish);
+}
+setupSheetDrag();
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
@@ -4653,6 +4870,7 @@ function renderDialog() {
       history.back();
     }
     if (el) {
+      animateSheetExit(el);
       if (el instanceof HTMLDialogElement && el.open) el.close();
       el.remove();
       $('#app').inert = false;
@@ -4927,7 +5145,10 @@ function recordWaterEntry(amount, habit) {
   if (completing) habit.completions.push(day);
   const saved = saveSlices('water', ...(completing ? ['habits'] : []));
   render();
-  if (saved) toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
+  if (saved) {
+    vibrateFeedback();
+    toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
+  }
   return saved;
 }
 function focusQuickActionsTrigger() {
@@ -5482,6 +5703,7 @@ const ACTIONS = {
       return;
     }
     if (completing) {
+      vibrateFeedback();
       completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
       toast('Hábito marcado como concluído.', 'action', () => {
         const currentHabit = S.habits.find((item) => item.id === habit.id);
@@ -6360,17 +6582,33 @@ const FORMS = {
   'home-quick-task': (f, d) => {
     const title = String(d.get('title') || '').trim();
     if (!title) return toast('Escreva uma tarefa.', 'info');
+    const kind = String(d.get('kind') || 'task');
+    if (!['task', 'appointment'].includes(kind)) return toast('Escolha um tipo de registro válido.', 'info');
+    const priority = String(d.get('priority') || 'normal');
+    if (!Object.hasOwn(PRIO, priority)) return toast('Escolha uma prioridade válida.', 'info');
     const date = parseQuickDate(title, today());
     if (date.error) return toast(date.error, 'info');
     if (!date.title) return toast('Escreva o título da tarefa além da data.', 'info');
+    if (kind === 'appointment' && (!date.recognized || !date.time)) {
+      return toast('Para registrar um compromisso, informe o dia e a hora, como “amanhã 14h”.', 'info');
+    }
     const parsed = parseTags(date.title);
+    const tags = kind === 'appointment'
+      ? ['Compromisso', ...parsed.tags.filter((tag) => norm(tag) !== norm('Compromisso')).slice(0, 11)]
+      : parsed.tags;
     const slices = homeFirstTaskSlices();
-    S.tasks.push(mkTask({ title: parsed.title, dueDate: date.date, ...(date.time ? { time: date.time } : {}), ...(parsed.tags.length ? { tags: parsed.tags } : {}) }));
+    S.tasks.push(mkTask({
+      title: parsed.title,
+      dueDate: date.date,
+      priority,
+      ...(date.time ? { time: date.time } : {}),
+      ...(tags.length ? { tags } : {}),
+    }));
     const saved = saveSlices(...slices);
     render();
     if (saved) {
       const deadline = date.date === today() ? 'hoje' : shortDate(date.date);
-      toast(`Tarefa adicionada para ${deadline}${date.time ? ` às ${date.time}` : ''}.`, 'success');
+      toast(`${kind === 'appointment' ? 'Compromisso registrado' : 'Tarefa adicionada'} para ${deadline}${date.time ? ` às ${date.time}` : ''}.`, 'success');
       requestAnimationFrame(() => $('#home-quick-title-input')?.focus());
     }
   },
@@ -6717,68 +6955,199 @@ document.addEventListener('visibilitychange', async () => {
     console.error('Aurora: a conta foi recarregada em segundo plano e falhou.', error);
   }
 });
-let taskSwipeState = null;
-let suppressTaskClickUntil = 0;
+const PULL_REFRESH_THRESHOLD = 80;
+let pullRefreshState = null;
+const resetPullRefresh = () => {
+  if (!pullRefreshState) return;
+  pullRefreshState.app.classList.remove('is-pulling-to-refresh');
+  pullRefreshState.app.classList.remove('is-pull-refresh-ready');
+  pullRefreshState.app.classList.remove('is-refreshing');
+  pullRefreshState.app.style.removeProperty('--pull-refresh-offset');
+  pullRefreshState.app.style.removeProperty('--pull-refresh-rotation');
+  pullRefreshState.indicator.setAttribute('aria-hidden', 'true');
+  pullRefreshState.indicator.querySelector('.pull-refresh-label').textContent = '';
+  pullRefreshState = null;
+};
+document.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 1 || window.scrollY > 0
+    || !window.matchMedia('(max-width: 899px)').matches || ui.dlg) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest('#main') || target.closest('button, a[href], input, textarea, select, summary, [contenteditable="true"], [role="button"]')) return;
+  const app = document.querySelector('.app');
+  const indicator = app?.querySelector('.pull-refresh-indicator');
+  if (!app || !indicator) return;
+  const touch = event.touches[0];
+  pullRefreshState = { app, indicator, startX: touch.clientX, startY: touch.clientY, deltaY: 0 };
+}, { passive: true });
+document.addEventListener('touchmove', (event) => {
+  if (!pullRefreshState) return;
+  if (event.touches.length !== 1) {
+    resetPullRefresh();
+    return;
+  }
+  const touch = event.touches[0];
+  const deltaX = touch.clientX - pullRefreshState.startX;
+  const deltaY = touch.clientY - pullRefreshState.startY;
+  if (deltaY <= 0 || Math.abs(deltaX) > deltaY || window.scrollY > 0) {
+    resetPullRefresh();
+    return;
+  }
+  if (deltaY < 10) return;
+  if (event.cancelable) event.preventDefault();
+  pullRefreshState.deltaY = deltaY;
+  pullRefreshState.app.classList.add('is-pulling-to-refresh');
+  pullRefreshState.app.style.setProperty('--pull-refresh-offset', `${Math.min(70, deltaY * 0.55)}px`);
+  pullRefreshState.app.style.setProperty('--pull-refresh-rotation', `${Math.min(180, deltaY * 2)}deg`);
+  pullRefreshState.app.classList.toggle('is-pull-refresh-ready', deltaY >= PULL_REFRESH_THRESHOLD);
+  pullRefreshState.indicator.setAttribute('aria-hidden', 'false');
+  pullRefreshState.indicator.querySelector('.pull-refresh-label').textContent = deltaY >= PULL_REFRESH_THRESHOLD
+    ? 'Solte para atualizar'
+    : 'Continue puxando para atualizar';
+}, { passive: false });
+document.addEventListener('touchend', (event) => {
+  if (!pullRefreshState) return;
+  if (event.touches.length !== 0) {
+    resetPullRefresh();
+    return;
+  }
+  const shouldRefresh = pullRefreshState.deltaY >= PULL_REFRESH_THRESHOLD;
+  const { app, indicator } = pullRefreshState;
+  resetPullRefresh();
+  if (shouldRefresh) {
+    app.classList.add('is-pulling-to-refresh', 'is-pull-refresh-ready', 'is-refreshing');
+    app.style.setProperty('--pull-refresh-offset', '56px');
+    indicator.setAttribute('aria-hidden', 'false');
+    indicator.querySelector('.pull-refresh-label').textContent = 'Atualizando…';
+    requestAnimationFrame(() => {
+      ACTIONS['reload-app']();
+      if (ui.dlg) {
+        app.classList.remove('is-pulling-to-refresh', 'is-pull-refresh-ready', 'is-refreshing');
+        app.style.removeProperty('--pull-refresh-offset');
+        indicator.setAttribute('aria-hidden', 'true');
+        indicator.querySelector('.pull-refresh-label').textContent = '';
+      }
+    });
+  }
+}, { passive: true });
+document.addEventListener('touchcancel', resetPullRefresh, { passive: true });
+let listSwipeState = null;
+let suppressSwipeClickUntil = 0;
+let suppressSwipeClickRow = null;
 document.addEventListener('pointerdown', (event) => {
+  if (suppressSwipeClickRow) {
+    suppressSwipeClickUntil = 0;
+    suppressSwipeClickRow = null;
+  }
   if (!event.isPrimary || event.pointerType !== 'touch' || !(event.target instanceof Element)) return;
-  const title = event.target.closest('.task .tt');
-  const row = title?.closest('.task');
-  if (row && !row.classList.contains('done')) {
-    taskSwipeState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row };
+  const taskTitle = event.target.closest('.task .tt');
+  const task = taskTitle?.closest('.task');
+  if (task && !task.classList.contains('done')) {
+    listSwipeState = { kind: 'task', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row: task, id: task.dataset.k };
+    return;
+  }
+  const habitSummary = event.target.closest('.habit-more > summary');
+  const habit = habitSummary?.closest('.habit-row');
+  if (habit && habit.querySelector('.habit-circle:not(:disabled)')) {
+    listSwipeState = { kind: 'habit', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row: habit, id: habit.dataset.habitId };
+    return;
+  }
+  const financeMain = event.target.closest('.fr-main');
+  const transaction = financeMain?.closest('.fr');
+  if (transaction) {
+    listSwipeState = { kind: 'finance', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, deltaX: 0, moved: false, row: transaction, id: transaction.dataset.k };
   }
 });
 document.addEventListener('pointermove', (event) => {
-  if (taskSwipeState?.pointerId !== event.pointerId) return;
-  const deltaX = event.clientX - taskSwipeState.startX;
-  const deltaY = event.clientY - taskSwipeState.startY;
+  if (listSwipeState?.pointerId !== event.pointerId) return;
+  const state = listSwipeState;
+  const deltaX = event.clientX - state.startX;
+  const deltaY = event.clientY - state.startY;
   if (Math.abs(deltaY) > 16 && Math.abs(deltaY) > Math.abs(deltaX)) {
-    resetTaskSwipe(taskSwipeState);
-    taskSwipeState = null;
+    resetListSwipe(state);
+    listSwipeState = null;
     return;
   }
   if (Math.abs(deltaX) < 10 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-  taskSwipeState.deltaX = deltaX;
-  taskSwipeState.moved = true;
-  taskSwipeState.row.classList.add('is-swiping');
-  taskSwipeState.row.dataset.swipeDirection = deltaX < 0 ? 'complete' : 'defer';
-  taskSwipeState.row.style.setProperty('--task-swipe-x', `${Math.max(-120, Math.min(120, deltaX))}px`);
+  const row = state.row;
+  let action = '', direction = '', label = '';
+  if (state.kind === 'task') {
+    action = deltaX < 0 ? 'toggle' : 'task-swipe-defer';
+    direction = deltaX < 0 ? 'complete' : 'defer';
+    label = deltaX < 0 ? 'Concluir' : 'Adiar';
+  } else if (state.kind === 'habit') {
+    const completed = row.classList.contains('is-done');
+    if (deltaX < 0 && !completed) {
+      action = 'habit-check';
+      direction = 'complete';
+      label = 'Marcar como feito';
+    } else if (deltaX > 0 && completed) {
+      action = 'habit-check';
+      direction = 'undo';
+      label = 'Desmarcar';
+    }
+  } else if (state.kind === 'finance' && deltaX < 0) {
+    action = 'tx-swipe-delete';
+    direction = 'delete';
+    label = 'Excluir';
+  }
+  if (!action) {
+    resetListSwipeVisual(state);
+    state.action = '';
+    state.deltaX = 0;
+    state.moved = false;
+    return;
+  }
+  state.action = action;
+  state.deltaX = deltaX;
+  state.moved = true;
+  row.classList.add('is-swiping');
+  row.dataset.swipeDirection = direction;
+  row.dataset.swipeLabel = label;
+  row.style.setProperty(state.kind === 'task' ? '--task-swipe-x' : '--swipe-x', `${Math.max(-120, Math.min(120, deltaX))}px`);
   event.preventDefault();
 }, { passive: false });
-const resetTaskSwipe = (state) => {
+const resetListSwipeVisual = (state) => {
   if (!state?.row.isConnected) return;
   state.row.classList.remove('is-swiping', 'is-swipe-committing');
   delete state.row.dataset.swipeDirection;
-  state.row.style.removeProperty('--task-swipe-x');
+  delete state.row.dataset.swipeLabel;
+  state.row.style.removeProperty(state.kind === 'task' ? '--task-swipe-x' : '--swipe-x');
 };
+const resetListSwipe = (state) => resetListSwipeVisual(state);
 document.addEventListener('pointerup', (event) => {
-  if (taskSwipeState?.pointerId !== event.pointerId) return;
-  const state = taskSwipeState;
-  taskSwipeState = null;
-  if (!state.moved || Math.abs(state.deltaX) < 84) {
-    resetTaskSwipe(state);
+  if (listSwipeState?.pointerId !== event.pointerId) return;
+  const state = listSwipeState;
+  listSwipeState = null;
+  if (!state.row.isConnected || !state.moved || !state.action || Math.abs(state.deltaX) < 84) {
+    resetListSwipe(state);
     return;
   }
   state.row.classList.remove('is-swiping');
   state.row.classList.add('is-swipe-committing');
-  state.row.style.setProperty('--task-swipe-x', `${state.deltaX < 0 ? '-120vw' : '120vw'}`);
-  suppressTaskClickUntil = Date.now() + 500;
+  state.row.style.setProperty(state.kind === 'task' ? '--task-swipe-x' : '--swipe-x', `${state.deltaX < 0 ? '-120vw' : '120vw'}`);
+  suppressSwipeClickUntil = Date.now() + 500;
+  suppressSwipeClickRow = state.row;
   setTimeout(() => {
-    ACTIONS[state.deltaX < 0 ? 'toggle' : 'task-swipe-defer']({ dataset: { id: state.row.dataset.k } });
+    ACTIONS[state.action]({ dataset: { id: state.id } });
   }, 170);
 });
 document.addEventListener('pointercancel', (event) => {
-  if (taskSwipeState?.pointerId === event.pointerId) {
-    resetTaskSwipe(taskSwipeState);
-    taskSwipeState = null;
+  if (listSwipeState?.pointerId === event.pointerId) {
+    resetListSwipe(listSwipeState);
+    listSwipeState = null;
   }
 });
 document.addEventListener('click', (e) => {
-  if (Date.now() < suppressTaskClickUntil) {
-    suppressTaskClickUntil = 0;
+  if (Date.now() < suppressSwipeClickUntil
+    && suppressSwipeClickRow instanceof Node
+    && suppressSwipeClickRow.contains(e.target)) {
+    suppressSwipeClickUntil = 0;
+    suppressSwipeClickRow = null;
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
   }
+  if (Date.now() >= suppressSwipeClickUntil) suppressSwipeClickRow = null;
   const el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
   if (ui.legacyImport.busy) return;
   const focusBeforeAction = !ui.dlg ? describeDialogOpener(el) : null;
@@ -6801,8 +7170,19 @@ document.addEventListener('click', (e) => {
   render();
 });
 document.addEventListener('click', (e) => {
+  const accountMenu = document.querySelector('.header-account-control[open]');
+  if (accountMenu && e.target instanceof Node
+    && (!accountMenu.contains(e.target) || (e.target instanceof Element && e.target.closest('.header-account-panel a, .header-account-panel button')))) accountMenu.open = false;
+  const clickedTrigger = e.target instanceof Element ? e.target.closest('.profile-menu-trigger') : null;
+  if (clickedTrigger) {
+    const clickedMenu = clickedTrigger.closest('.profile-menu-control');
+    document.querySelectorAll('.profile-menu-control[open]').forEach((openMenu) => {
+      if (openMenu !== clickedMenu) openMenu.open = false;
+    });
+  }
   const menu = document.querySelector('.profile-menu-control[open]');
-  if (!menu || !(e.target instanceof Node) || menu.contains(e.target)) return;
+  const panel = document.querySelector('.topbar > .profile-menu-panel');
+  if (!menu || !(e.target instanceof Node) || menu.contains(e.target) || panel?.contains(e.target)) return;
   menu.open = false;
 });
 document.addEventListener('click', (e) => {
@@ -7012,7 +7392,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
   if (e.key === 'Escape') {
-    const profileMenu = document.querySelector('.profile-menu-control[open]');
+    const profileMenu = document.querySelector('.profile-menu-control[open], .header-account-control[open]');
     if (profileMenu) {
       e.preventDefault();
       profileMenu.open = false;
@@ -7942,6 +8322,15 @@ Object.assign(ACTIONS, {
     });
   },
   'tx-del-dlg': () => { const cur = S.finance.tx.find((x) => x.id === ui.dlg.d.id); if (!cur) return dlgClose(); dlgOpen('txdel', { id: cur.id, ...(cur.groupId && S.finance.tx.filter((x) => x.groupId === cur.groupId).length > 1 ? { gid: cur.groupId } : {}) }); },
+  'tx-swipe-delete': (el) => {
+    const transaction = S.finance.tx.find((item) => item.id === el.dataset.id);
+    if (!transaction) return toast('Este lançamento não está mais disponível.', 'info');
+    const group = transaction.groupId && !transaction.recId
+      ? S.finance.tx.filter((item) => item.groupId === transaction.groupId)
+      : [];
+    if (group.length > 1) return dlgOpen('txdel', { id: transaction.id, gid: transaction.groupId });
+    moveFinanceTransactionsToTrash([transaction]);
+  },
   'account-delete-open': () => {
     if (!accountSession) return toast('Entre na conta que deseja excluir.', 'info');
     dlgOpen('account-delete');
@@ -7951,19 +8340,7 @@ Object.assign(ACTIONS, {
     if (!t) return dlgClose();
     const k = el.dataset.k;
     const removed = S.finance.tx.filter((x) => (k === 'one' ? x.id === d.id : k === 'next' ? x.groupId === d.gid && x.date >= t.date : x.groupId === d.gid));
-    const records = removed.map((transaction) => createTrashRecord(
-      'finance.tx',
-      transaction.id,
-      S.finance.tx.indexOf(transaction),
-      transaction,
-    ));
-    const label = removed.length > 1 ? `Lançamentos financeiros (${removed.length})` : `Lançamento: ${t.desc || t.category || 'Finanças'}`;
-    const entry = moveRecordsToTrash(label, records, ['finance'], () => {
-      const ids = new Set(removed.map((transaction) => transaction.id));
-      S.finance.tx = S.finance.tx.filter((transaction) => !ids.has(transaction.id));
-      ui.dlg = null;
-    });
-    if (entry) toast('Lançamento movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
+    moveFinanceTransactionsToTrash(removed);
   },
   'category-manager': () => dlgOpen('category-manager', {}),
   'finance-category-rule-delete': (el) => {
@@ -8893,6 +9270,7 @@ export async function startAuthenticatedAurora(
   await Persist.attach(accountSession);
   watchSessionExpiry(accountSession.client);
   await continueAuthenticatedAurora(root, accountSession.user);
+  void restoreGoogleCalendarAccounts();
 }
 
 function showAccountStartupError(root, message) {
@@ -9060,9 +9438,13 @@ document.addEventListener('click', async (event) => {
     }
   }
   intentionalSignOut = true;
-  const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
-  if (error) {
+  try {
+    const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
+    if (error) throw error;
+  } catch (error) {
     intentionalSignOut = false;
+    button.disabled = false;
+    console.error('Aurora: não foi possível encerrar a sessão.', error);
     toast('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.', 'info');
     return;
   }

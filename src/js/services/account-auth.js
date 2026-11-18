@@ -448,15 +448,11 @@ function setSubmitPending(button, pending) {
   button.disabled = false;
 }
 
-const SPARKLE_PATH = 'M12 1.5c.7 5.6 3.4 8.3 9 9-5.6.7-8.3 3.4-9 9-.7-5.6-3.4-8.3-9-9 5.6-.7 8.3-3.4 9-9z';
 
 const SUCCESS_ART = `<svg class="account-success-svg" viewBox="0 0 120 96" role="presentation" focusable="false">
     <circle class="ok-halo" cx="60" cy="50" r="38"/>
     <circle class="ok-disc" cx="60" cy="50" r="28"/>
     <path class="ok-check" d="M46 51l10 10 19-21"/>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(94 8) scale(.9)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(10 22) scale(.6)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(98 62) scale(.5)"/>
   </svg>`;
 
 const ACCOUNT_ART = {
@@ -470,9 +466,6 @@ const ACCOUNT_ART = {
       <path class="art-env-fold" d="M36 162l76-56M224 162l-76-56" />
       <path class="art-heart" d="M130 158c-12-9-18-15-18-22a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 7-6 13-18 22z"/>
     </g>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(206 20) scale(1.1)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(24 40) scale(.8)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(228 112) scale(.6)"/>
   </svg>`,
   lock: `<svg class="account-art-svg" viewBox="0 0 260 200" role="presentation" focusable="false">
     <ellipse class="art-shadow" cx="130" cy="182" rx="76" ry="10"/>
@@ -483,9 +476,6 @@ const ACCOUNT_ART = {
       <circle class="art-keyhole" cx="130" cy="126" r="11"/>
       <path class="art-keyhole" d="M125 130h10l3 24h-16z"/>
     </g>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(200 24) scale(1.1)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(30 70) scale(.8)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(214 120) scale(.6)"/>
   </svg>`,
   preview: `<div class="account-preview">
     <div class="account-preview-card is-tasks">
@@ -505,8 +495,6 @@ const ACCOUNT_ART = {
       <p class="account-preview-value">R$ 1.240,00</p>
       <div class="account-preview-bars"><span></span><span></span><span></span><span></span><span></span></div>
     </div>
-    <svg class="account-preview-sparkle s1" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
-    <svg class="account-preview-sparkle s2" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
   </div>`,
 };
 

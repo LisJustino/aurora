@@ -6,6 +6,26 @@ const check = (passed, name, detail = '') => {
   results.push(passed);
   console.log(`${passed ? 'OK   ' : 'FALHA'} — ${name}${detail ? ` (${detail})` : ''}`);
 };
+const swipe = async (page, locator, direction) => {
+  await locator.evaluate((target, direction) => {
+    const bounds = target.getBoundingClientRect();
+    const startX = bounds.left + bounds.width / 2;
+    const startY = bounds.top + bounds.height / 2;
+    const pointer = (type, x) => new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 72,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: x,
+      clientY: startY,
+    });
+    target.dispatchEvent(pointer('pointerdown', startX));
+    document.dispatchEvent(pointer('pointermove', startX + (direction === 'left' ? -120 : 120)));
+    document.dispatchEvent(pointer('pointerup', startX + (direction === 'left' ? -120 : 120)));
+  }, direction);
+  await page.waitForTimeout(240);
+};
 
 (async () => {
   const browser = await chromium.launch();
@@ -122,10 +142,10 @@ const check = (passed, name, detail = '') => {
     && await page.locator('[data-habit-idea]:not([hidden])').evaluateAll((ideas) => ideas.length > 0
       && ideas.every((idea) => idea.dataset.tags.split(' ').includes('no-equipment'))),
   'contexto sem equipamento filtra resultados');
-  await page.locator('[data-action="habit-ideas-clear"]').click();
+  await page.locator('.habit-idea-filter-status [data-action="habit-ideas-clear"]').click();
   check(await page.locator('select[data-change="habit-idea-category"]').inputValue() === 'all'
     && await page.locator('select[data-change="habit-idea-context"]').inputValue() === 'all'
-    && await page.locator('[data-action="habit-ideas-clear"]').isHidden()
+    && await page.locator('.habit-idea-filter-status [data-action="habit-ideas-clear"]').isHidden()
     && await page.locator('[data-habit-idea]:not([hidden])').count() === totalIdeas,
   'ação limpar filtros restaura os seletores e o catálogo');
   await showAll.click();
@@ -169,6 +189,14 @@ const check = (passed, name, detail = '') => {
     await yesterdayDot.click();
     check(await row.locator('.habit-streak').count() === 0, 'um dia concluído ainda não mostra o selo de sequência');
   }
+  await swipe(page, row.locator('.habit-more > summary'), 'left');
+  await row.locator('.habit-circle[aria-pressed="true"]').waitFor({ state: 'visible' });
+  check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true',
+    'deslizar à esquerda marca o hábito de hoje');
+  await swipe(page, row.locator('.habit-more > summary'), 'right');
+  await row.locator('.habit-circle[aria-pressed="false"]').waitFor({ state: 'visible' });
+  check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'false',
+    'deslizar à direita desfaz a marcação do hábito');
   await row.locator('.habit-circle').click();
   check(await row.locator('.habit-circle').getAttribute('aria-pressed') === 'true', 'check-in principal pode ser concluído diretamente');
   check(hasYesterdayInWeek
@@ -196,10 +224,29 @@ const check = (passed, name, detail = '') => {
   await row.locator('.habit-management > summary').click();
   check(await row.getByRole('button', { name: 'Editar' }).isVisible(), 'ações do hábito continuam disponíveis ao expandir gerenciamento');
 
+  const ideas = page.locator('.habit-ideas');
+  if (!await ideas.evaluate((details) => details.open)) await ideas.locator('summary').click();
+  await page.locator('[data-action="habit-idea"][data-id="water"]').click();
+  for (const day of await page.locator('#dlgform [name="days"]').all()) {
+    if (!await day.isChecked()) await day.check();
+  }
+  await page.locator('#dlgform [data-dlg="waterGoalMl"]').fill('2000');
+  await page.locator('button[form="dlgform"][type="submit"]').click();
+  const waterRow = page.locator('.habit-row').filter({ has: page.locator('.water-tracker') });
+  await waterRow.locator('.habit-more > summary').click();
+  check(await waterRow.locator('.water-week-chart').count() === 0
+    && (await waterRow.locator('.water-tracker > p[aria-live="polite"]').textContent()).includes('Meta diária cumprida'),
+  'acompanhamento de água mantém resumo semanal sem quadrados por dia');
+
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > innerWidth,
+      dashboard: {
+        bounds: document.querySelector('.habit-dashboard').getBoundingClientRect().toJSON(),
+        today: document.querySelector('.habit-today').getBoundingClientRect().toJSON(),
+        week: document.querySelector('.habit-week-overview').getBoundingClientRect().toJSON(),
+      },
       week: [...document.querySelectorAll('.habit-week')].map((week) => ({
         right: week.getBoundingClientRect().right,
         dots: [...week.querySelectorAll('.habit-dot')].map((dot) => {
@@ -215,7 +262,12 @@ const check = (passed, name, detail = '') => {
     check(!layout.overflow && layout.week.every(({ right, dots }) => (
       dots.length === 7 && dots.at(-1).right <= right + 1 && (width > 700 || dots.every(({ height }) => height >= 44))
     )) && layout.filters?.right <= width + 1
-      && layout.filterColumns === (width <= 520 ? 1 : 2),
+      && layout.filterColumns === (width <= 520 ? 1 : 2)
+      && (width >= 1000
+        ? Math.abs(layout.dashboard.today.y - layout.dashboard.week.y) < 1
+          && layout.dashboard.week.x > layout.dashboard.today.x
+          && layout.dashboard.week.right <= layout.dashboard.bounds.right + 1
+        : layout.dashboard.week.y >= layout.dashboard.today.bottom),
     `sem overflow e filtros adaptados ao viewport de ${width} px`, JSON.stringify(layout));
   }
   await page.setViewportSize({ width: 390, height: 844 });
@@ -308,7 +360,13 @@ const check = (passed, name, detail = '') => {
         return footer.bottom <= nav.top;
       });
       check(footerVisible, `rodapé fica acima da barra em ${width}px com área segura de ${inset}px`);
-      await navPage.locator('.nav-item[data-route="habitos"]').click();
+      const habitsDirect = navPage.locator('.nav-item[data-route="habitos"]:visible');
+      if (await habitsDirect.count()) {
+        await habitsDirect.first().click();
+      } else {
+        await navPage.locator('.profile-menu-trigger').click();
+        await navPage.locator('#profile-menu a[href="/habitos"]').click();
+      }
       await navPage.locator('.main[data-route="habitos"]').waitFor({ state: 'visible' });
       await navPage.evaluate(() => {
         document.documentElement.dataset.fs = 'l';

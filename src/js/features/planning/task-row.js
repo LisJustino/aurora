@@ -28,7 +28,7 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
   if (t.notes) metadata.push({ icon: 'note', label: 'Nota', tone: '' });
   (t.tags || []).forEach((tag) => metadata.push({ icon: 'tag', label: `#${tag}`, tone: '' }));
   if (t.groupTitle) metadata.push({ icon: 'list', label: t.groupTitle, tone: '' });
-  if (t.sample) metadata.push({ icon: 'sparkles', label: 'Exemplo', tone: '' });
+  if (t.sample) metadata.push({ icon: 'note', label: 'Exemplo', tone: '' });
   const shownMetadata = metadata.slice(0, 3);
   const extraMetadata = metadata.length - shownMetadata.length;
 

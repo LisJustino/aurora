@@ -27,7 +27,7 @@ assert.doesNotMatch(renderFooterContent(), /data-action="copy-contact-email"/);
 assert.match(authenticatedFooter, /href="\/config">Perfil e ajustes<\/a>/);
 assert.doesNotMatch(authenticatedFooter, /data-account-signout|Sair da conta/);
 assert.match(publicFooter, /class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo/);
-assert.match(publicFooter, /Sua sugestão será enviada ao Supabase/);
+assert.match(publicFooter, /A mensagem vai para análise/);
 assert.equal(normalizeSuggestionMessage('  Uma ideia que ajuda o app.  '), 'Uma ideia que ajuda o app.');
 assert.throws(() => normalizeSuggestionMessage('   '), TypeError);
 assert.throws(() => normalizeSuggestionMessage('curto'), TypeError);
