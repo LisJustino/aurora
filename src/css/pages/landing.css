@@ -1032,6 +1032,29 @@
   .public-header-nav { display: flex; }
 }
 
+/* Em telas estreitas os links não cabem ao lado da marca e das ações: ficam numa segunda linha do cabeçalho. */
+@media (width <= 900px) {
+  .public-topbar:has(> .public-header-nav) {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+  .public-topbar > .public-header-nav {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    order: 3;
+    justify-content: center;
+    margin-inline: 0;
+  }
+}
+
+@media (width < 480px) {
+  .public-topbar > .public-header-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
 @media (width <= 700px) {
   .public-features .public-journey-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -1873,6 +1896,8 @@
 .public-site .public-hero {
   border: 0;
   border-radius: 0;
+  /* Sem cartão ao redor, o recuo lateral só desalinhava o hero das demais seções. */
+  padding-inline: 0;
   background: transparent;
   box-shadow: none;
   color: var(--ink);

@@ -69,7 +69,7 @@ h1, h2, h3 {
 h1 { font-size: var(--text-page-title); }
 h2 { font-size: var(--text-title); }
 h3 { font-size: var(--text-lg); }
-h1 i, h2 i, .wordmark i { color: var(--accent); font-style: normal; }
+.wordmark i { color: var(--accent); font-style: normal; }
 p { margin: 0; }
 
 button, input, select, textarea { color: inherit; font: inherit; }

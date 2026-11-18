@@ -75,7 +75,7 @@ const areaBackgrounds = [
 ];
 const fixture = document.createElement('div');
 fixture.hidden = true;
-fixture.innerHTML = '<header class="topbar"><nav class="nav"><a class="nav-item" aria-current="page"><span class="ni"></span><span class="tab-period">.</span></a></nav></header><main class="main"><header class="page-title"><span class="page-title-eyebrow">Área</span><h1>Título<i>.</i></h1></header><button class="chip" aria-pressed="true">Filtro</button><div class="bar"><span></span></div><div class="annual-plan-progress-ring"></div><div class="cycle-day-ring" style="--cycle-progress:50%"></div><section class="water-tracker"><progress></progress></section><section class="empty empty-state"><span class="eic empty-state-icon" aria-hidden="true"></span><div class="empty-copy"><h3 class="empty-state-title">Nada por aqui.</h3><p class="empty-state-description">Uma frase de apoio para esta área.</p></div><div class="empty-action"><button type="button" class="btn primary">Começar</button></div></section></main><div class="dlg-back"><button class="chip" aria-pressed="true">Filtro</button></div>';
+fixture.innerHTML = '<header class="topbar"><nav class="nav"><a class="nav-item" aria-current="page"><span class="ni"></span></a></nav></header><main class="main"><header class="page-title"><span class="page-title-eyebrow">Área</span><h1>Título</h1></header><button class="chip" aria-pressed="true">Filtro</button><div class="bar"><span></span></div><div class="annual-plan-progress-ring"></div><div class="cycle-day-ring" style="--cycle-progress:50%"></div><section class="water-tracker"><progress></progress></section><section class="empty empty-state"><span class="eic empty-state-icon" aria-hidden="true"></span><div class="empty-copy"><h3 class="empty-state-title">Nada por aqui.</h3><p class="empty-state-description">Uma frase de apoio para esta área.</p></div><div class="empty-action"><button type="button" class="btn primary">Começar</button></div></section></main><div class="dlg-back"><button class="chip" aria-pressed="true">Filtro</button></div>';
 document.body.append(fixture);
 const navItem = fixture.querySelector('.nav-item');
 const main = fixture.querySelector('.main');
@@ -148,9 +148,7 @@ for (const [paletteKey, [, p, pd]] of Object.entries(PALETTES)) {
       for (const [element, property, label] of [
         [navItem, 'color', 'menu'],
         [navItem.querySelector('.ni'), 'color', 'ícone do menu'],
-        [navItem.querySelector('.tab-period'), 'color', 'ponto do menu'],
         [main.querySelector('.page-title-eyebrow'), 'color', 'kicker'],
-        [main.querySelector('h1 i'), 'color', 'ponto do título'],
         [main.querySelector('.chip'), 'color', 'chip'],
         [main.querySelector('.chip'), 'borderTopColor', 'borda do chip'],
         [dialog.querySelector('.chip'), 'color', 'chip do diálogo'],

@@ -260,7 +260,7 @@ export function renderPlansView(tasks) {
   });
   const plans = Object.entries(groups);
   if (!plans.length) return '';
-  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, plan]) => {
+  return h`<section class="card"><h2>Planos</h2><ul class="list">${plans.map(([id, plan]) => {
     const done = plan.items.filter((task) => task.done).length;
     const percent = Math.round(done / plan.items.length * 100);
     return h`<li><div class="grow"><div class="ttl">${plan.title}</div><div class="bar plan-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${plan.title}"><span style="width:${percent}%"></span></div><span class="small muted">${done} de ${plan.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${plan.title}">${icon('trash', 18)}</button></li>`;

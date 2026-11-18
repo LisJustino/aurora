@@ -94,7 +94,7 @@ function renderToday(state) {
     <header class="home-head" aria-labelledby="demo-greeting">
       <div>
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
-        <h1 id="demo-greeting" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span><i>.</i></h1>
+        <h1 id="demo-greeting" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span></h1>
         <p class="lead" aria-live="polite">${lead}</p>
       </div>
       <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
@@ -102,7 +102,7 @@ function renderToday(state) {
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         <section class="card home-today-card" aria-labelledby="demo-today-tasks-title">
-          <div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="demo-today-tasks-title">Hoje<i>.</i></h2></div><div class="row"><button type="button" class="btn ghost sm" data-demo-view="tasks">Ver planejamento</button></div></div>
+          <div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="demo-today-tasks-title">Hoje</h2></div><div class="row"><button type="button" class="btn ghost sm" data-demo-view="tasks">Ver planejamento</button></div></div>
           <div class="home-task-groups">
             ${open.length ? `<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${demoIcon('calendarCheck', 15)}Para hoje <span>${open.length}</span></h3><ul class="list">${open.map(renderHomeTask).join('')}</ul></section>` : ''}
             ${done.length ? `<details class="home-completed"><summary>${demoIcon('check', 15)}Concluídas hoje <span class="home-completed-count">${done.length}</span></summary><ul class="list">${done.map(renderHomeTask).join('')}</ul></details>` : ''}
@@ -250,7 +250,7 @@ function renderDemoArea(state) {
 }
 
 function renderNavigation(state) {
-  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-item demo-nav-link ${state.view === id ? 'is-current' : ''}" href="/demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span></a>`).join('');
+  return DEMO_NAV_ITEMS.map(([id, label, iconName]) => `<a class="nav-item demo-nav-link ${state.view === id ? 'is-current' : ''}" href="/demonstracao" title="${label}" data-demo-view="${id}" ${state.view === id ? 'aria-current="page"' : ''}><span class="ni">${demoIcon(iconName, 22)}</span><span class="tab-label-group"><span class="tab-label">${label}</span></span></a>`).join('');
 }
 
 function updateDemoView(root, state, focusHeading = false) {

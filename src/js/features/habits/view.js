@@ -127,7 +127,7 @@ export function renderHabitsView(dependencies) {
       </div>`.s
       : '',
     'week-overview': live.length ? h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
-      <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
+      <div><h2 id="habit-week-overview-title">Sua semana até agora</h2><p class="small muted">${overview.planned
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
         : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
       ${overview.planned ? h`<progress value="${overview.completed}" max="${overview.planned}" aria-label="Consistência dos hábitos nesta semana"></progress>` : ''}

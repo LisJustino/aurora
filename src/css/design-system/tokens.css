@@ -172,9 +172,10 @@
   --z-popover: 55;
   --z-toast: 60;
   --z-skip: 100;
-  --r-sm: 14px;
-  --r-card: 24px;
-  --r-hero: 32px;
+  /* Três raios, cada um com função: controle (botão, campo, linha), cartão e superfície de destaque (hero, modal). */
+  --r-sm: 12px;
+  --r-card: 20px;
+  --r-hero: 28px;
   --r-pill: 999px;
   --r-control: var(--r-sm);
   --r-group: var(--r-sm);

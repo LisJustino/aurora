@@ -314,7 +314,6 @@
   .topbar .nav a,
   .topbar .nav .mobile-nav-create-trigger,
   .topbar .nav .profile-menu-trigger { font-size: 10px; letter-spacing: 0; }
-  .topbar .nav .tab-period { display: none; }
 }
 
 @media (width >= 900px) and (width < 1200px) {

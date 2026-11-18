@@ -566,7 +566,6 @@
   letter-spacing: .1em;
 }
 .home-head h1 { max-width: 20ch; color: var(--on-hero-home); font-size: var(--text-hero); line-height: 1.05; }
-.home-head h1 i { color: var(--accent); }
 .home-head .lead { color: color-mix(in srgb, var(--on-hero-home) 84%, transparent); }
 .home-head .lead { max-width: 48ch; margin-top: 14px; font-size: var(--text-lg); }
 .home-head .ringw {
@@ -1195,7 +1194,6 @@
 }
 .main[data-route="inicio"] > .home-head h1,
 .main[data-route="inicio"] > .home-head .home-personal-message { color: var(--on-hero-home); }
-.main[data-route="inicio"] > .home-head h1 i { color: var(--accent); }
 .main[data-route="inicio"] > .home-head h1 { font-size: var(--text-hero); }
 .main[data-route="inicio"] > .home-head .lead { color: color-mix(in srgb, var(--on-hero-home) 84%, transparent); }
 .main[data-route="inicio"] > .home-head .ringw {
@@ -1254,7 +1252,6 @@
   background: var(--surface);
   box-shadow: var(--card-shadow);
 }
-.main[data-route="inicio"] > .home-head h1 i { color: var(--accent); }
 .main[data-route="inicio"] .home-today-card > .head {
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--line);
@@ -1310,18 +1307,17 @@
 }
 .demo-app .sample-banner > .btn { flex: none; }
 
+/* No celular o aviso acompanha o fluxo da página: fixo, ele ficava preso ao conteúdo animado e cobria o início da tela. */
 @media (width <= 700px) {
   .demo-app .sample-banner {
-    position: fixed;
-    z-index: calc(var(--z-header) - 1);
-    top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
-    right: 0;
-    left: 0;
-    max-height: 44px;
     gap: var(--space-2);
-    padding-inline: var(--gut-l) var(--gut-r);
-    border-radius: 0;
+    padding-block: var(--space-2);
     font-size: var(--text-xs);
+  }
+  .demo-app .sample-banner-copy {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
   }
   .demo-app .sample-banner > .btn {
     padding-inline: var(--space-2);
@@ -1433,3 +1429,16 @@
   .home-day-chips { gap: var(--space-1); }
   .home-day-chip { padding-right: var(--space-2); }
 }
+
+/* O resumo do dia tem três indicadores: três colunas evitam um item sozinho numa segunda linha. */
+.main[data-route="inicio"] .home-dashboard .strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.main[data-route="inicio"] .home-dashboard .strip > :last-child:nth-child(odd) {
+  grid-column: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-1);
+}
+.main[data-route="inicio"] .home-dashboard .strip > :last-child:nth-child(odd) span { text-align: left; }

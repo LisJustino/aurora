@@ -42,7 +42,7 @@ export function renderHomeView(model, renderers) {
   const weekPercent = weekTotal ? Math.round(weekProgress.completed / weekTotal * 100) : 0;
 
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}</h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
     <section class="home-day-summary card" aria-labelledby="home-day-summary-title">
       <h2 id="home-day-summary-title">Hoje</h2>
       ${daySummary.tasks.next
@@ -101,7 +101,7 @@ export function renderHomeView(model, renderers) {
           ${homeUpcomingTasks()}
         ` : ''}
         <section class="card home-week-progress" aria-labelledby="home-week-progress-title">
-          <div class="head"><div><p class="section-kicker">Seu ritmo</p><h2 id="home-week-progress-title">Esta semana<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
+          <div class="head"><div><p class="section-kicker">Seu ritmo</p><h2 id="home-week-progress-title">Esta semana</h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
           ${weekTotal
             ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span>tarefas resolvidas ou planejadas</span></div>
               <div class="home-week-progress-track" role="progressbar" aria-label="Tarefas concluídas nesta semana" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${weekPercent}" aria-valuetext="${weekProgress.completed} de ${weekTotal} tarefas concluídas">
@@ -113,7 +113,7 @@ export function renderHomeView(model, renderers) {
       </div>
     </div>
     ${homeShortcuts.length ? h`<section class="card home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><div><p class="section-kicker">Atalhos</p><h2 id="home-tools-title">Ações rápidas<i>.</i></h2></div></div>
+      <div class="head"><div><p class="section-kicker">Atalhos</p><h2 id="home-tools-title">Ações rápidas</h2></div></div>
       <div class="home-tool-grid${homeShortcuts.length === 1 ? ' single' : ''}">
         ${homeShortcuts.map((shortcut) => h`<button class="home-tool" type="button" data-action="${shortcut.action}">
           <span class="home-tool-icon" aria-hidden="true">${icon(shortcut.icon, 18)}</span>

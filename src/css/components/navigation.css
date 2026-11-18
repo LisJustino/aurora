@@ -149,7 +149,6 @@
 .nav-label-group { display: inline-flex; align-items: baseline; gap: 0; }
 .tab-label-group { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; }
 .tab-label { color: inherit; }
-.tab-period { color: var(--accent); font-style: normal; }
 .nav-item[aria-current="page"] {
   border-color: color-mix(in srgb, var(--area, var(--accent)) 16%, transparent);
   background: var(--surface-strong);
@@ -178,7 +177,6 @@
   color: var(--accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.nav-item[aria-current="page"] .tab-period { color: var(--area, var(--accent)); }
 .nav-item:focus-visible { outline-offset: -3px; }
 
 @media (width > 1200px) {
