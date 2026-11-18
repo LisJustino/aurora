@@ -78,7 +78,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       if (width < 900 && layout.today !== null) assert.equal(layout.today, '-1');
       assert.equal(layout.overflow, false);
     }
-    await page.locator('.profile-menu-trigger').click();
+    await page.locator('.profile-menu-trigger:visible').click();
     assert.equal(await page.locator('#profile-menu a[href="/config"]').isVisible(), true);
     const profileMenuBounds = await page.locator('#profile-menu').evaluate((menu) => {
       const { left, right } = menu.getBoundingClientRect();

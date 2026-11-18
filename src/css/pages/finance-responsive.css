@@ -209,3 +209,58 @@
 .fr .amt { font-weight: var(--weight-bold); }
 .fr .amt.out { color: var(--ink); }
 .fr.pend .amt.out { color: var(--muted); }
+
+.finance-actions-backdrop { display: none; }
+.app:has(> .main[data-route="financas"]) > .finance-actions-backdrop {
+  position: fixed;
+  z-index: calc(var(--z-header) + 1);
+  inset: 0;
+  display: block;
+  width: 100vw;
+  height: 100dvh;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgb(18 24 33 / 56%);
+}
+.app:has(> .main[data-route="financas"]) > .finance-quick-control {
+  position: fixed;
+  z-index: calc(var(--z-header) + 2);
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: 24px;
+}
+.app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-fab-trigger {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--area-finances);
+  box-shadow: var(--shadow);
+  color: var(--surface-strong);
+}
+.app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-fab-trigger .ic {
+  width: 26px;
+  height: 26px;
+}
+.app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-quick-actions-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(56px + 12px);
+}
+.app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-quick-actions-menu .quick-actions-heading {
+  display: none;
+}
+
+@media (width < 900px) {
+  .app:has(> .main[data-route="financas"]) > .finance-quick-control {
+    bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+  .app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-quick-actions-menu {
+    bottom: calc(var(--nav-h) + 16px + 56px + 12px + env(safe-area-inset-bottom, 0px));
+  }
+  .app:has(> .main[data-route="financas"]) .topbar .finance-nav-create-trigger {
+    visibility: hidden;
+  }
+}

@@ -261,7 +261,8 @@ assert.match(analyticsSection, /href="https:\/\/developers\.cloudflare\.com\/web
 assert.match(analyticsSection, /href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/);
 assert.match(privacyDocument, /Versão 2\.2 · última atualização: 18 de novembro de 2026/);
 assert.match(privacyDocument, /métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações/);
-assert.match(mainSource, /métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações/);
+assert.match(mainSource, /Usar dados no Ciclo/);
+assert.match(mainSource, /Permito que o Aurora use esses dados no Ciclo/);
 assert.match(termsDocument, /última atualização: 16 de novembro de 2026/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
