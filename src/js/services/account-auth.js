@@ -33,8 +33,8 @@ import {
 export { calculateAge };
 
 export const TERMS_DOCUMENT_VERSION = '2.0';
-export const PRIVACY_POLICY_VERSION = '2.1';
-export const CYCLE_DATA_CONSENT_VERSION = '2.0';
+export const PRIVACY_POLICY_VERSION = '2.2';
+export const CYCLE_DATA_CONSENT_VERSION = '2.1';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -536,7 +536,7 @@ function createAccountIntro(mode = '', brandLink = null) {
     heading: 'Mais clareza para o que importa.',
     description: 'Planeje seus dias, acompanhe hábitos e cuide das suas finanças em um só lugar.',
   };
-  const heading = create('h2', '', copy.heading);
+  const heading = create('h2', 'type-editorial-display', copy.heading);
   const description = create(
     'p',
     'account-intro-description',
@@ -645,28 +645,23 @@ export function createAccountForm(root, {
   const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
   const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
-  let publicBrand = null;
-  let publicActions = null;
   if (includePublicHeader) {
     const header = document.createElement('template');
     header.innerHTML = renderPublicHeader({ authMode: mode.startsWith('signup-') ? 'signup' : mode });
     const publicHeader = header.content.firstElementChild;
-    publicBrand = publicHeader.querySelector('.public-brand-link');
-    const publicNav = publicHeader.querySelector('.public-header-nav');
-    publicActions = publicHeader.querySelector('.public-header-actions');
+    const publicActions = publicHeader.querySelector('.public-header-actions');
     page.classList.add('is-public-account');
-    if (publicBrand && publicNav && publicActions) {
+    if (publicHeader && publicActions) {
+      publicHeader.classList.add('account-site-header');
       publicActions.classList.add('account-auth-header-actions');
-      const siteHeader = create('header', 'account-site-header');
-      siteHeader.append(publicBrand, publicNav, publicActions);
-      layout.insertBefore(siteHeader, page);
+      layout.insertBefore(publicHeader, page);
     }
   }
   page.append(createAccountIntro(mode, null));
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
   const brand = create('p', 'account-brand', 'aurora');
-  const heading = create('h1', '', title);
+  const heading = create('h1', 'type-editorial-title', title);
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', description);
@@ -1091,7 +1086,7 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
   const brand = create('p', 'account-brand', 'aurora');
-  const heading = create('h1', '', title);
+  const heading = create('h1', 'type-editorial-title', title);
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', message);

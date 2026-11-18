@@ -34,6 +34,14 @@
 .week-day h3 { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .week-day .list { min-width: 0; }
 .week-day > .btn { align-self: flex-start; }
+.week-day-empty {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.week-day-empty > .btn { min-width: 0; min-height: var(--control-md); padding-inline: var(--space-2); }
 
 .habit-schedule { min-width: 0; margin: 0; padding: 0; border: 0; }
 .habit-schedule legend { margin-bottom: 8px; font-size: var(--text-sm); font-weight: var(--weight-bold); }
@@ -487,8 +495,8 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .main[data-route="habitos"] .habit-reminder-note p { margin: 0; }
 .main[data-route="habitos"] .habit-week-overview { display: grid; gap: var(--space-3); }
 .main[data-route="habitos"] .habit-today {
-  border-color: color-mix(in srgb, var(--area) 28%, var(--line));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--area) 4%, var(--surface)), var(--surface) 48%);
+  border-color: var(--line);
+  background: var(--surface-strong);
 }
 .main[data-route="habitos"] .habit-week-overview h2 { margin: 0; font-size: var(--text-lg); }
 .main[data-route="habitos"] .habit-week-overview > div > p { margin: 4px 0 0; }
@@ -554,20 +562,11 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   .week-day > .head { align-items: flex-start; flex-direction: column; }
   .week-day .list > .task { flex-wrap: wrap; padding: var(--space-2); }
   .week-day .task .tt { flex-basis: calc(100% - 44px); }
-  .week-day .empty-state { min-width: 0; min-height: 0; grid-template-columns: 48px minmax(0, 1fr); padding: var(--space-2); }
-  .week-day .empty-state .empty-action,
-  .week-day .empty-state .empty-action > .btn { grid-column: 1 / -1; width: 100%; min-width: 0; }
+  .week-day-empty { align-items: flex-start; flex-direction: column; }
 }
 .main[data-route="habitos"] .habit-reminder-note .ic { flex: none; margin-top: 1px; color: var(--area); }
 .main[data-route="habitos"] .habit-record-actions > .btn { min-height: var(--control-sm); padding-inline: 14px; }
 :root[data-theme="dark"] .habit-record { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
-
-.main[data-route="habitos"] .tabs {
-  padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
-}
 
 @media (width <= 700px) {
   .main[data-route="habitos"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }

@@ -28,7 +28,7 @@ html {
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
-  font-size: 16px;
+  font-size: 100%;
 }
 
 :root[data-fs="s"] { font-size: var(--text-sm); }
@@ -43,7 +43,7 @@ body {
   font: var(--text-base)/var(--leading-body) var(--font);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  letter-spacing: -.008em;
+  letter-spacing: var(--tracking-normal);
   overscroll-behavior-y: none;
 }
 
@@ -61,7 +61,7 @@ h1, h2, h3 {
   color: var(--ink);
   font-family: var(--font-h);
   font-weight: var(--weight-bold);
-  letter-spacing: -.035em;
+  letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
   text-wrap: balance;
 }
@@ -69,7 +69,7 @@ h1, h2, h3 {
 h1 { font-size: var(--text-page-title); }
 h2 { font-size: var(--text-title); }
 h3 { font-size: var(--text-lg); }
-h1 i, h2 i, .wordmark i { color: var(--accent); font-style: normal; }
+.wordmark i { color: var(--accent); font-style: normal; }
 p { margin: 0; }
 
 button, input, select, textarea { color: inherit; font: inherit; }

@@ -135,7 +135,7 @@
     padding: 4px 1px;
     border: 1px solid transparent;
     border-radius: 14px;
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     line-height: 1.15;
   }
   .topbar .nav .ni { display: grid; width: 24px; height: 24px; flex: none; place-items: center; }
@@ -155,7 +155,7 @@
     border-radius: 14px;
     background: transparent;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     font-weight: var(--weight-bold);
     letter-spacing: .01em;
     line-height: 1.15;
@@ -183,7 +183,7 @@
     border-radius: 14px;
     background: transparent;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: var(--text-xs);
     line-height: 1.15;
   }
   .topbar .nav .mobile-nav-create-trigger:hover,
@@ -214,9 +214,9 @@
   .topbar .nav .nav-item[aria-current="page"],
   .topbar .nav .nav-item[aria-current="page"] .ni {
     background: var(--surface-strong);
-    color: var(--area, var(--accent));
+    color: var(--accent);
   }
-  .topbar .nav .nav-item[aria-current="page"] { border-color: color-mix(in srgb, var(--area, var(--accent)) 18%, transparent); }
+  .topbar .nav .nav-item[aria-current="page"] { border-color: color-mix(in srgb, var(--accent) 18%, transparent); }
   .topbar .nav .mobile-nav-create-trigger .ni { border-radius: var(--r-pill); background: var(--soft2); color: var(--accent); }
   /* Áreas além das 3 primeiras ficam dentro do Mais. */
   .topbar .nav .nav-item[data-overflow] { display: none; }
@@ -313,7 +313,7 @@
   .topbar .nav { gap: 0; }
   .topbar .nav a,
   .topbar .nav .mobile-nav-create-trigger,
-  .topbar .nav .profile-menu-trigger { font-size: 10px; letter-spacing: 0; }
+  .topbar .nav .profile-menu-trigger { font-size: var(--text-xs); letter-spacing: var(--tracking-none); }
   .topbar .nav .tab-period { display: none; }
 }
 

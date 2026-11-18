@@ -41,6 +41,10 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#landing-main').evaluate((main) => document.activeElement === main),
     'link de pular leva o foco ao conteúdo principal');
   const themeButton = page.locator('[data-public-control="theme-cycle"]');
+  check(await page.locator('.public-topbar').evaluate((header) =>
+    getComputedStyle(header).backgroundColor
+      === getComputedStyle(document.querySelector('.landing-marketing')).getPropertyValue('--surface-raised').trim()),
+  'cabeçalho da landing usa fundo branco no tema claro');
   for (const [mode, label, title] of [
     ['light', 'Alternar para tema escuro', 'Tema atual: claro. Alternar para tema escuro'],
     ['dark', 'Alternar para tema automático', 'Tema atual: escuro. Alternar para tema automático'],
@@ -50,6 +54,18 @@ const check = (passed, name, detail = '') => {
       && await themeButton.getAttribute('title') === title,
     `controle de tema informa o estado ${mode} e a próxima ação`);
     await themeButton.click();
+    if (mode === 'light') {
+        await page.waitForFunction(() => {
+          const header = document.querySelector('.public-topbar');
+          const site = document.querySelector('.landing-marketing');
+          return document.documentElement.dataset.theme === 'dark'
+            && getComputedStyle(header).backgroundColor === getComputedStyle(site).getPropertyValue('--surface-raised').trim();
+        });
+      check(await page.locator('.public-topbar').evaluate((header) =>
+        document.documentElement.dataset.theme === 'dark'
+          && getComputedStyle(header).backgroundColor !== 'oklch(1 0 0)'),
+      'cabeçalho acompanha o tema escuro sem manter o fundo branco');
+    }
   }
   check(await themeButton.getAttribute('aria-label') === 'Alternar para tema escuro'
     && await page.evaluate(() => document.documentElement.dataset.theme === 'light'),
@@ -309,24 +325,21 @@ const check = (passed, name, detail = '') => {
       const topbarBounds = document.querySelector('.demo-app > .public-topbar').getBoundingClientRect();
       const copy = banner.querySelector('.sample-banner-copy');
       const hero = document.querySelector('.home-head');
-      const heroTop = hero.getBoundingClientRect().top;
-      banner.style.display = 'none';
-      const heroTopWithoutBanner = hero.getBoundingClientRect().top;
-      banner.style.display = '';
       return {
         position: getComputedStyle(banner).position,
-        height: bounds.height,
         top: bounds.top,
+        bottom: bounds.bottom,
         topbarBottom: topbarBounds.bottom,
+        heroTop: hero.getBoundingClientRect().top,
         copyFits: copy.scrollWidth <= copy.clientWidth,
         pageFits: document.documentElement.scrollWidth <= innerWidth,
-        heroStaysInPlace: Math.abs(heroTop - heroTopWithoutBanner) <= 1,
       };
     });
-    check(bannerLayout.position === 'fixed' && bannerLayout.height <= 44
-      && Math.abs(bannerLayout.top - bannerLayout.topbarBottom) <= 1
-      && bannerLayout.copyFits && bannerLayout.pageFits && bannerLayout.heroStaysInPlace,
-    `a faixa fixa cabe sem deslocar o conteúdo em ${width}px`);
+    check(bannerLayout.position !== 'fixed'
+      && bannerLayout.top >= bannerLayout.topbarBottom - 1
+      && bannerLayout.bottom <= bannerLayout.heroTop + 1
+      && bannerLayout.copyFits && bannerLayout.pageFits,
+    `a faixa acompanha o fluxo da página sem cobrir o início da tela em ${width}px`);
   }
   await page.setViewportSize({ width: 390, height: 844 });
   for (const [themeName, theme] of Object.entries({
@@ -588,6 +601,15 @@ const check = (passed, name, detail = '') => {
     'o link Como funciona leva às demonstrações sem uma seção duplicada de áreas',
   );
   await page.setViewportSize({ width: 390, height: 844 });
+  check(await page.evaluate(() => {
+    const header = document.querySelector('.public-topbar').getBoundingClientRect();
+    const links = [...document.querySelectorAll('.public-topbar .public-header-nav a')];
+    return links.length === 3 && links.every((link) => {
+      const bounds = link.getBoundingClientRect();
+      return bounds.width > 0 && bounds.left >= 0 && bounds.right <= innerWidth
+        && bounds.top >= header.top && bounds.bottom <= header.bottom + 1;
+    });
+  }), 'links Como funciona, Ver demonstração e Perguntas ficam visíveis no cabeçalho em 390px');
   await page.getByRole('tab', { name: 'Finanças' }).click();
   await page.locator('[data-suggestion-disclosure] > summary').click();
   await page.waitForFunction(() => document.querySelector('[data-suggestion-disclosure] > summary')?.getAttribute('aria-expanded') === 'true');

@@ -14,7 +14,7 @@ const iconFileUrlFromModule = new URL('../../../../icons/favicon.svg', pathToFil
 let markup = landingMarkup()
   .split(iconFileUrlFromModule).join('/icons/favicon.svg')
   .split(iconFileUrl).join('/icons/favicon.svg')
-  .replace('<div class="public-site">', '<div class="public-site" data-prerendered>');
+  .replace('<div class="public-site landing-marketing">', '<div class="public-site landing-marketing" data-prerendered>');
 
 if (markup.includes('file://')) throw new Error('Landing pré-renderizada contém URL file://.');
 

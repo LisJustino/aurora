@@ -68,8 +68,8 @@
 }
 
 :root[data-readable="true"] {
-  --font: Arial, Verdana, sans-serif;
-  --font-h: Arial, Verdana, sans-serif;
+  --font: "DM Sans", sans-serif;
+  --font-h: "DM Sans", sans-serif;
   --leading-body: 1.75;
 }
 :root[data-readable="true"] body { letter-spacing: .02em; }

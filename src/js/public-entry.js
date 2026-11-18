@@ -120,7 +120,8 @@ function observeLandingScroll() {
   const update = () => {
     const cta = root.querySelector('.public-mobile-cta');
     if (!cta) return;
-    cta.hidden = !window.matchMedia('(max-width: 700px)').matches || window.scrollY < 420;
+    cta.hidden = !window.matchMedia('(max-width: 899px)').matches || window.scrollY < 560;
+    cta.setAttribute('aria-hidden', String(cta.hidden));
   };
   window.addEventListener('scroll', update, { passive: true });
   window.addEventListener('resize', update);
@@ -300,7 +301,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     } else {
       root.removeAttribute('aria-busy');
       renderLanding(root);
-      document.title = 'aurora. - rotinas';
+      document.title = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
       observeLandingScroll();
     }
     updatePublicConnectionNotice();

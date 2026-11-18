@@ -38,6 +38,7 @@ import {
   linkedGoalProgressCents,
   projectedNetAccountBalance,
   signedAmount,
+  expenseBudgetByCategory,
   installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
@@ -62,7 +63,7 @@ import {
   normalizeAnnualPlans,
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
-import { cycleDayNumber, cycleStats } from './features/cycle/calculations.js';
+import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -267,7 +268,6 @@ import {
 import {
   renderGoogleCalendarPlanPanel,
   renderPlanningView,
-  renderPlansView,
   renderTaskCalendar,
   renderTaskWeek,
 } from './features/planning/view.js';
@@ -1581,7 +1581,7 @@ const money = (cents) => ui.route === 'financas' && ui.financeValuesHidden
   ? h`<span class="money" aria-label="Valor oculto">••••</span>`
   : h`<span class="money">${formatBRL(cents)}</span>`;
 const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first) => first.toLocaleUpperCase('pt-BR'));
-const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span><i class="tab-period" aria-hidden="true">.</i></span>`;
+const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span></span>`;
 const brandLink = h`<a class="brand" href="/inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
 
 const notificationCount = () => Object.keys(ui.alerts).length;
@@ -1808,24 +1808,39 @@ function weeklyReviewView() {
     (day) => waterGoalReached(waterMlForDay(S.water, day), waterGoal),
   );
   const week = weekDays(today(), weekStartDay());
+  const savedReflection = S.settings.prefs.weeklyReflection;
+  const currentReflection = savedReflection?.weekOf === week[0] ? savedReflection.text : '';
   const formatDay = (day) => {
     const [year, month, date] = day.split('-').map(Number);
     return `${date} de ${MESES_L[month - 1]} de ${year}`;
   };
   return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Revisão gentil</span><h2>Sua semana<i>.</i></h2><p>De ${formatDay(week[0])} a ${formatDay(week[6])}. Cada passo conta, no seu tempo.</p></div></section>
+    <section class="weekly-review-hero"><div><span>Revisão gentil</span><h2>Sua semana</h2><p>De ${formatDay(week[0])} a ${formatDay(week[6])}. Cada passo conta, no seu tempo.</p></div></section>
     <section class="card weekly-review-main" aria-label="Resumo da semana">
       <div class="review-stats">
         <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
+        <div class="stat"><b>${review.tasks.pending}</b><span>Pendentes nesta semana</span></div>
         <div class="stat"><b>${review.waterDays}</b><span>Dias com meta de água</span></div>
         <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
       </div>
     </section>
+    <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
+      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
+      ${review.tasks.overdueTasks.length
+        ? h`<ul class="list">${review.tasks.overdueTasks.map((task) => taskRow(task))}</ul>`
+        : h`<p class="small muted" role="status">Nenhuma tarefa atrasada.</p>`}
+    </section>
+    <section class="card weekly-review-tasks" aria-labelledby="weekly-next-title">
+      <div class="head"><div><h3 id="weekly-next-title">Próxima semana</h3><p class="small muted">${formatDay(review.nextWeek.start)} a ${formatDay(review.nextWeek.end)}</p></div><span class="small muted">${review.nextWeek.tasks.length} pendente(s)</span></div>
+      ${review.nextWeek.tasks.length
+        ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
+        : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
+    </section>
     <section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
       <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      <p class="small muted">Se quiser, escolha uma opção. Ela será adicionada somente como anotação à sua lista de tarefas.</p>
+      ${currentReflection ? h`<p class="small muted" role="status">Reflexão salva para esta semana: ${currentReflection}.</p>` : h`<p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>`}
       <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
-        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-note" data-v="${choice}">${choice}</button>`)}
+        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
       </div>
     </section>
   </div>`;
@@ -1850,7 +1865,7 @@ const PAGE_CONTEXT = {
 };
 const pageTitle = (title, action = '') => {
   const [eyebrow, description] = PAGE_CONTEXT[title] || [];
-  return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}<i>.</i></h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
+  return h`<header class="page-title"><div class="page-title-copy">${eyebrow ? h`<span class="page-title-eyebrow">${eyebrow}</span>` : ''}<h1>${title}</h1>${description ? h`<p>${description}</p>` : ''}</div>${action}</header>`;
 };
 const empty = (title, text, action = '', iconName = 'inbox') => h`<section class="empty" role="status" aria-live="polite" aria-label="${title}"><span class="eic" aria-hidden="true">${icon(iconName, 28)}</span><div class="empty-copy"><b>${title}</b><span>${text}</span></div>${action ? h`<div class="empty-action">${action}</div>` : ''}</section>`;
 const areaEmpty = (title, description, action, iconName = 'inbox', headingLevel = 'h3', className = '') => emptyState({
@@ -2020,10 +2035,10 @@ function cycleDataConsentGate() {
     <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
       <span class="section-kicker">Consentimento específico</span>
       <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
-      <p>Os registros de ciclo menstrual e sintomas são dados pessoais sensíveis de saúde. Usamos o que você escolher registrar para mostrar períodos, histórico e estimativas nesta área. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
-      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado; os registros já salvos permanecerão na conta até que você solicite a exclusão ou apague a conta.</p>
+      <p>Ciclo pode guardar dados sensíveis que você decidir registrar: fluxo e sintomas, intimidade e atividade sexual, métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações. Usamos esses dados para mostrar seu histórico, resumos e estimativas; o peso mais recente também pode atualizar o peso do perfil e recalcular a meta de água. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
+      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado, mas os registros não serão apagados. Antes de retirar, você pode mover períodos e registros diários para a lixeira por 30 dias; o peso do Perfil e a meta de água dos Hábitos serão mantidos. Para pedir a exclusão definitiva dos dados, escreva para o contato da Política de Privacidade ou exclua a conta.</p>
       <form class="cycle-consent-form" data-form="cycle-data-consent">
-        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados de saúde que eu registrar na área Ciclo para oferecer esses recursos.</span></label>
+        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados sensíveis que eu decidir registrar em Ciclo para oferecer esses recursos.</span></label>
         <p>Leia a <a href="/privacy.html" data-legal-document="privacy" target="_blank" rel="noopener noreferrer">Política de Privacidade</a> para detalhes e formas de retirar o consentimento.</p>
         <p class="notice warn" role="alert" ${ui.cycleConsentError ? '' : raw('hidden')}>${ui.cycleConsentError}</p>
         <div class="row cycle-consent-actions"><button class="btn primary" type="submit" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>${ui.cycleConsentBusy ? 'Registrando…' : 'Concordar e abrir Ciclo'}</button><a class="btn back" href="/inicio">Agora não</a></div>
@@ -2659,7 +2674,7 @@ function homeUpcomingTasks() {
   const preview = upcoming.slice(0, 3);
   const remaining = upcoming.length - preview.length;
   return h`<section class="card home-upcoming-card" aria-labelledby="home-upcoming-title">
-    <div class="head"><div><p class="section-kicker">Depois de hoje</p><h2 id="home-upcoming-title">Próximos 7 dias<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
+    <div class="head"><div><p class="section-kicker">Depois de hoje</p><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
     <ul class="list">${preview.map((task) => taskRow(task))}</ul>
     ${remaining ? h`<p class="home-upcoming-more">+ ${remaining} ${plural(remaining, 'tarefa', 'tarefas')} na lista completa.</p>` : ''}
   </section>`;
@@ -2677,7 +2692,7 @@ function homeHabitCheckins(highlightNext = false, onlyNext = false) {
   )) : null;
   if (onlyNext && !nextHabit) return '';
   return h`<section class="card home-habit-checkins" aria-label="${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}">
-    <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}<i>.</i></h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
+    <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}</h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
     <ul class="list">${(onlyNext ? [nextHabit] : scheduled).map((habit) => {
       const completed = habitCompletedFor(habit, today());
       const skipped = habitIsSkipped(habit, today(), today());
@@ -2944,7 +2959,7 @@ function googleCalendarSettingsPanel() {
   }[state.status];
   return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-settings-title">
     <div class="head">
-      <div><h2 id="google-calendar-settings-title">Google Calendar<i>.</i></h2><span class="badge">Somente leitura</span></div>
+      <div><h2 id="google-calendar-settings-title">Google Calendar</h2><span class="badge">Somente leitura</span></div>
     </div>
     <p class="small muted">Conecte várias contas Google e escolha quais calendários aparecem em Planejar. O Aurora não cria nem altera eventos. ${googleCalendar.persistent() ? 'A conexão fica guardada com segurança na sua conta Aurora e se renova sozinha: você só precisa autorizar uma vez, até remover a conta aqui ou nas permissões do Google.' : 'Nesta demonstração, autorizações e eventos ficam somente nesta aba e precisam ser conectados novamente ao recarregar a página.'}</p>
     ${!configured ? h`<p class="small" role="alert">Integração indisponível: configure <code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code> neste ambiente.</p>` : ''}
@@ -3225,7 +3240,6 @@ function viewPlanejar() {
     }),
     weeklyReviewView,
     taskListHtml,
-    plansHtml: () => renderPlansView(S.tasks),
   });
 }
 
@@ -3435,7 +3449,7 @@ function areaTiles() {
   const defs = [['finances', 'wallet'], ['cycle', 'heart']]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
-  return h`<div class="head"><h2 id="ar">Áreas opcionais<i>.</i></h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
+  return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
 }
 
 /* ---------- Ciclo ---------- */
@@ -3529,7 +3543,7 @@ function cycleCalendarPhase(day, stats) {
 function viewCiclo() {
   return renderCycleView({
     S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
-    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, weekStartDay, clamp,
+    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, topSymptoms, cycLabel, weekStartDay, clamp,
     plural, cycleLogSummary, CYC_ICON, cap, ymLabel,
   });
 }
@@ -3549,7 +3563,7 @@ function aparencia(s) {
     && L.density === LOOK_DEFAULT.density && L.font === LOOK_DEFAULT.font
     && !L.contrast && !L.readable && !L.highlightLinks && !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
-    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Aparência e leitura<i>.</i></h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
+    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Aparência e leitura</h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
     ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
     ${group('appearance-mode-title', 'Tema', 'Claro, escuro ou o mesmo do seu aparelho. O tema é salvo ao tocar.', h`<div class="seg" role="group" aria-label="Tema">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="personalization-mode-${value}" aria-pressed="${String(L.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>`)}
     ${group('appearance-color-title', 'Cor de destaque', `Paleta atual: ${currentPalette}.`, h`<div class="swatches appearance-swatches" role="group" aria-label="Paletas de cor">${Object.entries(PALETTES).map(([k, [n, c]]) => h`<button type="button" class="swatch" aria-label="Cor ${n}" aria-pressed="${String(s.theme === k)}" data-action="set-theme" data-v="${k}"><i style="background:${c}" aria-hidden="true"></i><span>${n}</span></button>`)}
@@ -3601,7 +3615,7 @@ function profileSettings(s) {
   const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
-    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil<i>.</i></h2><p>É assim que o Aurora se apresenta para você. Mude quando quiser.</p></div>
+    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil</h2><p>É assim que o Aurora se apresenta para você. Mude quando quiser.</p></div>
     <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela Início</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
     <section class="profile-settings-group" aria-labelledby="profile-name-title">
       <div><h3 id="profile-name-title">Informações do perfil</h3></div>
@@ -3630,13 +3644,13 @@ function profileSettings(s) {
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda<i>.</i></h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
+      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
     </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
-      <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta<i>.</i></h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
+      <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta</h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
     </section>
     <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
-      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos<i>.</i></h2><p>Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
+      <div class="settings-section-heading"><div><h2 id="account-resources-title">Ajuda e documentos</h2><p>Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
       <div class="row account-resource-actions"><button type="button" class="btn sm" data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm" data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm" href="mailto:${CONTACT_EMAIL}">Falar com o Aurora</a></div>
     </section>
   </div>`;
@@ -3674,7 +3688,7 @@ function homeLayoutSettings(s) {
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial<i>.</i></h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
     <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
@@ -3694,7 +3708,7 @@ function areasNavigationSettings(s) {
   const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
-    <div class="head areas-navigation-head"><h2>Áreas e menu<i>.</i></h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
+    <div class="head areas-navigation-head"><h2>Áreas e menu</h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
     <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
     <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
     <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
@@ -4084,7 +4098,7 @@ function dataSettings(p) {
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
   return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Dados e backup<i>.</i></h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
+    <div class="settings-section-heading"><h2>Dados e backup</h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
     <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
     ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
@@ -4107,7 +4121,7 @@ function dataSettings(p) {
     </div>
   </section>
     ${legacyImportPanel()}
-    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span><i>.</i></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
@@ -4116,7 +4130,7 @@ function dataSettings(p) {
         : areaEmpty('A lixeira está vazia.', 'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.', h`<a class="btn primary" href="/inicio">Ir para o início</a>`, 'trash', 'h3', 'settings-trash-empty')}
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
-      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas<i>.</i></h2><p>Remova os dados relacionais desta conta.</p></div>
+      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas</h2><p>Remova os dados relacionais desta conta.</p></div>
       <div class="settings-data-care-actions">
         <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
           <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
@@ -4228,9 +4242,9 @@ const CONFIRMABLE_ACTIONS = new Set([
   'annual-goal-delete',
   'appearance-reset',
   'clear-sample',
-  'del-plan',
   'del-task',
   'cyc-clear',
+  'cycle-clear-all',
   'cyc-period-delete',
   'goal-del',
   'habit-delete',
@@ -4308,7 +4322,7 @@ const closeBtn = h`<button type="button" class="ibtn dlg-close" data-action="dlg
 
 function dlgActionConfirm() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head confirmation-heading"><span class="confirmation-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="confirmation-eyebrow">Confirmação necessária</p><h2 id="dt">${d.title}</h2></div>${closeBtn}</div>
     <p class="confirmation-copy">${d.message}</p>
     <aside class="confirmation-note" role="alert">${icon('alert', 18)}<span><b>A ação só será executada depois que você confirmar.</b></span></aside>`,
     h`<button type="button" class="btn back" data-action="action-confirm-cancel">Cancelar</button><button type="button" class="btn danger" data-action="action-confirm-accept">${d.confirmLabel}</button>`);
@@ -4321,14 +4335,14 @@ function dlgConfirmation() {
 }
 function dlgReleaseNotes() {
   const notes = getReleaseNotes();
-  return dlgWrap(h`<div class="release-notes-heading"><p class="release-notes-version">Atualização do Aurora</p><h2 id="dt">${notes.title}<i>.</i></h2></div>
+  return dlgWrap(h`<div class="release-notes-heading"><p class="release-notes-version">Atualização do Aurora</p><h2 id="dt">${notes.title}</h2></div>
     <p class="release-notes-intro">Veja o que há de novo nesta versão do Aurora.</p>
     <ul class="release-notes-list">${notes.items.map((item) => h`<li><strong>${item.title}</strong>${item.description ? h`<p>${item.description}</p>` : ''}</li>`)}</ul>`,
   h`<button type="button" class="btn primary" data-action="dlg-close">Entendi</button>`, 'release-notes-dialog');
 }
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
-  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}</h2></div>${closeBtn}</div>
     <form id="dlgform" class="form task-form" data-form="dlg-task" novalidate>${dlgField('Título', h`<input id="f0" type="text" data-dlg="title" value="${d.title}" maxlength="120" required placeholder="O que você precisa fazer?">`, 'full task-title-field')}
       <fieldset class="task-icon-field full"><legend>Ícone <span>(opcional)</span></legend><div class="task-icon-picker">
         <label title="Sem ícone"><input type="radio" name="task-icon" value="" data-dlg="icon" ${!taskIconKey(d.icon) ? raw('checked') : ''}><span>${icon('close', 18)}<i class="sr">Sem ícone</i></span></label>
@@ -4357,7 +4371,7 @@ function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
-  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}<i>.</i></h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
@@ -4473,7 +4487,7 @@ function globalSearchResults(query) {
 function dlgSearch() {
   const query = ui.dlg.d.query || '';
   const searchAreas = globalSearchAreas();
-  return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora<i>.</i></h2><p class="small muted">${searchAreas}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head global-search-head"><div><h2 id="dt">Buscar no Aurora</h2><p class="small muted">${searchAreas}</p></div>${closeBtn}</div>
     <label class="search global-search-input"><span class="sr">Buscar em todas as áreas</span>${icon('search', 18)}<input id="f0" type="search" data-dlg="query" value="${query}" placeholder="Tarefa, hábito, conta ou descrição" autocomplete="off"></label>
     <div id="global-search-results" aria-live="polite">${globalSearchResults(query)}</div>`,
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back" data-action="dlg-close">Fechar</button>`);
@@ -4487,7 +4501,7 @@ function dlgWipe() {
 }
 function dlgWipeComplete() {
   const warning = ui.dlg.d.warning;
-  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados relacionais foram apagados<i>.</i></h2><p>${warning || 'Os registros legados ainda não importados foram preservados. Você permanece conectado à sua conta e pode começar novamente.'}</p></div></div>`,
+  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados relacionais foram apagados</h2><p>${warning || 'Os registros legados ainda não importados foram preservados. Você permanece conectado à sua conta e pode começar novamente.'}</p></div></div>`,
     h`<button type="button" class="btn primary" data-action="wipe-home">Ir para o Início</button>`,
     'wipe-complete-dialog');
 }
@@ -4546,7 +4560,7 @@ function dlgOnboard() {
         : []),
     ];
     body = h`${dots}<div class="onboard-overview">
-      <div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Conheça o Aurora</span><h2 id="dt">Um espaço para organizar a vida do seu jeito<i>.</i></h2><p>Transforme a sensação de sobrecarga em um próximo passo possível. Use só o que fizer sentido para você — sem precisar dar conta de tudo.</p></div></div>
+      <div class="onboard-intro"><span class="onboard-brand">${brandIcon(52)}</span><div class="wiz-h"><span class="eyebrow">Conheça o Aurora</span><h2 id="dt">Um espaço para organizar a vida do seu jeito</h2><p>Transforme a sensação de sobrecarga em um próximo passo possível. Use só o que fizer sentido para você — sem precisar dar conta de tudo.</p></div></div>
       <div class="onboard-overview-cards" aria-label="O que você pode fazer no Aurora">${overviewAreas.map((area) => h`<article class="onboard-overview-card"><span class="mk">${icon(area.icon, 20)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span></span></article>`)}</div>
       ${canAccessCycle(S.settings.profile, ui.preview) ? h`<p class="fine">${icon('info', 15)} Ciclo é opcional e só fica disponível com consentimento específico.</p>` : ''}
     </div>`;
@@ -4559,13 +4573,13 @@ function dlgOnboard() {
   } else if (st === 2) {
     const solutionIds = onboardingAreas.filter((area) => d.areas[area.id] || d.recommendedAreas.includes(area.id));
     const hasOrganizationNeed = d.needs.includes('organization');
-    body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar<i>.</i></h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
+    body = h`${dots}<div class="wiz-h"><h2 id="dt">Estas ferramentas podem ajudar</h2><p>Ativamos as sugestões a partir das suas respostas. Desmarque o que não quiser usar agora.</p></div>
       ${hasOrganizationNeed ? h`<article class="onboard-solution-note"><span class="mk">${icon('calendarCheck', 22)}</span><span class="tx"><b>Planejar</b><span>Tarefas, prazos e prioridades já estão disponíveis para organizar seu dia.</span></span><span class="onboard-always-on">Sempre disponível</span></article>` : ''}
       ${solutionIds.length ? h`<fieldset class="onboard-fieldset"><legend>Áreas do Aurora</legend><div class="onboard-solution-list">${solutionIds.map((area) => h`<button type="button" class="opt onboard-solution" aria-pressed="${!!d.areas[area.id]}" data-action="ob-area" data-v="${area.id}"><span class="mk">${icon(area.icon, 22)}</span><span class="tx"><b>${area.title}</b><span>${area.description}</span><small>${d.recommendedAreas.includes(area.id) ? 'Sugestão baseada nas suas respostas' : 'Já estava ativa na sua conta'}</small></span><span class="tick">${icon('check', 15)}</span></button>`)}</div></fieldset>` : h`<p class="notice">${icon('sparkles', 18)}<span>Nenhuma área adicional selecionada. Você pode ativá-las quando quiser em Ajustes.</span></p>`}
       <p class="fine">${icon('info', 15)} Você pode mudar essas escolhas depois em Ajustes → Áreas e menu.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else if (st === 3) {
-    body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara<i>.</i></h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
+    body = h`${dots}<div class="wiz-h"><h2 id="dt">Deixe o Aurora com a sua cara</h2><p>Essas opções são opcionais e você pode alterá-las depois em Ajustes.</p></div>
       <div class="onboard-theme"><span class="f-label">Cor do app</span><div class="swatches">${Object.entries(PALETTES).map(([key, [name, color]]) => h`<button type="button" class="swatch" aria-pressed="${d.theme === key}" data-action="ob-theme" data-v="${key}"><i style="background:${color}"></i>${name}</button>`)}</div></div>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back" data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else {
@@ -4582,10 +4596,10 @@ function dlgOnboard() {
 }
 function dlgExport() {
   if (Object.keys(ui.integrityIssues).length) {
-    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Backup indisponível<i>.</i></h2>${closeBtn}</div><p class="notice warn" role="alert">Há fatias locais inválidas. Baixe uma cópia bruta ou importe um backup confiável antes de criar um backup normalizado.</p>`,
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Backup indisponível</h2>${closeBtn}</div><p class="notice warn" role="alert">Há fatias locais inválidas. Baixe uma cópia bruta ou importe um backup confiável antes de criar um backup normalizado.</p>`,
       h`<button class="btn" data-action="recovery-export">Baixar cópia de recuperação</button><button class="btn back" data-action="dlg-close">Fechar</button>`);
   }
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${ui.dlg.d.kind === 'csv' ? 'Seus lançamentos' : 'Seu backup'}</h2>${closeBtn}</div>
     <p class="small muted">${ui.dlg.d.kind === 'csv' ? 'O download direto não está disponível aqui. Copie o texto e salve em um arquivo .csv.' : 'O download direto não está disponível aqui. Copie o conteúdo e salve em um arquivo de backup para importar depois.'}</p>
     <textarea id="exp" class="finance-export-json" readonly rows="8">${ui.dlg.d.json}</textarea>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="copy-export">Copiar</button>`);
@@ -4609,9 +4623,9 @@ function dlgImport() {
 }
 function dlgAreaTutorial() {
   const guide = AREA_GUIDES[ui.dlg.d.route];
-  if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível<i>.</i></h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
+  if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível</h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
-  return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}<i>.</i></h2></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}</h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
     <video class="area-tutorial-video" controls playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
       <source src="${guide.video}" type="video/mp4">
@@ -4697,7 +4711,7 @@ function resolveNew(g, d, key) {
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
 const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
-DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?<i>.</i></h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
+DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?</h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
 /* Ajusta a camada do diálogo à área visível quando o teclado está aberto.
@@ -4856,6 +4870,60 @@ function setupSheetDrag() {
   document.addEventListener('pointercancel', finish);
 }
 setupSheetDrag();
+/* O diálogo é redesenhado a cada mudança de estado. Para a pessoa continuar no mesmo campo, guardamos qual era
+   (por id, data-dlg, ação, name e posição) e onde estava o cursor, e voltamos a ele depois do redesenho. */
+const DIALOG_FOCUSABLE = 'input, select, textarea, button, summary, [tabindex]:not([tabindex="-1"])';
+function dialogFocusSnapshot(root, active) {
+  if (!active || active.classList.contains('dlg')) return null;
+  let caret = null;
+  try {
+    if (typeof active.selectionStart === 'number') caret = { start: active.selectionStart, end: active.selectionEnd, dir: active.selectionDirection };
+  } catch (e) { caret = null; }
+  return {
+    id: active.id,
+    data: active.dataset.dlg,
+    action: active.dataset.action,
+    v: active.dataset.v,
+    c: active.dataset.c,
+    name: active.getAttribute('name'),
+    value: active.matches('input[type="radio"], input[type="checkbox"]') ? active.value : null,
+    tag: active.tagName,
+    type: active.type,
+    index: [...root.querySelectorAll(DIALOG_FOCUSABLE)].indexOf(active),
+    caret,
+  };
+}
+function findDialogFocusTarget(root, snap) {
+  const esc = (value) => CSS.escape(String(value));
+  const valueSel = snap.value != null ? `[value="${esc(snap.value)}"]` : '';
+  const byId = snap.id ? document.getElementById(snap.id) : null;
+  if (byId && root.contains(byId)) return byId;
+  const byData = snap.data ? root.querySelector(`[data-dlg="${esc(snap.data)}"]${valueSel}`) : null;
+  if (byData) return byData;
+  const byAction = snap.action
+    ? root.querySelector(`[data-action="${esc(snap.action)}"]${snap.v ? `[data-v="${esc(snap.v)}"]` : ''}${snap.c ? `[data-c="${esc(snap.c)}"]` : ''}`)
+    : null;
+  if (byAction) return byAction;
+  const byName = snap.name ? root.querySelector(`${snap.tag.toLowerCase()}[name="${esc(snap.name)}"]${valueSel}`) : null;
+  if (byName) return byName;
+  const sameSlot = snap.index >= 0 ? root.querySelectorAll(DIALOG_FOCUSABLE)[snap.index] : null;
+  return sameSlot && sameSlot.tagName === snap.tag && sameSlot.type === snap.type ? sameSlot : null;
+}
+function restoreDialogCaret(target, caret) {
+  if (!caret || typeof target.setSelectionRange !== 'function') return;
+  try { target.setSelectionRange(caret.start, caret.end, caret.dir || 'none'); } catch (e) { /* date, time e number não têm cursor */ }
+}
+function keepDialogControlInView(target) {
+  const body = target.closest('.dlg-body');
+  if (!body) return;
+  const viewport = window.visualViewport;
+  const bounds = target.getBoundingClientRect();
+  const bodyBounds = body.getBoundingClientRect();
+  const top = Math.max(bodyBounds.top, viewport ? viewport.offsetTop : 0) + 12;
+  const bottom = Math.min(bodyBounds.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight) - 16;
+  if (bounds.top < top) body.scrollTop += bounds.top - top;
+  else if (bounds.bottom > bottom) body.scrollTop += bounds.bottom - bottom;
+}
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
@@ -4892,8 +4960,9 @@ function renderDialog() {
   const isCyclePeriod = ui.dlg.type === 'cycle-period';
   const opening = !el, typeChanged = Boolean(el && el.dataset.dialogType !== ui.dlg.type);
   const af = !opening && !typeChanged && document.activeElement && document.activeElement.closest('#dlg') ? document.activeElement : null;
-  const afSel = af ? { id: af.id, data: af.dataset.dlg, action: af.dataset.action, v: af.dataset.v, c: af.dataset.c } : null;
+  const afSel = af ? dialogFocusSnapshot(el, af) : null;
   const prevScroll = !opening ? (el.querySelector('.dlg-body') || {}).scrollTop : 0;
+  const prevDetails = !opening && !typeChanged ? [...el.querySelectorAll('details')].map((item) => item.open) : null;
   if (opening) {
     if (!ui.lastFocus) ui.lastFocus = describeDialogOpener(document.activeElement);
     el = document.createElement('dialog');
@@ -4915,13 +4984,19 @@ function renderDialog() {
   if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
+  // Seções recolhíveis (ex.: "Adicionar notas") mantêm o que a pessoa abriu ou fechou; senão a altura muda e o conteúdo pula.
+  if (prevDetails) {
+    const items = el.querySelectorAll('details');
+    if (items.length === prevDetails.length) items.forEach((item, index) => { item.open = prevDetails[index]; });
+  }
   const body = el.querySelector('.dlg-body'); if (body && prevScroll) body.scrollTop = prevScroll;
   applyTheme(ui.dlg.type === 'onboard' ? ui.dlg.d.theme : undefined);
-  let target = null;
-  if (afSel) target = (afSel.id && document.getElementById(afSel.id)) || (afSel.data && el.querySelector(`[data-dlg="${afSel.data}"]`)) || (afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`));
-  if (!target) target = (afSel && afSel.action && el.querySelector(`[data-action="${afSel.action}"]${afSel.v ? `[data-v="${afSel.v}"]` : ''}${afSel.c ? `[data-c="${afSel.c}"]` : ''}`)) || el.querySelector('.dlg');
-  if ((opening || typeChanged) && !afSel) target = el.querySelector('.dlg');
+  const dialogRoot = el.querySelector('.dlg');
+  let target = afSel ? findDialogFocusTarget(el, afSel) : null;
+  if (!target) target = dialogRoot;
+  if ((opening || typeChanged) && !afSel) target = dialogRoot;
   if ((opening || typeChanged) && ui.dlg.type === 'search') target = el.querySelector('[data-dlg="query"]');
+  if ((opening || typeChanged) && ui.dlg.type === 'task') target = el.querySelector('[data-dlg="title"]');
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -5545,6 +5620,30 @@ const ACTIONS = {
     goal.done = !goal.done;
     saveSlicesWithRollback(['settings'], snapshot);
   },
+  'annual-goal-task': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    const linkedTask = findTask(goal.taskId);
+    if (linkedTask) {
+      return ACTIONS['edit-task']({ dataset: { id: linkedTask.id } });
+    }
+    const title = goal.action && goal.action.length <= 120 ? goal.action : goal.title;
+    const notes = goal.action && goal.action !== title ? goal.action : '';
+    const snapshot = snapshotSlices(['settings', 'tasks']);
+    const task = mkTask({
+      title,
+      dueDate: null,
+      priority: 'normal',
+      tags: ['Plano anual'],
+      ...(notes ? { notes } : {}),
+    });
+    goal.taskId = task.id;
+    S.tasks.push(task);
+    if (saveSlicesWithRollback(['settings', 'tasks'], snapshot, true, 'a tarefa do plano anual')) {
+      toast('Tarefa criada e vinculada à conquista.', 'success');
+    }
+  },
   'annual-goal-delete': (el) => {
     const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
     const goal = plan?.goals.find((item) => item.id === el.dataset.id);
@@ -5554,7 +5653,7 @@ const ACTIONS = {
         'annual-goal-delete',
         { id: goal.id },
         'Excluir conquista?',
-        `“${goal.title}” será removida do plano anual.`,
+        `“${goal.title}” será removida do plano anual.${findTask(goal.taskId) ? ' A tarefa vinculada permanecerá na sua lista.' : ''}`,
         'Excluir conquista',
       );
     }
@@ -5577,21 +5676,14 @@ const ACTIONS = {
     if (ui.route === 'planejar') render();
     else nav('planejar');
   },
-  'weekly-note': (el) => {
+  'weekly-reflection-save': (el) => {
     const choice = ['Menos tarefas', 'Mais pausas', 'Manter assim'].find((value) => value === el.dataset.v);
     if (!choice) return;
     const weekStart = weekDays(today(), weekStartDay())[0];
-    const title = `Para a semana de ${shortDate(weekStart)} de ${weekStart.slice(0, 4)}: ${choice}`;
-    if (S.tasks.some((task) => task.title === title && !task.dueDate)) {
-      return toast('Essa anotação já está na sua lista de tarefas.', 'info');
-    }
-    const snapshot = snapshotSlices(['tasks']);
-    S.tasks.push(mkTask({ title, dueDate: null }));
-    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a anotação da semana')) return;
-    toast('Anotação adicionada à sua lista de tarefas.', 'success');
-  },
-  'weekly-keep-task': (el) => {
-    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.', 'info');
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.weeklyReflection = { weekOf: weekStart, text: choice };
+    if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a reflexão semanal')) return;
+    toast('Reflexão semanal salva.', 'success');
   },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
@@ -5858,17 +5950,6 @@ const ACTIONS = {
     if (entry) toast('Tarefa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
-  'del-plan': (el) => {
-    const planTasks = S.tasks.filter((task) => task.groupId === el.dataset.id);
-    if (!planTasks.length) return;
-    const title = planTasks[0].groupTitle || planTasks[0].title;
-    if (ui.confirmedAction !== 'del-plan') return requestActionConfirmation('del-plan', { id: el.dataset.id }, 'Excluir plano?', `O plano "${title}" e suas tarefas irão para a lixeira por 30 dias.`, 'Excluir plano');
-    const records = planTasks.map((task) => createTrashRecord('tasks', task.id, S.tasks.indexOf(task), task));
-    const entry = moveRecordsToTrash(`Plano: ${title}`, records, ['tasks'], () => {
-      S.tasks = S.tasks.filter((task) => task.groupId !== el.dataset.id);
-    });
-    if (entry) toast('Plano movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
-  },
   'del-task-dlg': () => {
     const id = ui.dlg?.d?.id;
     const task = findTask(id);
@@ -6192,6 +6273,36 @@ const ACTIONS = {
       if (Number.isFinite(previous.weightKg)) syncLatestCycleWeight();
     });
     if (entry) toast('Registro movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
+  },
+  'cycle-clear-all': () => {
+    const records = [
+      ...S.cycle.map((period, index) => createTrashRecord(
+        'cycle',
+        cyclePeriodKey(period),
+        index,
+        period,
+      )),
+      ...Object.entries(S.cycleLog).map(([day, log]) => createTrashRecord('cycleLog', day, 0, log)),
+    ];
+    if (!records.length) return toast('Não há registros do Ciclo para mover.', 'info');
+    if (ui.confirmedAction !== 'cycle-clear-all') {
+      return requestActionConfirmation(
+        'cycle-clear-all',
+        {},
+        'Mover registros do Ciclo?',
+        'Todos os períodos e registros diários irão para a lixeira por 30 dias. O peso do Perfil e a meta de água dos Hábitos serão mantidos.',
+        'Mover para a lixeira',
+      );
+    }
+    const entry = moveRecordsToTrash('Registros do Ciclo', records, ['cycle', 'cycleLog'], () => {
+      S.cycle = [];
+      S.cycleLog = {};
+    });
+    if (!entry) return;
+    ui.cycDay = '';
+    ui.calMonth = today().slice(0, 7);
+    render();
+    toast('Registros do Ciclo movidos para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
   'appearance-preset': (el) => {
@@ -7550,7 +7661,7 @@ function financeInstallmentPlans() {
 function finInstallments() {
   const plans = financeInstallmentPlans();
   return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
-    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento<i>.</i></h2>
+    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento</h2>
       <p class="small muted">${plans.length
         ? 'Veja quantas parcelas faltam, o valor restante e quando cada série termina.'
         : 'Registre uma despesa parcelada para acompanhar aqui o que falta e quando termina.'}</p></div></div>
@@ -7627,7 +7738,7 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="card finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
@@ -7675,27 +7786,27 @@ function finResumo() {
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Se os compromissos forem pagos. É uma estimativa, não o saldo atual; compras futuras no cartão não entram.</p>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
-      <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês<i>.</i></h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
+      <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
         <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
         <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
       </div>
     </section>
-    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
+    ${pend.length ? h`    <section class="surface-open finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
       <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
       <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
     <div class="fin-overview-grid">
-      <section class="card finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
+      <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
-      <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
+      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
     `;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
+  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -7784,7 +7895,7 @@ function creditCardCard(card, paymentAccounts) {
 function finContas() {
   const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
   return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div>${balanceSparkline()}</section>
-    <div class="head"><h2>Contas<i>.</i></h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
+    <div class="head"><h2>Contas</h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${areaEmpty('Nenhuma conta ainda.', 'Você pode cadastrar uma conta e acompanhar os movimentos por aqui.', h`<button type="button" class="btn primary" data-action="acct-new">Criar primeira conta</button>`, 'wallet', 'h3')}</div>`}
     <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
 }
@@ -7793,7 +7904,7 @@ function finCartoes() {
   const paymentAccounts = S.finance.accounts.filter((account) => !isCredit(account));
   const outstanding = cards.reduce((sum, card) => sum + cardInfo(card).used, 0);
   return h`<section class="card flat"><p class="small muted">Total em aberto nos cartões</p><p class="fh-v">${money(outstanding)}</p><p class="fh-context">Esse valor não faz parte do saldo disponível das contas.</p></section>
-    <div class="head"><div><h2>Cartões de crédito<i>.</i></h2><p class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${cards.length ? h`<button class="btn sm" data-action="acct-new-card">${icon('plus', 16)}Novo cartão</button>` : ''}</div>
+    <div class="head"><div><h2>Cartões de crédito</h2><p class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${cards.length ? h`<button class="btn sm" data-action="acct-new-card">${icon('plus', 16)}Novo cartão</button>` : ''}</div>
     ${cards.length ? h`<ul class="cards">${cards.map((card) => creditCardCard(card, paymentAccounts))}</ul>` : h`<section class="card">${areaEmpty('Nenhum cartão cadastrado.', 'Se quiser, acompanhe faturas, limites e vencimentos de forma manual.', h`<button type="button" class="btn primary" data-action="acct-new-card">${icon('plus', 16)}Cadastrar primeiro cartão</button>`, 'card', 'h3')}</section>`}`;
 }
 function finContasCartoes() {
@@ -7803,24 +7914,36 @@ function finContasCartoes() {
 
 /* ---- Orçamento e objetivos ---- */
 function finPlanejamento() {
-  const F = S.finance, ym = ui.finMonth, st = monthStats(ym), spent = Object.fromEntries(byCategory(st.tx, 'out'));
+  const F = S.finance, ym = ui.finMonth, asOfDate = today();
+  const budgetTotals = expenseBudgetByCategory(F.tx, ym, asOfDate);
+  const spent = Object.fromEntries(budgetTotals.total);
+  const throughToday = Object.fromEntries(budgetTotals.throughToday);
+  const afterToday = Object.fromEntries(budgetTotals.afterToday);
   const names = [...new Set([...catNames('out'), ...Object.keys(spent), ...Object.keys(F.budgets)])].filter((n) => n !== 'Estudos' || spent[n] || F.budgets[n]);
-  const rows = names.map((n) => ({ n, sp: spent[n] || 0, lim: (F.budgets[n] || {}).cents || 0 })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
+  const rows = names.map((n) => ({
+    n,
+    sp: spent[n] || 0,
+    realized: throughToday[n] || 0,
+    upcoming: afterToday[n] || 0,
+    lim: (F.budgets[n] || {}).cents || 0,
+  })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
   const limited = rows.filter((r) => r.lim > 0), tl = limited.reduce((s, r) => s + r.lim, 0), ts = limited.reduce((s, r) => s + r.sp, 0);
-  const currentMonth = ym === today().slice(0, 7);
+  const totalRealized = limited.reduce((s, r) => s + r.realized, 0);
+  const totalUpcoming = limited.reduce((s, r) => s + r.upcoming, 0);
+  const currentMonth = ym === asOfDate.slice(0, 7);
   const [budgetYear, budgetMonth] = ym.split('-').map(Number);
   const budgetDays = new Date(budgetYear, budgetMonth, 0).getDate();
-  const daysLeft = currentMonth ? budgetDays - Number(today().slice(8)) + 1 : 0;
+  const daysLeft = currentMonth ? budgetDays - Number(asOfDate.slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
     <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
     <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
-      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
+      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p><p class="small muted">Do total, ${money(totalRealized)} têm data até hoje e ${money(totalUpcoming)} têm data futura. O limite soma ambos; a situação de pagamento é independente da data.</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => {
         const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
         const nearLimit = r.lim > 0 && !over && r.sp / r.lim >= .8;
         const label = `Definir limite de ${r.n}${nearLimit ? '. Atenção: atingiu pelo menos 80% do limite mensal.' : ''}`;
-        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
+        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
       })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
       ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
@@ -7873,7 +7996,7 @@ function finRel() {
       ${list.length ? h`<div class="donut-row"><div class="donut-w">${donut(list.map(([n, v]) => ({ v, c: col(n) })), total, (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria')}<div class="dc"><b>${money(total)}</b><span>${kind === 'out' ? 'gastos' : 'recebidos'}</span></div></div></div>
         <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : areaEmpty(kind === 'out' ? 'Nenhuma despesa neste mês.' : 'Nenhuma receita neste mês.', 'Quando houver lançamentos, este relatório mostrará a divisão por categoria.', h`<button type="button" class="btn primary" data-action="${kind === 'out' ? 'tx-new' : 'tx-new-in'}">${icon('plus', 16)}${kind === 'out' ? 'Criar despesa' : 'Criar receita'}</button>`, kind === 'out' ? 'pie' : 'wallet', 'h3')}</section>
     ${finCompare()}
-    <section class="card"><h2>Últimos 6 meses<i>.</i></h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
+    <section class="card"><h2>Últimos 6 meses</h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
 }
 
 function viewFinancas() {
@@ -7984,7 +8107,7 @@ function dlgCategoryManager() {
   const ruleKind = ui.dlg.d.ruleKind === 'in' ? 'in' : 'out';
   const ruleCategories = catNames(ruleKind);
   const rules = S.settings.prefs.financeCategoryRules;
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias<i>.</i></h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">Gerenciar categorias</h2><p class="small muted">Organize as categorias usadas em lançamentos e limites. Você pode criar categorias principais e subcategorias.</p></div>${closeBtn}</div>
     ${categoryGroup('out', 'Despesas')}
     ${categoryGroup('in', 'Receitas')}
     <section class="category-manager-group finance-category-rules"><div class="head"><div><h3>Regras automáticas</h3><p class="small muted">Na importação e em novos lançamentos, uma frase da descrição pode sugerir uma categoria.</p></div></div>
@@ -8011,7 +8134,7 @@ function dlgCategoryNew() {
     : parentName
       ? `Ela ficará dentro de ${kind === 'out' ? expenseTitle(parentName) : parentName}.`
       : 'Escolha um nome, ícone e cor para identificar esta categoria nos lançamentos.';
-  return dlgWrap(h`<div class="head"><div><h2 id="dt">${title}<i>.</i></h2><p class="small muted">${description}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head"><div><h2 id="dt">${title}</h2><p class="small muted">${description}</p></div>${closeBtn}</div>
     <form id="dlgform" class="form category-form" data-form="dlg-category">
       ${!editing && parents.length ? h`<div class="category-parent-field f full"><label class="lbl" for="category-parent">Categoria principal</label><select id="category-parent" data-dlg="parent"><option value="">Nova categoria principal</option>${parents.map((name) => h`<option value="${name}" ${d.parent === name ? raw('selected') : ''}>${kind === 'out' ? expenseTitle(name) : name}</option>`)}</select><span class="category-form-help">Escolha uma categoria para criar uma subcategoria; deixe a opção inicial para criar uma categoria principal.</span></div>` : ''}
       ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name || ''}" maxlength="30" placeholder="${kind === 'in' ? 'Ex.: Venda de itens' : 'Ex.: Pets'}" required autocomplete="off">`, 'full')}
@@ -8033,7 +8156,7 @@ function dlgAccount() {
   };
   const bankValue = bankFieldValue(d.bank);
   const initialBank = findBankByName(bankValue, true);
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}</h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
       ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
@@ -8047,10 +8170,10 @@ function dlgAccount() {
 }
 function dlgAccountDelete() {
   const d = ui.dlg.d, a = accById(d.id);
-  if (!a) return dlgWrap(h`<div class="head"><h2 id="dt">Conta não encontrada<i>.</i></h2>${closeBtn}</div><p class="small muted">A conta já não está disponível.</p>`, h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+  if (!a) return dlgWrap(h`<div class="head"><h2 id="dt">Conta não encontrada</h2>${closeBtn}</div><p class="small muted">A conta já não está disponível.</p>`, h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
   const txCount = S.finance.tx.filter((t) => t.accountId === a.id || t.toAccountId === a.id).length;
   const recurringCount = recList().filter((r) => r.accountId === a.id).length;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir conta?<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir conta?</h2>${closeBtn}</div>
     <p class="small"><span class="user-value">${accountDisplayName(a)}</span>: a conta, ${txCount} ${plural(txCount, 'lançamento', 'lançamentos')} e ${recurringCount} ${plural(recurringCount, 'lançamento fixo', 'lançamentos fixos')} associados irão juntos para a lixeira.</p>
     <p class="notice warn" role="alert">Você poderá restaurar esses dados por 30 dias. Depois, serão removidos automaticamente.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="acct-del-confirm">Mover para a lixeira</button>`);
@@ -8067,7 +8190,7 @@ function dlgPermanentlyDeleteAccount() {
 }
 function dlgBudget() {
   const d = ui.dlg.d;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span><i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span></h2>${closeBtn}</div>
     <p class="small muted">Quanto você quer gastar por mês nesta categoria? O Aurora avisa quando chegar perto.</p>
     ${d.confirmClear ? h`<p class="notice warn" role="alert">O orçamento irá para a lixeira por 30 dias. Confirme para continuar.</p>` : ''}
     <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}</form>`,
@@ -8079,7 +8202,7 @@ function dlgGoal() {
     .filter((goal) => goal.id !== d.id && goal.linkedAccountId)
     .map((goal) => goal.linkedAccountId));
   const linkedAccount = accById(d.linkedAccountId);
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${d.id ? 'Editar objetivo' : 'Novo objetivo'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${d.id ? 'Editar objetivo' : 'Novo objetivo'}</h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-goal" novalidate>
       ${dlgField('Nome', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="50" required placeholder="Ex.: Viagem, reserva de emergência">`, 'full')}
       ${dlgField(h`Valor do objetivo (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="target" value="${formatMoneyInput(d.target)}" placeholder="00,00" required>`)}
@@ -8094,7 +8217,7 @@ function dlgGoal() {
 }
 function dlgDeposit() {
   const d = ui.dlg.d, g = S.finance.goals.find((x) => x.id === d.id);
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span><i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Guardar em <span class="user-value">${g ? g.name : 'objetivo'}</span></h2>${closeBtn}</div>
     <p class="small muted">Este valor atualiza apenas o acompanhamento do objetivo; não altera o saldo de uma conta nem cria um lançamento. Para retirar, informe um valor negativo.</p>
     <form id="dlgform" class="form" data-form="dlg-deposit" novalidate>${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" placeholder="00,00" required>`, 'full')}</form>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Confirmar</button>`);
@@ -8113,7 +8236,7 @@ function invoicePlanPreviewText(d) {
 function dlgPayInv() {
   const d = ui.dlg.d, card = accById(d.cardId), srcs = S.finance.accounts.filter((a) => !isCredit(a));
   const installments = d.mode === 'installments';
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Pagar fatura<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Pagar fatura</h2>${closeBtn}</div>
     <p class="small muted">${card ? h`<span class="user-value">${accountDisplayName(card)}</span>` : ''}: o pagamento sai da conta escolhida e reduz o valor em aberto do cartão.</p>
     <form id="dlgform" class="form" data-form="dlg-payinv">
       ${dlgField('Forma de pagamento', h`<select data-dlg="mode"><option value="single" ${!installments ? raw('selected') : ''}>Pagamento único</option><option value="installments" ${installments ? raw('selected') : ''}>Parcelar fatura</option></select>`, 'full')}
@@ -8130,7 +8253,7 @@ function dlgPayInv() {
 }
 function dlgTxDel() {
   const d = ui.dlg.d, t = S.finance.tx.find((x) => x.id === d.id) || {}, g = S.finance.tx.filter((x) => x.groupId === d.gid), after = g.filter((x) => x.date >= (t.date || ''));
-  if (!d.gid) return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir lançamento?<i>.</i></h2>${closeBtn}</div>
+  if (!d.gid) return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir lançamento?</h2>${closeBtn}</div>
     <p class="small"><span class="${t.type === 'out' ? 'expense-name' : 'user-value'}">${t.type === 'out' ? expenseTitle(t.desc || t.category || 'Este lançamento') : t.desc || t.category || 'Este lançamento'}</span> · ${t.date || ''} · ${t.cents ? money(t.cents) : ''}</p>
     <p class="small muted">O lançamento poderá ser restaurado pela lixeira por 30 dias.</p>`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn danger" data-action="txdel-do" data-k="one">Excluir</button>`);
@@ -8138,7 +8261,7 @@ function dlgTxDel() {
     <span class="mk" aria-hidden="true">${icon('trash', 18)}</span>
     <span class="tx"><b>${title}</b><span>${count} · pode ser restaurado pela lixeira por até 30 dias</span></span>
   </button>`;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir da série<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Excluir da série</h2>${closeBtn}</div>
     <p class="small muted">Esta série tem ${g.length} lançamentos. Escolha quais deseja remover.</p>
     <div class="finance-series-delete-options">
       ${opt('one', 'Só este lançamento', `1 ${plural(1, 'lançamento', 'lançamentos')}`)}
@@ -8155,7 +8278,7 @@ function dlgInstallmentSummary() {
     today().slice(0, 7),
   );
   if (!transaction || !summary) {
-    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Parcelas indisponíveis<i>.</i></h2>${closeBtn}</div>
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Parcelas indisponíveis</h2>${closeBtn}</div>
       <p class="small muted">Esta série não está mais disponível. Feche e atualize a lista de lançamentos.</p>`,
       h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
   }
@@ -8175,7 +8298,7 @@ function dlgInstallmentSummary() {
     ? installment.date.slice(0, 7) < today().slice(0, 7) ? 'Mês anterior' : 'Prevista'
     : isPaid(installment) ? 'Paga' : 'Pendente';
 
-  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${dialogTitle}<i>.</i></h2><p class="small muted">${title}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${dialogTitle}</h2><p class="small muted">${title}</p></div>${closeBtn}</div>
     <dl class="installment-summary-stats">
       <div><dt>Última parcela</dt><dd>${longDate(summary.endDate)} de ${summary.endDate.slice(0, 4)}</dd></div>
       <div><dt>Valor restante</dt><dd>${money(summary.remainingCents)}</dd></div>
@@ -8198,7 +8321,7 @@ function dlgInstallmentSummary() {
 function dlgTxAnticipate() {
   const d = ui.dlg.d, transaction = S.finance.tx.find((item) => item.id === d.id);
   const installments = anticipationCandidates(d.groupId, d.fromDate), card = isCredit(accById(transaction?.accountId));
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Antecipar parcelas<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Antecipar parcelas</h2>${closeBtn}</div>
     ${card
       ? h`<p class="small muted">Selecione as parcelas e a data do registro. No cartão, a antecipação fica anotada sem criar pagamento nem alterar saldos; o pagamento da fatura continua sendo uma transferência separada.</p>`
       : h`<p class="small muted">Selecione as parcelas e a data em que foram pagas. Os meses originais permanecem; o pagamento será considerado no fluxo de caixa nessa data.</p>`}
@@ -8868,9 +8991,8 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
-  const n = recList().length;
   return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
-    <div class="row fin-tools-actions"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+    <div class="row fin-tools-actions"><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
   const ym = ui.finMonth, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
@@ -8895,14 +9017,14 @@ function finCal() {
 /* ---- fixas: lista e edição ---- */
 function dlgRecurList() {
   const rs = recList();
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Lançamentos fixos<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Lançamentos fixos</h2>${closeBtn}</div>
     <p class="small muted">Contas e receitas que se repetem todo mês. O Aurora cria os próximos meses sozinho. Para criar uma, use Lançamento e escolha "Fixa mensal".</p>
     ${rs.length ? h`<ul class="list more">${rs.map((r) => h`<li><button type="button" class="mrow" data-action="rec-edit" data-id="${r.id}"><span class="mk">${icon(catMeta({ type: r.type, category: r.category }).i, 20)}</span><span class="grow"><b><span class="${r.type === 'out' ? 'expense-name' : 'user-value'}">${r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category}</span>${r.paused ? ' · pausada' : ''}</b><small>${r.type === 'in' ? '+' : '−'}${money(r.cents)} · <span class="user-value">${recWhen(r)}</span></small></span>${icon('chevRight', 16)}</button></li>`)}</ul>` : areaEmpty('Nenhum lançamento fixo ainda.', 'Se quiser, registre uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar lançamento fixo</button>`, 'repeat', 'h3')}`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgRecur() {
   const d = ui.dlg.d, kind = d.kind, cats = catNames(kind), cl = cats.includes(d.category) ? cats : [d.category, ...cats], accs = S.finance.accounts;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Editar fixa<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Editar fixa</h2>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-recur">
       ${dlgField('Descrição', h`<input id="f0" type="text" data-dlg="desc" value="${d.desc}" maxlength="80" autocomplete="off">`, 'full')}
       ${dlgField(h`Valor (<span class="money">R$</span>)`, h`<input type="text" class="amt-in money-input" inputmode="decimal" data-dlg="amount" value="${formatMoneyInput(d.amount)}" required>`)}${dlgField('Dia do mês', h`<input type="number" min="1" max="31" data-dlg="day" value="${d.day}" inputmode="numeric">`)}
@@ -8942,11 +9064,16 @@ function impRecalc(d, resetCats) {
   });
 }
 function dlgImport2() {
-  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length;
+  const d = ui.dlg.d, selected = d.rows.filter((r) => r.on), n = selected.length;
+  const selectedTotals = selected.reduce((totals, row) => {
+    totals[row.kind] += row.abs;
+    return totals;
+  }, { in: 0, out: 0 });
   const dups = d.rows.filter((r) => r.dup).length;
   const possibleDups = d.rows.filter((r) => r.possibleDup).length;
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato</h2>${closeBtn}</div>
     <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} têm descrição correspondente e foram desmarcados como prováveis duplicatas para conferência` : ''}${possibleDups ? `, ${possibleDups} têm data, valor e tipo iguais a registros existentes, mas descrições diferentes; permanecem marcados para sua revisão` : ''}. Confira antes de importar.</p>
+    <p class="small muted" role="status" aria-live="polite">Selecionados: ${n} · despesas ${money(selectedTotals.out)} · receitas ${money(selectedTotals.in)}.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
     <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
       <label class="row full form-choice-row"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
@@ -9035,7 +9162,7 @@ function finCompare() {
   const names = [...new Set([...Object.keys(ca), ...Object.keys(cb)])].sort((x, y) => Math.max(cb[y] || 0, ca[y] || 0) - Math.max(cb[x] || 0, ca[x] || 0)).slice(0, 8), mx = Math.max(1, ...names.map((n) => Math.max(ca[n] || 0, cb[n] || 0)));
   const dl = (a, b, good) => { if (!b && !a) return '—'; const d = a - b, p = b ? Math.round(d / b * 100) : null; return h`<span class="${d === 0 ? 'muted' : (d > 0) === good ? 'okc' : 'err'}">${d > 0 ? '+' : d < 0 ? '−' : ''}${money(Math.abs(d))}${p !== null ? ' (' + (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(p) + '%)' : ''}</span>`; };
   const sel = (k, v) => h`<select data-change="cmp-${k}" aria-label="Mês ${k === 'a' ? 'principal' : 'de comparação'}">${monthOpts().map((m) => h`<option value="${m}" ${m === v ? raw('selected') : ''}>${cap(ymLabel(m))}</option>`)}</select>`;
-  return h`<section class="card"><h2>Comparar meses<i>.</i></h2>
+  return h`<section class="card"><h2>Comparar meses</h2>
     <div class="form">${dlgField('Mês', sel('a', A))}${dlgField('Comparar com', sel('b', B))}</div>
     <div class="finance-compare-table-wrap" role="region" aria-label="Comparação dos valores dos meses selecionados" tabindex="0"><table class="cmp"><thead><tr><th></th><th>${MESES[Number(A.slice(5)) - 1]}</th><th>${MESES[Number(B.slice(5)) - 1]}</th><th>Diferença</th></tr></thead><tbody>
       <tr><td>Receitas</td><td>${money(sa.inAll)}</td><td>${money(sb.inAll)}</td><td>${dl(sa.inAll, sb.inAll, true)}</td></tr>
@@ -9060,12 +9187,17 @@ function renderAccountLoading(root) {
   page.innerHTML = `<div class="account-loading-content">
       <header class="account-loading-header">
         <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
-        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
       </header>
-      <div class="account-loading-skeleton" aria-hidden="true">
-        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
-        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      <div class="account-loading-preview" aria-hidden="true">
+        <div class="loading-welcome-card">
+          <span class="loading-welcome-mark"></span>
+          <span class="loading-welcome-kicker">UM DIA DE CADA VEZ</span>
+          <span class="loading-welcome-title">Vamos por partes.</span>
+          <span class="loading-welcome-copy">Planejar, cuidar e acompanhar — no seu ritmo.</span>
+          <span class="loading-welcome-areas"><span class="loading-welcome-area plan">Planejar</span><span class="loading-welcome-area habits">Hábitos</span><span class="loading-welcome-area finance">Finanças</span><span class="loading-welcome-area cycle">Ciclo</span></span>
+        </div>
       </div>
+      <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
     </div>`;
   page.querySelector('.account-loading-brand img').src = new URL('../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(page);

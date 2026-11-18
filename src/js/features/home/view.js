@@ -42,7 +42,7 @@ export function renderHomeView(model, renderers) {
   const weekPercent = weekTotal ? Math.round(weekProgress.completed / weekTotal * 100) : 0;
 
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi" class="type-editorial-display">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}<p class="lead">${lead}</p><div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
     <section class="home-day-summary card" aria-labelledby="home-day-summary-title">
       <h2 id="home-day-summary-title">Hoje</h2>
       ${daySummary.tasks.next
@@ -67,8 +67,8 @@ export function renderHomeView(model, renderers) {
       </div>
     </section>
     ${homeFirstSteps()}
-    ${showHomeBlock('quick') ? h`<section class="card home-quick-card" aria-labelledby="home-quick-title">
-      <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title">Qual é o próximo passo<i>?</i></h2><p id="home-quick-help">Use “amanhã 14h” ou um dia da semana. Compromissos precisam de dia e hora.</p></div></div>
+    ${showHomeBlock('quick') ? h`<section class="card surface-open home-quick-card" aria-labelledby="home-quick-title">
+      <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title" class="type-editorial-title">Qual é o próximo passo<i>?</i></h2><p id="home-quick-help">Use “amanhã 14h” ou um dia da semana. Compromissos precisam de dia e hora.</p></div></div>
       <form class="home-quick-form" data-form="home-quick-task">
         <label class="sr" for="home-quick-title-input">Nova tarefa ou compromisso</label>
         <input id="home-quick-title-input" name="title" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Ex.: revisar apresentação amanhã 14h" aria-describedby="home-quick-help home-quick-date-preview" required>
@@ -83,7 +83,7 @@ export function renderHomeView(model, renderers) {
     ${sampleBanner()}
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
-        ${showHomeBlock('today') ? h`<section class="home-today-card" aria-labelledby="th"><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th">Hoje</h2></div></div>
+        ${showHomeBlock('today') ? h`<section class="home-today-card" aria-labelledby="th"><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th" class="type-editorial-title">Hoje</h2></div></div>
           ${completed.length && !overdue.length && !dueToday.length ? h`<div class="home-day-complete" role="status">${icon('check', 20)}<div><b>Dia concluído</b><p>Você terminou as tarefas de hoje. Amanhã é um novo começo.</p></div></div>` : ''}
           ${tt.length ? h`<div class="home-task-groups">
             ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
@@ -100,7 +100,7 @@ export function renderHomeView(model, renderers) {
         </section>
           ${homeUpcomingTasks()}
         ` : ''}
-        <section class="card home-week-progress" aria-labelledby="home-week-progress-title">
+        <section class="surface-open home-week-progress" aria-labelledby="home-week-progress-title">
           <div class="head"><div><p class="section-kicker">Seu ritmo</p><h2 id="home-week-progress-title">Esta semana<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
           ${weekTotal
             ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span>tarefas resolvidas ou planejadas</span></div>
@@ -112,7 +112,7 @@ export function renderHomeView(model, renderers) {
         ${showHomeBlock('habits') ? h`<div ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(false)}</div>` : ''}
       </div>
     </div>
-    ${homeShortcuts.length ? h`<section class="card home-tools" aria-labelledby="home-tools-title">
+    ${homeShortcuts.length ? h`<section class="surface-open home-tools" aria-labelledby="home-tools-title">
       <div class="head"><div><p class="section-kicker">Atalhos</p><h2 id="home-tools-title">Ações rápidas<i>.</i></h2></div></div>
       <div class="home-tool-grid${homeShortcuts.length === 1 ? ' single' : ''}">
         ${homeShortcuts.map((shortcut) => h`<button class="home-tool" type="button" data-action="${shortcut.action}">
@@ -122,7 +122,7 @@ export function renderHomeView(model, renderers) {
         </button>`)}
       </div>
     </section>` : ''}
-    ${optionalAreas ? h`<section class="card home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
+    ${optionalAreas ? h`<section class="surface-open home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     ${homeInboxReminder(inbox)}
     ${homeUpcomingBill()}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · sua semana</span><h2 id="home-weekly-review-title">Um momento para olhar com carinho</h2><p>Veja um retrato simples de tarefas, água e hábitos.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Ver minha semana</button></section>` : ''}

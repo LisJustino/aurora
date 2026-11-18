@@ -107,7 +107,7 @@
     position: sticky;
     right: 0;
     flex: 0 0 24px;
-    background: linear-gradient(to right, transparent, color-mix(in srgb, var(--area-finances) 4%, var(--surface-soft)));
+    background: linear-gradient(to right, transparent, var(--surface-strong));
     content: "";
     pointer-events: none;
   }
