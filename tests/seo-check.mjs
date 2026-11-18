@@ -99,8 +99,8 @@ assert.equal(meta(home, 'property', 'og:image:width'), '1200');
 assert.equal(meta(home, 'property', 'og:image:height'), '630');
 const imageAlt = meta(home, 'property', 'og:image:alt');
 assert.equal(meta(home, 'name', 'twitter:image:alt'), imageAlt);
-assert.match(imageAlt, /Vamos por partes\./);
-for (const area of ['Planejar', 'Hábitos', 'Finanças', 'Ciclo']) assert.ok(imageAlt.includes(area));
+assert.match(imageAlt, /Sua rotina inteira, num app só/);
+for (const area of ['tarefas', 'hábitos', 'finanças', 'ciclo']) assert.ok(imageAlt.toLowerCase().includes(area));
 const socialImage = await readFile(distFile('/og/aurora-1200x630.png'));
 assert.equal(socialImage.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
 assert.equal(socialImage.readUInt32BE(16), 1200);
@@ -110,13 +110,11 @@ const jsonLd = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?
 const types = jsonLd.map((item) => item['@type']);
 assert.ok(types.includes('SoftwareApplication'), 'JSON-LD sem SoftwareApplication.');
 assert.ok(!types.includes('FAQPage'), 'FAQPage não deve gerar dados estruturados incompatíveis com os rich results atuais.');
-const landingTitle = 'aurora. — tarefas, hábitos, finanças e ciclo';
-const landingDescription = 'Anote o que está pendente. Escolha o que cabe hoje e deixe o resto para depois.';
+const landingTitle = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
+const landingDescription = 'Organize sua rotina num só lugar: tarefas, hábitos, finanças e ciclo. Grátis, sem cartão e funciona no celular.';
 assert.equal(home.match(/<title>([^<]+)<\/title>/)?.[1], landingTitle);
 const searchDescription = meta(home, 'name', 'description');
-assert.ok(searchDescription.length >= 130 && searchDescription.length <= 155,
-  'A descrição de busca da landing deve ter aproximadamente 145 caracteres.');
-assert.match(searchDescription, /Aurora é grátis e dá para experimentar sem cadastro/);
+assert.equal(searchDescription, landingDescription);
 assert.equal(meta(home, 'property', 'og:title'), landingTitle);
 assert.equal(meta(home, 'property', 'og:description'), landingDescription);
 assert.equal(meta(home, 'name', 'twitter:title'), landingTitle);
@@ -147,15 +145,15 @@ for (const [index, item] of manifests.entries()) {
 }
 assert.equal(manifest.description, landingDescription, 'manifest deve acompanhar a promessa atual da landing.');
 const tokens = await readFile(new URL('../src/css/design-system/tokens.css', import.meta.url), 'utf8');
+const landingStyles = await readFile(new URL('../src/css/pages/landing.css', import.meta.url), 'utf8');
 const socialGenerator = await readFile(new URL('../scripts/generate-social-image.mjs', import.meta.url), 'utf8');
-const socialGradient = socialGenerator.match(/linear-gradient\(135deg,\s*(#[\da-f]{6}) 0%,\s*(#[\da-f]{6}) 52%,\s*(#[\da-f]{6}) 100%\)/i);
-assert.ok(socialGradient, 'O degradê da imagem social deve acompanhar a capa.');
-for (const [index, token] of ['--public-hero-start', '--plum', '--public-hero-end'].entries()) {
-  const color = tokens.match(new RegExp(`${token}:\\s*(#[\\da-f]{6})\\s*;`, 'i'))?.[1];
-  assert.equal(socialGradient[index + 1], color, `${token}: a imagem social deve acompanhar a capa.`);
+assert.ok(socialGenerator.includes('var(--gradient-public-hero)'),
+  'A imagem social deve usar o degradê público tokenizado.');
+for (const token of ['--public-hero-start', '--public-hero-end', '--public-hero-ink']) {
+  assert.ok(landingStyles.includes(`${token}:`), `${token}: a landing deve definir o token do hero.`);
 }
 const textContent = (markup) => markup.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '').trim();
-const heroHeading = home.match(/<h1 id="landing-title">([\s\S]*?)<\/h1>/)?.[1];
+const heroHeading = home.match(/<h1 id="landing-title"[^>]*>([\s\S]*?)<\/h1>/)?.[1];
 const socialHeading = socialGenerator.match(/<h1>([\s\S]*?)<\/h1>/)?.[1];
 assert.ok(heroHeading && socialHeading, 'Os títulos da capa e da imagem social devem existir.');
 assert.equal(textContent(socialHeading), textContent(heroHeading));

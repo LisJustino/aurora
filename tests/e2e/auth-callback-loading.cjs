@@ -29,14 +29,30 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
         if (path === '/?code=callback-test') {
           const loadingStyle = await page.locator('.app-skeleton').evaluate((loader) => ({
             theme: document.documentElement.dataset.theme,
-            background: getComputedStyle(loader).backgroundColor,
-            color: getComputedStyle(loader).color,
-            skeleton: getComputedStyle(loader.querySelector('.account-loading-skeleton')).display,
+            background: (() => {
+              const probe = document.createElement('span');
+              probe.style.backgroundColor = 'var(--loading-canvas)';
+              loader.append(probe);
+              const value = getComputedStyle(probe).backgroundColor;
+              probe.remove();
+              return value;
+            })(),
+            color: (() => {
+              const probe = document.createElement('span');
+              probe.style.color = 'var(--loading-ink)';
+              loader.append(probe);
+              const value = getComputedStyle(probe).color;
+              probe.remove();
+              return value;
+            })(),
+            renderedBackground: getComputedStyle(loader).backgroundColor,
+            renderedColor: getComputedStyle(loader).color,
+            preview: getComputedStyle(loader.querySelector('.account-loading-preview')).display,
           }));
           assert.equal(loadingStyle.theme, 'dark');
-          assert.equal(loadingStyle.background, 'rgb(247, 240, 234)');
-          assert.equal(loadingStyle.color, 'rgb(37, 35, 33)');
-          assert.equal(loadingStyle.skeleton, 'none');
+          assert.equal(loadingStyle.background, loadingStyle.renderedBackground);
+          assert.equal(loadingStyle.color, loadingStyle.renderedColor);
+          assert.equal(loadingStyle.preview, 'none');
         }
         assert.equal(new URL(page.url()).search + new URL(page.url()).hash, path.slice(1));
       }

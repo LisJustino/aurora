@@ -785,7 +785,7 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 }
 .dlg:not(.intro-dialog) .dlg-foot .btn {
   min-height: var(--control-md);
-  border-radius: var(--r-control);
+  border-radius: var(--button-radius);
 }
 
 @media (width <= 480px) {

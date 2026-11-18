@@ -28,6 +28,13 @@ assert.match(authenticatedFooter, /href="\/config">Perfil e ajustes<\/a>/);
 assert.doesNotMatch(authenticatedFooter, /data-account-signout|Sair da conta/);
 assert.match(publicFooter, /class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo/);
 assert.match(publicFooter, /A mensagem vai para análise/);
+
+const landingCss = readFileSync(
+  new URL('../src/css/pages/landing.css', import.meta.url),
+  'utf8',
+);
+assert.match(landingCss, /@media \(width <= 360px\)[\s\S]*?\.landing-footer-nav \{ grid-template-columns: minmax\(0, 1fr\);/);
+assert.match(landingCss, /\.landing-footer-meta \{ align-items: flex-start; flex-direction: column; \}/);
 assert.equal(normalizeSuggestionMessage('  Uma ideia que ajuda o app.  '), 'Uma ideia que ajuda o app.');
 assert.throws(() => normalizeSuggestionMessage('   '), TypeError);
 assert.throws(() => normalizeSuggestionMessage('curto'), TypeError);

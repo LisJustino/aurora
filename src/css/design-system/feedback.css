@@ -16,6 +16,10 @@
   font-weight: var(--weight-bold);
   white-space: nowrap;
 }
+.badge.neutral {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
 .badge.warn { background: var(--warn-soft); color: var(--warn); }
 .badge.bad { background: var(--bad-soft); color: var(--bad); }
 .badge.ok { background: var(--ok-soft); color: var(--ok); }

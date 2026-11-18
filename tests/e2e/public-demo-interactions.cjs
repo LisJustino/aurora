@@ -41,6 +41,10 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#landing-main').evaluate((main) => document.activeElement === main),
     'link de pular leva o foco ao conteúdo principal');
   const themeButton = page.locator('[data-public-control="theme-cycle"]');
+  check(await page.locator('.public-topbar').evaluate((header) =>
+    getComputedStyle(header).backgroundColor
+      === getComputedStyle(document.querySelector('.landing-marketing')).getPropertyValue('--surface-raised').trim()),
+  'cabeçalho da landing usa fundo branco no tema claro');
   for (const [mode, label, title] of [
     ['light', 'Alternar para tema escuro', 'Tema atual: claro. Alternar para tema escuro'],
     ['dark', 'Alternar para tema automático', 'Tema atual: escuro. Alternar para tema automático'],
@@ -50,6 +54,18 @@ const check = (passed, name, detail = '') => {
       && await themeButton.getAttribute('title') === title,
     `controle de tema informa o estado ${mode} e a próxima ação`);
     await themeButton.click();
+    if (mode === 'light') {
+        await page.waitForFunction(() => {
+          const header = document.querySelector('.public-topbar');
+          const site = document.querySelector('.landing-marketing');
+          return document.documentElement.dataset.theme === 'dark'
+            && getComputedStyle(header).backgroundColor === getComputedStyle(site).getPropertyValue('--surface-raised').trim();
+        });
+      check(await page.locator('.public-topbar').evaluate((header) =>
+        document.documentElement.dataset.theme === 'dark'
+          && getComputedStyle(header).backgroundColor !== 'oklch(1 0 0)'),
+      'cabeçalho acompanha o tema escuro sem manter o fundo branco');
+    }
   }
   check(await themeButton.getAttribute('aria-label') === 'Alternar para tema escuro'
     && await page.evaluate(() => document.documentElement.dataset.theme === 'light'),

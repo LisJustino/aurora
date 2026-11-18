@@ -38,6 +38,7 @@ import {
   linkedGoalProgressCents,
   projectedNetAccountBalance,
   signedAmount,
+  expenseBudgetByCategory,
   installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
@@ -62,7 +63,7 @@ import {
   normalizeAnnualPlans,
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
-import { cycleDayNumber, cycleStats } from './features/cycle/calculations.js';
+import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
 import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -267,7 +268,6 @@ import {
 import {
   renderGoogleCalendarPlanPanel,
   renderPlanningView,
-  renderPlansView,
   renderTaskCalendar,
   renderTaskWeek,
 } from './features/planning/view.js';
@@ -1808,6 +1808,8 @@ function weeklyReviewView() {
     (day) => waterGoalReached(waterMlForDay(S.water, day), waterGoal),
   );
   const week = weekDays(today(), weekStartDay());
+  const savedReflection = S.settings.prefs.weeklyReflection;
+  const currentReflection = savedReflection?.weekOf === week[0] ? savedReflection.text : '';
   const formatDay = (day) => {
     const [year, month, date] = day.split('-').map(Number);
     return `${date} de ${MESES_L[month - 1]} de ${year}`;
@@ -1817,15 +1819,28 @@ function weeklyReviewView() {
     <section class="card weekly-review-main" aria-label="Resumo da semana">
       <div class="review-stats">
         <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
+        <div class="stat"><b>${review.tasks.pending}</b><span>Pendentes nesta semana</span></div>
         <div class="stat"><b>${review.waterDays}</b><span>Dias com meta de água</span></div>
         <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
       </div>
     </section>
+    <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
+      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
+      ${review.tasks.overdueTasks.length
+        ? h`<ul class="list">${review.tasks.overdueTasks.map((task) => taskRow(task))}</ul>`
+        : h`<p class="small muted" role="status">Nenhuma tarefa atrasada.</p>`}
+    </section>
+    <section class="card weekly-review-tasks" aria-labelledby="weekly-next-title">
+      <div class="head"><div><h3 id="weekly-next-title">Próxima semana</h3><p class="small muted">${formatDay(review.nextWeek.start)} a ${formatDay(review.nextWeek.end)}</p></div><span class="small muted">${review.nextWeek.tasks.length} pendente(s)</span></div>
+      ${review.nextWeek.tasks.length
+        ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
+        : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
+    </section>
     <section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
       <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      <p class="small muted">Se quiser, escolha uma opção. Ela será adicionada somente como anotação à sua lista de tarefas.</p>
+      ${currentReflection ? h`<p class="small muted" role="status">Reflexão salva para esta semana: ${currentReflection}.</p>` : h`<p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>`}
       <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
-        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-note" data-v="${choice}">${choice}</button>`)}
+        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
       </div>
     </section>
   </div>`;
@@ -2019,11 +2034,11 @@ function cycleDataConsentGate() {
   return h`${pageTitle('Ciclo')}
     <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
       <span class="section-kicker">Consentimento específico</span>
-      <h2 id="cycle-consent-title">Antes de abrir Ciclo</h2>
-      <p>Os registros de ciclo menstrual e sintomas são dados pessoais sensíveis de saúde. Usamos o que você escolher registrar para mostrar períodos, histórico e estimativas nesta área. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
-      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado; os registros já salvos permanecerão na conta até que você solicite a exclusão ou apague a conta.</p>
+      <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
+      <p>Ciclo pode guardar dados sensíveis que você decidir registrar: fluxo e sintomas, intimidade e atividade sexual, métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações. Usamos esses dados para mostrar seu histórico, resumos e estimativas; o peso mais recente também pode atualizar o peso do perfil e recalcular a meta de água. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
+      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado, mas os registros não serão apagados. Antes de retirar, você pode mover períodos e registros diários para a lixeira por 30 dias; o peso do Perfil e a meta de água dos Hábitos serão mantidos. Para pedir a exclusão definitiva dos dados, escreva para o contato da Política de Privacidade ou exclua a conta.</p>
       <form class="cycle-consent-form" data-form="cycle-data-consent">
-        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados de saúde que eu registrar na área Ciclo para oferecer esses recursos.</span></label>
+        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados sensíveis que eu decidir registrar em Ciclo para oferecer esses recursos.</span></label>
         <p>Leia a <a href="/privacy.html" data-legal-document="privacy" target="_blank" rel="noopener noreferrer">Política de Privacidade</a> para detalhes e formas de retirar o consentimento.</p>
         <p class="notice warn" role="alert" ${ui.cycleConsentError ? '' : raw('hidden')}>${ui.cycleConsentError}</p>
         <div class="row cycle-consent-actions"><button class="btn primary" type="submit" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>${ui.cycleConsentBusy ? 'Registrando…' : 'Concordar e abrir Ciclo'}</button><a class="btn back" href="/inicio">Agora não</a></div>
@@ -3225,7 +3240,6 @@ function viewPlanejar() {
     }),
     weeklyReviewView,
     taskListHtml,
-    plansHtml: () => renderPlansView(S.tasks),
   });
 }
 
@@ -3529,7 +3543,7 @@ function cycleCalendarPhase(day, stats) {
 function viewCiclo() {
   return renderCycleView({
     S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
-    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, weekStartDay, clamp,
+    hasAnyLog, cyclePeriodEnd, cycleCalendarPhase, topSymptoms, cycLabel, weekStartDay, clamp,
     plural, cycleLogSummary, CYC_ICON, cap, ymLabel,
   });
 }
@@ -4228,9 +4242,9 @@ const CONFIRMABLE_ACTIONS = new Set([
   'annual-goal-delete',
   'appearance-reset',
   'clear-sample',
-  'del-plan',
   'del-task',
   'cyc-clear',
+  'cycle-clear-all',
   'cyc-period-delete',
   'goal-del',
   'habit-delete',
@@ -4982,13 +4996,8 @@ function renderDialog() {
   if (!target) target = dialogRoot;
   if ((opening || typeChanged) && !afSel) target = dialogRoot;
   if ((opening || typeChanged) && ui.dlg.type === 'search') target = el.querySelector('[data-dlg="query"]');
-  if (target) {
-    target.focus({ preventScroll: true });
-    if (afSel && target !== dialogRoot) {
-      restoreDialogCaret(target, afSel.caret);
-      keepDialogControlInView(target);
-    }
-  }
+  if ((opening || typeChanged) && ui.dlg.type === 'task') target = el.querySelector('[data-dlg="title"]');
+  if (target) target.focus({ preventScroll: true });
 }
 
 /* ========== Ações, formulários, importação/exportação e arranque ========== */
@@ -5611,6 +5620,30 @@ const ACTIONS = {
     goal.done = !goal.done;
     saveSlicesWithRollback(['settings'], snapshot);
   },
+  'annual-goal-task': (el) => {
+    const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
+    const goal = plan?.goals.find((item) => item.id === el.dataset.id);
+    if (!goal) return;
+    const linkedTask = findTask(goal.taskId);
+    if (linkedTask) {
+      return ACTIONS['edit-task']({ dataset: { id: linkedTask.id } });
+    }
+    const title = goal.action && goal.action.length <= 120 ? goal.action : goal.title;
+    const notes = goal.action && goal.action !== title ? goal.action : '';
+    const snapshot = snapshotSlices(['settings', 'tasks']);
+    const task = mkTask({
+      title,
+      dueDate: null,
+      priority: 'normal',
+      tags: ['Plano anual'],
+      ...(notes ? { notes } : {}),
+    });
+    goal.taskId = task.id;
+    S.tasks.push(task);
+    if (saveSlicesWithRollback(['settings', 'tasks'], snapshot, true, 'a tarefa do plano anual')) {
+      toast('Tarefa criada e vinculada à conquista.', 'success');
+    }
+  },
   'annual-goal-delete': (el) => {
     const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
     const goal = plan?.goals.find((item) => item.id === el.dataset.id);
@@ -5620,7 +5653,7 @@ const ACTIONS = {
         'annual-goal-delete',
         { id: goal.id },
         'Excluir conquista?',
-        `“${goal.title}” será removida do plano anual.`,
+        `“${goal.title}” será removida do plano anual.${findTask(goal.taskId) ? ' A tarefa vinculada permanecerá na sua lista.' : ''}`,
         'Excluir conquista',
       );
     }
@@ -5643,21 +5676,14 @@ const ACTIONS = {
     if (ui.route === 'planejar') render();
     else nav('planejar');
   },
-  'weekly-note': (el) => {
+  'weekly-reflection-save': (el) => {
     const choice = ['Menos tarefas', 'Mais pausas', 'Manter assim'].find((value) => value === el.dataset.v);
     if (!choice) return;
     const weekStart = weekDays(today(), weekStartDay())[0];
-    const title = `Para a semana de ${shortDate(weekStart)} de ${weekStart.slice(0, 4)}: ${choice}`;
-    if (S.tasks.some((task) => task.title === title && !task.dueDate)) {
-      return toast('Essa anotação já está na sua lista de tarefas.', 'info');
-    }
-    const snapshot = snapshotSlices(['tasks']);
-    S.tasks.push(mkTask({ title, dueDate: null }));
-    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a anotação da semana')) return;
-    toast('Anotação adicionada à sua lista de tarefas.', 'success');
-  },
-  'weekly-keep-task': (el) => {
-    if (findTask(el.dataset.id)) toast('Esta prioridade permanece na data planejada.', 'info');
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.weeklyReflection = { weekOf: weekStart, text: choice };
+    if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a reflexão semanal')) return;
+    toast('Reflexão semanal salva.', 'success');
   },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
@@ -5924,17 +5950,6 @@ const ACTIONS = {
     if (entry) toast('Tarefa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
-  'del-plan': (el) => {
-    const planTasks = S.tasks.filter((task) => task.groupId === el.dataset.id);
-    if (!planTasks.length) return;
-    const title = planTasks[0].groupTitle || planTasks[0].title;
-    if (ui.confirmedAction !== 'del-plan') return requestActionConfirmation('del-plan', { id: el.dataset.id }, 'Excluir plano?', `O plano "${title}" e suas tarefas irão para a lixeira por 30 dias.`, 'Excluir plano');
-    const records = planTasks.map((task) => createTrashRecord('tasks', task.id, S.tasks.indexOf(task), task));
-    const entry = moveRecordsToTrash(`Plano: ${title}`, records, ['tasks'], () => {
-      S.tasks = S.tasks.filter((task) => task.groupId !== el.dataset.id);
-    });
-    if (entry) toast('Plano movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
-  },
   'del-task-dlg': () => {
     const id = ui.dlg?.d?.id;
     const task = findTask(id);
@@ -6258,6 +6273,36 @@ const ACTIONS = {
       if (Number.isFinite(previous.weightKg)) syncLatestCycleWeight();
     });
     if (entry) toast('Registro movido para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
+  },
+  'cycle-clear-all': () => {
+    const records = [
+      ...S.cycle.map((period, index) => createTrashRecord(
+        'cycle',
+        cyclePeriodKey(period),
+        index,
+        period,
+      )),
+      ...Object.entries(S.cycleLog).map(([day, log]) => createTrashRecord('cycleLog', day, 0, log)),
+    ];
+    if (!records.length) return toast('Não há registros do Ciclo para mover.', 'info');
+    if (ui.confirmedAction !== 'cycle-clear-all') {
+      return requestActionConfirmation(
+        'cycle-clear-all',
+        {},
+        'Mover registros do Ciclo?',
+        'Todos os períodos e registros diários irão para a lixeira por 30 dias. O peso do Perfil e a meta de água dos Hábitos serão mantidos.',
+        'Mover para a lixeira',
+      );
+    }
+    const entry = moveRecordsToTrash('Registros do Ciclo', records, ['cycle', 'cycleLog'], () => {
+      S.cycle = [];
+      S.cycleLog = {};
+    });
+    if (!entry) return;
+    ui.cycDay = '';
+    ui.calMonth = today().slice(0, 7);
+    render();
+    toast('Registros do Ciclo movidos para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
   'set-theme': (el) => updateSettingsDraft((settings) => { settings.theme = el.dataset.v; }),
   'appearance-preset': (el) => {
@@ -7693,7 +7738,7 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="card finance-rhythm"><div class="head"><div><h2>Evolução das despesas</h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
@@ -7748,20 +7793,20 @@ function finResumo() {
         <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
       </div>
     </section>
-    ${pend.length ? h`<section class="card finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
+    ${pend.length ? h`    <section class="surface-open finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
       <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
       <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
     <div class="fin-overview-grid">
-      <section class="card finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
+      <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
-      <section class="card finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
+      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
     `;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos</h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
+  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -7869,24 +7914,36 @@ function finContasCartoes() {
 
 /* ---- Orçamento e objetivos ---- */
 function finPlanejamento() {
-  const F = S.finance, ym = ui.finMonth, st = monthStats(ym), spent = Object.fromEntries(byCategory(st.tx, 'out'));
+  const F = S.finance, ym = ui.finMonth, asOfDate = today();
+  const budgetTotals = expenseBudgetByCategory(F.tx, ym, asOfDate);
+  const spent = Object.fromEntries(budgetTotals.total);
+  const throughToday = Object.fromEntries(budgetTotals.throughToday);
+  const afterToday = Object.fromEntries(budgetTotals.afterToday);
   const names = [...new Set([...catNames('out'), ...Object.keys(spent), ...Object.keys(F.budgets)])].filter((n) => n !== 'Estudos' || spent[n] || F.budgets[n]);
-  const rows = names.map((n) => ({ n, sp: spent[n] || 0, lim: (F.budgets[n] || {}).cents || 0 })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
+  const rows = names.map((n) => ({
+    n,
+    sp: spent[n] || 0,
+    realized: throughToday[n] || 0,
+    upcoming: afterToday[n] || 0,
+    lim: (F.budgets[n] || {}).cents || 0,
+  })).sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
   const limited = rows.filter((r) => r.lim > 0), tl = limited.reduce((s, r) => s + r.lim, 0), ts = limited.reduce((s, r) => s + r.sp, 0);
-  const currentMonth = ym === today().slice(0, 7);
+  const totalRealized = limited.reduce((s, r) => s + r.realized, 0);
+  const totalUpcoming = limited.reduce((s, r) => s + r.upcoming, 0);
+  const currentMonth = ym === asOfDate.slice(0, 7);
   const [budgetYear, budgetMonth] = ym.split('-').map(Number);
   const budgetDays = new Date(budgetYear, budgetMonth, 0).getDate();
-  const daysLeft = currentMonth ? budgetDays - Number(today().slice(8)) + 1 : 0;
+  const daysLeft = currentMonth ? budgetDays - Number(asOfDate.slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
-    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos</h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
-    <section class="card"><div class="head"><h2>Limites do mês</h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
-      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
+    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
+    <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
+      ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p><p class="small muted">Do total, ${money(totalRealized)} têm data até hoje e ${money(totalUpcoming)} têm data futura. O limite soma ambos; a situação de pagamento é independente da data.</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => {
         const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
         const nearLimit = r.lim > 0 && !over && r.sp / r.lim >= .8;
         const label = `Definir limite de ${r.n}${nearLimit ? '. Atenção: atingiu pelo menos 80% do limite mensal.' : ''}`;
-        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`${money(r.sp)} gastos · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
+        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
       })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
       ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
@@ -8934,9 +8991,8 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
-  const n = recList().length;
   return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
-    <div class="row fin-tools-actions"><button class="btn sm" data-action="rec-list">${icon('repeat', 16)}Fixas${n ? ' (' + n + ')' : ''}</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+    <div class="row fin-tools-actions"><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
   const ym = ui.finMonth, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
@@ -9008,11 +9064,16 @@ function impRecalc(d, resetCats) {
   });
 }
 function dlgImport2() {
-  const d = ui.dlg.d, n = d.rows.filter((r) => r.on).length;
+  const d = ui.dlg.d, selected = d.rows.filter((r) => r.on), n = selected.length;
+  const selectedTotals = selected.reduce((totals, row) => {
+    totals[row.kind] += row.abs;
+    return totals;
+  }, { in: 0, out: 0 });
   const dups = d.rows.filter((r) => r.dup).length;
   const possibleDups = d.rows.filter((r) => r.possibleDup).length;
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Importar extrato</h2>${closeBtn}</div>
     <p class="small muted"><b>${d.file}</b>: ${d.rows.length} lançamentos encontrados${dups ? `, ${dups} têm descrição correspondente e foram desmarcados como prováveis duplicatas para conferência` : ''}${possibleDups ? `, ${possibleDups} têm data, valor e tipo iguais a registros existentes, mas descrições diferentes; permanecem marcados para sua revisão` : ''}. Confira antes de importar.</p>
+    <p class="small muted" role="status" aria-live="polite">Selecionados: ${n} · despesas ${money(selectedTotals.out)} · receitas ${money(selectedTotals.in)}.</p>
     ${d.truncated ? h`<p class="notice warn full" role="status">O arquivo tem mais de 500 lançamentos. A prévia inclui os primeiros 500; importe o restante em outro arquivo para não deixar registros de fora.</p>` : ''}
     <div class="form">${dlgField('Importar para a conta', h`<select data-dlg="accountId">${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
       <label class="row full form-choice-row"><input type="checkbox" data-dlg="invert" ${d.invert ? raw('checked') : ''}><span class="small"><b>Inverter entradas e saídas</b><br><span class="muted">Use se o arquivo mostra as compras como valores positivos (comum em fatura de cartão).</span></span></label></div>
@@ -9126,12 +9187,17 @@ function renderAccountLoading(root) {
   page.innerHTML = `<div class="account-loading-content">
       <header class="account-loading-header">
         <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
-        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
       </header>
-      <div class="account-loading-skeleton" aria-hidden="true">
-        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
-        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      <div class="account-loading-preview" aria-hidden="true">
+        <div class="loading-welcome-card">
+          <span class="loading-welcome-mark"></span>
+          <span class="loading-welcome-kicker">UM DIA DE CADA VEZ</span>
+          <span class="loading-welcome-title">Vamos por partes.</span>
+          <span class="loading-welcome-copy">Planejar, cuidar e acompanhar — no seu ritmo.</span>
+          <span class="loading-welcome-areas"><span class="loading-welcome-area plan">Planejar</span><span class="loading-welcome-area habits">Hábitos</span><span class="loading-welcome-area finance">Finanças</span><span class="loading-welcome-area cycle">Ciclo</span></span>
+        </div>
       </div>
+      <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
     </div>`;
   page.querySelector('.account-loading-brand img').src = new URL('../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(page);

@@ -29,11 +29,6 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             const heroStyle = getComputedStyle(document.querySelector(selector));
             const card = document.querySelector(selector === '.public-hero' ? '.public-community' : '.home-quick-card');
             const cardStyle = getComputedStyle(card);
-            const cardProbe = document.createElement('div');
-            cardProbe.style.boxShadow = 'var(--elev-1)';
-            document.body.append(cardProbe);
-            const cardShadow = getComputedStyle(cardProbe).boxShadow;
-            cardProbe.remove();
             const dialog = document.createElement('div');
             dialog.className = 'dlg';
             document.body.append(dialog);
@@ -49,18 +44,16 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
               expected,
               cardRadius: cardStyle.borderRadius,
               cardShadow: cardStyle.boxShadow,
-              expectedCardShadow: cardShadow,
               dialogRadius,
               dialogShadow,
             };
           }, route === '/' ? '.public-hero' : '.home-head');
           assert.deepEqual(styles.tokens, ['14px', '24px', '32px', '999px', 'none']);
           assert.deepEqual(styles.aliases, ['14px', '14px', '14px', '32px']);
-          const publicLanding = route === '/';
-          assert.equal(styles.heroRadius, publicLanding ? '24px' : '32px', `${route} ${width}px ${theme}: raio do destaque`);
-          assert.equal(styles.heroShadow, publicLanding ? 'none' : styles.expected, `${route} ${width}px ${theme}: elevação do destaque`);
-          assert.equal(styles.cardRadius, publicLanding ? '0px' : '24px', `${route} ${width}px ${theme}: raio da seção`);
-          assert.equal(styles.cardShadow, publicLanding ? 'none' : styles.expectedCardShadow, `${route} ${width}px ${theme}: elevação da seção`);
+          assert.equal(styles.heroRadius, '0px', `${route} ${width}px ${theme}: destaque editorial sem cartão`);
+          assert.equal(styles.heroShadow, 'none', `${route} ${width}px ${theme}: destaque sem elevação de cartão`);
+          assert.equal(styles.cardRadius, '0px', `${route} ${width}px ${theme}: seção editorial aberta`);
+          assert.equal(styles.cardShadow, 'none', `${route} ${width}px ${theme}: seção sem elevação de cartão`);
           assert.equal(styles.dialogRadius, width < 900 ? '32px 32px 0px 0px' : '32px');
           assert.equal(styles.dialogShadow, styles.expected);
           themeShadows.push(styles.expected);
@@ -80,6 +73,42 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
       }
     }
     console.log('OK — raios e elevações em destaques, seções e diálogos');
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const route of ['inicio', 'financas', 'habitos']) {
+        await page.goto(`${base}/?preview#${route}`);
+        await page.locator('.main[data-route]').waitFor();
+        await page.waitForFunction((expected) => document.querySelector('.main[data-route]')?.dataset.route === expected, route);
+        await page.waitForFunction(() => {
+          const heading = document.querySelector('.main > .page-title h1') || document.querySelector('.home-head h1');
+          return heading && getComputedStyle(heading).fontFamily.includes('Georgia');
+        });
+        const cohesion = await page.evaluate(() => {
+          const title = document.querySelector('.main > .page-title') || document.querySelector('.home-head');
+          const heading = title.querySelector('h1');
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--accent)';
+          document.body.append(probe);
+          const accent = getComputedStyle(probe).color;
+          probe.remove();
+          const selectedTab = document.querySelector('.fin-section-menu .tab[aria-selected="true"]');
+          return {
+            font: getComputedStyle(heading).fontFamily,
+            background: getComputedStyle(title).backgroundColor,
+            borderBottom: getComputedStyle(title).borderBottomStyle,
+            selectedTabColor: selectedTab && getComputedStyle(selectedTab).color,
+            accent,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+          };
+        });
+        assert.ok(cohesion.font.includes('Georgia'), `${route} ${width}px: título editorial compartilhado`);
+        assert.equal(cohesion.background, 'rgba(0, 0, 0, 0)', `${route} ${width}px: cabeçalho aberto`);
+        assert.equal(cohesion.borderBottom, 'solid', `${route} ${width}px: divisor editorial`);
+        assert.equal(cohesion.overflow, false, `${route} ${width}px: sem rolagem horizontal`);
+        if (route === 'financas') assert.equal(cohesion.selectedTabColor, cohesion.accent, `${route} ${width}px: aba usa acento da marca`);
+      }
+    }
+    console.log('OK — títulos e navegação compartilham a linguagem editorial');
     await page.goto(`${base}/tests/design-system-check.html`);
     await page.waitForFunction(() => !document.querySelector('#status').textContent.includes('Lendo'));
     const failures = await page.locator('#results li').filter({ hasText: 'FALHOU' }).allTextContents();

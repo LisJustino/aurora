@@ -122,7 +122,7 @@
   border-radius: var(--r-group);
   background: var(--surface-soft);
   color: var(--ink);
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-family: var(--font);
   font-size: var(--text-xs);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -760,7 +760,7 @@
 .account-secret {
   min-width: 0;
   border: 1px solid var(--line);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font);
   text-transform: none;
 }
 @media (width <= 480px) {
@@ -1022,7 +1022,7 @@
 
 .account-gate:has(> .account-public-header) .account-actions .btn {
   min-height: calc(var(--control-lg) + var(--space-1));
-  border-radius: var(--r-control);
+  border-radius: var(--button-radius);
   font-weight: var(--weight-bold);
 }
 
@@ -1853,7 +1853,9 @@
   margin: 0;
   padding: var(--space-1) var(--gut-l) var(--space-1) var(--gut-r);
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--surface-raised);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .account-site-header .public-brand-link {
@@ -1866,32 +1868,43 @@
 }
 
 .account-site-header .public-brand-icon { width: 36px; height: 36px; border-radius: var(--r-group); }
-.account-site-header .wordmark { color: var(--ink); font-size: var(--text-2xl); font-weight: var(--weight-bold); }
+.account-site-header .wordmark {
+  display: block;
+  color: var(--ink);
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+}
 .account-site-header .wordmark span { color: var(--accent); }
 
-.account-site-header .account-auth-header-actions {
+.account-site-header .account-auth-header-actions,
+.account-site-header .public-header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  margin-left: auto;
 }
 
 .account-site-header .public-account-action {
-  min-height: var(--control-sm);
-  padding-inline: var(--space-4);
-  border-color: var(--line-strong);
-  border-radius: var(--button-radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  min-height: var(--target-size);
+  border-radius: var(--r-control);
+  box-shadow: none;
 }
 
-.account-site-header .public-account-action[aria-current="page"] {
-  cursor: default;
-  opacity: 1;
+.account-site-header .public-account-action:not(.primary) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+.account-site-header .public-account-action.primary {
+  border-color: transparent;
+  background: var(--pd);
+  color: var(--on-btn);
 }
 
 .account-site-header .public-header-tools { display: flex; gap: var(--space-1); }
+.account-site-header .public-header-nav a { font-weight: var(--weight-medium); }
+.account-site-header .public-header-nav a:hover { color: var(--ink); }
 
 .account-page > .account-site-header + .account-gate {
   flex: 1;
@@ -1900,12 +1913,10 @@
 
 :root[data-theme="dark"] .account-site-header .public-brand-link,
 :root[data-theme="dark"] .account-site-header .wordmark,
-:root[data-theme="dark"] .account-site-header .public-account-action { color: var(--ink); }
-:root[data-theme="dark"] .account-site-header .public-account-action { border-color: var(--line-strong); background: var(--surface); }
+:root[data-theme="dark"] .account-site-header .public-account-action:not(.primary) { color: var(--ink); }
 
 @media (width <= 700px) {
-  .account-site-header { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-4); }
-  .account-site-header .account-auth-header-actions { margin-left: auto; }
+  .account-site-header { min-height: 72px; padding-inline: var(--gut-l) var(--gut-r); }
   .account-gate.is-public-account > .account-card > .account-brand { display: none; }
   .account-gate.is-public-account > .account-card { margin-block: var(--space-2) var(--space-4); padding-top: var(--space-5); }
 }
@@ -1916,6 +1927,10 @@
 
 @media (width <= 900px) {
   .account-site-header .wordmark { display: none; }
+}
+
+@media (width <= 640px) {
+  .account-site-header .landing-header-free { display: none; }
 }
 
 .account-page:has(.account-gate.is-public-account):has(.account-site-header) { padding: 0; }
@@ -1980,10 +1995,8 @@
   animation: account-art-rise .55s var(--ease-standard) both;
 }
 
-.account-gate.is-public-account .account-field input,
-.account-gate.is-public-account .account-actions .btn {
-  border-radius: var(--r-pill);
-}
+.account-gate.is-public-account .account-field input { border-radius: var(--r-control); }
+.account-gate.is-public-account .account-actions .btn { border-radius: var(--button-radius); }
 .account-gate.is-public-account .account-field input { padding-inline: var(--space-4); }
 .account-gate.is-public-account .account-actions .btn.primary {
   transition: background-color var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard);
@@ -2035,67 +2048,55 @@
 
 /* Autenticação como continuação da landing: uma coluna de marca e uma tarefa clara. */
 .account-page:has(.account-gate.is-public-account) {
-  background:
-    var(--bg);
+  background: var(--bg);
 }
 .account-gate.is-public-account {
-  border-color: color-mix(in srgb, var(--plum) 25%, var(--line));
-  border-radius: var(--r-public-hero);
-  background: var(--surface);
-  box-shadow: var(--elev-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .account-gate.is-public-account > .account-intro {
-  background:
-    radial-gradient(circle at 84% 20%, rgb(238 186 170 / 26%), transparent 14rem),
-    radial-gradient(circle at 8% 100%, rgb(255 255 255 / 12%), transparent 19rem),
-    linear-gradient(145deg, var(--public-account-start), var(--plum) 58%, var(--public-account-end));
+  background: transparent;
 }
 .account-gate.is-public-account > .account-intro::before,
 .account-gate.is-public-account > .account-intro::after {
-  position: absolute;
-  display: block;
-  border: 1px solid rgb(255 255 255 / 15%);
-  border-radius: 50%;
-  content: "";
+  display: none;
 }
-.account-gate.is-public-account > .account-intro::before {
-  top: -90px;
-  right: -62px;
-  width: 250px;
-  height: 250px;
-}
-.account-gate.is-public-account > .account-intro::after {
-  bottom: -110px;
-  left: -88px;
-  width: 230px;
-  height: 230px;
-}
-.account-gate.is-public-account .account-intro .public-brand-link,
-.account-gate.is-public-account .account-intro .wordmark,
-.account-gate.is-public-account > .account-intro h2 { color: var(--public-hero-ink); }
-.account-gate.is-public-account .account-intro .wordmark span { color: var(--public-hero-accent); }
-.account-gate.is-public-account .account-intro-description { color: rgb(255 250 246 / 78%); }
+.account-gate.is-public-account .account-intro-description { color: var(--ink); }
 .account-gate.is-public-account {
-  --art-ink: var(--public-hero-ink);
-  --art-rose: var(--public-art-rose);
-  --art-rose-soft: rgb(255 250 246 / 16%);
-  --art-lilac: var(--public-art-lilac);
-  --art-cream: rgb(255 253 250 / 96%);
-  --art-ok: var(--public-art-ok);
-  --art-card: rgb(255 255 255 / 10%);
-  --art-card-line: rgb(255 255 255 / 17%);
+  --art-ink: var(--ink);
+  --art-rose: var(--p);
+  --art-rose-soft: var(--soft2);
+  --art-lilac: var(--area-cycle);
+  --art-cream: var(--surface);
+  --art-ok: var(--ok);
+  --art-card: var(--surface);
+  --art-card-line: var(--line);
 }
-.account-gate.is-public-account .account-preview-card { backdrop-filter: blur(8px); }
 .account-gate.is-public-account > .account-card {
-  border-left-color: rgb(91 81 73 / 11%);
-  background: rgb(255 253 250 / 98%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-public-hero);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
 }
 .account-gate.is-public-account > .account-card h1::after {
-  width: 48px;
-  background: linear-gradient(90deg, var(--accent), var(--public-art-rose));
+  display: none;
 }
 .account-gate.is-public-account .account-actions .btn.primary {
   box-shadow: var(--elev-1);
+}
+
+:root[data-theme="dark"] .account-gate.is-public-account > .account-intro {
+  background: transparent;
+}
+:root[data-theme="dark"] .account-gate.is-public-account > .account-intro h2,
+:root[data-theme="dark"] .account-gate.is-public-account > .account-card h1 {
+  color: var(--ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .account-gate.is-public-account > .account-intro h2,
+  :root:not([data-theme]) .account-gate.is-public-account > .account-card h1 { color: var(--ink); }
 }
 
 @media (width <= 700px) {

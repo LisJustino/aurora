@@ -10,6 +10,13 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/icons/favicon-512.png">
   <title>Sem conexão | aurora.</title>
   <style>
+    @font-face {
+      font-family: "DM Sans";
+      src: url("/src/fonts/dm-sans-latin.woff2") format("woff2");
+      font-style: normal;
+      font-weight: 100 1000;
+      font-display: swap;
+    }
     :root {
       color-scheme: light;
       --bg: #f7f0ea;
@@ -22,7 +29,7 @@
       --btn: #8d4665;
       --on-btn: #fff;
       --focus: #68423e;
-      --font: "DM Sans", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      --font: "DM Sans", sans-serif;
     }
 
     @media (prefers-color-scheme: dark) {

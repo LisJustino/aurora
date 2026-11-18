@@ -71,7 +71,11 @@ const swipe = async (page, locator, direction) => {
     && await page.getByRole('tab', { name: 'Visão geral', exact: true }).count() === 1
     && await page.getByRole('tab', { name: 'Contas e cartões', exact: true }).count() === 1,
   'navegação financeira agrupa as áreas em cinco seções claras');
+  check(await page.locator('.finance-privacy-note').count() === 1,
+    'aviso sobre conexão bancária aparece uma vez na visão geral');
   await page.locator('.fin-section-option[data-t="contas"]').click();
+  check(await page.locator('.finance-privacy-note').count() === 0,
+    'aviso bancário não se repete nas outras seções');
   check(await page.locator('.finance-account-option').count() === 2,
     'contas e cartões aparecem como subseções no mesmo grupo');
   await page.locator('.finance-account-option[data-t="cartoes"]').click();
@@ -83,6 +87,14 @@ const swipe = async (page, locator, direction) => {
   check(await page.locator('.finance-installments').count() === 1
     && await page.locator('.finance-fixas').count() === 1,
   'planejamento reúne parcelas e lançamentos fixos');
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  check(await page.locator('.fin-tools-actions [data-action="rec-list"]').count() === 0,
+    'lançamentos não duplica o acesso à gestão de fixas do planejamento');
+  await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  check((await page.locator('.budget-list').textContent()).includes('Até hoje:')
+    && (await page.locator('.budget-list').textContent()).includes('data futura:')
+    && (await page.locator('.budget-list').textContent()).includes('total'),
+  'limites distinguem despesas por data e mantêm a comparação pelo total');
   await page.locator('.fin-section-option[data-t="resumo"]').click();
   const recent = await page.locator('.finance-recent').textContent();
   const selectedMonth = await page.locator('.mnav .mlabel').textContent();
@@ -212,6 +224,18 @@ const swipe = async (page, locator, direction) => {
   check((await page.locator('#dlg').textContent()).includes('descrições diferentes')
     && (await page.locator('#dlg').textContent()).includes('permanecem marcados'),
   'importação explica os casos semelhantes que exigem conferência');
+  const importSummary = page.locator('#dlg [role="status"][aria-live="polite"]');
+  check((await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('Selecionados: 1')
+    && (await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('despesas R$ 1,00')
+    && (await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('receitas R$ 0,00'),
+  'prévia soma despesas e receitas selecionadas em centavos');
+  await duplicateRows.nth(1).uncheck();
+  check((await importSummary.textContent()).includes('Selecionados: 0')
+    && await page.locator('#dlg [data-action="imp-apply"]').isDisabled(),
+  'resumo da importação atualiza ao desmarcar uma linha');
+  await duplicateRows.nth(1).check();
+  check((await importSummary.textContent()).includes('Selecionados: 1'),
+    'resumo da importação atualiza ao marcar uma linha');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   if (await page.getByRole('button', { name: 'Descartar alterações', exact: true }).count()) {
     await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();

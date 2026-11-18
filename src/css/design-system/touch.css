@@ -47,7 +47,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
 /* ---- Tema escuro: cartões se destacam pelo contorno ---- */
-:root[data-theme="dark"] .card {
+:root[data-theme="dark"] .card:not(.surface-open) {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
   box-shadow: var(--elev-1);
 }
@@ -124,7 +124,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   .dlg-back:has(.dlg.intro-dialog) { align-items: center; padding: var(--space-3); }
   .dlg:not(.intro-dialog) {
     width: 100%;
-    max-height: min(92dvh, 820px);
+    max-height: min(var(--dialog-available-height, 92dvh), 820px);
     margin: 0;
     border-radius: var(--r-hero) var(--r-hero) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0);

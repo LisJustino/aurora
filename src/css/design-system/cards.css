@@ -16,6 +16,18 @@
   box-shadow: var(--elev-0);
 }
 
+.surface-open {
+  display: grid;
+  min-width: 0;
+  gap: var(--card-content-gap);
+  padding-block: var(--card-padding);
+  border-block: 1px solid var(--border-subtle);
+}
+
+.surface-open > .head {
+  align-items: flex-end;
+}
+
 .head, .row {
   display: flex;
   align-items: center;
