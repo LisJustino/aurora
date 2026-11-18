@@ -204,6 +204,7 @@
   .topbar:has(.mobile-profile-menu[open]) > .profile-menu-panel .nav-overflow-group { display: none; }
   .topbar:has(.nav .profile-menu-control[open]) > .profile-menu-panel .profile-menu-account-item { display: none; }
   .topbar .nav .profile-menu-control:not(:has(.ni-more)) { display: none; }
+  .topbar .header-actions > .profile-menu-control { display: none; }
   .topbar .header-actions .nav-quick-trigger { display: none; }
   .topbar .quick-actions-menu {
     position: fixed;
@@ -254,6 +255,7 @@
 
 @media (width >= 900px) {
   .topbar .nav .mobile-nav-create-trigger { display: none; }
+  .topbar .nav > .profile-menu-control { display: none; }
   .app > .topbar { display: flex; gap: var(--space-2); }
   .topbar .nav {
     position: relative;

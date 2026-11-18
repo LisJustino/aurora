@@ -48,6 +48,13 @@ import {
 } from './features/finance/accounts.js';
 import { createToastController } from './features/feedback/toast.js';
 import {
+  feedbackPromptNextAt,
+  isValidFeedbackPromptNextAt,
+  isFeedbackPromptDue,
+  normalizeFeedbackPromptNextAt,
+  renderFeedbackPrompt,
+} from './features/feedback/prompt.js';
+import {
   AREA_GUIDES,
   isValidAreaTutorialsSeen,
   normalizeAreaTutorialsSeen,
@@ -479,7 +486,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -496,7 +503,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, preview: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -790,6 +797,7 @@ function normalizeSettings(s) {
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
   o.prefs.weeklyReviewReminder = prefs.weeklyReviewReminder === true;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
+  o.prefs.feedbackPromptNextAt = normalizeFeedbackPromptNextAt(prefs.feedbackPromptNextAt);
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
     && isDay(prefs.weeklyReflection.weekOf)
     && typeof prefs.weeklyReflection.text === 'string'
@@ -995,6 +1003,8 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(prefs, 'sample') && prefs.sample !== undefined && typeof prefs.sample !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'lastBackup') && prefs.lastBackup !== undefined && prefs.lastBackup !== null
       && (!isText(prefs.lastBackup) || !Number.isFinite(Date.parse(prefs.lastBackup)))) issues++;
+    if (Object.hasOwn(prefs, 'feedbackPromptNextAt')
+      && !isValidFeedbackPromptNextAt(prefs.feedbackPromptNextAt)) issues++;
     if (Object.hasOwn(prefs, 'weeklyReflection') && prefs.weeklyReflection !== null
       && (!isPlainObject(prefs.weeklyReflection)
         || !isDay(prefs.weeklyReflection.weekOf)
@@ -1714,6 +1724,7 @@ function shell(body) {
   const menuItems = orderMenuItems(S.settings.prefs.menuOrder, menuAreas, false, S.settings.prefs.visibleMenuItems, HIDDEN_MENU_IDS);
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
+  const feedbackPrompt = ui.feedbackPromptVisible ? renderFeedbackPrompt() : '';
   // No celular a barra tem 5 espaços: 3 áreas + Criar + Mais. As demais áreas ficam dentro do Mais.
   const MOBILE_NAV_PRIMARY = 3;
   const overflowItems = menuItems.slice(MOBILE_NAV_PRIMARY);
@@ -1737,17 +1748,25 @@ function shell(body) {
       ${financeQuickActions}
       ${!areaOn('finances') || !S.finance.accounts.length ? h`<button type="button" data-action="quick-action-expense"><span class="ni">${icon('arrowDown', 18)}</span><span>Lançar despesa</span></button>` : ''}`;
   const quickActionsHeading = isFinanceRoute ? 'Ações de Finanças' : 'Criar rapidamente';
-  const quickActions = h`<div class="nav-quick-control">
-    <button type="button" class="nav-quick-trigger iconbtn" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
-    <div class="quick-actions-menu" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
+  const quickActions = h`<div class="nav-quick-control${isFinanceRoute ? ' finance-quick-control' : ''}">
+    <button type="button" class="nav-quick-trigger iconbtn${isFinanceRoute ? ' finance-fab-trigger' : ''}" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
+    <div class="quick-actions-menu${isFinanceRoute ? ' finance-quick-actions-menu' : ''}" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">${tabLabel('Criar')}</span></button>`;
+  const headerQuickActions = isFinanceRoute ? '' : quickActions;
+  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger${isFinanceRoute ? ' finance-nav-create-trigger' : ''}" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">${tabLabel('Criar')}</span></button>`;
+  const financeQuickActionsBackdrop = isFinanceRoute && ui.quickActionsOpen
+    ? h`<button type="button" class="finance-actions-backdrop" data-action="quick-actions-toggle" aria-label="Fechar ações financeiras"></button>`
+    : '';
+  const financeQuickActionsLayer = isFinanceRoute ? h`${financeQuickActionsBackdrop}${quickActions}` : '';
   const hasOverflow = overflowItems.length > 0;
   const overflowCurrent = overflowItems.some(({ id }) => isCurrent(id));
   const profileMenu = h`<details class="profile-menu-control">
     <summary class="profile-link iconbtn profile-menu-trigger${overflowCurrent ? ' is-current' : ''}" aria-label="${hasOverflow ? 'Mais áreas' : 'Menu da conta'}" title="${hasOverflow ? 'Mais' : 'Conta'}" aria-controls="profile-menu"><span class="ni${hasOverflow ? ' ni-account' : ''}">${icon('user', 20)}</span>${hasOverflow ? h`<span class="ni ni-more">${icon('more', 20)}</span>` : ''}<span class="mobile-nav-label">${tabLabel(hasOverflow ? 'Mais' : 'Conta')}</span></summary>
   </details>`;
-  const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="${hasOverflow ? 'Mais áreas e conta' : 'Menu da conta'}">
+  const headerProfileMenu = h`<details class="profile-menu-control">
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Perfil e conta" title="Perfil e conta" aria-controls="profile-menu">${icon('user', 20)}</summary>
+  </details>`;
+  const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Perfil e navegação">
     ${hasOverflow ? h`<div class="nav-overflow-group" role="group" aria-label="Mais áreas">${overflowItems.map(({ id, label, icon: iconName }) => h`<a class="profile-menu-item nav-overflow-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}>${icon(iconName, 18)}<span>${label}</span></a>`)}</div>` : ''}
     <a class="profile-menu-item profile-menu-account-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
     ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout profile-menu-account-item" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
@@ -1765,8 +1784,10 @@ function shell(body) {
   const navItems = h`${navLinks.slice(0, createAt)}${mobileQuickActionsTrigger}${navLinks.slice(createAt)}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <div class="pull-refresh-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="pull-refresh-icon" aria-hidden="true">${icon('refresh', 20)}</span><span class="pull-refresh-label"></span></div>
-    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerAccountMenu}${quickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}</div></header>
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerQuickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}${headerProfileMenu}${headerAccountMenu}</div></header>
+    ${financeQuickActionsLayer}
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
+      ${feedbackPrompt}
       ${persistenceNotice()}
       ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
@@ -2033,13 +2054,11 @@ function restoreDialogOpener(opener) {
 function cycleDataConsentGate() {
   return h`${pageTitle('Ciclo')}
     <section class="card cycle-consent-card" aria-labelledby="cycle-consent-title">
-      <span class="section-kicker">Consentimento específico</span>
-      <h2 id="cycle-consent-title">Antes de abrir Ciclo<i>.</i></h2>
-      <p>Ciclo pode guardar dados sensíveis que você decidir registrar: fluxo e sintomas, intimidade e atividade sexual, métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações. Usamos esses dados para mostrar seu histórico, resumos e estimativas; o peso mais recente também pode atualizar o peso do perfil e recalcular a meta de água. Os registros ficam associados à sua conta e não são criptografados de ponta a ponta.</p>
-      <p>Você pode recusar e continuar usando as outras áreas. Se retirar o consentimento depois, Ciclo será bloqueado, mas os registros não serão apagados. Antes de retirar, você pode mover períodos e registros diários para a lixeira por 30 dias; o peso do Perfil e a meta de água dos Hábitos serão mantidos. Para pedir a exclusão definitiva dos dados, escreva para o contato da Política de Privacidade ou exclua a conta.</p>
+      <h2 id="cycle-consent-title">Usar dados no Ciclo<i>?</i></h2>
+      <p>O Ciclo pode guardar apenas os dados que você decidir registrar, como fluxo, sintomas, atividades, peso e medicações.</p>
+      <p>Você pode retirar o consentimento depois. Nesse caso, o Ciclo fica bloqueado, mas seus registros não são apagados. Veja como excluir dados na <a href="/privacy.html" data-legal-document="privacy" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.</p>
       <form class="cycle-consent-form" data-form="cycle-data-consent">
-        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Consinto especificamente com o tratamento dos dados sensíveis que eu decidir registrar em Ciclo para oferecer esses recursos.</span></label>
-        <p>Leia a <a href="/privacy.html" data-legal-document="privacy" target="_blank" rel="noopener noreferrer">Política de Privacidade</a> para detalhes e formas de retirar o consentimento.</p>
+        <label class="cycle-consent-check"><input type="checkbox" name="cycleConsent" required ${ui.cycleConsentBusy ? raw('disabled') : ''}><span>Permito que o Aurora use esses dados no Ciclo.</span></label>
         <p class="notice warn" role="alert" ${ui.cycleConsentError ? '' : raw('hidden')}>${ui.cycleConsentError}</p>
         <div class="row cycle-consent-actions"><button class="btn primary" type="submit" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>${ui.cycleConsentBusy ? 'Registrando…' : 'Concordar e abrir Ciclo'}</button><a class="btn back" href="/inicio">Agora não</a></div>
       </form>
@@ -2068,6 +2087,7 @@ function render() {
       isSkipped: (habit, targetDay) => habitIsSkipped(habit, targetDay, targetDay),
     }));
   }
+  maybeShowFeedbackPrompt();
   const routeChanged = renderedRoute !== null && renderedRoute !== ui.route;
   const reducedMotion = prefersReducedMotion(settingsView().look.reduceMotion);
   if (routeChanged && !reducedMotion) setRouteDirection(renderedRoute, ui.route);
@@ -2078,6 +2098,43 @@ function render() {
   }
   if (routeChanged && !reducedMotion) setTimeout(clearRouteDirection, 400);
   renderApp(routeChanged, false);
+}
+
+function maybeShowFeedbackPrompt() {
+  if (ui.feedbackPromptVisible) return;
+  if (ui.feedbackPromptScheduleAttempted) {
+    if (syncState.pending.size || syncState.failed.size || ui.persistFailed.size) return;
+    ui.feedbackPromptScheduleAttempted = false;
+  }
+  if (ui.preview
+    || !accountSession
+    || ui.route !== 'inicio'
+    || !profileSetupComplete()
+    || S.settings.prefs.sample
+    || ui.dlg
+    || ui.profileDraft
+    || ui.profileSaving
+    || ui.settingsDraft
+    || ui.settingsSaving
+    || ui.persistBlocked.has('settings')
+    || ui.persistFailed.size
+    || syncState.pending.size
+    || syncState.failed.size
+    || navigator.onLine === false) return;
+
+  const now = Date.now();
+  const previousNextAt = S.settings.prefs.feedbackPromptNextAt;
+  const nextAtMs = typeof previousNextAt === 'string' ? Date.parse(previousNextAt) : NaN;
+  const hasNextAt = Number.isFinite(nextAtMs);
+  if (hasNextAt && !isFeedbackPromptDue(previousNextAt, now)) return;
+
+  ui.feedbackPromptScheduleAttempted = true;
+  S.settings.prefs.feedbackPromptNextAt = feedbackPromptNextAt(now);
+  if (!saveSlices('settings')) {
+    S.settings.prefs.feedbackPromptNextAt = previousNextAt;
+    return;
+  }
+  if (hasNextAt) ui.feedbackPromptVisible = true;
 }
 
 /* Esqueleto de página: aparece se uma área carregada sob demanda demorar, no lugar de uma tela parada. */
@@ -5467,6 +5524,7 @@ const ACTIONS = {
   'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
   'close-notifications': () => closeNotifications(),
   'backup-reminder-dismiss': () => { ui.backupReminderHidden = true; render(); },
+  'feedback-prompt-dismiss': () => { ui.feedbackPromptVisible = false; render(); },
   'accessibility-mode': (el) => { setThemeMode(el.dataset.v); document.getElementById(el.id)?.focus(); },
   'accessibility-contrast': (el) => updateAccessibilityLook({ contrast: !settingsView().look.contrast }, el.id),
   'accessibility-readable': (el) => updateAccessibilityLook({ readable: !settingsView().look.readable }, el.id),
@@ -8166,7 +8224,7 @@ function dlgAccount() {
       ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
       ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
     </form>`,
-    h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">Salvar</button>`);
+    h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn ghost" type="submit" form="dlgform" data-action="acct-save-and-another">Continuar e salvar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
 function dlgAccountDelete() {
   const d = ui.dlg.d, a = accById(d.id);
@@ -8498,6 +8556,7 @@ Object.assign(ACTIONS, {
   'fin-csv': () => finCsv(),
   'acct-new': () => dlgOpen('account', { name: '', bank: '', type: 'checking', balance: '', limit: '', closing: '', due: '' }),
   'acct-new-card': () => dlgOpen('account', { name: '', bank: '', type: 'credit', linkedAccountId: '', balance: '', limit: '', closing: '', due: '' }),
+  'acct-save-and-another': () => { if (ui.dlg?.type === 'account' && !ui.dlg.d.id) ui.dlg.d.continueAfterSave = true; },
   'acct-edit': (el) => { const a = accById(el.dataset.id); if (a) dlgOpen('account', { id: a.id, name: accountDisplayName(a), bank: a.bank || '', type: a.type, linkedAccountId: a.linkedAccountId || '', balance: moneyIn(accBalance(a)), cur0: accBalance(a), limit: moneyIn(a.limitCents), closing: a.closingDay ? String(a.closingDay) : '', due: a.dueDay ? String(a.dueDay) : '' }); },
   'acct-del': () => { const a = accById(ui.dlg.d.id); if (a) dlgOpen('acctdelete', { id: a.id }); },
   'acct-del-confirm': () => {
@@ -8778,7 +8837,28 @@ Object.assign(FORMS, {
       Object.assign(current, patch);
       if (d.type === 'credit' && !linkedAccount) delete current.linkedAccountId;
     } else S.finance.accounts.push({ id: newId(), ...patch });
-    ui.dlg = null; commit('finance');
+    if (!d.id && d.continueAfterSave) {
+      const nextType = d.type;
+      Object.assign(d, {
+        name: '',
+        bank: '',
+        type: nextType,
+        linkedAccountId: '',
+        balance: '',
+        limit: '',
+        closing: '',
+        due: '',
+      });
+      delete d.id;
+      delete d.cur0;
+      delete d.continueAfterSave;
+      commit('finance');
+      toast('Conta criada. Você já pode cadastrar outra.', 'success');
+      requestAnimationFrame(() => $('#dlg input[data-dlg="name"]')?.focus());
+      return;
+    }
+    ui.dlg = null;
+    commit('finance');
   },
   'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.', 'error'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
   'dlg-category': () => {

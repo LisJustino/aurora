@@ -19,17 +19,33 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('.preview-shell .main').waitFor();
+  await page.setViewportSize({ width: 1280, height: 800 });
   const headerButtonOrder = await page.locator('.header-actions').evaluate((actions) =>
-    Array.from(actions.children).map((child) => {
-      if (child.matches('.header-account-control')) return 'profile';
-      if (child.matches('.nav-quick-control')) return 'create';
-      if (child.matches('.theme-trigger')) return 'theme';
-      if (child.matches('.notification-trigger')) return 'notifications';
-      return 'other';
-    }),
+    Array.from(actions.children)
+      .filter((child) => child.getClientRects().length && getComputedStyle(child).visibility !== 'hidden')
+      .map((child) => {
+        if (child.matches('.profile-menu-control')) {
+          const trigger = child.querySelector('.profile-menu-trigger');
+          return {
+            name: 'profile',
+            label: trigger.getAttribute('aria-label'),
+            title: trigger.title,
+            left: child.getBoundingClientRect().left,
+          };
+        }
+        if (child.matches('.nav-quick-control')) return { name: 'create', left: child.getBoundingClientRect().left };
+        if (child.matches('.theme-trigger')) return { name: 'theme', left: child.getBoundingClientRect().left };
+        if (child.matches('.notification-trigger')) return { name: 'notifications', left: child.getBoundingClientRect().left };
+        return { name: 'other', left: child.getBoundingClientRect().left };
+      }),
   );
-  check(headerButtonOrder.join(',') === 'profile,create,theme,notifications',
-    'cabeçalho mantém Perfil, Criar, Tema e Notificações nessa ordem', headerButtonOrder.join(' → '));
+  await page.setViewportSize({ width: 320, height: 700 });
+  check(headerButtonOrder.map(({ name }) => name).join(',') === 'create,theme,notifications,profile'
+    && headerButtonOrder[3].label === 'Perfil e conta'
+    && headerButtonOrder[3].title === 'Perfil e conta'
+    && headerButtonOrder.every((item, index) => index === 0 || headerButtonOrder[index - 1].left < item.left),
+    'cabeçalho mantém Criar, Tema, Notificações e Perfil nessa ordem',
+    headerButtonOrder.map(({ name }) => name).join(' → '));
   check(await page.locator('.global-quick-actions, .global-quick-fab').count() === 0, 'não há botão flutuante de criação duplicado');
   const mobileNavBackgrounds = await page.locator('.topbar .nav').evaluate((nav) => {
     const root = document.documentElement;
@@ -422,7 +438,7 @@ const check = (passed, name, detail = '') => {
   });
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
   await page.setViewportSize({ width: 1024, height: 900 });
-  await page.locator('.profile-menu-trigger').click();
+  await page.locator('.profile-menu-trigger:visible').click();
   const profileSettingsLink = page.locator('#profile-menu a[href="/config"]');
   const profileMenuClickable = await profileSettingsLink.evaluate((link) => {
     const bounds = link.getBoundingClientRect();

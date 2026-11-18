@@ -62,11 +62,17 @@ const swipe = async (page, locator, direction) => {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).waitFor();
   check(await page.evaluate(() => {
     const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+    const control = document.querySelector('.finance-quick-control');
+    const button = control?.querySelector('.finance-fab-trigger');
+    const buttonBounds = button?.getBoundingClientRect();
+    const navCreate = document.querySelector('.finance-nav-create-trigger');
     return Math.abs(nav.bottom - (innerHeight - 8)) <= 1
-      && !document.querySelector('.finance-fab, .finance-page-action, .global-quick-fab')
-      && Boolean(document.querySelector('.topbar .nav-quick-trigger'))
+      && getComputedStyle(control).position === 'fixed'
+      && buttonBounds?.width === 56 && buttonBounds.height === 56
+      && getComputedStyle(navCreate).visibility === 'hidden'
+      && !document.querySelector('.header-actions .nav-quick-control')
       && !document.querySelector('.fab-clearance');
-  }), 'atalho de criação fica apenas no header, sem botões flutuantes duplicados');
+  }), 'atalho flutuante fica acima do dock sem duplicar o botão central');
   check(await page.locator('.fin-section-option').count() === 5
     && await page.getByRole('tab', { name: 'Visão geral', exact: true }).count() === 1
     && await page.getByRole('tab', { name: 'Contas e cartões', exact: true }).count() === 1,
@@ -794,18 +800,21 @@ const swipe = async (page, locator, direction) => {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
-  check(await page.locator('.topbar .mobile-nav-create-trigger').isVisible()
-    && !await page.locator('.finance-fab').count()
-    && !await page.locator('.finance-page-action').count()
+  check(await page.locator('.finance-fab-trigger').isVisible()
+    && await page.locator('.finance-quick-control').evaluate((control) => getComputedStyle(control).position === 'fixed')
     && !await page.locator('.global-quick-fab').count(),
-  'celular mostra o atalho de criação centralizado no dock');
+  'celular mantém o atalho financeiro flutuante');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
-  check(await page.locator('.topbar .nav-quick-trigger').isVisible()
-    && !await page.locator('.finance-fab').count()
-    && !await page.locator('.finance-page-action').count()
+  check(await page.locator('.finance-fab-trigger').isVisible()
+    && await page.locator('.finance-quick-control').evaluate((control) => getComputedStyle(control).position === 'fixed')
     && !await page.locator('.global-quick-fab').count(),
-  'desktop mostra apenas o atalho de criação no header');
+  'desktop usa o mesmo atalho financeiro flutuante');
+  await openFinanceQuickActions();
+  check(await page.locator('.finance-actions-backdrop').isVisible()
+    && await page.locator('.finance-quick-actions-menu').isVisible(),
+  'painel flutuante e fundo escurecido aparecem também no desktop');
+  await page.keyboard.press('Escape');
   const overviewDesktopLayout = await page.evaluate(() => {
     const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
     const recent = document.querySelector('.finance-recent').getBoundingClientRect();

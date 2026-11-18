@@ -861,6 +861,18 @@ html:has(.landing-marketing) {
   width: 100%;
   height: auto;
 }
+.landing-hero-desktop .landing-screen-dark,
+.landing-hero-phone .landing-screen-dark { display: none; }
+:root[data-theme="dark"] .landing-hero-desktop .landing-screen-light,
+:root[data-theme="dark"] .landing-hero-phone .landing-screen-light { display: none; }
+:root[data-theme="dark"] .landing-hero-desktop .landing-screen-dark,
+:root[data-theme="dark"] .landing-hero-phone .landing-screen-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .landing-hero-desktop .landing-screen-light,
+  :root:not([data-theme]) .landing-hero-phone .landing-screen-light { display: none; }
+  :root:not([data-theme]) .landing-hero-desktop .landing-screen-dark,
+  :root:not([data-theme]) .landing-hero-phone .landing-screen-dark { display: block; }
+}
 
 .landing-hero-phone {
   position: absolute;

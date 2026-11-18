@@ -171,7 +171,17 @@ import { renderLanding } from '../src/js/features/landing/view.js';
 import { renderHomeView } from '../src/js/features/home/view.js';
 import { renderCycleView } from '../src/js/features/cycle/view.js';
 import { renderFinanceView } from '../src/js/features/finance/view.js';
+import { renderGoogleCalendarPlanPanel, renderPlanningView } from '../src/js/features/planning/view.js';
 import { createToastController } from '../src/js/features/feedback/toast.js';
+import {
+  FEEDBACK_PROMPT_INTERVAL_MS,
+  feedbackPromptNextAt,
+  feedbackSuggestionHref,
+  isFeedbackPromptDue,
+  isValidFeedbackPromptNextAt,
+  normalizeFeedbackPromptNextAt,
+  renderFeedbackPrompt,
+} from '../src/js/features/feedback/prompt.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 import { emptyState } from '../src/js/utils/empty-state.js';
 import { h } from '../src/js/utils/dom.js';
@@ -190,6 +200,38 @@ const test = (name, run) => {
     });
   }
 };
+
+test('convite de feedback respeita os cinco dias e usa envio de e-mail opcional', () => {
+  const now = Date.UTC(2026, 0, 1);
+  const nextAt = feedbackPromptNextAt(now);
+  if (Date.parse(nextAt) !== now + FEEDBACK_PROMPT_INTERVAL_MS
+    || isFeedbackPromptDue(nextAt, now + FEEDBACK_PROMPT_INTERVAL_MS - 1)
+    || !isFeedbackPromptDue(nextAt, now + FEEDBACK_PROMPT_INTERVAL_MS)
+    || isFeedbackPromptDue('data inválida', now + FEEDBACK_PROMPT_INTERVAL_MS)
+    || normalizeFeedbackPromptNextAt(nextAt) !== nextAt
+    || normalizeFeedbackPromptNextAt('data inválida') !== null
+    || !isValidFeedbackPromptNextAt(nextAt)
+    || !isValidFeedbackPromptNextAt(null)
+    || isValidFeedbackPromptNextAt('data inválida')
+    || !/^mailto:lisjustino@gmail\.com\?subject=/.test(feedbackSuggestionHref())
+    || decodeURIComponent(feedbackSuggestionHref().split('subject=')[1]) !== 'Sugestão sobre o Aurora') {
+    throw new Error('O agendamento, a validação ou o link de sugestão está incorreto.');
+  }
+  const prompt = renderFeedbackPrompt().s;
+  if (!prompt.includes('Está gostando do Aurora?')
+    || !prompt.includes('data-action="feedback-prompt-dismiss"')
+    || !prompt.includes('href="mailto:lisjustino@gmail.com?subject=')
+    || !prompt.includes('A mensagem só será enviada por você.')) {
+    throw new Error('O convite deve oferecer avaliação, adiamento e e-mail voluntário.');
+  }
+  let invalidNowRejected = false;
+  try {
+    feedbackPromptNextAt(Number.NaN);
+  } catch (error) {
+    invalidNowRejected = error instanceof TypeError;
+  }
+  if (!invalidNowRejected) throw new Error('Um horário inválido deve ser rejeitado.');
+});
 
 test('estado vazio preserva semântica, ação e escape de texto', () => {
   const markup = emptyState({
@@ -291,6 +333,39 @@ test('aviso de conexão de Finanças aparece apenas na visão geral e no acesso 
     || (locked.match(/finance-privacy-note/g) || []).length !== 1
     || !locked.includes('Acesso necessário')) {
     throw new Error('O aviso deve aparecer na visão geral e no acesso bloqueado, sem repetição nas outras seções.');
+  }
+});
+
+test('Planejar mantém Calendário acessível junto às outras visualizações', () => {
+  const html = renderPlanningView({
+    S: { settings: { prefs: { annualPlans: {} } } },
+    ui: { planView: 'revisao', filters: { f: 'todas', q: '', sort: 'prazo' } },
+    filterOptions: [],
+    allTags: () => [],
+    areaPageTitle: (_route, _title, action) => h`<header>${action}</header>`,
+    plural: (count, singular, pluralForm) => count === 1 ? singular : pluralForm,
+    today: () => '2026-11-18',
+    taskCalendar: () => '<section>Calendário de tarefas e eventos</section>',
+    taskWeek: () => '<section>Semana</section>',
+    weeklyReviewView: () => '<section>Revisão semanal</section>',
+    taskListHtml: () => '<ul></ul>',
+  }).s;
+  const expectedViews = ['lista', 'calendario', 'semana', 'revisao', 'anual'];
+  if (!expectedViews.every((view) => html.includes(`id="plan-tab-${view}"`))
+    || !html.includes('aria-labelledby="plan-tab-revisao"')
+    || !html.includes('Revisão semanal')
+    || !html.includes('data-action="task-new"')
+    || html.includes('plan-tool-review')
+    || html.includes('>Ver tarefas</button>')) {
+    throw new Error('Todas as visualizações, incluindo o Calendário, devem estar acessíveis no mesmo seletor.');
+  }
+  const calendarsPanel = renderGoogleCalendarPlanPanel([
+    { selectedIds: ['primary', 'work'] },
+    { selectedIds: ['primary'] },
+  ]).s;
+  if (!calendarsPanel.includes('3 calendários selecionados em 2 contas')
+    || !calendarsPanel.includes('Selecione um dia para ver os eventos junto às tarefas.')) {
+    throw new Error('O Calendário deve indicar os calendários conectados e como ver os eventos.');
   }
 });
 

@@ -182,16 +182,12 @@ export function landingMarkup() {
           </div>
           <figure class="landing-hero-visual">
             <div class="landing-hero-desktop">
-              <picture>
-                <source media="(prefers-color-scheme: dark)" srcset="${desktopDark}">
-                <img src="${desktopLight}" width="1280" height="720" alt="Visão do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
-              </picture>
+              <img class="landing-screen-light" src="${desktopLight}" width="1280" height="720" alt="Visão clara do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
+              <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720" alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
             </div>
             <div class="landing-hero-phone">
-              <picture>
-                <source media="(prefers-color-scheme: dark)" srcset="${mobileDark}">
-                <img src="${mobileLight}" width="612" height="680" alt="Visão do Aurora no celular, com tarefas do dia." fetchpriority="high">
-              </picture>
+              <img class="landing-screen-light" src="${mobileLight}" width="612" height="680" alt="Visão clara do Aurora no celular, com tarefas do dia." fetchpriority="high">
+              <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680" alt="Visão escura do Aurora no celular, com tarefas do dia." fetchpriority="high">
             </div>
             <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
           </figure>
