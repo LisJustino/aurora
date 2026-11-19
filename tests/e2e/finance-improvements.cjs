@@ -32,7 +32,7 @@ const swipe = async (page, locator, direction) => {
   const openFinanceQuickActions = async () => {
     const menu = page.locator('#quick-actions-menu');
     if (await menu.isVisible()) return;
-    await page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first().click();
+    await page.locator('.nav-quick-trigger:visible').first().click();
     await menu.waitFor({ state: 'visible' });
   };
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -540,7 +540,7 @@ const swipe = async (page, locator, direction) => {
   const quickMenu = page.locator('#quick-actions-menu');
   await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).waitFor();
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement?.matches('.nav-quick-trigger, .mobile-nav-create-trigger'));
+  await page.waitForFunction(() => document.activeElement?.matches('.nav-quick-trigger'));
   check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas e devolve o foco ao botão do header');
   await openFinanceQuickActions();
   check(await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).count() === 1, 'ações rápidas oferecem transferência');

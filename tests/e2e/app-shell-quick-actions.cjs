@@ -35,16 +35,15 @@ const check = (passed, name, detail = '') => {
         }
         if (child.matches('.nav-quick-control')) return { name: 'create', left: child.getBoundingClientRect().left };
         if (child.matches('.theme-trigger')) return { name: 'theme', left: child.getBoundingClientRect().left };
-        if (child.matches('.notification-trigger')) return { name: 'notifications', left: child.getBoundingClientRect().left };
         return { name: 'other', left: child.getBoundingClientRect().left };
       }),
   );
   await page.setViewportSize({ width: 320, height: 700 });
-  check(headerButtonOrder.map(({ name }) => name).join(',') === 'create,theme,notifications,profile'
-    && headerButtonOrder[3].label === 'Perfil e conta'
-    && headerButtonOrder[3].title === 'Perfil e conta'
+  check(headerButtonOrder.map(({ name }) => name).join(',') === 'create,theme,profile'
+    && headerButtonOrder[2].label === 'Perfil e conta'
+    && headerButtonOrder[2].title === 'Perfil e conta'
     && headerButtonOrder.every((item, index) => index === 0 || headerButtonOrder[index - 1].left < item.left),
-    'cabeçalho mantém Criar, Tema, Notificações e Perfil nessa ordem',
+    'cabeçalho mantém Criar, Tema e Perfil nessa ordem',
     headerButtonOrder.map(({ name }) => name).join(' → '));
   check(await page.locator('.global-quick-actions, .global-quick-fab').count() === 0, 'não há botão flutuante de criação duplicado');
   const mobileNavBackgrounds = await page.locator('.topbar .nav').evaluate((nav) => {
@@ -64,7 +63,7 @@ const check = (passed, name, detail = '') => {
   });
   check(mobileNavBackgrounds.every(({ alpha }) => alpha === 1),
     'menu móvel tem fundo opaco nos temas claro e escuro', JSON.stringify(mobileNavBackgrounds));
-  const quickTrigger = () => page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first();
+  const quickTrigger = () => page.locator('.nav-quick-trigger:visible').first();
   const quickMenu = page.locator('#quick-actions-menu');
   const openQuickActions = async () => {
     if (await quickMenu.isVisible()) return;
@@ -80,7 +79,7 @@ const check = (passed, name, detail = '') => {
   const shortcutErrors = [];
   shortcutPage.on('pageerror', (error) => shortcutErrors.push(error.message));
   await shortcutPage.goto(`${BASE}/?preview#inicio`);
-  await shortcutPage.locator('.nav-quick-trigger:visible, .mobile-nav-create-trigger:visible').first().click();
+  await shortcutPage.locator('.nav-quick-trigger:visible').first().click();
   await shortcutPage.locator('#quick-actions-menu').waitFor({ state: 'visible' });
   await shortcutPage.locator('#quick-actions-menu [data-action="quick-action-expense"], #quick-actions-menu [data-action="quick-action-transaction"]').first().click();
   await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento.' }).waitFor();
@@ -226,15 +225,11 @@ const check = (passed, name, detail = '') => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
         const items = [...nav.children].filter((child) => getComputedStyle(child).display !== 'none');
-        const create = nav.querySelector('.mobile-nav-create-trigger');
         const profile = nav.querySelector('.profile-menu-control');
-        const navBounds = nav.getBoundingClientRect();
-        const createBounds = create.getBoundingClientRect();
         const shownLinks = links.filter((link) => getComputedStyle(link).display !== 'none');
         const moreLabel = profile?.querySelector('.mobile-nav-label')?.textContent.replace('.', '').trim();
-        return links.length === 5 && shownLinks.length === 3 && items.length === 5 && items[2] === create
-          && items[4] === profile && profile.parentElement === nav && moreLabel === 'Mais'
-          && Math.abs((createBounds.left + createBounds.right) / 2 - (navBounds.left + navBounds.right) / 2) <= 2;
+        return links.length === 5 && shownLinks.length === 3 && items.length === 4 && !nav.querySelector('.mobile-nav-create-trigger')
+          && items[3] === profile && profile.parentElement === nav && moreLabel === 'Mais';
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
     })));
@@ -523,10 +518,8 @@ const check = (passed, name, detail = '') => {
           }),
           activeCircle: active && getComputedStyle(active.querySelector('.ni')).backgroundColor !== 'rgba(0, 0, 0, 0)',
           noMore: !document.querySelector('.nav-more-trigger, .nav-more-menu, .sidebar-toggle'),
-          headerCreate: Boolean(document.querySelector('.mobile-nav-create-trigger')?.getClientRects().length)
-            === (innerWidth < 900)
-            && Boolean(document.querySelector('.header-actions .nav-quick-trigger')?.getClientRects().length)
-              === (innerWidth >= 900),
+          headerCreate: !document.querySelector('.mobile-nav-create-trigger')
+            && Boolean(document.querySelector('.header-actions .nav-quick-trigger')?.getClientRects().length),
         };
       }));
     }

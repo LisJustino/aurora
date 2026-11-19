@@ -137,3 +137,30 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     background: var(--surface-strong);
   }
 }
+
+/* Com o teclado aberto o rodapé do modal fica compacto: botão principal em cima, os demais lado a lado.
+   Empilhados em coluna eles ocupavam metade da área visível e escondiam o formulário. */
+@media (width < 900px) {
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) {
+    padding-bottom: 0;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot {
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-block: 8px;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+  /* Só com 3 botões o principal ocupa a primeira linha; com 2 eles já cabem lado a lado. */
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn.primary {
+    flex: 1 1 100%;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn.back {
+    flex: 0 0 auto;
+  }
+}

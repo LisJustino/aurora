@@ -61,7 +61,7 @@
   padding-inline: var(--gut-l) var(--gut-r);
 }
 
-.main > :not(.topbar, .notification-panel, .fab) {
+.main > :not(.topbar, .fab) {
   width: 100%;
   max-width: var(--content-width);
   margin-inline: auto;
