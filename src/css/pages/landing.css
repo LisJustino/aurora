@@ -3313,3 +3313,12 @@ html:has(.landing-marketing) { overflow-x: clip; }
 @media (width < 900px) {
   .demo-app .topbar .demo-nav { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 }
+
+/* Prévias das áreas: a imagem acompanha o tema escolhido (mesmo padrão do hero). */
+.landing-area-preview .landing-screen-dark { display: none; }
+:root[data-theme="dark"] .landing-area-preview .landing-screen-light { display: none; }
+:root[data-theme="dark"] .landing-area-preview .landing-screen-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .landing-area-preview .landing-screen-light { display: none; }
+  :root:not([data-theme]) .landing-area-preview .landing-screen-dark { display: block; }
+}

@@ -166,7 +166,7 @@ import {
   PROFILE_SEX,
   timeBasedGreeting,
 } from './features/profile/model.js';
-import { compressProfileAvatar, isProfileAvatarImageData } from './features/profile/avatar-image.js';
+import { isProfileAvatarImageData, openProfileAvatarData, openProfileAvatarFile } from './features/profile/avatar-image.js';
 import {
   defaultHomeLayout as defaultHomeLayoutModel,
   defaultHomeModes,
@@ -3563,10 +3563,10 @@ function profileSettings(s) {
           <span class="appearance-settings-label">Foto de perfil</span>
           <div class="profile-avatar-upload-actions">
             <button type="button" class="btn sm" data-action="profile-avatar-choose" ${profileControlsDisabled ? raw('disabled') : ''}>${ui.profileImageBusy ? 'Preparando foto…' : 'Escolher foto'}</button>
-            ${appearance.avatarImage ? h`<button type="button" class="btn sm" data-action="profile-avatar-remove" ${profileControlsDisabled ? raw('disabled') : ''}>Remover foto</button>` : ''}
+            ${appearance.avatarImage ? h`<button type="button" class="btn sm" data-action="profile-avatar-adjust" ${profileControlsDisabled ? raw('disabled') : ''}>Ajustar enquadramento</button><button type="button" class="btn sm" data-action="profile-avatar-remove" ${profileControlsDisabled ? raw('disabled') : ''}>Remover foto</button>` : ''}
             <input id="profile-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-file hidden>
           </div>
-          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta), sincronizada entre dispositivos e incluída nos backups.</p>
+          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB. Você escolhe o corte e a posição; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta), sincronizada entre dispositivos e incluída nos backups.</p>
           ${ui.profileImageBusy ? h`<p class="profile-avatar-upload-status" role="status" aria-live="polite">Preparando foto…</p>` : ''}
         </div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
@@ -3608,15 +3608,29 @@ function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEAR
 }
 
 async function applyProfileAvatarFile(file) {
+  await adjustAndApplyProfileAvatar(() => openProfileAvatarFile(file), 'Ajustar foto');
+}
+
+async function adjustCurrentProfileAvatar() {
+  const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+  const current = draft.appearance?.avatarImage;
+  if (!current) return;
+  await adjustAndApplyProfileAvatar(() => openProfileAvatarData(current), 'Ajustar enquadramento');
+}
+
+async function adjustAndApplyProfileAvatar(openBitmap, title) {
   const routeAtStart = ui.route;
   if (routeAtStart !== 'config' || ui.profileSaving || ui.profileImageBusy) return;
   ui.profileImageBusy = true;
   render();
   let success = false;
   let errorMessage = '';
+  let bitmap = null;
   try {
-    const avatarImage = await compressProfileAvatar(file);
-    if (ui.route !== 'config') return;
+    bitmap = await openBitmap();
+    const { adjustProfileAvatar } = await import('./features/profile/avatar-cropper.js');
+    const avatarImage = await adjustProfileAvatar(bitmap, { title });
+    if (!avatarImage || ui.route !== 'config') return;
     const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
     draft.appearance = normalizeProfileAppearance({ ...draft.appearance, avatarImage });
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
@@ -3624,6 +3638,7 @@ async function applyProfileAvatarFile(file) {
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : 'Não foi possível preparar a foto.';
   } finally {
+    bitmap?.close();
     ui.profileImageBusy = false;
     render();
   }
@@ -5346,6 +5361,9 @@ const ACTIONS = {
   },
   'profile-avatar-choose': () => {
     if (!ui.profileImageBusy && !ui.profileSaving) $('#profile-avatar-file')?.click();
+  },
+  'profile-avatar-adjust': () => {
+    if (!ui.profileImageBusy && !ui.profileSaving) void adjustCurrentProfileAvatar();
   },
   'profile-avatar-remove': () => {
     if (ui.profileImageBusy || ui.profileSaving) return;

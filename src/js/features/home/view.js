@@ -41,7 +41,7 @@ export function renderHomeView(model, renderers) {
   const weekPercent = weekTotal ? Math.round(weekProgress.completed / weekTotal * 100) : 0;
 
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><h1 id="hi" class="type-editorial-display">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}${lead ? h`<p class="lead">${lead}</p>` : ''}<div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><div class="home-greeting">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}<h1 id="hi" class="type-editorial-display">${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1></div>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}${lead ? h`<p class="lead">${lead}</p>` : ''}<div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
     ${homeFirstSteps()}
     ${sampleBanner()}
     <div class="home-dashboard no-optional-areas">

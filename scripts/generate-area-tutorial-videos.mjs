@@ -20,7 +20,7 @@ const FOCUS_SAFE_MARGIN = 32;
 const FOCUS_HORIZONTAL_MARGIN = 16;
 const CAPTION_HEIGHT = 176;
 const focusSteps = {
-  inicio: ['.home-today-card > .head', '.home-head-actions', '.profile-link'],
+  inicio: ['.home-today-card > .head', '.home-head-actions', '.header-account-trigger:visible, .profile-link:visible'],
   planejar: [
     '.plan-view-segments',
     { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },

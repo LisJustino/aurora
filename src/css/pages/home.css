@@ -1655,3 +1655,24 @@
   .main[data-route="inicio"] .home-dashboard .strip,
   .demo-app .home-dashboard .strip { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
+
+/* Foto e saudação lado a lado, centralizadas entre si, mesmo quando o nome quebra em duas linhas. */
+.home-greeting {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-4);
+}
+.home-greeting > .home-profile-avatar {
+  flex: none;
+  width: clamp(48px, 5vw, 64px);
+  height: clamp(48px, 5vw, 64px);
+  margin: 0;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+.home-greeting > .home-profile-avatar .ic { width: 46%; height: 46%; }
+.home-greeting > h1 { min-width: 0; margin: 0; }
+@media (width < 700px) {
+  .home-greeting { gap: var(--space-3); }
+}
