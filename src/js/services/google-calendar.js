@@ -32,6 +32,9 @@ function normalizeEvent(event, calendarId) {
   if (!isCalendarDay(day)) return null;
 
   return {
+    id: typeof event.id === 'string' && event.id
+      ? event.id
+      : `${calendarId}:${day}:${allDay ? 'allday' : String(start.dateTime)}:${typeof event.summary === 'string' ? event.summary : ''}`,
     calendarId,
     title: typeof event.summary === 'string' && event.summary.trim()
       ? event.summary.trim().slice(0, 200)
@@ -43,6 +46,20 @@ function normalizeEvent(event, calendarId) {
       : new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(instant)),
     order: allDay ? new Date(`${day}T00:00:00`).getTime() : instant,
   };
+}
+
+export function googleCalendarEventTaskKey(accountIdentity, event) {
+  if (typeof accountIdentity !== 'string' || !accountIdentity
+    || typeof event?.calendarId !== 'string' || !event.calendarId
+    || typeof event?.id !== 'string' || !event.id) return '';
+  return `google-calendar:${accountIdentity}:${event.calendarId}:${event.id}`;
+}
+
+export function formatGoogleCalendarEventSource(calendarName, accountLabel) {
+  const calendar = typeof calendarName === 'string' ? calendarName.trim() : '';
+  const account = typeof accountLabel === 'string' ? accountLabel.trim() : '';
+  if (calendar && account && calendar !== account) return `${calendar} · ${account}`;
+  return calendar || account || 'Google Calendar';
 }
 
 async function loadGoogleIdentity() {
@@ -321,6 +338,7 @@ export function createGoogleCalendarService({
       }
 
       const events = [];
+      const seen = new Set();
       for (const calendarId of new Set(calendarIds)) {
         const url = new URL(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
         url.searchParams.set('singleEvents', 'true');
@@ -331,7 +349,11 @@ export function createGoogleCalendarService({
         const items = await pagedItems(url.href);
         items.forEach((event) => {
           const normalized = normalizeEvent(event, calendarId);
-          if (normalized) events.push(normalized);
+          if (!normalized) return;
+          const key = `${calendarId}:${normalized.id}:${normalized.day}:${normalized.allDay ? 'allday' : normalized.time}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          events.push(normalized);
         });
       }
       return events.sort((left, right) => left.order - right.order || left.title.localeCompare(right.title, 'pt-BR'));

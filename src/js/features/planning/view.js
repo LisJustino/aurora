@@ -149,6 +149,7 @@ export function renderTaskCalendar({
   ymLabel,
   taskRow,
   googleCalendarPlanPanel,
+  calendarEventTaskKey,
 }) {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
   const eventsByDay = new Map();
@@ -185,13 +186,23 @@ export function renderTaskCalendar({
     .sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
   const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   const connectedAccounts = connectedGoogleCalendarAccounts();
+  const eventSourceLabel = (event) => event.calendarName === event.accountLabel
+    ? (event.calendarName || 'Google Calendar')
+    : (event.calendarName && event.accountLabel
+      ? `${event.calendarName} · ${event.accountLabel}`
+      : event.calendarName || event.accountLabel || 'Google Calendar');
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
     ${googleCalendarPlanPanel()}
     <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
     ${connectedAccounts.length ? h`<section class="surface-open google-calendar-day" aria-labelledby="google-calendar-day-title">
-      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
+      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Ações locais</span></div>
       ${selectedEvents.length
-        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`
+        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => {
+          const key = calendarEventTaskKey(event);
+          const task = key ? S.tasks.find((item) => item.groupId === key) : null;
+          const done = task?.done === true;
+          return h`<li><time>${event.time}</time><button type="button" class="chk google-calendar-event-check" role="checkbox" aria-checked="${String(done)}" aria-label="${done ? 'Reabrir tarefa criada do evento' : 'Marcar evento como concluído'}: ${event.title}" data-action="google-calendar-event-toggle" data-event-key="${key}" data-event-title="${event.title}" data-event-day="${event.day}" data-event-time="${event.allDay ? '' : event.time}" data-calendar-name="${event.calendarName}" data-account-label="${event.accountLabel}"><span>${icon('check', 15)}</span></button><span class="grow"><b>${event.title}</b><small>${eventSourceLabel(event)}</small></span></li>`;
+        })}</ul>`
         : emptyState({
           title: 'Nenhum evento neste dia.',
           description: 'Você pode conferir as agendas conectadas ou escolher outra data.',
