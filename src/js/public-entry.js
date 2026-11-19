@@ -20,8 +20,6 @@ if (isNativeApp()) {
   void import('./services/native-auth.js')
     .then(({ initializeNativeAuthBridge }) => initializeNativeAuthBridge())
     .catch((error) => console.error('O Aurora não conseguiu carregar a autenticação nativa.', error));
-  void import('./services/push-notifications.js')
-    .catch((error) => console.error('O Aurora não conseguiu preparar as notificações nativas.', error));
 }
 const routeMeta = document.querySelector('meta[name="aurora-route"]')?.content === 'landing';
 const localPreview = Boolean(import.meta.env.DEV && new URLSearchParams(location.search).has('preview'));

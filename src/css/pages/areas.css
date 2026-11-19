@@ -90,8 +90,8 @@
 .cycle-consent-card p { color: var(--muted); line-height: var(--leading-relaxed); }
 .cycle-consent-card a { color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
 .cycle-consent-form { display: grid; gap: var(--space-3); }
-.cycle-consent-check { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
-.cycle-consent-check input { width: var(--control-sm); height: var(--control-sm); flex: none; margin: 2px 0 0; accent-color: var(--area-cycle); }
+.cycle-consent-check { display: flex; align-items: center; gap: var(--space-2); color: var(--ink); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
+.cycle-consent-check input { width: var(--control-sm); height: var(--control-sm); flex: none; margin: 0; accent-color: var(--area-cycle); }
 .cycle-consent-actions { flex-wrap: wrap; }
 .notice.cycle-consent-management { display: grid; gap: var(--space-3); }
 .cycle-consent-management > summary { cursor: pointer; font-weight: var(--weight-semibold); }

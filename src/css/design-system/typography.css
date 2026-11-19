@@ -90,13 +90,21 @@
   letter-spacing: var(--tracking-normal);
 }
 :is(
-  .main[data-route="inicio"] > .home-head h1.type-editorial-display,
   .public-site .public-hero h1.type-editorial-display,
   .account-gate.is-public-account > .account-intro h2.type-editorial-display
 ) {
   color: var(--ink);
   font-family: var(--font-editorial);
   font-size: var(--text-editorial-display);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-editorial);
+  line-height: var(--leading-editorial);
+}
+
+.main[data-route="inicio"] > .home-head h1.type-editorial-display {
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-page-title);
   font-weight: var(--weight-regular);
   letter-spacing: var(--tracking-editorial);
   line-height: var(--leading-editorial);

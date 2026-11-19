@@ -433,7 +433,7 @@
 .appearance-settings-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .appearance-settings-option { display: grid; min-width: 0; align-content: start; gap: var(--space-2); }
 .appearance-settings-label { color: var(--muted); font-size: var(--text-meta); font-weight: var(--weight-semibold); }
-.appearance-settings-option :root[data-density="compact"] .main { gap: var(--space-3); }
+:root[data-density="compact"] .main { gap: var(--space-3); }
 :root[data-density="compact"] .card { gap: var(--space-3); padding: var(--space-3); }
 :root[data-density="compact"] .setting-toggle { min-height: var(--control-field); padding-block: 8px; }
 :root[data-density="compact"] .list > li { padding-block: var(--space-2); }

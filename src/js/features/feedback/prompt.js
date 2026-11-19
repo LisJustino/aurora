@@ -1,4 +1,3 @@
-import { CONTACT_EMAIL } from '../footer/suggestions.js';
 import { h } from '../../utils/dom.js';
 
 export const FEEDBACK_PROMPT_INTERVAL_MS = 5 * 24 * 60 * 60 * 1000;
@@ -23,15 +22,15 @@ export function isValidFeedbackPromptNextAt(value) {
 }
 
 export function feedbackSuggestionHref() {
-  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Sugestão sobre o Aurora')}`;
+  return '/config?section=account';
 }
 
 export function renderFeedbackPrompt() {
   return h`<section class="notice feedback-prompt" aria-labelledby="feedback-prompt-title">
-    <div class="feedback-prompt-copy"><b id="feedback-prompt-title">Está gostando do Aurora?</b><p>Se quiser, conte o que podemos melhorar por e-mail. A mensagem só será enviada por você.</p></div>
+    <div class="feedback-prompt-copy"><b id="feedback-prompt-title">Está gostando do Aurora?</b><p>Tem uma ideia ou sentiu falta de algo? Conte para quem desenvolve o Aurora.</p></div>
     <div class="row feedback-prompt-actions">
       <button type="button" class="btn primary" data-action="feedback-prompt-dismiss">Sim, estou gostando</button>
-      <a class="btn ghost" href="${feedbackSuggestionHref()}">Enviar sugestão</a>
+      <a class="btn ghost" href="${feedbackSuggestionHref()}">Sugerir uma melhoria</a>
       <button type="button" class="btn back" data-action="feedback-prompt-dismiss">Agora não</button>
     </div>
   </section>`;

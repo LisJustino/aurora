@@ -549,17 +549,25 @@ const swipe = async (page, locator, direction) => {
   await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).click();
   const selectedCard = await page.locator('#dlg [data-dlg="accountId"] option:checked').textContent();
   check(/cartão|crédito/i.test(selectedCard), 'despesa de cartão seleciona uma conta de crédito');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'despesa de cartão oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="toAccountId"]').count() === 1, 'atalho de transferência abre origem e destino');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'transferência oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Receita', exact: true }).click();
   check(await page.locator('.finance-transaction-type button[data-k="in"]').getAttribute('aria-pressed') === 'true', 'atalho de receita abre o tipo correto');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'receita oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Despesa', exact: true }).click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'despesa oferece continuar e salvar');
   await page.locator('#dlg [data-dlg="settledDate"]').waitFor();
   const recentAccountOptions = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => options.map((option) => option.value));
   const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
@@ -567,6 +575,45 @@ const swipe = async (page, locator, direction) => {
   await page.locator('#dlg [data-dlg="desc"]').fill('Despesa com categoria rápida');
   check(await page.locator('#dlg [data-dlg="category"] option[data-icon][data-color]').count() >= recentCategoryOptions.length - 1,
     'categorias do lançamento incluem metadados visuais de ícone e cor');
+  const categorySelect = page.locator('#dlg [data-dlg="category"]');
+  const subcategorySelect = page.locator('#dlg [data-dlg="subcategory"]');
+  const chooseFinanceOption = async (field, label) => {
+    await page.locator(`#dlg .ds-select:has(> select[data-dlg="${field}"]) .ds-select__trigger`).click();
+    await page.getByRole('option', { name: label, exact: true }).click();
+  };
+  await chooseFinanceOption('category', 'Saúde');
+  const healthSubcategories = await subcategorySelect.locator('option').evaluateAll((options) => options.map((option) => option.value));
+  check(healthSubcategories.includes('Consultas') && healthSubcategories.includes('Medicamentos')
+    && !healthSubcategories.includes('Combustível'),
+  'subcategorias prontas dependem da categoria pai selecionada');
+  const healthSubcategoryStyles = await subcategorySelect.locator('option[data-icon][data-color]').evaluateAll((options) => options.map((option) => ({
+    icon: option.dataset.icon,
+    color: option.dataset.color,
+  })));
+  check(healthSubcategoryStyles.length >= 4
+    && new Set(healthSubcategoryStyles.map(({ icon }) => icon)).size > 1
+    && new Set(healthSubcategoryStyles.map(({ color }) => color)).size > 1,
+  'subcategorias prontas têm ícones e cores próprios');
+  const subcategoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="subcategory"]) .ds-select__trigger');
+  await subcategoryTrigger.click();
+  check(await page.locator('.ds-select__menu .ds-select__category-icon').count() >= 4,
+    'subcategorias apresentam ícones na lista de opções');
+  await page.keyboard.press('Escape');
+  await chooseFinanceOption('subcategory', 'Criar subcategoria…');
+  check((await page.locator('#dlg h2').textContent()).includes('Nova subcategoria')
+    && await page.locator('#dlg [data-dlg="parent"]').inputValue() === 'Saúde',
+  'criação de subcategoria abre com a categoria pai já definida');
+  await page.locator('#dlg [data-dlg="name"]').fill('Terapias de teste');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await categorySelect.inputValue() === 'Saúde'
+    && await subcategorySelect.inputValue() === 'Terapias de teste',
+  'subcategoria criada fica selecionada no lançamento sem mudar seu pai');
+  await chooseFinanceOption('category', 'Transporte');
+  const transportSubcategories = await subcategorySelect.locator('option').evaluateAll((options) => options.map((option) => option.value));
+  check(transportSubcategories.includes('Combustível')
+    && !transportSubcategories.includes('Terapias de teste'),
+  'subcategoria personalizada não aparece em outra categoria pai');
+  await chooseFinanceOption('category', 'Saúde');
   const categoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="category"]) .ds-select__trigger');
   await categoryTrigger.click();
   check(await page.locator('#dlg > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,
@@ -847,6 +894,36 @@ const swipe = async (page, locator, direction) => {
     && (await budgetAlert.first().textContent()).includes('pelo menos 80%')
     && (await page.locator('.budget-list [data-c="Alimentação personalizada"]').getAttribute('aria-label')).includes('80%'),
   'orçamento mostra aviso acessível ao atingir 80% sem ultrapassar o limite');
+
+  await page.locator('.fin-section-option[data-t="contas"]').click();
+  await page.locator('.finance-account-option[data-t="contas"]').click();
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 0,
+    'cadastro de conta não oferece continuar e salvar');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
+  await openFinanceQuickActions();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  const defaultAmountValue = await page.locator('#dlg [data-dlg="amount"]').inputValue();
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,34');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Teste continuar e salvar');
+  await page.locator('#dlg [data-action="tx-save-and-another"]').click();
+  check(await page.locator('#dlg [data-dlg="amount"]').inputValue() === defaultAmountValue
+    && await page.locator('#dlg [data-dlg="desc"]').inputValue() === ''
+    && await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+  'continuar e salvar registra o lançamento e limpa os campos para outro');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.locator('#dlg .dlg').evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth),
+    'rodapé com continuar e salvar cabe no diálogo em 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  const continuedTransaction = page.locator('#tx-results .fr').filter({ hasText: 'Teste continuar e salvar' });
+  check(await continuedTransaction.count() === 1, 'lançamento salvo ao continuar aparece em Movimentações');
+  await continuedTransaction.locator('[data-action="edit-tx"]').click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 0,
+    'edição de lançamento não oferece continuar e salvar');
+  await page.locator('#dlg .head [data-action="dlg-close"]').click();
 
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 

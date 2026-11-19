@@ -189,7 +189,6 @@
 .fin-hero-actions .btn { min-height: var(--control-sm); }
 .fin-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-4); }
 .fin-overview-side { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--space-4); min-width: 0; }
-.finance-attention { border-color: var(--line); background: var(--surface); }
 .fh-l { color: var(--muted); font-size: var(--text-sm); }
 .fh-context { margin: 3px 0 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
 .fh-v {
@@ -312,26 +311,6 @@
 .finance-close-empty { flex: 1 1 100%; }
 .finance-close-next > p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
 .finance-close-next .row { flex-wrap: wrap; gap: var(--space-2); }
-.finance-pending-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-bottom: 12px;
-}
-.finance-pending-summary > div {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-1);
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--pending-tone) 18%, var(--line));
-  border-radius: var(--r-control);
-  background: color-mix(in srgb, var(--pending-tone) 5%, var(--surface));
-}
-.finance-pending-summary .is-expense { --pending-tone: var(--bad); }
-.finance-pending-summary .is-income { --pending-tone: var(--ok); }
-.finance-pending-summary span,
-.finance-pending-summary small { color: var(--muted); font-size: var(--text-xs); }
-.finance-pending-summary b { color: var(--pending-tone); font-size: var(--text-lg); font-variant-numeric: tabular-nums; }
 .finance-projection {
   display: grid;
   min-width: 0;
@@ -388,8 +367,6 @@
 @media (width <= 480px) {
   .fh-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .fh-row .finance-summary-stat { padding: 10px; }
-  .finance-pending-summary { gap: var(--space-2); }
-  .finance-pending-summary > div { padding: 10px; }
   .finance-close-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .finance-close-stats > div { padding: 10px; }
   .finance-close-next .row { width: 100%; }

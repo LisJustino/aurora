@@ -70,7 +70,6 @@ import {
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
-import { backupReminderStatus } from './features/backup/reminder.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   getReleaseNotes,
@@ -78,31 +77,14 @@ import {
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
 import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
-import {
-  buildTaskPushReminders,
-  buildWeeklyReviewPushReminder,
-  MAX_TASK_REMINDERS,
-} from './features/push/task-reminders.js';
 import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
-import {
-  cancelHabitPushReminders,
-  clearPushNotificationState,
-  configurePushNotificationStore,
-  disablePushNotifications,
-  enablePushNotifications,
-  getPushNotificationStatus,
-  initializePushNotifications,
-  pushNotificationErrorMessage,
-  scheduleHabitPushReminders,
-  scheduleTaskPushReminders,
-  cancelTaskPushReminders,
-} from './services/push-notifications.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import {
   initializeFaqDisclosure,
   renderFooterContent,
   renderLegalDialog,
+  renderSuggestionForm,
 } from './features/footer/view.js';
 
 let googleCalendarServiceFactory = null;
@@ -150,7 +132,7 @@ const googleCalendar = {
   getEvents: async (account, ...args) => account.service.getEvents(...args),
 };
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { CONTACT_EMAIL } from './features/footer/suggestions.js';
+import { CONTACT_EMAIL, submitSuggestion } from './features/footer/suggestions.js';
 import { handlePublicControl, handlePublicKeydown, initializePublicAppearance } from './features/appearance/public-controls.js';
 import {
   createCycleDataConsentMetadata,
@@ -184,6 +166,7 @@ import {
   PROFILE_SEX,
   timeBasedGreeting,
 } from './features/profile/model.js';
+import { compressProfileAvatar, isProfileAvatarImageData } from './features/profile/avatar-image.js';
 import {
   defaultHomeLayout as defaultHomeLayoutModel,
   defaultHomeModes,
@@ -335,7 +318,6 @@ setupKeyboardViewportSafety();
 
 /* ========== Núcleo: templates, datas, estado e persistência ========== */
 const weekStartDay = () => { try { return settingsView().look.weekStart === 0 ? 0 : 1; } catch (e) { return 1; } };
-const REMINDS = [['', 'Sem lembrete'], ['0', 'Na hora'], ['10', '10 min antes'], ['30', '30 min antes'], ['60', '1 hora antes'], ['1440', '1 dia antes']];
 const isTime = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 const orderOf = (t) => (t.order != null ? t.order : t.createdAt || 0);
 function parseTags(raw_) {
@@ -360,11 +342,40 @@ const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
+const DEFAULT_CATEGORY_SUBCATEGORIES = {
+  out: new Map([
+    ['Alimentação', [['Mercado', 'bag', '#5aa5b8'], ['Feira', 'sparkles', '#5fa68a'], ['Restaurante', 'utensils', '#d9a05b'], ['Delivery', 'car', '#d27a6a']]],
+    ['Moradia', [['Aluguel', 'home', '#7c8fd4'], ['Contas da casa', 'bank', '#5aa5b8'], ['Condomínio', 'card', '#a24f9e'], ['Manutenção', 'repeat', '#5fa68a']]],
+    ['Transporte', [['Combustível', 'car', '#d9a05b'], ['Estacionamento', 'card', '#7c8fd4'], ['Transporte público', 'calendar', '#5aa5b8'], ['Manutenção', 'repeat', '#5fa68a']]],
+    ['Saúde', [['Consultas', 'heart', '#d27a6a'], ['Exames', 'calendar', '#7c8fd4'], ['Medicamentos', 'plus', '#5fa68a'], ['Plano de saúde', 'card', '#5aa5b8']]],
+    ['Educação', [['Mensalidade', 'book', '#8a7ac4'], ['Cursos', 'calendar', '#5aa5b8'], ['Material escolar', 'bag', '#d9a05b']]],
+    ['Lazer', [['Viagens', 'calendar', '#5aa5b8'], ['Passeios', 'sparkles', '#a3b55a'], ['Eventos', 'sparkles', '#d27a6a']]],
+    ['Compras', [['Roupas', 'bag', '#d27a6a'], ['Eletrônicos', 'card', '#7c8fd4'], ['Casa', 'home', '#5fa68a']]],
+    ['Assinaturas', [['Streaming', 'sparkles', '#a24f9e'], ['Aplicativos', 'plus', '#5aa5b8'], ['Serviços', 'repeat', '#d9a05b']]],
+    ['Cuidados pessoais', [['Higiene', 'user', '#5aa5b8'], ['Beleza', 'sparkles', '#d27a6a'], ['Academia', 'heart', '#5fa68a']]],
+  ].map(([name, subcategories]) => [norm(name), subcategories.map(([subcategory, icon, color]) => ({ name: subcategory, icon, color }))])),
+  in: new Map([
+    ['Salário', [['Salário mensal', 'wallet', '#3d9a6b'], ['13º salário', 'calendar', '#7bb89c'], ['Férias', 'sparkles', '#5aa5b8']]],
+    ['Renda extra', [['Freelance', 'user', '#5fb08a'], ['Vendas', 'bag', '#d9a05b'], ['Serviços', 'bank', '#7c8fd4']]],
+    ['Rendimentos', [['Juros', 'trendUp', '#5fa68a'], ['Dividendos', 'wallet', '#7c8fd4']]],
+    ['Presente', [['Aniversário', 'sparkles', '#d27a6a'], ['Datas comemorativas', 'calendar', '#a24f9e']]],
+    ['Reembolso', [['Despesas reembolsadas', 'repeat', '#5aa5b8'], ['Devoluções', 'wallet', '#5fa68a']]],
+  ].map(([name, subcategories]) => [norm(name), subcategories.map(([subcategory, icon, color]) => ({ name: subcategory, icon, color }))])),
+};
 const DEFAULT_CATEGORY_STYLES = Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
   kind,
   new Map(categories.map(([name, color, iconName]) => [norm(name), { color, icon: iconName }])),
 ]));
-const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
+const defCats = () => Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
+  kind,
+  categories.map(([name, color, icon]) => ({
+    name,
+    color,
+    icon,
+    subcategories: (DEFAULT_CATEGORY_SUBCATEGORIES[kind]?.get(norm(name)) || [])
+      .map((subcategory) => ({ ...subcategory, subcategories: [] })),
+  })),
+]));
 const categoryLeafName = (category) => {
   if (typeof category === 'string') return category.trim();
   if (isPlainObject(category) && typeof category.name === 'string') return category.name.trim();
@@ -377,27 +388,41 @@ const categoryPathParts = (value) => {
   if (parts.length === 1) return { parent: '', child: parts[0] };
   return { parent: parts[0], child: parts.slice(1).join(' > ') };
 };
-const normalizeCategoryEntry = (category, kind, inherited = {}) => {
-  if (typeof category === 'string') {
-    const name = category.trim();
-    if (!name) return null;
-    const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
-    return {
-      name: name.slice(0, 30),
-      color: inherited.color || defaults?.color || '#8b8b95',
-      icon: inherited.icon || defaults?.icon || 'tag',
-      subcategories: [],
-    };
-  }
-  if (!isPlainObject(category) || typeof category.name !== 'string') return null;
-  const name = category.name.trim();
+const normalizeCategoryEntry = (category, kind, inherited = {}, includeDefaults = true, upgradeInheritedStyles = false) => {
+  const source = typeof category === 'string' ? { name: category } : category;
+  if (!isPlainObject(source) || typeof source.name !== 'string') return null;
+  const name = source.name.trim();
   if (!name) return null;
   const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
-  const color = hexOk(category.color) ? category.color : inherited.color || defaults?.color || '#8b8b95';
-  const iconName = CAT_ICONS.includes(category.icon) ? category.icon : defaults?.icon || inherited.icon || 'tag';
-  const subcategories = Array.isArray(category.subcategories)
-    ? category.subcategories.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName })).filter(Boolean)
+  const color = hexOk(source.color) ? source.color : inherited.color || defaults?.color || '#8b8b95';
+  const iconName = CAT_ICONS.includes(source.icon) ? source.icon : defaults?.icon || inherited.icon || 'tag';
+  const defaultSubcategories = includeDefaults
+    ? DEFAULT_CATEGORY_SUBCATEGORIES[kind]?.get(norm(name)) || []
     : [];
+  const savedSubcategories = (Array.isArray(source.subcategories) ? source.subcategories : [])
+    .map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName }, false))
+    .filter(Boolean)
+    .map((subcategory) => {
+      const preset = defaultSubcategories.find((item) => norm(item.name) === norm(subcategory.name));
+      if (!upgradeInheritedStyles || !preset
+        || subcategory.color !== color || subcategory.icon !== iconName) return subcategory;
+      return {
+        ...subcategory,
+        color: preset.color,
+        icon: preset.icon,
+      };
+    });
+  const candidates = [
+    ...savedSubcategories,
+    ...defaultSubcategories,
+  ];
+  const seenSubcategories = new Set();
+  const subcategories = candidates.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName }, false))
+    .filter((subcategory) => {
+      if (!subcategory || seenSubcategories.has(norm(subcategory.name))) return false;
+      seenSubcategories.add(norm(subcategory.name));
+      return true;
+    });
   return {
     name: name.slice(0, 30),
     color,
@@ -502,7 +527,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, profileImageBusy: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -630,7 +655,6 @@ async function saveSettingsDraft() {
   if (ui.settingsSaving || ui.profileSaving) return false;
   const previousSettings = cloneSettings(S.settings);
   const draft = settingsView();
-  const weeklyReminderChanged = previousSettings.prefs.weeklyReviewReminder !== draft.prefs.weeklyReviewReminder;
   let saveAgain = false;
   ui.settingsSaving = true;
   render();
@@ -654,12 +678,6 @@ async function saveSettingsDraft() {
       saveAgain = true;
     }
     if (!saveAgain) toast(ui.preview ? 'Salvo nesta demonstração.' : 'Salvo.', 'success');
-    if (weeklyReminderChanged && !ui.preview) {
-      const remindersUpdated = await syncHabitReminderSchedule();
-      if (!remindersUpdated && getPushNotificationStatus().enabled) {
-        toast('Ajustes salvos, mas o lembrete semanal não foi atualizado. Confira a conexão e tente novamente.', 'error');
-      }
-    }
     return !saveAgain;
   } catch (error) {
     console.error('Aurora: não foi possível preparar os ajustes para salvar.', error);
@@ -673,7 +691,7 @@ async function saveSettingsDraft() {
   }
 }
 async function saveProfileDraft() {
-  if (ui.profileSaving || ui.settingsSaving) return;
+  if (ui.profileSaving || ui.settingsSaving || ui.profileImageBusy) return;
   const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
   const ageInput = String(draft.age ?? '').trim();
   const age = ageInput ? Number(ageInput) : null;
@@ -784,7 +802,6 @@ function normalizeSettings(s) {
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
-  o.prefs.weeklyReviewReminder = prefs.weeklyReviewReminder === true;
   o.prefs.lastBackup = typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.feedbackPromptNextAt = normalizeFeedbackPromptNextAt(prefs.feedbackPromptNextAt);
   o.prefs.weeklyReflection = isPlainObject(prefs.weeklyReflection)
@@ -813,7 +830,10 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
-  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean).slice(0, 60);
+  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : [])
+    .map((category) => normalizeCategoryEntry(category, kind, {}, true, true))
+    .filter(Boolean)
+    .slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
   const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out, 'out'), in: cleanCategoryGroup(s?.cats?.in, 'in') };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
@@ -842,7 +862,6 @@ const isValidTask = (record) => isPlainObject(record)
   && optional(record, 'doneAt', (value) => value === undefined || isIsoTimestamp(value))
   && optional(record, 'time', isTime)
   && optional(record, 'repeat', (value) => Object.hasOwn(REPEATS, value))
-  && optional(record, 'remind', (value) => Number.isFinite(value) && value >= 0 && value <= 1440)
   && optional(record, 'tags', (value) => Array.isArray(value) && value.every(isText))
   && optional(record, 'notes', isText)
   && optional(record, 'order', isFiniteValue)
@@ -970,6 +989,10 @@ function settingsIssueCount(value) {
   }
   if (isPlainObject(value.prefs)) {
     const prefs = value.prefs;
+    if (Object.hasOwn(prefs, 'profileAppearance')
+      && (!isPlainObject(prefs.profileAppearance)
+        || (Object.hasOwn(prefs.profileAppearance, 'avatarImage')
+          && !isProfileAvatarImageData(prefs.profileAppearance.avatarImage)))) issues++;
     if (Object.hasOwn(prefs, 'annualPlans') && !isValidAnnualPlans(prefs.annualPlans)) issues++;
     if (Object.hasOwn(prefs, 'birthday') && prefs.birthday !== null
       && !isValidBirthdayReference(prefs.birthday)) issues++;
@@ -977,7 +1000,6 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
-    if (Object.hasOwn(prefs, 'weeklyReviewReminder') && typeof prefs.weeklyReviewReminder !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
       && !isValidMenuOrder(prefs.menuOrder)) issues++;
     if (Object.hasOwn(prefs, 'visibleMenuItems') && prefs.visibleMenuItems !== undefined
@@ -1177,7 +1199,6 @@ const Persist = {
     this.store = new RelationalAccountStore(client, user.id);
     this.confirmedState = null;
     ui.persistError = '';
-    configurePushNotificationStore(this.store);
   },
   save(slice) {
     return this.saveMany([slice]);
@@ -1328,7 +1349,6 @@ const Persist = {
     this.store = null;
     this.userId = '';
     this.confirmedState = null;
-    clearPushNotificationState();
   },
 };
 async function loadAccountData() {
@@ -1379,7 +1399,6 @@ const saveSlices = (...ks) => {
   if (!saved && navigator.onLine !== false) {
     toast('Não foi possível preparar a gravação. Os dados originais continuam na tela; tente novamente.', 'error');
   }
-  if (saved && ks.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   return saved;
 };
 const commit = (...ks) => { if (saveSlices(...ks)) render(); };
@@ -1404,7 +1423,6 @@ function saveSlicesWithRollback(slices, snapshot, shouldRender = true, context =
     if (shouldRender) render();
     return false;
   }
-  if (!ui.preview && slices.some((slice) => slice === 'habits' || slice === 'tasks')) syncHabitReminderSchedule();
   if (shouldRender) render();
   return true;
 }
@@ -1683,21 +1701,22 @@ function shell(body) {
   const financeQuickActionsLayer = isFinanceRoute ? h`${financeQuickActionsBackdrop}${quickActions}` : '';
   const hasOverflow = overflowItems.length > 0;
   const overflowCurrent = overflowItems.some(({ id }) => isCurrent(id));
+  const accountAppearance = normalizeProfileAppearance(S.settings.prefs.profileAppearance);
   const profileMenu = h`<details class="profile-menu-control">
-    <summary class="profile-link iconbtn profile-menu-trigger${overflowCurrent ? ' is-current' : ''}" aria-label="${hasOverflow ? 'Mais áreas' : 'Menu da conta'}" title="${hasOverflow ? 'Mais' : 'Conta'}" aria-controls="profile-menu"><span class="ni${hasOverflow ? ' ni-account' : ''}">${icon('user', 20)}</span>${hasOverflow ? h`<span class="ni ni-more">${icon('more', 20)}</span>` : ''}<span class="mobile-nav-label">${tabLabel(hasOverflow ? 'Mais' : 'Conta')}</span></summary>
+    <summary class="profile-link iconbtn profile-menu-trigger${overflowCurrent ? ' is-current' : ''}" aria-label="${hasOverflow ? 'Mais áreas' : 'Menu da conta'}" title="${hasOverflow ? 'Mais' : 'Conta'}" aria-controls="profile-menu">${hasOverflow ? h`<span class="ni ni-account">${icon('user', 20)}</span><span class="ni ni-more">${icon('more', 20)}</span>` : profileAvatarMarkup(accountAppearance, 'profile-menu-avatar', 20)}<span class="mobile-nav-label">${tabLabel(hasOverflow ? 'Mais' : 'Conta')}</span></summary>
   </details>`;
   const headerProfileMenu = h`<details class="profile-menu-control">
-    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Perfil e conta" title="Perfil e conta" aria-controls="profile-menu">${icon('user', 20)}</summary>
+    <summary class="profile-link iconbtn profile-menu-trigger" aria-label="Perfil e conta" title="Perfil e conta" aria-controls="profile-menu">${profileAvatarMarkup(accountAppearance, 'profile-menu-avatar', 20)}</summary>
   </details>`;
   const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Perfil e navegação">
     ${hasOverflow ? h`<div class="nav-overflow-group" role="group" aria-label="Mais áreas">${overflowItems.map(({ id, label, icon: iconName }) => h`<a class="profile-menu-item nav-overflow-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}>${icon(iconName, 18)}<span>${label}</span></a>`)}</div>` : ''}
-    <a class="profile-menu-item profile-menu-account-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
+    <a class="profile-menu-item profile-menu-account-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
     ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout profile-menu-account-item" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
   </div>`;
   const headerAccountMenu = h`<details class="header-account-control">
-    <summary class="iconbtn header-account-trigger" aria-label="Perfil e conta" title="Perfil e conta">${icon('user', 20)}</summary>
+    <summary class="iconbtn header-account-trigger" aria-label="Perfil e conta" title="Perfil e conta">${profileAvatarMarkup(accountAppearance, 'profile-menu-avatar', 20)}</summary>
     <div class="header-account-panel" role="group" aria-label="Perfil e conta">
-      <a class="profile-menu-item" href="/config">${icon('user', 18)}<span>Perfil e ajustes</span></a>
+      <a class="profile-menu-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
     </div>
   </details>`;
@@ -1792,10 +1811,13 @@ function profileGreeting(style) {
   if (style === 'oi') return 'Oi';
   return timeBasedGreeting();
 }
-function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar') {
+function profileAvatarMarkup(appearance, className = 'profile-greeting-avatar', iconSize = 22) {
   const profileAppearance = normalizeProfileAppearance(appearance);
   const color = PALETTES[profileAppearance.avatarColor]?.[1] || PALETTES.rose[1];
-  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${icon(profileAppearance.avatar, 22)}</span>`;
+  const content = profileAppearance.avatarImage
+    ? h`<img class="profile-avatar-image" src="${profileAppearance.avatarImage}" alt="">`
+    : icon(profileAppearance.avatar, iconSize);
+  return h`<span class="${className}" style="--profile-avatar-color:${color}" aria-hidden="true">${content}</span>`;
 }
 const PAGE_CONTEXT = {
   Planejar: ['Tarefas e prazos', 'Crie tarefas, organize a semana e acompanhe itens atrasados.'],
@@ -2198,8 +2220,6 @@ function registerPwaSupport() {
       } catch (error) {
         pwaSupportPromise = null;
         console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
-        ui.habitPushNotice = pushNotificationErrorMessage(new Error('service-worker'));
-        if (ui.route === 'habitos') render();
         return null;
       }
     })();
@@ -2337,7 +2357,7 @@ function loadFinanceModules() {
     import('./features/finance/view.js'),
   ]).then(([dialogs, view]) => {
     financeDialogViews = dialogs.createFinanceDialogViews({
-      ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+      ui, S, catNames, topCategoryNames, categoryMatch, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
       accountOptionLabel, accById, isCredit, expenseTitle,
       categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
       anticipationCandidates,
@@ -2519,118 +2539,8 @@ function onRoute() {
 
 /* ========== Páginas: Início, Planejar, Foco ========== */
 const todayTasks = () => selectTodayTasks(S.tasks, today());
-async function syncHabitReminderSchedule() {
-  const status = getPushNotificationStatus();
-  if (!status.enabled) return false;
-  try {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const now = Date.now();
-    const reminders = S.habits
-      .filter((habit) => habit.status === 'active' && habit.remind && isTime(habit.remind))
-      .map((habit, index) => ({
-        id: `habit-${index}`,
-        days: [...habit.days],
-        time: habit.remind,
-        timeZone,
-        skipDate: habitCompletedFor(habit, today()) || habitIsSkipped(habit, today(), today()) ? today() : null,
-      }));
-    const weeklyReviewReminders = buildWeeklyReviewPushReminder(
-      S.settings.prefs.weeklyReviewReminder,
-      now,
-      timeZone,
-    );
-    const taskReminders = buildTaskPushReminders(
-      S.tasks,
-      now,
-      MAX_TASK_REMINDERS - weeklyReviewReminders.length,
-    );
-    const allTaskReminders = [...taskReminders, ...weeklyReviewReminders].sort((left, right) => left.at - right.at);
-    if (reminders.length) await scheduleHabitPushReminders(reminders);
-    else await cancelHabitPushReminders();
-    if (allTaskReminders.length) await scheduleTaskPushReminders(allTaskReminders);
-    else await cancelTaskPushReminders();
-    ui.habitPushNotice = reminders.length || allTaskReminders.length
-      ? `Lembretes atualizados. A entrega depende da rede, do serviço e das permissões ${getPushNotificationStatus().native ? 'do dispositivo' : 'do navegador'}.`
-      : 'Não há lembretes de hábitos, tarefas ou da revisão semanal para agendar.';
-    return true;
-  } catch (error) {
-    ui.habitPushNotice = `Não foi possível atualizar os lembretes fora do app: ${pushNotificationErrorMessage(error)}`;
-    return false;
-  }
-}
-function toggleHabitPush() {
-  if (ui.pushBusy) return;
-  const wasEnabled = getPushNotificationStatus().enabled;
-  let operation;
-  try {
-    operation = wasEnabled ? disablePushNotifications() : enablePushNotifications();
-  } catch (error) {
-    ui.habitPushNotice = pushNotificationErrorMessage(error);
-    render();
-    return;
-  }
-  ui.pushBusy = true;
-  ui.habitPushNotice = wasEnabled ? 'Desativando avisos…' : 'Solicitando permissão e configurando avisos…';
-  render();
-  Promise.resolve(operation).then(async () => {
-    if (wasEnabled) {
-      ui.habitPushNotice = 'Avisos desativados neste dispositivo.';
-      return;
-    }
-    await syncHabitReminderSchedule();
-  }).catch((error) => {
-    ui.habitPushNotice = `Não foi possível ${wasEnabled ? 'desativar' : 'ativar'} os avisos: ${pushNotificationErrorMessage(error)}`;
-  }).finally(() => {
-    ui.pushBusy = false;
-    render();
-  });
-}
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
 const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
-function backupReminderStatusForApp(now = Date.now()) {
-  if (S.settings.prefs.sample || ui.backupReminderHidden) return null;
-  const activityAt = [
-    ...S.tasks.map((task) => Number(task.createdAt)),
-    ...S.finance.tx.map((transaction) => Number(transaction.createdAt)),
-    ...S.water.map((entry) => Date.parse(entry.at)),
-  ];
-  S.habits.forEach((habit) => {
-    [...(habit.completions || []), ...(habit.skipped || [])].forEach((day) => {
-      if (isDay(day)) activityAt.push(new Date(`${day}T12:00:00`).getTime());
-    });
-  });
-  const lastBackupAt = S.settings.prefs.lastBackup ? Date.parse(S.settings.prefs.lastBackup) : null;
-  return backupReminderStatus({ lastBackupAt, activityAt, now });
-}
-const backupReminder = () => {
-  const status = backupReminderStatusForApp();
-  if (!status) return '';
-  const text = status.byActivity
-    ? S.settings.prefs.lastBackup
-      ? `${status.activities} registros foram feitos desde o último backup.`
-      : `${status.activities} registros foram feitos e você ainda não exportou um backup.`
-    : S.settings.prefs.lastBackup
-      ? `Seu último backup foi há ${status.days} dias.`
-      : `Você usa o Aurora há ${status.days} dias e ainda não exportou um backup.`;
-  return h`<div class="notice backup-reminder" role="note">${icon('archive', 18)}<div class="grow"><b>Hora de guardar uma cópia</b><br><span class="small">${text} Os dados são sincronizados com sua conta; o backup é uma cópia independente.</span></div><a class="btn sm primary" href="/config?section=data">Fazer backup</a><button type="button" class="btn sm ghost" data-action="backup-reminder-dismiss">Agora não</button></div>`;
-};
-
-function homeUpcomingBill() {
-  if (!areaOn('finances')) return '';
-  const todayKey = today();
-  const next = S.finance.accounts
-    .filter((account) => account.type === 'credit')
-    .map((account) => ({ account, info: cardInfo(account) }))
-    .filter(({ info }) => info.due && info.total > 0 && info.used > 0 && info.due <= addDays(todayKey, 7))
-    .sort((left, right) => left.info.due.localeCompare(right.info.due))[0];
-  if (!next) return '';
-  const { account } = next;
-  const due = next.info.due;
-  const days = dayDiff(due, todayKey);
-  const dueLabel = days < 0 ? `Vencida há ${Math.abs(days)} ${plural(Math.abs(days), 'dia', 'dias')}`
-    : days === 0 ? 'Vence hoje' : `Vence em ${days} ${plural(days, 'dia', 'dias')}`;
-  return h`<section class="card home-next-action home-bill-reminder" aria-labelledby="home-bill-title"><div class="home-next-mark">${icon('card', 19)}</div><div class="grow"><span class="section-kicker">Lembrete financeiro</span><h2 id="home-bill-title">Fatura de ${accountDisplayName(account)}</h2><p>${dueLabel} · ${shortDate(due)}</p></div><a class="btn ghost sm" href="/financas">Ver Finanças</a></section>`;
-}
 
 function homeInboxReminder(tasks) {
   if (!tasks.length) return '';
@@ -2698,7 +2608,8 @@ function homeFirstSteps() {
     homeFirstStepsSessionKey = sessionKey;
     homeFirstStepsRendered = false;
   }
-  const prefs = S.settings.prefs;
+  const settings = settingsView();
+  const prefs = settings.prefs;
   if (ui.preview || prefs.sample || prefs.firstStepsDismissed) return '';
   if (S.tasks.length && !prefs.firstStepsStarted && !homeFirstStepsRendered) return '';
   if (!S.tasks.length && !prefs.firstStepsStarted && !homeFirstStepsRendered) {
@@ -2710,7 +2621,7 @@ function homeFirstSteps() {
   homeFirstStepsRendered = true;
 
   const [taskComplete, habitComplete, colorComplete] = homeFirstStepsProgress({
-    theme: S.settings.theme,
+    theme: settings.theme,
     tasks: S.tasks,
     habits: S.habits,
   });
@@ -2840,7 +2751,7 @@ function viewInicio() {
     daySummary,
     weekProgress,
     homeMessage,
-    lead,
+    lead: showHomeBlock('summary') ? lead : '',
     tt,
     sundayReview,
     optionalAreas,
@@ -2857,12 +2768,10 @@ function viewInicio() {
     homeBlockStyle,
   }, {
     areaGuideButton,
-    backupReminder,
     empty,
     homeFirstSteps,
     homeHabitCheckins,
     homeInboxReminder,
-    homeUpcomingBill,
     homeUpcomingTasks,
     profileAvatarMarkup,
     sampleBanner,
@@ -2895,16 +2804,30 @@ function showMoreResults(name, selector, renderResults) {
   (next || results.querySelector('[data-action$="-show-more"]') || results).focus();
 }
 function filteredTasks() {
-  return selectFilteredTasks(S.tasks, ui.filters, today(), { normalize: norm, orderOf });
+  return selectFilteredTasks(
+    S.tasks.filter((task) => !String(task.groupId || '').startsWith('google-calendar:')),
+    ui.filters,
+    today(),
+    { normalize: norm, orderOf },
+  );
 }
 /* Eventos de hoje das agendas Google conectadas: o mesmo que o Calendário mostra, para a lista ter tudo de hoje. */
 function todayCalendarEvents() {
   const { f, q } = ui.filters;
   if (f !== 'todas' && f !== 'pendentes') return [];
   const query = norm(q.trim());
+  const seen = new Set();
   return connectedGoogleCalendarAccounts()
     .flatMap((account) => account.events)
     .filter((event) => event.day === today() && (!query || norm(`${event.title} ${event.calendarName}`).includes(query)))
+    .filter((event) => {
+      const key = event.accountIdentity && event.calendarId && event.id
+        ? `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`
+        : `google-calendar:fallback:${event.title}:${event.day}:${event.time}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
 }
 const calendarEventSourceLabel = (event) => event.calendarName === event.accountLabel
@@ -2945,7 +2868,7 @@ function taskListHtml() {
     ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} tarefas</p><button type="button" class="btn" data-action="tasks-show-more">Mostrar mais tarefas</button>`
     : '';
   if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`${events.length ? h`<section class="grp"><h3 class="gh">Eventos de hoje<span class="n">${events.length}</span></h3>${calendarEventsList(events)}</section>` : ''}${r.length ? h`<ul class="list">${r.map(taskRow)}</ul>` : ''}${more}`;
-  const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
+  const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done && (t.doneAt ? isoDay(t.doneAt) === tdy : t.dueDate === tdy)]];
   return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); const ev = l === 'Hoje' ? events : []; return it.length || ev.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length + ev.length}</span></h3>${ev.length ? calendarEventsList(ev) : ''}${it.length ? h`<ul class="list">${it.map(taskRow)}</ul>` : ''}</section>` : ''; })}</div>${more}`;
 }
 function googleCalendarSettingsPanel() {
@@ -3401,7 +3324,7 @@ function habitRow(habit) {
       <summary><span class="habit-main"><span class="habit-title">${habit.name}${status === 'paused' ? h` <span class="badge">Pausado</span>` : ''}</span><span class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span>${stats.streak >= 2 ? h`<span class="habit-streak">${stats.streak} dias seguidos</span>` : ''}</span>${icon('chevDown', 18, 'chev')}</summary>
       <div class="habit-more-body">
         ${habitWaterTracker(habit)}
-        <p class="small muted">${habitDaysLabel(habit)}${habit.remind ? ` · lembrete ${habit.remind}` : ''}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
+        <p class="small muted">${habitDaysLabel(habit)}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
         ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
         ${saved ? h`<details class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div class="habit-actions" role="group" aria-label="Ações de ${habit.name}">${status === 'active' && dayOn && !done ? h`<button type="button" class="btn sm habit-action-wide" data-action="habit-skip" data-id="${habit.id}" aria-pressed="${skipped}">${icon(skipped ? 'undo' : 'chevRight', 15)}${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>` : ''}<button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button>${status !== 'archived' ? h`<button type="button" class="btn sm" data-action="habit-move" data-dir="-1" data-id="${habit.id}" aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 15)}Subir</button><button type="button" class="btn sm" data-action="habit-move" data-dir="1" data-id="${habit.id}" aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 15)}Descer</button>` : ''}<button type="button" class="btn sm" data-action="habit-archive" data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>` : ''}
       </div>
@@ -3421,7 +3344,7 @@ function viewHabits() {
   return renderHabitsView({
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
-    weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
+    weekStartDay, habitCompletedFor, plural, habitRow,
     preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
   });
 }
@@ -3452,7 +3375,7 @@ function requestHabitsTemplate() {
   );
 }
 function areaTiles() {
-  const defs = [['finances', 'wallet'], ['cycle', 'heart']]
+  const defs = [['finances', 'wallet'], ...(canAccessCycle(S.settings.profile, ui.preview) ? [['cycle', 'heart']] : [])]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
   return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
@@ -3619,6 +3542,7 @@ function profileSettings(s) {
   const appearance = normalizeProfileAppearance(p.appearance);
   const profileDirty = profileDraftHasChanges(p, s.profile, s.prefs.profileAppearance);
   const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
+  const profileControlsDisabled = ui.profileSaving || ui.profileImageBusy;
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
     <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil</h2><p>É assim que o Aurora se apresenta para você. Mude quando quiser.</p></div>
@@ -3633,16 +3557,26 @@ function profileSettings(s) {
       </div>
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
-      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
       <div class="profile-appearance-controls">
+        <div class="profile-appearance-option">
+          <span class="appearance-settings-label">Foto de perfil</span>
+          <div class="profile-avatar-upload-actions">
+            <button type="button" class="btn sm" data-action="profile-avatar-choose" ${profileControlsDisabled ? raw('disabled') : ''}>${ui.profileImageBusy ? 'Preparando foto…' : 'Escolher foto'}</button>
+            ${appearance.avatarImage ? h`<button type="button" class="btn sm" data-action="profile-avatar-remove" ${profileControlsDisabled ? raw('disabled') : ''}>Remover foto</button>` : ''}
+            <input id="profile-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-file hidden>
+          </div>
+          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta), sincronizada entre dispositivos e incluída nos backups.</p>
+          ${ui.profileImageBusy ? h`<p class="profile-avatar-upload-status" role="status" aria-live="polite">Preparando foto…</p>` : ''}
+        </div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Cor</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`)}</div></div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
     <div class="row settings-save-actions profile-settings-actions">
-      <button class="btn back" type="button" data-action="profile-discard" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>Descartar alterações</button>
-      <button class="btn primary" type="button" data-action="profile-save" aria-busy="${String(ui.profileSaving)}" ${profileDirty && !ui.profileSaving ? '' : raw('disabled')}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+      <button class="btn back" type="button" data-action="profile-discard" ${profileDirty && !profileControlsDisabled ? '' : raw('disabled')}>Descartar alterações</button>
+      <button class="btn primary" type="button" data-action="profile-save" aria-busy="${String(ui.profileSaving || ui.profileImageBusy)}" ${profileDirty && !profileControlsDisabled ? '' : raw('disabled')}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
     </div>
   </form>
   </div>`;
@@ -3652,6 +3586,10 @@ function accountSettings(s) {
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
       <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
     </section>
+    ${!ui.preview ? h`<section class="card settings-section-card account-feedback-card" aria-labelledby="account-feedback-title">
+      <div class="settings-section-heading"><h2 id="account-feedback-title">Ajude a melhorar o Aurora</h2><p>Conte uma ideia, melhoria ou algo que não funcionou como esperado.</p></div>
+      ${raw(renderSuggestionForm())}
+    </section>` : ''}
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2 id="account-delete-title">Excluir conta</h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
     </section>
@@ -3667,6 +3605,30 @@ function profileDraftHasChanges(draft, profile, savedAppearance = PROFILE_APPEAR
     || draft.sex !== (profile.sex || '')
     || draft.age !== (profile.age == null ? '' : String(profile.age))
     || !sameJsonValue(normalizeProfileAppearance(draft.appearance), normalizeProfileAppearance(savedAppearance));
+}
+
+async function applyProfileAvatarFile(file) {
+  const routeAtStart = ui.route;
+  if (routeAtStart !== 'config' || ui.profileSaving || ui.profileImageBusy) return;
+  ui.profileImageBusy = true;
+  render();
+  let success = false;
+  let errorMessage = '';
+  try {
+    const avatarImage = await compressProfileAvatar(file);
+    if (ui.route !== 'config') return;
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    draft.appearance = normalizeProfileAppearance({ ...draft.appearance, avatarImage });
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    success = true;
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : 'Não foi possível preparar a foto.';
+  } finally {
+    ui.profileImageBusy = false;
+    render();
+  }
+  if (routeAtStart === ui.route && success) toast('Foto pronta. Salve as alterações para aplicá-la ao perfil.', 'success');
+  else if (routeAtStart === ui.route && errorMessage) toast(errorMessage, 'error');
 }
 
 const LEGACY_SETTINGS_TABS = { appearance: 'personalization', preferences: 'personalization', calendar: 'personalization', areas: 'areas-navigation', navigation: 'areas-navigation' };
@@ -3744,15 +3706,8 @@ function areasNavigationSettings(s) {
 }
 function homeSettings(s) {
   s = settingsView();
-  const pushStatus = getPushNotificationStatus();
   return h`<form class="card home-settings" data-form="settings-save">
     ${homeLayoutSettings(s)}
-    <fieldset class="home-shortcut-settings weekly-review-reminder-settings" aria-describedby="weekly-review-reminder-help">
-      <legend>Lembrete da revisão da semana</legend>
-      <label class="home-layout-toggle"><input type="checkbox" role="switch" data-change="weekly-review-reminder" aria-label="Receber um lembrete da revisão da semana aos domingos" aria-describedby="weekly-review-reminder-help" ${s.prefs.weeklyReviewReminder ? raw('checked') : ''}><span><b>Receber um lembrete aos domingos</b><small>Às 18h, no horário deste dispositivo.</small></span></label>
-      <p id="weekly-review-reminder-help" class="small muted">Desligado por padrão. Para receber o aviso com o app fechado, ative “Avisos fora do app” em Hábitos e permita notificações neste dispositivo. Esse mesmo ajuste pode avisar sobre tarefas e hábitos.</p>
-      ${pushStatus.enabled ? '' : h`<p class="small muted"><a class="inline-link" href="/habitos">Gerencie o consentimento para avisos em Hábitos.</a></p>`}
-    </fieldset>
   </form>`;
 }
 const LEGACY_IMPORT_LABELS = [
@@ -4356,7 +4311,6 @@ function dlgTask() {
       </div></fieldset>
       ${dlgField('Prazo', h`<input type="date" data-dlg="due" value="${d.due}">`)}${dlgField('Hora', h`<input class="task-time-input" type="time" data-dlg="time" value="${d.time || ''}">`)}
       ${dlgField('Repetir', h`<select data-dlg="repeat">${Object.entries(REPEATS).map(([k, v]) => h`<option value="${k}" ${k === (d.repeat || 'none') ? raw('selected') : ''}>${v}</option>`)}</select>`)}
-      ${dlgField('Lembrete', h`<select data-dlg="remind" ${d.time ? '' : raw('disabled')}>${REMINDS.map(([k, v]) => h`<option value="${k}" ${String(d.remind == null ? '' : d.remind) === k ? raw('selected') : ''}>${v}</option>`)}</select>${d.time ? '' : h`<span class="task-field-help">Escolha uma hora para ativar.</span>`}`)}
       ${dlgField('Prioridade', h`<select data-dlg="priority">${prioOptions(d.priority)}</select>`)}
       <details class="task-notes full" ${d.notes ? raw('open') : ''}><summary><span>Adicionar notas</span><span>opcional</span><span class="task-notes-disclosure" aria-hidden="true">${icon('chevDown', 16)}</span></summary><textarea data-dlg="notes" rows="3" maxlength="2000" placeholder="Detalhes, links, o que lembrar…">${d.notes || ''}</textarea></details></form>
     <div class="f"><span class="lbl">Etiquetas</span>
@@ -4377,7 +4331,7 @@ function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
-  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${edit ? 'Ajuste os dias e o lembrete deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${edit ? 'Ajuste os dias deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
@@ -4391,7 +4345,6 @@ function dlgHabitEdit() {
       <fieldset class="habit-look full"><legend>Cor</legend><div class="habit-color-picker">${HABIT_COLORS.map((color, index) => h`<label title="${HABIT_COLOR_NAMES[index]}"><input type="radio" name="color" value="${color}" data-dlg="color" ${(d.color || DEFAULT_HABIT_COLOR).toLowerCase() === color ? raw('checked') : ''}><span style="--c:${color}"><i class="sr">${HABIT_COLOR_NAMES[index]}</i>${icon('check', 16)}</span></label>`)}</div></fieldset>
       <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div class="habit-weekday-picker">${DIAS.map((day, index) => h`<label class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days" value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`)}</div></fieldset>
       <label class="f full">Meta na semana (opcional)<select name="weeklyGoal"><option value="" ${d.weeklyGoal ? '' : raw('selected')}>Todos os dias marcados</option>${[1, 2, 3, 4, 5, 6, 7].map((n) => h`<option value="${n}" ${Number(d.weeklyGoal) === n ? raw('selected') : ''}>${n} ${plural(n, 'vez', 'vezes')} por semana</option>`)}</select><span class="small muted">Com meta, a semana conta como cumprida ao atingir esse número de dias, mesmo sem marcar todos.</span></label>
-      <label class="f full">Horário do lembrete (opcional)<input type="time" name="remind" data-dlg="remind" value="${d.remind || ''}"><span class="small muted">É uma preferência; avisos fora do app são opcionais e exigem autorização nas permissões do navegador.</span></label>
     </form>
     ${habit ? h`<div class="habit-edit-history">${habitMonthlyHistory(habit)}</div>` : ''}`,
     h`${edit ? h`<button type="button" class="btn danger back" data-action="habit-delete-dialog">${icon('trash', 18)}Excluir</button><button type="button" class="btn back" data-action="${habit?.status === 'archived' ? 'habit-restore' : 'habit-archive'}" data-id="${d.id}">${habit?.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar alterações' : 'Adicionar hábito'}</button>`);
@@ -5010,7 +4963,7 @@ function renderDialog() {
 /* ========== Ações, formulários, importação/exportação e arranque ========== */
 const findTask = (id) => S.tasks.find((t) => t.id === id);
 const mkTask = (o) => ({ id: newId(), title: '', done: false, tag: 'Pessoal', dueDate: null, priority: 'normal', createdAt: Date.now(), ...o });
-const taskDraft = (due = '') => ({ create: true, title: '', due, time: '', repeat: 'none', remind: '', priority: 'normal', icon: '', tags: [], notes: '', subs: [] });
+const taskDraft = (due = '') => ({ create: true, title: '', due, time: '', repeat: 'none', priority: 'normal', icon: '', tags: [], notes: '', subs: [] });
 const openTaskDialog = (due = '') => dlgOpen('task', taskDraft(due));
 const toast = setToast;
 
@@ -5073,7 +5026,7 @@ function buildBackup() {
       name: s.profile.name.slice(0, 50),
       preferredName: (s.profile.preferredName || s.profile.name).slice(0, 50),
     },
-    tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, remind: t.remind, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
+    tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
     areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
     extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
@@ -5142,7 +5095,7 @@ function parseBackup(text) {
   const sourceTasks = backupRecords(d.tasks, (task) => isPlainObject(task) && isText(task.title)
     && isValidTask({ ...task, id: isNonEmptyText(task.id) ? task.id : 'backup-task' }), 'tarefas');
   const ids = new Set(), uniq = (x) => { if (typeof x.id !== 'string' || !x.id || ids.has(x.id)) x.id = newId(); ids.add(x.id); return x; };
-  const tasks = sourceTasks.map((t) => uniq({ id: t.id, title: t.title.slice(0, 120), done: !!t.done, tag: typeof t.tag === 'string' ? t.tag : 'Pessoal', dueDate: isDay(t.dueDate) ? t.dueDate : null, priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal', ...(taskIconKey(t.icon) ? { icon: taskIconKey(t.icon) } : {}), ...(t.groupId !== undefined ? { groupId: t.groupId } : {}), ...(t.groupTitle !== undefined ? { groupTitle: t.groupTitle } : {}), ...(t.doneAt !== undefined ? { doneAt: t.doneAt } : {}), createdAt: t.createdAt || Date.now(), ...(REPEATS[t.repeat] && t.repeat !== 'none' ? { repeat: t.repeat } : {}), ...(isTime(t.time) ? { time: t.time } : {}), ...(Number.isFinite(Number(t.remind)) && t.remind !== null && isTime(t.time) ? { remind: Number(t.remind) } : {}), ...(Number.isSafeInteger(t.focusSeconds) && t.focusSeconds >= 0 ? { focusSeconds: t.focusSeconds } : {}), ...(Array.isArray(t.tags) && t.tags.length ? { tags: t.tags.slice(0, 12).map((g) => g.slice(0, 24)) } : {}), ...(typeof t.notes === 'string' && t.notes ? { notes: t.notes.slice(0, 2000) } : {}), ...(Number.isFinite(t.order) ? { order: t.order } : {}), ...(Array.isArray(t.subtasks) && t.subtasks.length ? { subtasks: t.subtasks.slice(0, 40).map((x) => ({ id: x.id || newId(), title: x.title.slice(0, 100), done: !!x.done })) } : {}) }));
+  const tasks = sourceTasks.map((t) => uniq({ id: t.id, title: t.title.slice(0, 120), done: !!t.done, tag: typeof t.tag === 'string' ? t.tag : 'Pessoal', dueDate: isDay(t.dueDate) ? t.dueDate : null, priority: ['low', 'normal', 'high'].includes(t.priority) ? t.priority : 'normal', ...(taskIconKey(t.icon) ? { icon: taskIconKey(t.icon) } : {}), ...(t.groupId !== undefined ? { groupId: t.groupId } : {}), ...(t.groupTitle !== undefined ? { groupTitle: t.groupTitle } : {}), ...(t.doneAt !== undefined ? { doneAt: t.doneAt } : {}), createdAt: t.createdAt || Date.now(), ...(REPEATS[t.repeat] && t.repeat !== 'none' ? { repeat: t.repeat } : {}), ...(isTime(t.time) ? { time: t.time } : {}), ...(Number.isSafeInteger(t.focusSeconds) && t.focusSeconds >= 0 ? { focusSeconds: t.focusSeconds } : {}), ...(Array.isArray(t.tags) && t.tags.length ? { tags: t.tags.slice(0, 12).map((g) => g.slice(0, 24)) } : {}), ...(typeof t.notes === 'string' && t.notes ? { notes: t.notes.slice(0, 2000) } : {}), ...(Number.isFinite(t.order) ? { order: t.order } : {}), ...(Array.isArray(t.subtasks) && t.subtasks.length ? { subtasks: t.subtasks.slice(0, 40).map((x) => ({ id: x.id || newId(), title: x.title.slice(0, 100), done: !!x.done })) } : {}) }));
   const onboardingComplete = typeof d.onboardingComplete === 'boolean' ? d.onboardingComplete : true;
   const settingsResult = normalizeSlice('settings', {
     profile: {
@@ -5240,6 +5193,15 @@ function focusQuickActionsTrigger() {
 }
 
 const ACTIONS = {
+  'edit-task': (el) => {
+    const task = findTask(el.dataset.id);
+    if (task) dlgOpen('task', {
+      tags: [...(task.tags || [])], notes: task.notes || '', id: task.id, title: task.title,
+      due: task.dueDate || '', time: task.time || '', repeat: task.repeat || 'none',
+      subs: (task.subtasks || []).map((item) => ({ ...item })),
+      priority: task.priority, icon: taskIconKey(task.icon),
+    });
+  },
   'google-calendar-event-toggle': (el) => {
     const key = String(el.dataset.eventKey || '');
     if (!key) return;
@@ -5382,6 +5344,19 @@ const ACTIONS = {
     if (ui.profileDraft) await saveProfileDraft();
     if (!ui.profileDraft && settingsDraftDirty()) await saveSettingsDraft();
   },
+  'profile-avatar-choose': () => {
+    if (!ui.profileImageBusy && !ui.profileSaving) $('#profile-avatar-file')?.click();
+  },
+  'profile-avatar-remove': () => {
+    if (ui.profileImageBusy || ui.profileSaving) return;
+    const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+    const appearance = { ...draft.appearance };
+    delete appearance.avatarImage;
+    draft.appearance = normalizeProfileAppearance(appearance);
+    ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
+    render();
+    toast('Foto removida da prévia. Salve as alterações para aplicá-la.', 'info');
+  },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
   'first-steps-dismiss': async () => {
@@ -5472,7 +5447,6 @@ const ACTIONS = {
   'mv-down': (el) => moveTask(el.dataset.id, 1),
   'st-toggle': (el) => { const x = (ui.dlg.d.subs || [])[Number(el.dataset.i)]; if (x) { x.done = !x.done; render(); } },
   'st-del': (el) => { const a = ui.dlg.d.subs || []; a.splice(Number(el.dataset.i), 1); render(); },
-  'backup-reminder-dismiss': () => { ui.backupReminderHidden = true; render(); },
   'feedback-prompt-dismiss': () => { ui.feedbackPromptVisible = false; render(); },
   'accessibility-mode': (el) => { setThemeMode(el.dataset.v); document.getElementById(el.id)?.focus(); },
   'accessibility-contrast': (el) => updateAccessibilityLook({ contrast: !settingsView().look.contrast }, el.id),
@@ -5740,7 +5714,6 @@ const ACTIONS = {
       name: idea.name,
       suggestionDescription: idea.description,
       days: [0, 1, 2, 3, 4, 5, 6],
-      remind: '',
       weeklyGoal: '',
       icon: idea.icon,
       color: idea.color,
@@ -5866,7 +5839,7 @@ const ACTIONS = {
     commit('habits');
     requestAnimationFrame(() => document.querySelector(`[data-action="habit-move"][data-id="${habit.id}"][data-dir="${dir}"]`)?.focus());
   },
-  'habit-new': () => dlgOpen('habit-edit', { name: '', days: [0, 1, 2, 3, 4, 5, 6], remind: '', weeklyGoal: '', icon: DEFAULT_HABIT_ICON, color: HABIT_COLORS[S.habits.length % HABIT_COLORS.length] }),
+  'habit-new': () => dlgOpen('habit-edit', { name: '', days: [0, 1, 2, 3, 4, 5, 6], weeklyGoal: '', icon: DEFAULT_HABIT_ICON, color: HABIT_COLORS[S.habits.length % HABIT_COLORS.length] }),
   'habit-delete': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
     if (!habit) return;
@@ -5886,7 +5859,7 @@ const ACTIONS = {
   },
   'habit-edit-open': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
-    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], remind: habit.remind || '', weeklyGoal: habit.weeklyGoal || '', ...(isWaterHabit(habit) ? { waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) } : {}), icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
+    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], weeklyGoal: habit.weeklyGoal || '', ...(isWaterHabit(habit) ? { waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) } : {}), icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
   },
   'habit-toggle-pause': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -5956,7 +5929,6 @@ const ACTIONS = {
     ], ['tasks'], () => { S.tasks.splice(i, 1); });
     if (entry) toast('Tarefa movida para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
-  'edit-task': (el) => { const t = findTask(el.dataset.id); if (t) dlgOpen('task', { tags: [...(t.tags || [])], notes: t.notes || '', id: t.id, title: t.title, due: t.dueDate || '', time: t.time || '', repeat: t.repeat || 'none', remind: t.remind == null ? '' : String(t.remind), subs: (t.subtasks || []).map((x) => ({ ...x })), priority: t.priority, icon: taskIconKey(t.icon) }); },
   'del-task-dlg': () => {
     const id = ui.dlg?.d?.id;
     const task = findTask(id);
@@ -6322,6 +6294,7 @@ const ACTIONS = {
     });
   },
   'profile-appearance': (el) => {
+    if (ui.profileImageBusy || ui.profileSaving) return;
     const key = el.dataset.k, value = el.dataset.v;
     const validOptions = key === 'avatar' ? PROFILE_AVATARS
       : key === 'avatarColor' ? PROFILE_AVATAR_COLORS
@@ -6333,6 +6306,7 @@ const ACTIONS = {
     render();
   },
   'profile-appearance-reset': () => {
+    if (ui.profileImageBusy || ui.profileSaving) return;
     const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
     if (sameJsonValue(draft.appearance, PROFILE_APPEARANCE_DEFAULT)) return;
     draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
@@ -6472,16 +6446,6 @@ const ACTIONS = {
       button.disabled = false;
       toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.', 'warning');
       return;
-    }
-    if (getPushNotificationStatus().enabled) {
-      try {
-        await disablePushNotifications();
-      } catch (error) {
-        button.disabled = false;
-        console.error('Aurora: não foi possível desativar os avisos Push antes de apagar os dados.', error);
-        toast(`Não foi possível desativar os avisos Push. Nada foi apagado. ${pushNotificationErrorMessage(error)}`, 'info');
-        return;
-      }
     }
     try {
       await Persist.clear();
@@ -6685,6 +6649,7 @@ const FORMS = {
     } finally {
       ui.cycleConsentBusy = false;
       render();
+      if (consentRecorded) requestAnimationFrame(() => window.scrollTo(0, 0));
     }
   },
   'account-delete': deleteAccountFromSettings,
@@ -6735,13 +6700,11 @@ const FORMS = {
   'habit': (f, d) => {
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
-    const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
     if (!name) return toast('Dê um nome ao hábito.', 'info');
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.', 'error');
-    if (remind && !isTime(remind)) return toast('Informe um horário válido para o lembrete.', 'error');
     if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.', 'info');
-    S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
+    S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...(weeklyGoal ? { weeklyGoal } : {}) });
     f.reset();
     f.querySelectorAll('input[name="days"]').forEach((input) => { input.checked = true; });
     const saved = saveSlices('habits');
@@ -6753,7 +6716,6 @@ const FORMS = {
     const habit = S.habits.find((item) => item.id === draft?.id);
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
-    const remind = String(d.get('remind') || '');
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
     const pickedIcon = String(d.get('icon') || '');
     const pickedColor = String(d.get('color') || '').toLowerCase();
@@ -6767,7 +6729,6 @@ const FORMS = {
       return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="waterWeightKg"]');
     }
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
-    if (remind && !isTime(remind)) return fieldError('Informe um horário válido para o lembrete.', '[data-dlg="remind"]');
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
@@ -6780,12 +6741,11 @@ const FORMS = {
     }
     if (habit) {
       Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}) });
-      if (remind) habit.remind = remind;
-      else delete habit.remind;
+      delete habit.remind;
       if (weeklyGoal) habit.weeklyGoal = weeklyGoal;
       else delete habit.weeklyGoal;
     } else {
-      S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(remind ? { remind } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
+      S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
     }
     ui.dlg = null;
     const saved = saveSlices('habits');
@@ -6800,7 +6760,6 @@ const FORMS = {
     const parsed = parseTags(title), repeat = REPEATS[d.repeat] && d.repeat !== 'none' ? d.repeat : null;
     if (document.querySelector('#dlg [data-dlg="time"]')?.validity.badInput || (d.time && !isTime(d.time))) return fieldError('Informe uma hora válida.', '[data-dlg="time"]');
     const time = isTime(d.time) ? d.time : null;
-    const remind = time && REMINDS.some(([value]) => value === String(d.remind)) && d.remind !== '' ? Number(d.remind) : null;
     if ((repeat || time) && !isDay(d.due)) return fieldError('Defina um prazo para repetir ou ter horário.', '[data-dlg="due"]');
     if (d.due && !isDay(d.due)) return fieldError('Informe um prazo válido.', '[data-dlg="due"]');
     const dueDate = isDay(d.due) ? d.due : null;
@@ -6814,7 +6773,6 @@ const FORMS = {
         priority,
         ...(repeat ? { repeat } : {}),
         ...(time ? { time } : {}),
-        ...(remind == null ? {} : { remind }),
         ...(tags.length ? { tags } : {}),
         ...(taskIconKey(d.icon) ? { icon: taskIconKey(d.icon) } : {}),
         ...(Array.isArray(d.subs) && d.subs.length ? { subtasks: d.subs.map((item) => ({ ...item })) } : {}),
@@ -6828,7 +6786,8 @@ const FORMS = {
     }
     const t = findTask(d.id);
     if (!t) return dlgClose();
-    Object.assign(t, { title, dueDate, priority, repeat: repeat || undefined, time: time || undefined, remind: remind == null ? undefined : remind, subtasks: (d.subs || []).length ? d.subs : undefined, tags: (d.tags || []).length ? d.tags : undefined, notes: (d.notes || '').trim().slice(0, 2000) || undefined });
+    Object.assign(t, { title, dueDate, priority, repeat: repeat || undefined, time: time || undefined, subtasks: (d.subs || []).length ? d.subs : undefined, tags: (d.tags || []).length ? d.tags : undefined, notes: (d.notes || '').trim().slice(0, 2000) || undefined });
+    delete t.remind;
     if (taskIconKey(d.icon)) t.icon = taskIconKey(d.icon);
     else delete t.icon;
     ui.dlg = null;
@@ -6980,9 +6939,6 @@ const CHANGES = {
   },
   'home-message': (el) => {
     updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
-  },
-  'weekly-review-reminder': (el) => {
-    updateSettingsDraft((settings) => { settings.prefs.weeklyReviewReminder = el.checked; });
   },
   'look-custom': (el) => { if (hexOk(el.value)) updateSettingsDraft((settings) => { settings.look.custom = el.value; settings.theme = 'custom'; }); },
   'look-contrast': (el) => updateSettingsDraft((settings) => { settings.look.contrast = el.checked; }),
@@ -7302,8 +7258,10 @@ document.addEventListener('input', (e) => {
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
-  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'category' && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
+  const isTransactionCategoryField = ui.dlg?.type === 'tx'
+    && ['category', 'subcategory'].includes(el.dataset?.dlg);
+  const opensCategoryDialog = isTransactionCategoryField && el.value === '__new';
+  if (isTransactionCategoryField && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
   if (ui.dlg && ui.dlg.type !== 'search' && !opensCategoryDialog && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const preferredInput = $('#ppreferred');
@@ -7325,16 +7283,28 @@ document.addEventListener('input', (e) => {
     if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
-    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'category' && el.value === '__new') {
+    if (ui.dlg.type === 'tx' && opensCategoryDialog) {
       const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      const selectedParent = el.dataset.dlg === 'subcategory'
+        ? categoryMatch(kind, ui.dlg.d.category)?.category
+        : null;
       ui.categoryReturnDialog = ui.dlg;
       ui.dlg = createDialog('category-new', {
         kind,
+        ...(selectedParent ? { parent: selectedParent.name } : {}),
         name: '',
-        icon: 'tag',
-        color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
+        icon: selectedParent?.icon || 'tag',
+        color: selectedParent?.color || LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
         fromTransaction: true,
       });
+      render();
+      return;
+    }
+    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'subcategory') {
+      const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      const parentName = categoryMatch(kind, ui.dlg.d.category)?.category.name || ui.dlg.d.category;
+      ui.dlg.d.category = el.value ? `${parentName} > ${el.value}` : parentName;
+      ui.dlg.d.dirty = true;
       render();
       return;
     }
@@ -7408,6 +7378,12 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
+  if (el instanceof HTMLInputElement && el.matches('[data-profile-avatar-file]')) {
+    const file = el.files?.[0] || null;
+    el.value = '';
+    if (file) void applyProfileAvatarFile(file);
+    return;
+  }
   if (ui.dlg && ui.dlg.type !== 'search' && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
   if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value !== today()) {
@@ -7722,11 +7698,6 @@ function finResumo() {
   }));
   const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
-  const pend = st.tx.filter((t) => !isPaid(t)).sort((a, b) => a.date.localeCompare(b.date));
-  const pendingOut = pend.filter((t) => t.type === 'out');
-  const pendingIn = pend.filter((t) => t.type === 'in');
-  const pendingOutCents = pendingOut.reduce((sum, transaction) => sum + transaction.cents, 0);
-  const pendingInCents = pendingIn.reduce((sum, transaction) => sum + transaction.cents, 0);
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
@@ -7747,9 +7718,6 @@ function finResumo() {
         <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
       </div>
     </section>
-    ${pend.length ? h`    <section class="surface-open finance-attention"><div class="head"><div><p class="section-kicker">Pendências do mês</p><h2>A pagar e a receber<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes">Ver pendências</button></div>
-      <div class="finance-pending-summary">${pendingOut.length ? h`<div class="is-expense"><span>Despesas pendentes</span><b>${money(pendingOutCents)}</b><small>${pendingOut.length} ${plural(pendingOut.length, 'lançamento', 'lançamentos')}</small></div>` : ''}${pendingIn.length ? h`<div class="is-income"><span>Receitas pendentes</span><b>${money(pendingInCents)}</b><small>${pendingIn.length} ${plural(pendingIn.length, 'lançamento', 'lançamentos')}</small></div>` : ''}</div>
-      <ul class="list">${pend.slice(0, 5).map(finRow)}</ul></section>` : ''}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
@@ -8014,6 +7982,21 @@ function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
     times: '2',
   });
 }
+function prepareTransactionDialogForAnother(d, category) {
+  Object.assign(d, {
+    amount: '',
+    desc: '',
+    category,
+    interest: '0,00',
+    repeat: 'none',
+    currentInstallment: '1',
+    installmentAmountMode: 'total',
+    times: '2',
+  });
+  delete d.continueAfterSave;
+  if (ui.dlg) ui.dlg.dirty = false;
+  requestAnimationFrame(() => $('#dlg input[data-dlg="amount"]')?.focus());
+}
 function recentTransactionDefaults(kind, preferCredit = false) {
   const categoryType = kind === 'in' ? 'in' : 'out';
   const categories = catNames(categoryType);
@@ -8120,7 +8103,7 @@ function dlgAccount() {
       ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
       ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
     </form>`,
-    h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn ghost" type="submit" form="dlgform" data-action="acct-save-and-another">Continuar e salvar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
+    h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
 function dlgAccountDelete() {
   const d = ui.dlg.d, a = accById(d.id);
@@ -8345,6 +8328,16 @@ Object.assign(ACTIONS, {
   'tx-new': () => newTxDlg('out'),
   'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
   'tx-new-in': () => newTxDlg('in'),
+  'tx-save-and-another': () => {
+    const dialog = ui.dlg;
+    if (dialog?.type === 'tx' && !dialog.d.id && ['out', 'in', 'tr'].includes(dialog.d.kind)) {
+      dialog.d.continueAfterSave = true;
+    }
+  },
+  'tx-save': () => {
+    const dialog = ui.dlg;
+    if (dialog?.type === 'tx' && !dialog.d.id) delete dialog.d.continueAfterSave;
+  },
   'tx-kind': (el) => {
     const d = ui.dlg.d, kind = el.dataset.k;
     if (d.kind === kind) return;
@@ -8452,7 +8445,6 @@ Object.assign(ACTIONS, {
   'fin-csv': () => finCsv(),
   'acct-new': () => dlgOpen('account', { name: '', bank: '', type: 'checking', balance: '', limit: '', closing: '', due: '' }),
   'acct-new-card': () => dlgOpen('account', { name: '', bank: '', type: 'credit', linkedAccountId: '', balance: '', limit: '', closing: '', due: '' }),
-  'acct-save-and-another': () => { if (ui.dlg?.type === 'account' && !ui.dlg.d.id) ui.dlg.d.continueAfterSave = true; },
   'acct-edit': (el) => { const a = accById(el.dataset.id); if (a) dlgOpen('account', { id: a.id, name: accountDisplayName(a), bank: a.bank || '', type: a.type, linkedAccountId: a.linkedAccountId || '', balance: moneyIn(accBalance(a)), cur0: accBalance(a), limit: moneyIn(a.limitCents), closing: a.closingDay ? String(a.closingDay) : '', due: a.dueDay ? String(a.dueDay) : '' }); },
   'acct-del': () => { const a = accById(ui.dlg.d.id); if (a) dlgOpen('acctdelete', { id: a.id }); },
   'acct-del-confirm': () => {
@@ -8630,7 +8622,9 @@ Object.assign(FORMS, {
     });
   },
   'dlg-tx': () => {
-    const d = ui.dlg.d, cents = parseMoney(d.amount), tr = d.kind === 'tr', acc = accById(d.accountId);
+    const d = ui.dlg.d, continueAfterSave = !ui.dlg.d.id && ui.dlg.d.continueAfterSave === true;
+    delete d.continueAfterSave;
+    const cents = parseMoney(d.amount), tr = d.kind === 'tr', acc = accById(d.accountId);
     if (!(cents > 0)) return fieldError('Informe um valor maior que zero.', '[data-dlg="amount"]');
     if (!['out', 'in', 'tr'].includes(d.kind)) return toast('Escolha um tipo de lançamento válido.', 'info');
     if (!tr && !resolveNew(d.kind === 'in' ? 'in' : 'out', d, 'category')) return;
@@ -8688,7 +8682,14 @@ Object.assign(FORMS, {
     }
     if (d.repeat === 'fixed' && !tr) {
       const r = { id: newId(), type: d.kind, accountId: d.accountId, category: base.category, desc: base.desc, cents, day: pk(d.date).getDate(), startYM: d.date.slice(0, 7), lastYM: null, firstPaid: paid };
-      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.', 'success'); return;
+      recList().push(r); genRecurring(); ui.finMonth = d.date.slice(0, 7);
+      if (continueAfterSave) {
+        prepareTransactionDialogForAnother(d, base.category);
+        commit('finance');
+        toast('Fixa criada. Você já pode cadastrar outra.', 'success');
+        return;
+      }
+      ui.dlg = null; commit('finance'); toast('Fixa criada. Os próximos meses aparecem sozinhos.', 'success'); return;
     }
     const installmentsToCreate = totalInstallments - firstInstallment + 1;
     const gid = totalInstallments > 1 ? newId() : undefined;
@@ -8713,7 +8714,16 @@ Object.assign(FORMS, {
         ...(totalInstallments > 1 ? { groupId: gid, desc: `${base.desc || base.category} (${installmentNumber}/${totalInstallments})` } : {}),
       });
     }
-    ui.finMonth = d.date.slice(0, 7); ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.', 'success');
+    ui.finMonth = d.date.slice(0, 7);
+    if (continueAfterSave) {
+      prepareTransactionDialogForAnother(d, base.category);
+      commit('finance');
+      toast(installmentsToCreate > 1
+        ? `${installmentsToCreate} lançamentos criados. Você já pode cadastrar outro.`
+        : 'Lançamento adicionado. Você já pode cadastrar outro.', 'success');
+      return;
+    }
+    ui.dlg = null; commit('finance'); toast(installmentsToCreate > 1 ? `${installmentsToCreate} lançamentos criados.` : 'Lançamento adicionado.', 'success');
   },
   'dlg-account': () => {
     const d = ui.dlg.d, name = d.name.trim(), current = d.id ? accById(d.id) : null; if (!name) return toast('Dê um nome à conta.', 'info');
@@ -8733,26 +8743,6 @@ Object.assign(FORMS, {
       Object.assign(current, patch);
       if (d.type === 'credit' && !linkedAccount) delete current.linkedAccountId;
     } else S.finance.accounts.push({ id: newId(), ...patch });
-    if (!d.id && d.continueAfterSave) {
-      const nextType = d.type;
-      Object.assign(d, {
-        name: '',
-        bank: '',
-        type: nextType,
-        linkedAccountId: '',
-        balance: '',
-        limit: '',
-        closing: '',
-        due: '',
-      });
-      delete d.id;
-      delete d.cur0;
-      delete d.continueAfterSave;
-      commit('finance');
-      toast('Conta criada. Você já pode cadastrar outra.', 'success');
-      requestAnimationFrame(() => $('#dlg input[data-dlg="name"]')?.focus());
-      return;
-    }
     ui.dlg = null;
     commit('finance');
   },
@@ -8806,6 +8796,7 @@ Object.assign(FORMS, {
     if (d.fromTransaction) {
       if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.', 'warning');
       transactionDialog.d.category = addedPath;
+      transactionDialog.d.categoryTouched = true;
       transactionDialog.dirty = true;
       ui.categoryReturnDialog = null;
       ui.dlg = transactionDialog;
@@ -9235,11 +9226,6 @@ function showAccountDataLoadError(root, error, user) {
   heading.focus({ preventScroll: true });
 }
 
-function onPushNotification(event) {
-  if (event.detail?.kind === 'habit-reminder') toast('Um horário de hábito chegou. Abra Hábitos para conferir sua rotina.', 'info');
-  if (event.detail?.kind === 'task-reminder') toast('Um lembrete de tarefa chegou. Abra Planejar para conferir sua lista.', 'info');
-  if (event.detail?.kind === 'weekly-review') toast('Sua semana está disponível em Planejar, quando quiser.', 'info');
-}
 
 async function continueAuthenticatedAurora(root, user) {
   preloadInitialRouteModule();
@@ -9270,19 +9256,7 @@ async function continueAuthenticatedAurora(root, user) {
   if (!profileSetupComplete()) openProfileSetup();
   else void maybeOpenReleaseNotes();
   setInterval(tick, 1000);
-  window.removeEventListener('aurora:push-notification', onPushNotification);
-  window.addEventListener('aurora:push-notification', onPushNotification);
-  const registration = await registerPwaSupport();
-  if (registration || isNativeApp()) {
-    try {
-      await initializePushNotifications();
-      await syncHabitReminderSchedule();
-    } catch (error) {
-      console.error('O Aurora não conseguiu iniciar as notificações Push.', error);
-      ui.habitPushNotice = pushNotificationErrorMessage(error);
-      if (ui.route === 'habitos') render();
-    }
-  }
+  await registerPwaSupport();
   Persist.retryPending();
 }
 
@@ -9537,14 +9511,6 @@ document.addEventListener('click', async (event) => {
     button.disabled = false;
     return;
   }
-  try {
-    await Promise.all([cancelHabitPushReminders(), cancelTaskPushReminders()]);
-  } catch {
-    if (!await confirmInDialog('Não foi possível cancelar os lembretes de Hábitos deste dispositivo. Eles podem continuar ativos até o próximo ajuste. Deseja sair mesmo assim?')) {
-      button.disabled = false;
-      return;
-    }
-  }
   intentionalSignOut = true;
   try {
     const { error } = await accountSession.client.auth.signOut({ scope: 'local' });
@@ -9577,6 +9543,39 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+document.addEventListener('submit', async (event) => {
+  if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
+  event.preventDefault();
+  const form = event.target;
+  const submit = form.querySelector('button[type="submit"]');
+  const errorMessage = form.querySelector('[data-suggestion-error]');
+  const status = form.querySelector('[data-suggestion-status]');
+  try {
+    if (!(submit instanceof HTMLButtonElement)) throw new Error('O botão de envio da sugestão não está disponível.');
+    if (!accountSession?.client) throw new Error('Entre na sua conta para enviar uma sugestão.');
+    submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+    if (errorMessage) errorMessage.hidden = true;
+    if (status) status.textContent = 'Enviando…';
+    await submitSuggestion(accountSession.client, form.elements.message.value);
+    form.reset();
+    if (status) status.textContent = 'Sugestão enviada. Obrigada por ajudar o Aurora a melhorar.';
+  } catch (error) {
+    console.error('Aurora: não foi possível enviar a sugestão.', error);
+    if (errorMessage) {
+      errorMessage.textContent = error instanceof TypeError
+        ? error.message
+        : 'Não foi possível enviar agora. Confira sua conexão e tente novamente.';
+      errorMessage.hidden = false;
+    }
+    if (status) status.textContent = '';
+  } finally {
+    if (submit instanceof HTMLButtonElement) {
+      submit.disabled = false;
+      submit.removeAttribute('aria-busy');
+    }
+  }
+});
 
 initializeCustomSelects(document);
 initializeLegalDialogEvents();

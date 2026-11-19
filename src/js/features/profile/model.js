@@ -1,3 +1,5 @@
+import { isProfileAvatarImageData } from './avatar-image.js';
+
 export const PROFILE_SEX_OPTIONS = Object.freeze([
   Object.freeze(['f', 'Mulher']),
   Object.freeze(['m', 'Homem']),
@@ -55,11 +57,14 @@ export function normalizeProfileAppearance(value) {
   const avatars = new Set(PROFILE_AVATARS.map(([id]) => id));
   const colors = new Set(PROFILE_AVATAR_COLORS.map(([id]) => id));
   const greetings = new Set(PROFILE_GREETING_STYLES.map(([id]) => id));
-  return {
+  const normalized = {
     ...PROFILE_APPEARANCE_DEFAULT,
     ...appearance,
     avatar: avatars.has(appearance.avatar) ? appearance.avatar : PROFILE_APPEARANCE_DEFAULT.avatar,
     avatarColor: colors.has(appearance.avatarColor) ? appearance.avatarColor : PROFILE_APPEARANCE_DEFAULT.avatarColor,
     greeting: greetings.has(appearance.greeting) ? appearance.greeting : PROFILE_APPEARANCE_DEFAULT.greeting,
   };
+  if (isProfileAvatarImageData(appearance.avatarImage)) normalized.avatarImage = appearance.avatarImage;
+  else delete normalized.avatarImage;
+  return normalized;
 }

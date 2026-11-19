@@ -4,15 +4,23 @@ import { icon } from '../../utils/icons.js';
 
 export function createFinanceDialogViews(dependencies) {
   const {
-    ui, S, catNames,
-    accountOptionLabel, accById, isCredit, expenseTitle, topCategoryNames,
-    categoryMatch, categoryInfo, recById, today, dlgWrap, dlgField, closeBtn,
+    ui, S, topCategoryNames, categoryMatch,
+    accountOptionLabel, accById, isCredit, expenseTitle, categoryInfo, recById, today, dlgWrap, dlgField, closeBtn,
     anticipationCandidates,
   } = dependencies;
   return { transaction };
 
 function transaction() {
   const d = ui.dlg.d, accs = S.finance.accounts, edit = !!d.id, tr = d.kind === 'tr', acc = accById(d.accountId);
+  const canContinue = !edit && ['out', 'in', 'tr'].includes(d.kind);
+  const categoryKind = d.kind === 'in' ? 'in' : 'out';
+  const categorySelection = categoryMatch(categoryKind, d.category);
+  const categoryParent = categorySelection?.category.name || d.category || topCategoryNames(categoryKind)[0] || '';
+  const categoryParents = topCategoryNames(categoryKind);
+  const parentOptions = categoryParents.includes(categoryParent) ? categoryParents : [categoryParent, ...categoryParents];
+  const selectedParent = categoryMatch(categoryKind, categoryParent)?.category;
+  const subcategories = selectedParent?.subcategories || [];
+  const selectedSubcategory = categorySelection?.subcategory?.name || '';
   const originalDate = S.finance.tx.find((item) => item.id === d.id)?.date;
   const canAnticipate = !!d.groupId && anticipationCandidates(d.groupId, originalDate).length > 0;
   const hasInstallmentInterest = d.kind === 'out' && (edit ? !!d.groupId : d.repeat === 'parcel');
@@ -21,7 +29,6 @@ function transaction() {
     : 'Valor';
   const kinds = [['out', 'Despesa'], ['in', 'Receita'], ['tr', 'Transferência']];
   const formSection = (label) => h`<h3 class="finance-form-section full">${label}</h3>`;
-  const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}</h2>${closeBtn}</div>
     ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
     <div class="seg finance-transaction-type" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
@@ -31,7 +38,8 @@ function transaction() {
       ${hasInstallmentInterest ? dlgField(h`Juros desta parcela (<span class="money">R$</span>)`, h`<input class="money-input" type="text" inputmode="decimal" data-dlg="interest" value="${formatMoneyInput(d.interest || '')}" placeholder="00,00" autocomplete="off">`, 'full') : ''}
       ${!edit && hasInstallmentInterest ? h`<p class="fine full">Informe zero se não houver juros. O valor é informativo e já está incluído na parcela; as demais podem ser editadas individualmente.</p>` : ''}
       ${dlgField('Descrição', h`<input type="text" data-dlg="desc" value="${d.desc}" maxlength="80" placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`, 'full')}
-      ${tr ? '' : dlgField('Categoria', h`<select data-dlg="category">${catList.map((c) => { const meta = categoryInfo(d.kind === 'in' ? 'in' : 'out', c); return h`<option class="expense-name" data-icon="${meta.i}" data-color="${meta.c}" value="${c}" ${c === d.category ? raw('selected') : ''}>${expenseTitle(c)}</option>`; })}<option value="__new" ${d.category === '__new' ? raw('selected') : ''}>Criar nova categoria…</option></select>`, 'full')}
+      ${tr ? '' : h`${dlgField('Categoria', h`<select data-dlg="category">${parentOptions.map((name) => { const meta = categoryInfo(categoryKind, name); return h`<option class="expense-name" data-icon="${meta.i}" data-color="${meta.c}" value="${name}" ${name === categoryParent ? raw('selected') : ''}>${expenseTitle(name)}</option>`; })}<option value="__new">Criar nova categoria…</option></select>`, 'full')}
+        ${dlgField('Subcategoria (opcional)', h`<select data-dlg="subcategory"><option value="" ${selectedSubcategory ? '' : raw('selected')}>Sem subcategoria</option>${subcategories.map((subcategory) => { const meta = categoryInfo(categoryKind, `${categoryParent} > ${subcategory.name}`); return h`<option class="expense-name" data-icon="${meta.i}" data-color="${meta.c}" value="${subcategory.name}" ${subcategory.name === selectedSubcategory ? raw('selected') : ''}>${expenseTitle(subcategory.name)}</option>`; })}<option value="__new">Criar subcategoria…</option></select>`, 'full')}`}
       ${formSection(tr ? 'Contas da transferência' : 'Conta e período')}
       ${dlgField(tr ? 'Sai de' : 'Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`)}
       ${tr ? dlgField('Vai para', h`<select data-dlg="toAccountId">${accs.filter((a) => a.id !== d.accountId).map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.toAccountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`) : dlgField('Data do lançamento', h`<input type="date" data-dlg="date" value="${d.date}">`)}
@@ -50,6 +58,6 @@ function transaction() {
           : 'O total será dividido igualmente; eventuais centavos restantes ficam na primeira parcela da série.'}</p>
       </fieldset>` : ''}${d.repeat === 'fixed' ? h`<p class="fine full">Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.</p>` : ''}` : ''}
     </form>`,
-    h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
+    h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>${canContinue ? h`<button class="btn ghost" type="submit" form="dlgform" data-action="tx-save-and-another">Continuar e salvar</button>` : ''}`}<button class="btn primary" type="submit" form="dlgform" data-action="tx-save">${edit ? 'Salvar' : 'Adicionar'}</button>`);
 }
 }
