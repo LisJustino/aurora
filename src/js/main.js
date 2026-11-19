@@ -34,7 +34,6 @@ import {
   monthlyCloseSummary as summarizeMonthlyClose,
   netAccountBalance,
   reportMonthStats,
-  recurringBillsDueOn,
   linkedGoalProgressCents,
   projectedNetAccountBalance,
   signedAmount,
@@ -503,7 +502,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, alerts: {}, fired: {}, snooze: {}, remindersPausedUntil: 0, notificationsOpen: false, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pushBusy: false, habitPushNotice: '', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -523,16 +522,6 @@ const toastController = createToastController({
 });
 ui.cycleConsentBusy = false;
 ui.cycleConsentError = '';
-const notificationAnnouncer = document.getElementById('notification-announcer') || (() => {
-  const announcer = document.createElement('div');
-  announcer.id = 'notification-announcer';
-  announcer.className = 'sr';
-  announcer.setAttribute('role', 'status');
-  announcer.setAttribute('aria-live', 'polite');
-  announcer.setAttribute('aria-atomic', 'true');
-  document.body.append(announcer);
-  return announcer;
-})();
 const stamps = {};
 const cloneSettings = (settings) => JSON.parse(JSON.stringify(settings));
 function sameJsonValue(a, b) {
@@ -1594,77 +1583,9 @@ const expenseTitle = (name) => String(name ?? '').replace(/^(\s*\p{L})/u, (first
 const tabLabel = (label) => h`<span class="tab-label-group"><span class="tab-label">${label}</span></span>`;
 const brandLink = h`<a class="brand" href="/inicio" aria-label="aurora., início">${brandIcon(36)}<span class="wordmark">aurora<i>.</i></span></a>`;
 
-const notificationCount = () => Object.keys(ui.alerts).length;
 function updateDocumentTitle() {
   const title = ROUTE_TITLES[ui.route] || 'aurora.';
-  document.title = `${notificationCount() ? `(${notificationCount()}) ` : ''}${title} | aurora.`;
-}
-function notificationButton(cls, id) {
-  const count = notificationCount();
-  return h`<button type="button" id="${id}" class="${cls} notification-trigger" data-action="toggle-notifications" aria-label="${count ? `Lembretes e notificações, ${count} ${plural(count, 'pendente', 'pendentes')}` : 'Lembretes e notificações'}" aria-expanded="${ui.notificationsOpen}" aria-controls="notification-panel" aria-haspopup="dialog" title="Lembretes e notificações">${icon('bell', 20)}${count ? h`<span class="notification-count" aria-hidden="true">${count > 99 ? '99+' : count}</span>` : ''}${cls.includes('nl') ? h`<span>Notificações</span>` : ''}</button>`;
-}
-const agoLabel = (at) => {
-  if (!at) return '';
-  const min = Math.max(0, Math.round((Date.now() - at) / 60000));
-  return min < 1 ? 'agora' : min < 60 ? `há ${min} min` : `há ${Math.floor(min / 60)} h`;
-};
-/* Lembretes de hoje que ainda vão tocar (tarefas com horário e hábitos com lembrete), só leitura dos dados existentes. */
-function upcomingReminders() {
-  const now = Date.now(), day = today(), out = [];
-  S.tasks.forEach((t) => {
-    if (t.done || t.dueDate !== day || !t.time || t.remind == null) return;
-    const fire = new Date(`${t.dueDate}T${t.time}:00`).getTime() - Number(t.remind) * 60000;
-    if (fire > now) out.push({ kind: 'task', title: t.title, at: fire, time: new Date(fire).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) });
-  });
-  S.habits.forEach((habit) => {
-    if ((habit.status || 'active') !== 'active' || !habit.remind || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day) || habitIsSkipped(habit, day, day)) return;
-    const at = new Date(`${day}T${habit.remind}:00`).getTime();
-    if (at > now) out.push({ kind: 'habit', title: habit.name, at, time: habit.remind, habit });
-  });
-  recurringBillsDueOn(S.finance.tx, day).forEach((transaction) => {
-    out.push({
-      kind: 'finance',
-      title: transaction.desc || transaction.category || 'Conta fixa',
-      detail: `${brl(transaction.cents)} · ${accName(transaction.accountId)}`,
-      at: new Date(`${day}T00:00:00`).getTime(),
-      time: 'Hoje',
-    });
-  });
-  return out.sort((a, b) => a.at - b.at).slice(0, 6);
-}
-function notificationsHtml() {
-  const items = Object.entries(ui.alerts).sort(([, a], [, b]) => (b.at || b.due || 0) - (a.at || a.due || 0));
-  const upcoming = ui.notificationsOpen ? upcomingReminders() : [];
-  const remindersPaused = ui.remindersPausedUntil > Date.now();
-  const canPauseReminders = remindersPaused
-    || S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null)
-    || S.habits.some((habit) => (habit.status || 'active') === 'active' && habit.remind)
-    || items.length > 0
-    || upcoming.some((reminder) => reminder.kind === 'task' || reminder.kind === 'habit');
-  const kindLabel = (a) => a.kind === 'habit' ? 'Hábito' : 'Tarefa';
-  return h`<section class="notification-panel" id="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notification-title" ${ui.notificationsOpen ? raw('') : raw('hidden')}>
-    <header class="notification-head"><div><h2 id="notification-title">Notificações</h2><span class="small muted">${items.length ? `${items.length} ${plural(items.length, 'pendente', 'pendentes')}` : 'Tudo em dia'}</span></div>${items.length > 1 ? h`<button type="button" class="btn ghost sm notification-clear" data-action="rem-dismiss-all">Dispensar todas</button>` : ''}<button type="button" class="ibtn dlg-close" id="notification-close" data-action="close-notifications" aria-label="Fechar notificações">${icon('close', 18)}</button></header>
-    ${canPauseReminders ? h`<div class="notification-controls"><b>${remindersPaused ? `Pausados até ${new Date(ui.remindersPausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Lembretes'}</b><button type="button" class="btn sm" data-action="reminders-pause" aria-pressed="${String(remindersPaused)}">${remindersPaused ? 'Retomar' : 'Pausar 1 h'}</button></div>` : ''}
-    ${items.length ? h`<h3 class="notification-section-title">Agora</h3><div class="notification-list" aria-live="polite">${items.map(([k, a]) => {
-      const habit = a.kind === 'habit' ? S.habits.find((item) => item.id === a.id) : null;
-      return h`<article class="notification-item is-${a.kind || 'task'}" ${habit ? raw(`style="--nc:${habitColor(habit)}"`) : ''}>
-      <span class="notification-icon">${icon(habit ? habitIconKey(habit) : 'bell', 18)}</span>
-      <div class="notification-copy"><div class="notification-meta"><span class="notification-kind">${kindLabel(a)}</span><span class="notification-ago">${agoLabel(a.at)}</span><button class="ibtn notification-x" data-action="rem-dismiss" data-k="${k}" aria-label="Dispensar: ${a.title}">${icon('close', 16)}</button></div><b class="user-value">${a.title}</b><small>${a.time}</small></div>
-      <div class="notification-actions">${a.kind === 'habit'
-          ? h`<button class="btn sm primary" data-action="habit-reminder-done" data-k="${k}" data-id="${a.id}">Feito</button>`
-          : h`<button class="btn sm primary" data-action="rem-done" data-k="${k}" data-id="${a.id}">Concluir</button><button class="btn sm" data-action="rem-snooze" data-k="${k}">+10 min</button><button class="btn sm" data-action="rem-snooze" data-k="${k}" data-min="60">+1 h</button>`}</div>
-    </article>`; })}</div>` : h`<div class="notification-empty">${icon('check', 20)}<b>Nada pendente</b></div>`}
-    ${upcoming.length ? h`<section class="notification-upcoming" aria-labelledby="notification-upcoming-title"><h3 id="notification-upcoming-title">Ainda hoje</h3><ul>${upcoming.map((u) => h`<li><time class="nu-time">${u.time}</time><span class="grow user-value">${u.kind === 'finance' ? `${u.title} · ${u.detail}` : u.title}</span><small>${u.kind === 'habit' ? 'hábito' : u.kind === 'finance' ? 'conta fixa' : 'tarefa'}</small></li>`)}</ul></section>` : ''}
-    ${canPauseReminders && areaOn('habits') ? h`<a class="notification-settings-link" href="/habitos">${icon('sliders', 16)}Horários e avisos</a>` : ''}
-  </section>`;
-}
-function closeNotifications(restoreFocus = true) {
-  ui.notificationsOpen = false;
-  render();
-  if (restoreFocus) {
-    const trigger = $$('.notification-trigger').find((el) => el.getClientRects().length);
-    if (trigger) trigger.focus({ preventScroll: true });
-  }
+  document.title = `${title} | aurora.`;
 }
 function acquireActiveScrollLocks() {
   if (ui.dlg && !releaseDialogScroll) releaseDialogScroll = lockPageScroll();
@@ -1725,7 +1646,7 @@ function shell(body) {
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
   const feedbackPrompt = ui.feedbackPromptVisible ? renderFeedbackPrompt() : '';
-  // No celular a barra tem 5 espaços: 3 áreas + Criar + Mais. As demais áreas ficam dentro do Mais.
+  // No celular a barra tem 4 espaços: 3 áreas + Mais (o "+" de criar fica no topo). As demais áreas ficam dentro do Mais.
   const MOBILE_NAV_PRIMARY = 3;
   const overflowItems = menuItems.slice(MOBILE_NAV_PRIMARY);
   const navLink = ({ id, label, icon: iconName, area }, index) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${index >= MOBILE_NAV_PRIMARY ? raw('data-overflow="true"') : ''} ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
@@ -1752,8 +1673,10 @@ function shell(body) {
     <button type="button" class="nav-quick-trigger iconbtn${isFinanceRoute ? ' finance-fab-trigger' : ''}" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>
     <div class="quick-actions-menu${isFinanceRoute ? ' finance-quick-actions-menu' : ''}" id="quick-actions-menu" role="group" aria-label="${quickActionsHeading}" ${ui.quickActionsOpen ? '' : raw('hidden')}><p class="quick-actions-heading">${quickActionsHeading}</p>${quickActionItems}</div>
   </div>`;
-  const headerQuickActions = isFinanceRoute ? '' : quickActions;
-  const mobileQuickActionsTrigger = h`<button type="button" class="iconbtn mobile-nav-create-trigger${isFinanceRoute ? ' finance-nav-create-trigger' : ''}" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu"><span class="ni">${icon('plus', 20)}</span><span class="mobile-nav-label">${tabLabel('Criar')}</span></button>`;
+  // Em Finanças o menu fica na camada do botão flutuante (desktop); no celular o "+" do topo abre esse mesmo menu.
+  const headerQuickActions = isFinanceRoute
+    ? h`<button type="button" class="nav-quick-trigger iconbtn finance-header-trigger" data-action="quick-actions-toggle" title="Criar" aria-label="Ações rápidas" aria-expanded="${String(ui.quickActionsOpen)}" aria-controls="quick-actions-menu">${icon('plus', 20)}</button>`
+    : quickActions;
   const financeQuickActionsBackdrop = isFinanceRoute && ui.quickActionsOpen
     ? h`<button type="button" class="finance-actions-backdrop" data-action="quick-actions-toggle" aria-label="Fechar ações financeiras"></button>`
     : '';
@@ -1779,17 +1702,14 @@ function shell(body) {
     </div>
   </details>`;
   const navLinks = menuItems.map(navLink);
-  // Criar fica no meio da barra do celular (2 áreas à esquerda, 1 à direita + Mais); no desktop ele fica oculto.
-  const createAt = Math.min(2, navLinks.length);
-  const navItems = h`${navLinks.slice(0, createAt)}${mobileQuickActionsTrigger}${navLinks.slice(createAt)}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${navLinks}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <div class="pull-refresh-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="pull-refresh-icon" aria-hidden="true">${icon('refresh', 20)}</span><span class="pull-refresh-label"></span></div>
-    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerQuickActions}${modeBtn('iconbtn theme-trigger')}${notificationButton('iconbtn', 'notification-top')}${headerProfileMenu}${headerAccountMenu}</div></header>
+    <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerQuickActions}${modeBtn('iconbtn theme-trigger')}${headerProfileMenu}${headerAccountMenu}</div></header>
     ${financeQuickActionsLayer}
     <main class="main" id="main" data-route="${ui.route}" tabindex="-1">
       ${feedbackPrompt}
       ${persistenceNotice()}
-      ${notificationsHtml()}
       ${navigator.onLine === false ? h`<div class="notice warn offline-banner" role="status">${icon('alert', 18)}<span>Sem conexão com a internet. Alterações feitas offline não serão salvas; conecte-se e tente novamente.</span></div>` : ''}
       ${body}
       ${saveLabel ? h`<div class="app-status save-indicator" data-status="${ui.persistFailed.size || saveStatus === 'warning' ? 'warning' : saveStatus}" role="status" aria-live="polite">${saveLabel}</div>` : ''}
@@ -4788,6 +4708,7 @@ function restoreDialogHistoryScroll(position) {
 function applyFitDlg() {
   const el = $('#dlg'), v = window.visualViewport; if (!el) return;
   const keyboard = v && window.innerHeight - v.height > 120;
+  el.classList.toggle('is-keyboard-open', Boolean(keyboard));
   if (!keyboard) {
     Object.assign(el.style, { inset: '0', left: '', right: '', top: '', width: '', height: '' });
     el.style.removeProperty('--dialog-available-height');
@@ -5284,7 +5205,7 @@ function recordWaterEntry(amount, habit) {
   return saved;
 }
 function focusQuickActionsTrigger() {
-  const trigger = [...document.querySelectorAll('.nav-quick-trigger, .mobile-nav-create-trigger')]
+  const trigger = [...document.querySelectorAll('.nav-quick-trigger')]
     .find((element) => element.getClientRects().length > 0);
   trigger?.focus();
 }
@@ -5495,34 +5416,6 @@ const ACTIONS = {
   'mv-down': (el) => moveTask(el.dataset.id, 1),
   'st-toggle': (el) => { const x = (ui.dlg.d.subs || [])[Number(el.dataset.i)]; if (x) { x.done = !x.done; render(); } },
   'st-del': (el) => { const a = ui.dlg.d.subs || []; a.splice(Number(el.dataset.i), 1); render(); },
-  'rem-done': (el) => { delete ui.alerts[el.dataset.k]; ACTIONS['toggle']({ dataset: { id: el.dataset.id } }); },
-  'habit-reminder-done': (el) => {
-    const habit = S.habits.find((item) => item.id === el.dataset.id);
-    delete ui.alerts[el.dataset.k];
-    if (!habit || (habit.status || 'active') !== 'active' || !habit.days.includes(pk(today()).getDay())) return render();
-    const day = today();
-    if (!habit.completions.includes(day)) habit.completions = [...habit.completions, day];
-    ui.notificationsOpen = false;
-    nav('habitos');
-    commit('habits');
-  },
-  'rem-snooze': (el) => { const a = ui.alerts[el.dataset.k]; if (a) { ui.snooze[el.dataset.k] = Date.now() + (Number(el.dataset.min) || 10) * 60000; delete ui.alerts[el.dataset.k]; delete ui.fired[el.dataset.k]; render(); } },
-  'rem-dismiss': (el) => { delete ui.alerts[el.dataset.k]; render(); },
-  'rem-dismiss-all': () => { const had = Object.keys(ui.alerts).length; Object.keys(ui.alerts).forEach((k) => { delete ui.alerts[k]; }); ui.notificationsOpen = false; render(); if (had) toast('Notificações dispensadas.', 'info'); },
-  'reminders-pause': () => {
-    if (ui.remindersPausedUntil > Date.now()) {
-      ui.remindersPausedUntil = 0;
-      render();
-      toast('Lembretes do app retomados.', 'info');
-      return;
-    }
-    ui.remindersPausedUntil = Date.now() + 60 * 60 * 1000;
-    Object.keys(ui.alerts).forEach((key) => { delete ui.alerts[key]; });
-    render();
-    toast('Lembretes de tarefas e hábitos pausados por uma hora nesta sessão do app. Avisos do sistema não foram alterados.', 'info');
-  },
-  'toggle-notifications': (el) => { ui.notificationsOpen = !ui.notificationsOpen; render(); const trigger = document.getElementById(el.id); if (trigger) trigger.focus({ preventScroll: true }); },
-  'close-notifications': () => closeNotifications(),
   'backup-reminder-dismiss': () => { ui.backupReminderHidden = true; render(); },
   'feedback-prompt-dismiss': () => { ui.feedbackPromptVisible = false; render(); },
   'accessibility-mode': (el) => { setThemeMode(el.dataset.v); document.getElementById(el.id)?.focus(); },
@@ -7061,53 +6954,8 @@ document.addEventListener('dragstart', (e) => { const li = e.target.closest && e
 document.addEventListener('dragover', (e) => { if (ui.dragId && e.target.closest && e.target.closest('.task[draggable]')) e.preventDefault(); });
 document.addEventListener('drop', (e) => { const li = e.target.closest && e.target.closest('.task[draggable]'); if (!li || !ui.dragId) return; e.preventDefault(); const d = findTask(ui.dragId), t = findTask(li.dataset.k); ui.dragId = null; if (!d || !t || d === t) return; renumberTasks(); d.order = t.order - 500; commit('tasks'); });
 document.addEventListener('dragend', () => { ui.dragId = null; });
-let tickN = 0;
-function checkReminders() {
-  const now = Date.now(), day = today(); let changed = false, added = 0;
-  if (now >= ui.remindersPausedUntil) {
-    S.tasks.forEach((t) => {
-      if (t.done || !t.dueDate || !t.time || t.remind == null) return;
-      const due = new Date(`${t.dueDate}T${t.time}:00`).getTime(), fire = due - Number(t.remind) * 60000, key = `${t.id}|${t.dueDate}|${t.time}|${t.remind}`;
-      if (now >= fire && now <= due + 2 * 3600000 && !ui.fired[key] && now >= (ui.snooze[key] || 0)) { ui.fired[key] = true; ui.alerts[key] = { id: t.id, title: t.title, time: t.time, due, at: now }; changed = true; added += 1; }
-    });
-    S.habits.forEach((habit) => {
-      if ((habit.status || 'active') !== 'active' || !habit.remind
-        || !habit.days.includes(pk(day).getDay()) || habitCompletedFor(habit, day)) return;
-      const key = `habit:${habit.id}:${day}`;
-      // Janela de 15 minutos: se a aba ficou em segundo plano no minuto exato, o lembrete ainda aparece.
-      const habitAt = new Date(`${day}T${habit.remind}:00`).getTime();
-      if (now < habitAt || now > habitAt + 15 * 60000 || ui.fired[key]) return;
-      ui.fired[key] = true;
-      ui.alerts[key] = { id: habit.id, kind: 'habit', title: habit.name, time: habit.remind, at: now, detail: 'Sua rotina programada para hoje está esperando.' };
-      changed = true;
-      added += 1;
-    });
-  }
-  Object.keys(ui.alerts).forEach((k) => {
-    const alert = ui.alerts[k];
-    if (alert.kind === 'habit') {
-      const habit = S.habits.find((item) => item.id === alert.id);
-      if (!habit || (habit.status || 'active') !== 'active' || habitCompletedFor(habit, day)) {
-        delete ui.alerts[k];
-        changed = true;
-      }
-      return;
-    }
-    const t = findTask(alert.id);
-    if (!t || t.done) { delete ui.alerts[k]; changed = true; }
-  });
-  if (changed) {
-    render();
-    if (added) {
-      if (notificationAnnouncer) notificationAnnouncer.textContent = added === 1
-        ? 'Novo lembrete disponível. Abra Notificações para conferir.'
-        : `${added} novos lembretes disponíveis. Abra Notificações para conferir.`;
-    }
-  }
-}
 function tick() {
   if (Persist.replacing) return;
-  if (tickN++ % 10 === 0) checkReminders();
   if (dk() !== lastDay) { lastDay = dk(); render(); }
 }
 
@@ -7334,7 +7182,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   const target = e.target;
   if (!ui.quickActionsOpen || !(target instanceof Element)
-    || target.closest('#quick-actions-menu, .nav-quick-trigger, .mobile-nav-create-trigger')) return;
+    || target.closest('#quick-actions-menu, .nav-quick-trigger')) return;
   ui.quickActionsOpen = false;
   render();
 });
@@ -7353,13 +7201,6 @@ document.addEventListener('click', (e) => {
   const panel = document.querySelector('.topbar > .profile-menu-panel');
   if (!menu || !(e.target instanceof Node) || menu.contains(e.target) || panel?.contains(e.target)) return;
   menu.open = false;
-});
-document.addEventListener('click', (e) => {
-  const target = e.target;
-  if (!ui.notificationsOpen || !(target instanceof Element) || target.closest('#notification-panel, .notification-trigger')) return;
-  setTimeout(() => {
-    if (ui.notificationsOpen) closeNotifications(false);
-  }, 0);
 });
 document.addEventListener('submit', (e) => {
   const f = e.target.closest('[data-form]'); if (!f) return;
@@ -7559,7 +7400,6 @@ document.addEventListener('keydown', (e) => {
     dlgOpen('search', { query: '' });
     return;
   }
-  if (e.key === 'Escape' && ui.notificationsOpen) { e.preventDefault(); closeNotifications(); return; }
   if (e.key === 'Escape') {
     const profileMenu = document.querySelector('.profile-menu-control[open], .header-account-control[open]');
     if (profileMenu) {

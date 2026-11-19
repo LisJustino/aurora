@@ -254,13 +254,15 @@
 }
 
 @media (width < 900px) {
+  /* No celular o "+" fica no cabeçalho; o botão flutuante some e o menu abre logo abaixo do topo. */
   .app:has(> .main[data-route="financas"]) > .finance-quick-control {
-    bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px));
+    top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-2));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: auto;
   }
+  .app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-fab-trigger { display: none; }
   .app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-quick-actions-menu {
-    bottom: calc(var(--nav-h) + 16px + 56px + 12px + env(safe-area-inset-bottom, 0px));
-  }
-  .app:has(> .main[data-route="financas"]) .topbar .finance-nav-create-trigger {
-    visibility: hidden;
+    top: 0;
+    bottom: auto;
   }
 }
