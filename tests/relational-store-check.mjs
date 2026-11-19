@@ -68,6 +68,12 @@ const taskIntegrationKeysMigration = await readFile(
 assert.match(taskIntegrationKeysMigration, /alter column group_key type text/i);
 assert.match(taskIntegrationKeysMigration, /alter column group_title type text/i);
 assert.doesNotMatch(taskIntegrationKeysMigration, /update\s+public\.tasks/i);
+const legacyTaskMfaPolicyMigration = await readFile(
+  new URL('../supabase/migrations/20261118010000_tasks_legacy_mfa_policy.sql', import.meta.url),
+  'utf8',
+);
+assert.match(legacyTaskMfaPolicyMigration, /drop policy if exists "Owners with MFA access" on public\.tasks/i);
+assert.match(legacyTaskMfaPolicyMigration, /for all to authenticated[\s\S]*auth\.uid\(\).*user_id[\s\S]*with check/i);
 const checkinsMigration = await readFile(
   new URL('../supabase/migrations/20261105100000_daily_checkins.sql', import.meta.url),
   'utf8',
