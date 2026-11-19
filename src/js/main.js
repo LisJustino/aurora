@@ -2897,11 +2897,23 @@ function showMoreResults(name, selector, renderResults) {
 function filteredTasks() {
   return selectFilteredTasks(S.tasks, ui.filters, today(), { normalize: norm, orderOf });
 }
+/* Eventos de hoje das agendas Google conectadas: o mesmo que o Calendário mostra, para a lista ter tudo de hoje. */
+function todayCalendarEvents() {
+  const { f, q } = ui.filters;
+  if (f !== 'todas' && f !== 'pendentes') return [];
+  const query = norm(q.trim());
+  return connectedGoogleCalendarAccounts()
+    .flatMap((account) => account.events)
+    .filter((event) => event.day === today() && (!query || norm(`${event.title} ${event.calendarName}`).includes(query)))
+    .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
+}
+const calendarEventsList = (events) => h`<ul class="google-calendar-events">${events.map((event) => h`<li><time>${event.time}</time><span class="grow"><b class="user-value">${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`;
 function taskListHtml() {
   const all = filteredTasks(), { f, sort } = ui.filters, tdy = today();
+  const events = todayCalendarEvents();
   const page = listPage('tasks', JSON.stringify([f, ui.filters.q, sort]));
   const r = all.slice(0, page.limit);
-  if (!r.length) {
+  if (!r.length && !events.length) {
     const hasTasks = S.tasks.length > 0;
     const hasFilters = f !== 'todas' || ui.filters.q.trim() !== '';
     const actions = hasTasks
@@ -2920,9 +2932,9 @@ function taskListHtml() {
   const more = all.length > r.length
     ? h`<p class="small muted">Mostrando ${r.length} de ${all.length} tarefas</p><button type="button" class="btn" data-action="tasks-show-more">Mostrar mais tarefas</button>`
     : '';
-  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`<ul class="list">${r.map(taskRow)}</ul>${more}`;
+  if (!(sort === 'prazo' && (f === 'todas' || f === 'pendentes' || f.startsWith('etq:')))) return h`${events.length ? h`<section class="grp"><h3 class="gh">Eventos de hoje<span class="n">${events.length}</span></h3>${calendarEventsList(events)}</section>` : ''}${r.length ? h`<ul class="list">${r.map(taskRow)}</ul>` : ''}${more}`;
   const G = [['Atrasadas', 'bad', (t) => !t.done && t.dueDate && t.dueDate < tdy], ['Hoje', '', (t) => !t.done && t.dueDate === tdy], ['Próximas', '', (t) => !t.done && t.dueDate && t.dueDate > tdy], ['Sem data', '', (t) => !t.done && !t.dueDate], ['Concluídas', '', (t) => t.done]];
-  return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); return it.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length}</span></h3><ul class="list">${it.map(taskRow)}</ul></section>` : ''; })}</div>${more}`;
+  return h`<div class="task-results-groups">${G.map(([l, c, fn]) => { const it = r.filter(fn); const ev = l === 'Hoje' ? events : []; return it.length || ev.length ? h`<section class="grp"><h3 class="gh ${c}">${l}<span class="n">${all.filter(fn).length + ev.length}</span></h3>${ev.length ? calendarEventsList(ev) : ''}${it.length ? h`<ul class="list">${it.map(taskRow)}</ul>` : ''}</section>` : ''; })}</div>${more}`;
 }
 function googleCalendarSettingsPanel() {
   const state = ui.googleCalendar;
@@ -5503,7 +5515,7 @@ const ACTIONS = {
     ui.annualGoalDraft = null;
     render();
     if (focusTab) requestAnimationFrame(() => document.getElementById(`plan-tab-${ui.planView}`)?.focus());
-    if (ui.planView === 'calendario') {
+    if (ui.planView === 'calendario' || (ui.planView === 'lista' && ui.taskCal === today().slice(0, 7))) {
       const staleAccounts = connectedGoogleCalendarAccounts()
         .filter((account) => account.loadedMonth !== ui.taskCal)
         .map((account) => account.id);
