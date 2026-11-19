@@ -1,5 +1,6 @@
 
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
 import { addDays, addMonths, isDay, normalizeDay, today } from '../src/js/utils/dates.js';
@@ -61,10 +62,6 @@ import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, pale
 import { renderPublicHeader } from '../src/js/features/appearance/public-controls.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
-import {
-  buildTaskPushReminders,
-  buildWeeklyReviewPushReminder,
-} from '../src/js/features/push/task-reminders.js';
 import { matchCategoryRule, normalizeCategoryRules } from '../src/js/features/finance/category-rules.js';
 import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
@@ -126,6 +123,7 @@ import {
   PROFILE_AVATAR_COLORS,
   PROFILE_GREETING_STYLES,
 } from '../src/js/features/profile/model.js';
+import { isProfileAvatarImageData, PROFILE_AVATAR_MAX_BYTES } from '../src/js/features/profile/avatar-image.js';
 import { canAccessCycle } from '../src/js/features/cycle/access.js';
 import {
   defaultHomeLayout,
@@ -162,11 +160,6 @@ import {
   MAX_CYCLE_LOG_RANGE_DAYS,
   MAX_CYCLE_PERIOD_DAYS,
 } from '../src/js/features/cycle/period.js';
-import {
-  BACKUP_ACTIVITY_THRESHOLD,
-  BACKUP_REMINDER_DAYS,
-  backupReminderStatus,
-} from '../src/js/features/backup/reminder.js';
 import { renderLanding } from '../src/js/features/landing/view.js';
 import { renderHomeView } from '../src/js/features/home/view.js';
 import { renderCycleView } from '../src/js/features/cycle/view.js';
@@ -201,7 +194,7 @@ const test = (name, run) => {
   }
 };
 
-test('convite de feedback respeita os cinco dias e usa envio de e-mail opcional', () => {
+test('convite de feedback respeita os cinco dias e direciona para o formulário no app', () => {
   const now = Date.UTC(2026, 0, 1);
   const nextAt = feedbackPromptNextAt(now);
   if (Date.parse(nextAt) !== now + FEEDBACK_PROMPT_INTERVAL_MS
@@ -213,16 +206,15 @@ test('convite de feedback respeita os cinco dias e usa envio de e-mail opcional'
     || !isValidFeedbackPromptNextAt(nextAt)
     || !isValidFeedbackPromptNextAt(null)
     || isValidFeedbackPromptNextAt('data inválida')
-    || !/^mailto:lisjustino@gmail\.com\?subject=/.test(feedbackSuggestionHref())
-    || decodeURIComponent(feedbackSuggestionHref().split('subject=')[1]) !== 'Sugestão sobre o Aurora') {
+    || feedbackSuggestionHref() !== '/config?section=account') {
     throw new Error('O agendamento, a validação ou o link de sugestão está incorreto.');
   }
   const prompt = renderFeedbackPrompt().s;
   if (!prompt.includes('Está gostando do Aurora?')
     || !prompt.includes('data-action="feedback-prompt-dismiss"')
-    || !prompt.includes('href="mailto:lisjustino@gmail.com?subject=')
-    || !prompt.includes('A mensagem só será enviada por você.')) {
-    throw new Error('O convite deve oferecer avaliação, adiamento e e-mail voluntário.');
+    || !prompt.includes('href="/config?section=account"')
+    || !prompt.includes('Sugerir uma melhoria')) {
+    throw new Error('O convite deve oferecer avaliação, adiamento e acesso ao formulário no app.');
   }
   let invalidNowRejected = false;
   try {
@@ -369,8 +361,9 @@ test('Planejar mantém Calendário acessível junto às outras visualizações',
   }
 });
 
-test('Início prioriza a captura rápida e o estado vazio não duplica a ação principal', () => {
+test('Início aplica visibilidade e ordem dos blocos sem duplicar a ação principal', () => {
   let emptyArgs;
+  const defaultBlockOrder = defaultHomeLayout().order;
   const model = {
     name: '',
     profileAppearance: {},
@@ -398,7 +391,7 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     openCompleted: false,
     financeAccountsCount: 0,
     showHomeBlock: () => true,
-    homeBlockStyle: () => '',
+    homeBlockStyle: (id) => `style="order:${defaultBlockOrder.indexOf(id)}"`,
   };
   const renderers = {
     areaGuideButton: () => '',
@@ -410,7 +403,6 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     homeFirstSteps: () => '',
     homeHabitCheckins: () => 'HABITS',
     homeInboxReminder: () => '',
-    homeUpcomingBill: () => '',
     homeUpcomingTasks: () => 'UPCOMING',
     profileAvatarMarkup: () => '',
     sampleBanner: () => '',
@@ -425,9 +417,13 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     throw new Error('A Home não deve exibir a seção Mais do Início.');
   }
   if (quickIndex < 0 || todayIndex < 0 || habitsIndex < 0 || summaryIndex < 0
-    || !(html.indexOf('class="home-head"') < summaryIndex
-      && summaryIndex < quickIndex && quickIndex < todayIndex && todayIndex < habitsIndex)) {
-    throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
+    || ![
+      ['home-today-block', 'today'],
+      ['home-habits-block', 'habits'],
+      ['home-day-summary card', 'summary'],
+      ['card surface-open home-quick-card', 'quick'],
+    ].every(([className, id]) => html.includes(`class="${className}" style="order:${defaultBlockOrder.indexOf(id)}"`))) {
+    throw new Error('A Home deve aplicar a ordem configurada aos blocos.');
   }
   if (!html.includes('aria-label="Tarefas, 2 de 3 feitas"')
     || !html.includes('aria-label="Hábitos, 1 de 2 feitos, 1 faltando"')
@@ -440,6 +436,23 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     || !html.includes('UPCOMING')
     || html.includes('href="/ciclo"')) {
     throw new Error('A Home deve apresentar dados acessíveis, captura configurável e ocultar Ciclo sem consentimento.');
+  }
+  for (const [id, selector] of [
+    ['summary', 'home-day-summary'],
+    ['quick', 'home-quick-card'],
+    ['today', 'home-today-block'],
+    ['habits', 'home-habits-block'],
+  ]) {
+    const hiddenBlockHtml = renderHomeView({
+      ...model,
+      showHomeBlock: (blockId) => blockId !== id,
+    }, renderers).s;
+    if (hiddenBlockHtml.includes(selector)) {
+      throw new Error(`O bloco ${id} deve desaparecer quando desativado.`);
+    }
+    if (id === 'today' && (hiddenBlockHtml.includes('UPCOMING') || hiddenBlockHtml.includes('home-week-progress'))) {
+      throw new Error('Ocultar Hoje também deve ocultar os próximos compromissos e o progresso semanal.');
+    }
   }
   const cycleHtml = renderHomeView({
     ...model,
@@ -506,7 +519,8 @@ test('seleção de tarefas preserva filtros, ordenação e dados originais', () 
   if (select('atrasadas') !== 'Revisão' || select('proximas') !== 'Próxima'
     || select('caixa') !== 'Sem data' || select('etq:Trabalho') !== 'Revisão'
     || select('todas', 'reuniao') !== 'Sem data'
-    || select('concluidas', '', 'recentes') !== 'Antiga,Feita'
+    || select('todas', '', 'prazo') !== 'Revisão,Próxima,Sem data,Feita'
+    || select('concluidas', '', 'recentes') !== 'Feita'
     || select('pendentes', '', 'prioridade') !== 'Próxima,Revisão,Sem data') {
     throw new Error('Filtros ou ordenação de tarefas foram alterados.');
   }
@@ -815,36 +829,6 @@ test('revisão semanal inclui atrasos antigos e tarefas priorizadas da próxima 
   equal(review.nextWeek.tasks[0].id, 'next-week');
 });
 
-test('Push de tarefas envia apenas horários futuros sem título e limita o lote', () => {
-  const now = new Date(2026, 10, 26, 10, 0).getTime();
-  const reminders = buildTaskPushReminders([
-    { title: 'Tarefa privada posterior', dueDate: '2026-11-27', time: '12:00', remind: 10 },
-    { title: 'Outra tarefa privada', dueDate: '2026-11-27', time: '11:30', remind: 30 },
-    { title: 'Tarefa vencida', dueDate: '2026-11-26', time: '09:00', remind: 0 },
-    { title: 'Tarefa concluída', done: true, dueDate: '2026-11-27', time: '13:00', remind: 0 },
-  ], now);
-  equal(JSON.stringify(reminders.map(({ id }) => id)), JSON.stringify(['task-1', 'task-0']));
-  ok(reminders.every((reminder) => Object.keys(reminder).sort().join(',') === 'at,id'));
-  equal(JSON.stringify(reminders).includes('privada'), false);
-  const manyTasks = Array.from({ length: 101 }, (_, index) => ({
-    dueDate: '2026-11-27', time: '12:00', remind: 0, title: `Privada ${index}`,
-  }));
-  equal(buildTaskPushReminders(manyTasks, now).length, 100);
-});
-
-test('lembrete semanal fica desligado por padrão e agenda o próximo domingo às 18h', () => {
-  const sunday = new Date(2026, 10, 15, 17, 0).getTime();
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  equal(buildWeeklyReviewPushReminder(false, sunday, timeZone).length, 0);
-  const [reminder] = buildWeeklyReviewPushReminder(true, sunday, timeZone);
-  equal(reminder.id, 'weekly-review');
-  equal(reminder.at, new Date(2026, 10, 15, 18, 0).getTime());
-  equal(reminder.repeat, 'weekly');
-  equal(reminder.time, '18:00');
-  equal(reminder.timeZone, timeZone);
-  const [nextReminder] = buildWeeklyReviewPushReminder(true, new Date(2026, 10, 15, 19, 0).getTime(), timeZone);
-  equal(nextReminder.at, new Date(2026, 10, 22, 18, 0).getTime());
-});
 
 test('regras de categoria são validadas e aplicadas por primeira correspondência sem diferenciar acentos', () => {
   const rules = normalizeCategoryRules([
@@ -1001,25 +985,6 @@ test('campo de peso aceita números e um separador decimal, removendo letras', (
   equal(filterWeightInput('70,2.3'), '70,23');
 });
 
-test('lembrete de backup considera prazo e volume de registros desde o último backup', () => {
-  const day = 86_400_000;
-  const now = 40 * day;
-  equal(backupReminderStatus({ activityAt: [], now }), null);
-  equal(backupReminderStatus({ activityAt: [now - 13 * day], now }), null);
-  equal(backupReminderStatus({ activityAt: [now - 14 * day], now }).days, BACKUP_REMINDER_DAYS);
-
-  const activityAt = Array.from({ length: BACKUP_ACTIVITY_THRESHOLD }, (_, index) => now - index);
-  const byActivity = backupReminderStatus({ lastBackupAt: now - day, activityAt, now });
-  equal(byActivity.byActivity, true);
-  equal(byActivity.activities, BACKUP_ACTIVITY_THRESHOLD);
-
-  const recentBackup = backupReminderStatus({
-    lastBackupAt: now - day,
-    activityAt: [now - 2 * day],
-    now,
-  });
-  equal(recentBackup, null);
-});
 
 test('a lixeira valida registros e rejeita identificadores duplicados', () => {
   const record = { collection: 'tasks', key: 'task-1', index: 0, value: { id: 'task-1' } };
@@ -2091,7 +2056,7 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  equal(SUGGESTED_HABITS.length, 100);
+  equal(SUGGESTED_HABITS.length, 98);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
   for (const id of ['water', 'reading', 'training', 'pause', 'dental-care', 'active-break', 'study', 'connect', 'mindful-meal', 'make-bed', 'five-minute-tidy', 'plan-rest', 'walk-with-dog', 'learn-language', 'weekly-reflection', 'try-new-recipe', 'clear-desk', 'weekly-reset', 'wash-face', 'yoga-at-home', 'brain-dump', 'prepare-lunch', 'check-daily-budget']) {
     ok(SUGGESTED_HABITS.some((item) => item.id === id), id);
@@ -2155,6 +2120,54 @@ test('o tema padrão do Aurora é claro', () => {
   equal(LOOK_DEFAULT.mode, 'light');
 });
 
+test('a tela inicial acompanha o tema do sistema até a aparência da conta carregar', () => {
+  const attributes = {};
+  const root = {
+    style: {},
+    setAttribute(name, value) { attributes[name] = value; },
+  };
+  const systemTheme = {
+    matches: true,
+    addEventListener(_name, listener) { this.listener = listener; },
+  };
+  const browserWindow = { matchMedia: () => systemTheme };
+  let manifestHref = 'https://aurora.test/manifest.webmanifest';
+  const manifest = {
+    get href() { return manifestHref; },
+    set href(value) { manifestHref = String(value); },
+  };
+  const statusBar = {};
+  const source = readFileSync(new URL('../public/loading-appearance.js', import.meta.url), 'utf8');
+
+  runInNewContext(source, {
+    URL,
+    window: browserWindow,
+    document: {
+      documentElement: root,
+      querySelector(selector) {
+        if (selector === 'link[rel="manifest"]') return manifest;
+        if (selector === 'meta[name="apple-mobile-web-app-status-bar-style"]') return statusBar;
+        return null;
+      },
+    },
+  });
+
+  equal(attributes['data-theme'], 'dark');
+  equal(root.style.colorScheme, 'dark');
+  equal(root.style.backgroundColor, '#1c1b19');
+  equal(manifestHref, 'https://aurora.test/manifest-dark.webmanifest');
+
+  browserWindow.auroraManifestTheme.setMode('light');
+  equal(attributes['data-theme'], 'light');
+  equal(root.style.backgroundColor, '#f5f3ed');
+  equal(manifestHref, 'https://aurora.test/manifest-light.webmanifest');
+
+  browserWindow.auroraManifestTheme.setMode('auto');
+  systemTheme.matches = false;
+  systemTheme.listener();
+  equal(attributes['data-theme'], 'light');
+});
+
 test('a paleta Rosé acompanha as cores do gradiente da logo', () => {
   const logo = readFileSync(new URL('../icons/favicon.svg', import.meta.url), 'utf8');
   const logoColors = [...logo.matchAll(/stop-color="(#[0-9a-f]{6})"/gi)].map((match) => match[1].toLowerCase());
@@ -2212,6 +2225,16 @@ test('aparência de perfil valida opções sem descartar preferências futuras',
   truthy(PROFILE_GREETING_STYLES.some(([id]) => id === 'dynamic'));
 });
 
+test('foto de perfil aceita apenas imagem JPEG dentro do limite salvo', () => {
+  const validImage = 'data:image/jpeg;base64,/9j/AAAA';
+  truthy(isProfileAvatarImageData(validImage));
+  equal(normalizeProfileAppearance({ avatarImage: validImage }).avatarImage, validImage);
+  equal(isProfileAvatarImageData('data:image/jpeg;base64,AAAA'), false);
+  equal(isProfileAvatarImageData('data:image/svg+xml;base64,PHN2Zz4='), false);
+  equal(isProfileAvatarImageData(`data:image/jpeg;base64,${'A'.repeat(Math.ceil((PROFILE_AVATAR_MAX_BYTES + 3) / 3) * 4)}`), false);
+  equal(Object.hasOwn(normalizeProfileAppearance({ avatarImage: 'invalid' }), 'avatarImage'), false);
+});
+
 test('Ciclo só é acessível para mulheres, exceto na demonstração fictícia', () => {
   equal(canAccessCycle({ sex: '' }), false);
   equal(canAccessCycle({ sex: 'm' }), false);
@@ -2219,6 +2242,17 @@ test('Ciclo só é acessível para mulheres, exceto na demonstração fictícia'
   equal(canAccessCycle({ sex: 'n' }), false);
   equal(canAccessCycle({ sex: 'f' }), true);
   equal(canAccessCycle({ sex: '' }, true), true);
+});
+
+test('Home só oferece Ciclo nas áreas opcionais para perfis elegíveis', () => {
+  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function areaTiles() {');
+  const end = source.indexOf('\n/* ---------- Ciclo ---------- */', start);
+  if (start < 0 || end <= start) throw new Error('Não foi possível localizar as áreas opcionais da Home.');
+  const areaTiles = source.slice(start, end);
+  if (!areaTiles.includes('canAccessCycle(S.settings.profile, ui.preview)')) {
+    throw new Error('A Home não deve oferecer Ciclo para perfis sem acesso à área.');
+  }
 });
 
 test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {

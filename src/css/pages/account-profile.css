@@ -24,6 +24,28 @@
   color: var(--profile-avatar-color);
 }
 .profile-greeting-avatar .ic { width: 22px; height: 22px; }
+.profile-avatar-image { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.profile-menu-avatar,
+.profile-menu-item-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.profile-menu-avatar { width: 26px; height: 26px; }
+.profile-menu-avatar .ic { width: 20px; height: 20px; }
+.profile-menu-item-avatar { width: 24px; height: 24px; }
+.profile-menu-item-avatar .ic { width: 18px; height: 18px; }
+.profile-avatar-upload-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.profile-avatar-upload-help {
+  max-width: 76ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.profile-avatar-upload-status { margin: 0; color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 .profile-appearance-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

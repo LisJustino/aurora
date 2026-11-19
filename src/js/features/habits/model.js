@@ -68,13 +68,13 @@ const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
     'learn-language', 'practice-instrument',
   ]),
   home: Object.freeze([
-    'water', 'skincare', 'hair-care', 'personal-hygiene', 'sleep', 'medication',
+    'water', 'skincare', 'hair-care', 'sleep', 'medication',
     'reading', 'meditate', 'journal', 'gratitude', 'screens', 'pause', 'fruit',
     'cook', 'meal-plan', 'tidy', 'morning-plan', 'evening-routine', 'dental-care',
     'creative-time', 'mindful-meal', 'prepare-snack', 'make-bed', 'review-calendar',
     'organize-bag', 'care-for-plant', 'five-minute-tidy', 'prepare-for-bed',
     'check-in-with-yourself', 'plan-rest', 'study', 'weekly-reflection',
-    'screen-free-break', 'try-new-recipe', 'prepare-breakfast', 'add-vegetable',
+    'screen-free-break', 'try-new-recipe', 'prepare-breakfast',
     'make-grocery-list', 'clear-desk', 'wash-dishes', 'set-out-clothes',
     'keys-in-place', 'organize-digital-files', 'weekly-reset',
     'wash-face', 'use-floss', 'moisturize-skin', 'care-for-hands',
@@ -176,8 +176,7 @@ export function isValidHabit(habit) {
     && (habit.icon === undefined || (typeof habit.icon === 'string' && /^[A-Za-z]{2,20}$/.test(habit.icon)))
     && (habit.color === undefined || (typeof habit.color === 'string' && HEX_COLOR.test(habit.color)))
     && (habit.weeklyGoal === undefined || (Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1 && habit.weeklyGoal <= 7))
-    && (habit.waterGoalMl === undefined || isValidWaterGoalMl(habit.waterGoalMl))
-    && (habit.remind === undefined || (typeof habit.remind === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(habit.remind)));
+    && (habit.waterGoalMl === undefined || isValidWaterGoalMl(habit.waterGoalMl));
 }
 
 function optionalDates(habit, key) {

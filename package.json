@@ -15,21 +15,19 @@
     "format:check": "prettier --check package.json .github/workflows/tests.yml .github/dependabot.yml \"src/js/features/push/**/*.js\"",
     "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
     "visuals:generate": "node scripts/generate-visual-screenshots.mjs && node scripts/generate-social-image.mjs",
-    "test": "node tests/run.js && node tests/home-day-summary-check.mjs && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs && node tests/google-calendar-server-check.mjs && node tests/push-notification-startup-check.mjs && node tests/release-notes-check.mjs",
+    "test": "node tests/run.js && node tests/home-day-summary-check.mjs && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs && node tests/google-calendar-server-check.mjs && node tests/release-notes-check.mjs",
     "test:seo": "node tests/seo-check.mjs",
     "test:e2e:ci": "node tests/e2e/ci-smoke.cjs",
     "test:supabase:concurrency": "node tests/supabase-concurrency-check.mjs",
     "test:e2e:google-calendar": "node tests/e2e/google-calendar.cjs"
   },
   "dependencies": {
-    "@capacitor-community/fcm": "^8.2.2",
     "@capacitor/android": "^8.6.0",
     "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.6.0",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.6.0",
-    "@capacitor/push-notifications": "^8.1.3",
     "@capacitor/status-bar": "^8.0.4",
     "@capawesome/capacitor-badge": "^8.0.4",
     "@supabase/supabase-js": "2.57.4"

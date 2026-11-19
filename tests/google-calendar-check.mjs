@@ -19,7 +19,6 @@ const identity = {
             options.callback({
               access_token: 'test-calendar-token',
               expires_in: 3600,
-              scope: GOOGLE_CALENDAR_SCOPE,
             });
           },
         };
@@ -178,7 +177,7 @@ let codeOptions;
 const codeIdentity = {
   accounts: { oauth2: { initCodeClient(options) {
     codeOptions = options;
-    return { requestCode: () => options.callback({ code: 'auth-code-1', scope: `openid email ${GOOGLE_CALENDAR_SCOPE}` }) };
+    return { requestCode: () => options.callback({ code: 'auth-code-1' }) };
   } } },
 };
 let refreshCount = 0;

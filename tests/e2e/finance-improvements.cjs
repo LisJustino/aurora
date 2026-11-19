@@ -549,17 +549,25 @@ const swipe = async (page, locator, direction) => {
   await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).click();
   const selectedCard = await page.locator('#dlg [data-dlg="accountId"] option:checked').textContent();
   check(/cartão|crédito/i.test(selectedCard), 'despesa de cartão seleciona uma conta de crédito');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'despesa de cartão oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="toAccountId"]').count() === 1, 'atalho de transferência abre origem e destino');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'transferência oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Receita', exact: true }).click();
   check(await page.locator('.finance-transaction-type button[data-k="in"]').getAttribute('aria-pressed') === 'true', 'atalho de receita abre o tipo correto');
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'receita oferece continuar e salvar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await openFinanceQuickActions();
   await quickMenu.getByRole('button', { name: 'Despesa', exact: true }).click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+    'despesa oferece continuar e salvar');
   await page.locator('#dlg [data-dlg="settledDate"]').waitFor();
   const recentAccountOptions = await page.locator('#dlg [data-dlg="accountId"] option').evaluateAll((options) => options.map((option) => option.value));
   const recentCategoryOptions = await page.locator('#dlg [data-dlg="category"] option').evaluateAll((options) => options.map((option) => option.value));
@@ -847,6 +855,36 @@ const swipe = async (page, locator, direction) => {
     && (await budgetAlert.first().textContent()).includes('pelo menos 80%')
     && (await page.locator('.budget-list [data-c="Alimentação personalizada"]').getAttribute('aria-label')).includes('80%'),
   'orçamento mostra aviso acessível ao atingir 80% sem ultrapassar o limite');
+
+  await page.locator('.fin-section-option[data-t="contas"]').click();
+  await page.locator('.finance-account-option[data-t="contas"]').click();
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 0,
+    'cadastro de conta não oferece continuar e salvar');
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+
+  await openFinanceQuickActions();
+  await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
+  const defaultAmountValue = await page.locator('#dlg [data-dlg="amount"]').inputValue();
+  await page.locator('#dlg [data-dlg="amount"]').fill('12,34');
+  await page.locator('#dlg [data-dlg="desc"]').fill('Teste continuar e salvar');
+  await page.locator('#dlg [data-action="tx-save-and-another"]').click();
+  check(await page.locator('#dlg [data-dlg="amount"]').inputValue() === defaultAmountValue
+    && await page.locator('#dlg [data-dlg="desc"]').inputValue() === ''
+    && await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 1,
+  'continuar e salvar registra o lançamento e limpa os campos para outro');
+  await page.setViewportSize({ width: 320, height: 844 });
+  check(await page.locator('#dlg .dlg').evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth),
+    'rodapé com continuar e salvar cabe no diálogo em 320 px');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  const continuedTransaction = page.locator('#tx-results .fr').filter({ hasText: 'Teste continuar e salvar' });
+  check(await continuedTransaction.count() === 1, 'lançamento salvo ao continuar aparece em Movimentações');
+  await continuedTransaction.locator('[data-action="edit-tx"]').click();
+  check(await page.locator('#dlg [data-action="tx-save-and-another"]').count() === 0,
+    'edição de lançamento não oferece continuar e salvar');
+  await page.locator('#dlg .head [data-action="dlg-close"]').click();
 
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 

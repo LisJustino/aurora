@@ -159,7 +159,7 @@ export function createGoogleCalendarService({
       if (tokenProvider && !retried) return request(url, true);
       throw new Error('A autorização do Google Calendar expirou ou foi revogada. Conecte novamente.');
     }
-    if (response.status === 403) throw new Error('O Google não autorizou a leitura deste calendário.');
+    if (response.status === 403) throw new Error('O Google não autorizou a leitura deste calendário. Reconecte e aceite a permissão solicitada.');
     if (response.status === 429) throw new Error('O Google Calendar recebeu muitas solicitações. Aguarde e tente novamente.');
     if (!response.ok) throw new Error('O Google Calendar está indisponível. Tente novamente.');
 
@@ -250,14 +250,12 @@ export function createGoogleCalendarService({
                   : 'Não foi possível autorizar a leitura do Google Calendar.');
                 return;
               }
-              const scopes = typeof response?.scope === 'string' ? response.scope.split(/\s+/) : [];
               const expiresIn = Number(response?.expires_in);
               if (typeof response?.access_token !== 'string'
                 || !response.access_token
-                || !scopes.includes(GOOGLE_CALENDAR_SCOPE)
                 || !Number.isFinite(expiresIn)
                 || expiresIn <= 0) {
-                fail('O Google não confirmou a permissão necessária para ler os calendários.');
+                fail('O Google não devolveu uma autorização válida para ler os calendários.');
                 return;
               }
               settled = true;
@@ -297,9 +295,9 @@ export function createGoogleCalendarService({
                   : 'Não foi possível autorizar a leitura do Google Calendar.');
                 return;
               }
-              const scopes = typeof response?.scope === 'string' ? response.scope.split(/\s+/) : [];
-              if (typeof response?.code !== 'string' || !response.code || !scopes.includes(GOOGLE_CALENDAR_SCOPE)) {
-                fail('O Google não confirmou a permissão necessária para ler os calendários.');
+              // O callback do fluxo por código pode omitir `scope`; o servidor verifica o acesso efetivo antes de persistir.
+              if (typeof response?.code !== 'string' || !response.code) {
+                fail('O Google não devolveu um código de autorização válido.');
                 return;
               }
               settled = true;

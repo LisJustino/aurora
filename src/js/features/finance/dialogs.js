@@ -13,6 +13,7 @@ export function createFinanceDialogViews(dependencies) {
 
 function transaction() {
   const d = ui.dlg.d, accs = S.finance.accounts, edit = !!d.id, tr = d.kind === 'tr', acc = accById(d.accountId);
+  const canContinue = !edit && ['out', 'in', 'tr'].includes(d.kind);
   const originalDate = S.finance.tx.find((item) => item.id === d.id)?.date;
   const canAnticipate = !!d.groupId && anticipationCandidates(d.groupId, originalDate).length > 0;
   const hasInstallmentInterest = d.kind === 'out' && (edit ? !!d.groupId : d.repeat === 'parcel');
@@ -50,6 +51,6 @@ function transaction() {
           : 'O total será dividido igualmente; eventuais centavos restantes ficam na primeira parcela da série.'}</p>
       </fieldset>` : ''}${d.repeat === 'fixed' ? h`<p class="fine full">Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.</p>` : ''}` : ''}
     </form>`,
-    h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar' : 'Adicionar'}</button>`);
+    h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>${canContinue ? h`<button class="btn ghost" type="submit" form="dlgform" data-action="tx-save-and-another">Continuar e salvar</button>` : ''}`}<button class="btn primary" type="submit" form="dlgform" data-action="tx-save">${edit ? 'Salvar' : 'Adicionar'}</button>`);
 }
 }

@@ -234,6 +234,10 @@
 }
 
 @container (max-width: 620px) {
+  .main[data-route="config"] {
+    --settings-card-padding: var(--space-4);
+  }
+
   .main[data-route="config"] .profile-settings-fields {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -321,18 +325,16 @@
   .main[data-route="config"] .settings-link-copy { width: auto; align-items: flex-start; }
   .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); }
   .main[data-route="config"] .settings-link-copy small { display: none; }
-  .main[data-route="config"] .settings-content > .card,
-  .main[data-route="config"] .settings-content > .profile-settings-container > .card,
-  .main[data-route="config"] .settings-content > .settings-account-list > .card {
-    --settings-card-padding: var(--space-4);
-  }
 }
 
 @media (width <= 480px) {
+  .main[data-route="config"] {
+    --settings-card-padding: var(--space-4);
+  }
+
   .main[data-route="config"] .settings-content > .card,
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {
-    --settings-card-padding: var(--space-3);
     border-radius: var(--r-card);
   }
   .main[data-route="config"] .settings-section-heading > p { font-size: var(--text-sm); }
