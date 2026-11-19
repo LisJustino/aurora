@@ -68,8 +68,8 @@
 }
 
 :root[data-readable="true"] {
-  --font: Arial, Verdana, sans-serif;
-  --font-h: Arial, Verdana, sans-serif;
+  --font: var(--font-sans);
+  --font-h: var(--font-sans);
   --leading-body: 1.75;
 }
 :root[data-readable="true"] body { letter-spacing: .02em; }

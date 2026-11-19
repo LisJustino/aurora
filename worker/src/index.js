@@ -435,6 +435,15 @@ function weeklyReviewNotification() {
   return { kind: 'weekly-review' };
 }
 
+function logPushAttempt(notification, result, status = null) {
+  const kind = ['habit-reminder', 'task-reminder', 'weekly-review'].includes(notification?.kind)
+    ? notification.kind
+    : 'unknown';
+  const entry = JSON.stringify({ event: 'aurora_push_attempt', result, kind, status });
+  if (result === 'accepted_by_provider') console.info(entry);
+  else console.warn(entry);
+}
+
 function constantTimeEqual(left, right) {
   if (left.length !== right.length) return false;
   let difference = 0;
@@ -558,16 +567,19 @@ export class PomodoroAlarm {
       });
       const response = await fetch(subscription.endpoint, payload);
       if (response.status === 404 || response.status === 410 || response.status === 400) {
+        logPushAttempt(notification, response.status === 400 ? 'subscription_rejected' : 'subscription_expired', response.status);
         await this.storage.delete([
           'subscription', 'schedule', 'habitReminders', 'habitReminderAt', 'taskReminders', 'taskReminderAt',
         ]);
         await this.state.storage.deleteAlarm();
         return false;
       } else if (!response.ok) {
-        console.warn(`Push do Aurora rejeitado pelo serviço (${response.status}).`);
+        logPushAttempt(notification, 'provider_rejected', response.status);
+      } else {
+        logPushAttempt(notification, 'accepted_by_provider', response.status);
       }
     } catch {
-      console.warn('Não foi possível enviar um aviso Push do Aurora.');
+      logPushAttempt(notification, 'request_failed');
     }
     return true;
   }

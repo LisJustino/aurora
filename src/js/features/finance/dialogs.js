@@ -22,7 +22,7 @@ function transaction() {
   const kinds = [['out', 'Despesa'], ['in', 'Receita'], ['tr', 'Transferência']];
   const formSection = (label) => h`<h3 class="finance-form-section full">${label}</h3>`;
   const cats = catNames(d.kind === 'in' ? 'in' : 'out'), catList = cats.includes(d.category) || d.category === '__new' ? cats : [d.category, ...cats];
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}<i>.</i></h2>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? 'Editar lançamento' : 'Novo lançamento'}</h2>${closeBtn}</div>
     ${d.recId && recById(d.recId) ? h`<div class="notice">${icon('repeat', 18)}<span class="small grow">Faz parte de uma fixa mensal. Mudar aqui afeta só este mês.</span><button type="button" class="btn sm" data-action="rec-edit" data-id="${d.recId}">Editar fixa</button></div>` : ''}
     <div class="seg finance-transaction-type" role="group" aria-label="Tipo de lançamento">${kinds.map(([k, l]) => h`<button type="button" aria-pressed="${d.kind === k}" data-action="tx-kind" data-k="${k}">${l}</button>`)}</div>
     <form id="dlgform" class="form" data-form="dlg-tx">

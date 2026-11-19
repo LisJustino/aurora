@@ -1,135 +1,87 @@
-import { iconSvg as demoIcon } from '../../utils/icons.js';
-import { AREA_GUIDES } from '../area-guides.js';
 import { renderPublicHeader } from '../appearance/public-controls.js';
-import { initializeFaqDisclosure, renderFooterContent, renderSuggestionForm } from '../footer/view.js';
+import { initializeFaqDisclosure } from '../footer/view.js';
+import { iconSvg } from '../../utils/icons.js';
+import { APP_URL, demo, login, privacy, signup } from './links.js';
 import { renderLandingDemo, stopLandingDemo } from './demo.js';
-
-const phoneBrandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
 
 export { renderLandingDemo };
 
 const landingControllers = new WeakMap();
-const landingState = { tasks: null, area: 0, tutorialArea: 'inicio', suggestion: {} };
+const landingState = { tutorialArea: 'hoje' };
 const LANDING_TUTORIALS = [
   {
-    id: 'inicio',
-    title: 'Início',
-    description: 'Veja o resumo do dia, os atalhos e os próximos passos na tela inicial.',
-    poster: AREA_GUIDES.inicio.poster,
-    steps: ['Prioridades e avisos do dia', 'Tarefas rápidas e atalhos', 'Personalização dos blocos do painel'],
+    id: 'hoje',
+    title: 'Hoje',
+    icon: 'sun',
+    color: 'var(--area-plan)',
+    heading: 'O seu dia, numa tela só',
+    description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas, hábitos e os atalhos que escolheu deixar por perto.',
+    steps: ['Tarefas atrasadas e do dia em destaque', 'Anote algo novo sem sair da tela', 'Escolha quais blocos aparecem'],
+    image: '/src/assets/tutorials/inicio.webp',
+    alt: 'Tela inicial do Aurora com tarefas e atalhos para o dia.',
   },
   {
-    id: 'planejar',
-    title: 'Planejar',
-    description: 'Acompanhe tarefas por prazo e alterne entre lista, calendário e semana.',
-    poster: AREA_GUIDES.planejar.poster,
-    steps: ['Criar tarefas com prazo e prioridade', 'Alternar entre lista, calendário e semana', 'Buscar, filtrar e reorganizar tarefas'],
+    id: 'tarefas',
+    title: 'Tarefas',
+    icon: 'calendarCheck',
+    color: 'var(--area-plan)',
+    heading: 'Tire as pendências da cabeça',
+    description: 'Anote o que precisa fazer, com prazo e prioridade se quiser, e veja tudo em lista, calendário ou semana.',
+    steps: ['Prazo e prioridade em segundos', 'Lista, calendário ou visão da semana', 'Busca e filtros para achar qualquer coisa'],
+    image: '/src/assets/tutorials/planejar.webp',
+    alt: 'Tela de tarefas do Aurora com opções de lista, calendário e semana.',
   },
   {
     id: 'habitos',
     title: 'Hábitos',
-    description: 'Marque seus hábitos, revise a sequência e acompanhe a meta de água.',
-    poster: AREA_GUIDES.habitos.poster,
-    steps: ['Criar uma rotina ajustável', 'Registrar check-ins e dias pulados', 'Acompanhar sequência e meta de água'],
-  },
-  {
-    id: 'ciclo',
-    title: 'Ciclo',
-    description: 'Registre períodos e sintomas e consulte a visão do calendário.',
-    poster: AREA_GUIDES.ciclo.poster,
-    steps: ['Registrar períodos', 'Consultar calendário, sintomas e observações', 'Entender médias e estimativas informativas'],
+    icon: 'repeat',
+    color: 'var(--area-habits)',
+    heading: 'Hábitos que cabem na sua semana',
+    description: 'Escolha o que quer repetir e em quais dias. Quando a rotina mudar, é só ajustar.',
+    steps: ['Dias da semana para cada hábito', 'Marque o que fez ou pule um dia', 'Sequência e meta de água'],
+    image: '/src/assets/tutorials/habitos.webp',
+    alt: 'Tela de hábitos do Aurora com acompanhamento semanal.',
   },
   {
     id: 'financas',
     title: 'Finanças',
-    description: 'Cadastre contas e lançamentos manuais para acompanhar suas movimentações.',
-    poster: AREA_GUIDES.financas.poster,
-    steps: ['Cadastrar contas manualmente', 'Adicionar receitas e despesas', 'Transferir valores e acompanhar relatórios'],
+    icon: 'wallet',
+    color: 'var(--area-finances)',
+    heading: 'Saiba para onde vai o dinheiro',
+    description: 'Anote contas, receitas e despesas para acompanhar o que entra e o que sai. O Aurora não acessa seu banco.',
+    steps: ['Contas e saldos num só lugar', 'Receitas, despesas e transferências', 'Relatórios para entender o mês'],
+    image: '/src/assets/tutorials/financas.webp',
+    alt: 'Tela de finanças do Aurora com contas e lançamentos.',
+  },
+  {
+    id: 'ciclo',
+    title: 'Ciclo',
+    icon: 'heart',
+    color: 'var(--area-cycle)',
+    heading: 'Seu ciclo junto com o resto da rotina',
+    description: 'Anote períodos e sintomas e consulte datas e médias. É um acompanhamento informativo e as estimativas podem variar.',
+    steps: ['Início e fim de cada período', 'Sintomas e observações do dia', 'Calendário e médias do ciclo'],
+    image: '/src/assets/tutorials/ciclo.webp',
+    alt: 'Tela de Ciclo do Aurora com calendário e registros informativos.',
   },
 ];
-
-function landingTutorialSources() {
-  if (typeof window === 'undefined') return {};
-  return Object.fromEntries(LANDING_TUTORIALS.map(({ id }) => [id, { mp4: AREA_GUIDES[id].video }]));
-}
-
-function publicHeader() {
-  return renderPublicHeader();
-}
-
-function publicFooter({ demoAvailable = false } = {}) {
-  return `<footer class="app-footer public-footer site-footer">${renderFooterContent({ demoAvailable, includeFaq: false, pwaInstall: true })}</footer>`;
-}
 
 export function renderLanding(root) {
   landingControllers.get(root)?.();
   stopLandingDemo(root);
-  document.title = 'aurora. — tarefas, hábitos, finanças e ciclo';
+  document.title = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
   if (!root.querySelector?.('.public-site[data-prerendered]')) root.innerHTML = landingMarkup();
-  initializeLandingTaskMock(root);
-  initializeAreaSelector(root);
   initializeLandingTutorials(root);
   initializeFaqDisclosure(root);
 }
 
-function initializeAreaSelector(root) {
-  const selector = root.querySelector('[data-area-selector]');
-  const cards = [...root.querySelectorAll('.public-values > .public-value')];
-  if (!selector || cards.length === 0) return;
-  const buttons = [...selector.querySelectorAll('button')];
-  if (buttons.length !== cards.length) return;
-  const media = window.matchMedia('(max-width: 700px)');
-  let selected = landingState.area;
-  const update = () => {
-    selector.hidden = !media.matches;
-    cards.forEach((card, index) => {
-      card.hidden = media.matches && index !== selected;
-    });
-    buttons.forEach((button, index) => {
-      button.setAttribute('aria-pressed', String(index === selected));
-    });
-  };
-  const onClick = (event) => {
-    const button = event.target.closest('button');
-    const index = buttons.indexOf(button);
-    if (index < 0) return;
-    selected = index;
-    landingState.area = index;
-    update();
-  };
-  selector.addEventListener('click', onClick);
-  media.addEventListener('change', update);
-  const previousCleanup = landingControllers.get(root);
-  landingControllers.set(root, () => {
-    previousCleanup?.();
-    selector.removeEventListener('click', onClick);
-    media.removeEventListener('change', update);
-  });
-  update();
-}
-
 function initializeLandingTutorials(root) {
-  const section = root.querySelector('[data-landing-tutorials]');
+  const section = root.querySelector('[data-landing-areas]');
   if (!section) return;
   const tabs = [...section.querySelectorAll('[data-landing-tutorial-tab]')];
   const panels = [...section.querySelectorAll('[data-landing-tutorial-panel]')];
   if (!tabs.length || tabs.length !== panels.length) return;
-  let sources = null;
-  const prepareVideo = (panel) => {
-    if (!panel) return;
-    if (!sources) sources = landingTutorialSources();
-    const areaSources = sources[panel.dataset.landingTutorialPanel];
-    const video = panel.querySelector('video');
-    if (!areaSources || !video || video.dataset.tutorialLoaded === 'true') return;
-    video.poster = panel.dataset.tutorialPoster;
-    panel.querySelectorAll('[data-tutorial-source]').forEach((source) => {
-      const url = areaSources[source.dataset.tutorialSource];
-      if (url) source.src = url;
-    });
-    video.dataset.tutorialLoaded = 'true';
-    video.load();
-  };
-  const selectArea = (area, loadVideo = false) => {
+  const selectArea = (area) => {
     const activeTab = tabs.find((tab) => tab.dataset.landingTutorialTab === area);
     if (!activeTab) return;
     tabs.forEach((tab) => {
@@ -139,344 +91,207 @@ function initializeLandingTutorials(root) {
     });
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.landingTutorialPanel !== area;
-      const video = panel.querySelector('video');
-      if (panel.hidden && video && !video.paused) video.pause();
     });
-    const activePanel = panels.find((panel) => panel.dataset.landingTutorialPanel === area);
-    if (activePanel) activePanel.querySelector('video').poster = activePanel.dataset.tutorialPoster;
-    if (loadVideo) prepareVideo(panels.find((panel) => panel.dataset.landingTutorialPanel === area));
     landingState.tutorialArea = area;
-  };
-  const playVideo = async (button) => {
-    const panel = button.closest('[data-landing-tutorial-panel]');
-    const video = panel?.querySelector('video');
-    const status = panel?.querySelector('[data-landing-tutorial-status]');
-    if (!panel || !video || !status) return;
-    prepareVideo(panel);
-    status.hidden = true;
-    try {
-      await video.play();
-    } catch {
-      status.textContent = 'Não foi possível iniciar o vídeo. Tente novamente pelos controles.';
-      status.hidden = false;
-    }
   };
   const onClick = (event) => {
     if (!(event.target instanceof Element)) return;
-    const playButton = event.target.closest('[data-landing-tutorial-play]');
-    if (playButton && section.contains(playButton)) {
-      void playVideo(playButton);
-      return;
-    }
     const tab = event.target.closest('[data-landing-tutorial-tab]');
-    if (tab && tabs.includes(tab)) selectArea(tab.dataset.landingTutorialTab, true);
+    if (tab && tabs.includes(tab)) selectArea(tab.dataset.landingTutorialTab);
   };
   const onKeyDown = (event) => {
     if (!(event.target instanceof Element)) return;
     const tab = event.target.closest('[data-landing-tutorial-tab]');
     const index = tabs.indexOf(tab);
     if (index < 0) return;
-    const nextIndex = event.key === 'ArrowRight'
+    const nextIndex = event.key === 'ArrowRight' || event.key === 'ArrowDown'
       ? (index + 1) % tabs.length
-      : event.key === 'ArrowLeft'
+      : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
         ? (index - 1 + tabs.length) % tabs.length
-        : event.key === 'Home'
-          ? 0
-          : event.key === 'End'
-            ? tabs.length - 1
-            : -1;
+        : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
     if (nextIndex < 0) return;
     event.preventDefault();
     const nextTab = tabs[nextIndex];
-    selectArea(nextTab.dataset.landingTutorialTab, true);
+    selectArea(nextTab.dataset.landingTutorialTab);
     nextTab.focus();
   };
-  const videoListeners = [];
-  panels.forEach((panel) => {
-    const video = panel.querySelector('video');
-    const playButton = panel.querySelector('[data-landing-tutorial-play]');
-    const status = panel.querySelector('[data-landing-tutorial-status]');
-    if (!video || !playButton || !status) return;
-    const showPlayButton = () => { playButton.hidden = false; };
-    const hidePlayButton = () => { playButton.hidden = true; };
-    const showVideoError = () => {
-      status.textContent = 'Este vídeo não pode ser reproduzido neste navegador.';
-      status.hidden = false;
-    };
-    video.addEventListener('playing', hidePlayButton);
-    video.addEventListener('pause', showPlayButton);
-    video.addEventListener('error', showVideoError);
-    videoListeners.push(
-      [video, 'playing', hidePlayButton],
-      [video, 'pause', showPlayButton],
-      [video, 'error', showVideoError],
-    );
-  });
   section.addEventListener('click', onClick);
   section.addEventListener('keydown', onKeyDown);
-  const previousCleanup = landingControllers.get(root);
   landingControllers.set(root, () => {
-    previousCleanup?.();
     section.removeEventListener('click', onClick);
     section.removeEventListener('keydown', onKeyDown);
-    section.querySelectorAll('video').forEach((video) => video.pause());
-    videoListeners.forEach(([video, type, listener]) => video.removeEventListener(type, listener));
   });
   selectArea(landingState.tutorialArea);
 }
 
-function initializeLandingTaskMock(root) {
-  if (typeof root.addEventListener !== 'function') return;
-  const tasks = [...root.querySelectorAll('[data-landing-task]')];
-  if (landingState.tasks?.length === tasks.length) {
-    tasks.forEach((task, index) => task.setAttribute('aria-pressed', String(landingState.tasks[index])));
-  }
-  const updateTasks = () => {
-    const nextTask = tasks.find((task) => task.getAttribute('aria-pressed') !== 'true');
-    let completed = 0;
-    tasks.forEach((task) => {
-      const done = task.getAttribute('aria-pressed') === 'true';
-      completed += Number(done);
-      task.classList.toggle('is-done', done);
-      task.classList.toggle('is-current', !done && task === nextTask);
-      const status = task.querySelector('small');
-      if (status) status.textContent = done ? 'Concluída' : task === nextTask ? 'Seu próximo passo' : 'Hoje';
-    });
-
-    const summary = root.querySelector('[data-preview-task-summary]');
-    if (summary) summary.textContent = `${completed} de ${tasks.length} feitas`;
-    const count = root.querySelector('[data-preview-task-count]');
-    if (count) count.textContent = String(tasks.length);
-    const progress = root.querySelector('.preview-task-progress i');
-    if (progress) progress.style.width = `${tasks.length ? (completed / tasks.length) * 100 : 0}%`;
-    const group = root.querySelector('[data-landing-task-group]');
-    group?.setAttribute('aria-label', `${completed} de ${tasks.length} tarefas de exemplo concluídas`);
-  };
-  const suggestion = root.querySelector('[data-footer-suggestion]');
-  if (suggestion) {
-    for (const [name, value] of Object.entries(landingState.suggestion)) {
-      const field = suggestion.elements.namedItem(name);
-      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) field.value = value;
-    }
-  }
-  const onInput = (event) => {
-    const field = event.target;
-    if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)
-      && field.form === suggestion && field.name) {
-      landingState.suggestion[field.name] = field.value;
-    }
-  };
-  const onClick = (event) => {
-    if (!(event.target instanceof Element)) return;
-    const clickedTask = event.target.closest('[data-landing-task]');
-    if (!(clickedTask instanceof HTMLButtonElement)) return;
-    clickedTask.setAttribute('aria-pressed', String(clickedTask.getAttribute('aria-pressed') !== 'true'));
-    landingState.tasks = tasks.map((task) => task.getAttribute('aria-pressed') === 'true');
-    updateTasks();
-  };
-  root.addEventListener('click', onClick);
-  root.addEventListener('input', onInput);
-  const previousCleanup = landingControllers.get(root);
-  landingControllers.set(root, () => {
-    previousCleanup?.();
-    root.removeEventListener?.('click', onClick);
-    root.removeEventListener?.('input', onInput);
-  });
-  if (tasks.length) updateTasks();
+function landingFooter() {
+  const logo = new URL('../../../../icons/favicon.svg', import.meta.url).href;
+  return `<footer class="landing-footer">
+    <div class="landing-footer-card">
+      <div class="landing-footer-primary">
+        <a class="landing-footer-brand" href="${APP_URL}/" data-public-action="landing" aria-label="aurora., página inicial">
+          <img src="${logo}" alt="" width="36" height="36"><span>aurora<span>.</span></span>
+        </a>
+        <p>Uma rotina inteira, num app só.</p>
+      </div>
+      <nav class="landing-footer-nav" aria-label="Links do Aurora">
+        <div class="landing-footer-link-group">
+          <h2>Começar</h2>
+          <a href="${signup}" data-public-action="signup">Criar conta</a>
+          <a href="${login}" data-public-action="login">Entrar</a>
+        </div>
+        <div class="landing-footer-link-group">
+          <h2>Explorar</h2>
+          <a href="${demo}" data-public-action="demo">Demonstração</a>
+          <a href="${privacy}">Privacidade</a>
+          <a href="${APP_URL}/terms.html">Termos de uso</a>
+        </div>
+      </nav>
+      <div class="landing-footer-meta">
+        <p>© ${new Date().getFullYear()} Aurora</p>
+        <a class="landing-footer-top" href="#landing-main">Voltar ao topo</a>
+      </div>
+    </div>
+  </footer>`;
 }
 
 export function landingMarkup() {
   const activeTutorialArea = LANDING_TUTORIALS.some(({ id }) => id === landingState.tutorialArea)
-    ? landingState.tutorialArea
-    : 'inicio';
+    ? landingState.tutorialArea : 'hoje';
+  const desktopLight = '/src/assets/landing-desktop.webp';
+  const desktopDark = '/src/assets/landing-desktop-dark.webp';
+  const mobileLight = '/src/assets/landing-mobile.webp';
+  const mobileDark = '/src/assets/landing-mobile-dark.webp';
   return `
-    <div class="public-site">
+    <div class="public-site landing-marketing">
       <a class="skip" href="#landing-main" data-public-action="skip">Pular para o conteúdo principal</a>
-      ${publicHeader()}
+      ${renderPublicHeader()}
       <main class="public-main" id="landing-main" tabindex="-1">
-        <section class="public-hero public-hero-card" aria-labelledby="landing-title">
-          <div class="public-copy">
-            <p class="public-eyebrow"><span aria-hidden="true"></span> Um planner independente para a vida real</p>
-            <h1 id="landing-title">Menos ruído. Mais clareza no dia<span>.</span></h1>
-            <p class="public-subtitle">Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.</p>
-            <div class="public-actions">
-              <a class="btn primary large" href="/criar-conta" data-public-action="signup">Criar conta grátis</a>
-              <a class="btn large" href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>
+        <section class="public-hero landing-hero" aria-labelledby="landing-title">
+          <div class="landing-hero-copy">
+            <p class="public-eyebrow">App de organização pessoal</p>
+            <h1 id="landing-title" class="type-editorial-display">Sua rotina inteira,<br><em>num app só.</em></h1>
+            <p class="landing-hero-lead">Tarefas, hábitos, finanças e ciclo no mesmo lugar. Abra, veja o que é para hoje e deixe o resto para depois, sem planilha e sem cinco apps diferentes.</p>
+            <div class="landing-hero-actions">
+              <a class="btn primary large" href="${signup}" data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
+              <a class="btn ghost large" href="${demo}" data-public-action="demo">Testar sem cadastro</a>
             </div>
-            <p class="public-price-note">A demonstração usa dados fictícios e não salva suas mudanças.</p>
-            <p class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>
+            <ul class="landing-proof-list" aria-label="Informações rápidas">
+              <li>Grátis, sem cartão</li><li>Funciona no celular</li><li>Em português</li>
+            </ul>
           </div>
-          <figure class="product-preview" aria-label="Prévia visual das áreas do Aurora">
-            <div class="preview-phone">
-              <div class="preview-phone-screen">
-                <div class="preview-phone-status" aria-hidden="true">
-                  <span>9:41</span>
-                  <span class="preview-phone-island"><i></i></span>
-                  <span class="preview-phone-status-icons">
-                    <span class="preview-phone-signal"><i></i><i></i><i></i><i></i></span>
-                    <span class="preview-phone-battery"><i></i></span>
-                  </span>
-                </div>
-                <span class="preview-phone-brand"><img class="preview-phone-logo" src="${phoneBrandLogo}" alt="" width="24" height="24"><span class="preview-phone-wordmark">aurora<span>.</span></span></span>
-                <span class="preview-phone-title">Seu dia, com calma.</span>
-                <div class="preview-tasks" role="group" data-landing-task-group aria-label="2 de 3 tarefas de exemplo concluídas">
-                  <span class="preview-task-heading">Para hoje <b data-preview-task-count>3</b><small data-preview-task-summary aria-live="polite">2 de 3 feitas</small></span>
-                  <span class="preview-task-progress"><i></i></span>
-                  <button type="button" class="preview-task-row is-done" data-landing-task data-preview-area="planner" aria-pressed="true" aria-label="Organizar a semana"><i aria-hidden="true">✓</i><span><b>Organizar a semana</b><small>Concluída</small></span></button>
-                  <button type="button" class="preview-task-row is-done" data-landing-task data-preview-area="habits" aria-pressed="true" aria-label="Responder mensagem"><i aria-hidden="true">✓</i><span><b>Responder mensagem</b><small>Concluída</small></span></button>
-                  <button type="button" class="preview-task-row is-current" data-landing-task data-preview-area="finances" aria-pressed="false" aria-label="Ler por alguns minutos"><i aria-hidden="true">✓</i><span><b>Ler por alguns minutos</b><small>Seu próximo passo</small></span></button>
-                </div>
-                <div class="preview-phone-nav" aria-hidden="true">
-                  <span class="is-current preview-nav-home">${demoIcon('home', 15)}Início</span>
-                  <span class="preview-nav-planner">${demoIcon('calendarCheck', 15)}Planejar</span>
-                  <span class="preview-nav-habits">${demoIcon('leaf', 15)}Hábitos</span>
-                  <span class="preview-nav-cycle">${demoIcon('heart', 15)}Ciclo</span>
-                  <span class="preview-nav-finances">${demoIcon('wallet', 15)}Finanças</span>
-                </div>
-              </div>
+          <figure class="landing-hero-visual">
+            <div class="landing-hero-desktop">
+              <img class="landing-screen-light" src="${desktopLight}" width="1280" height="720" alt="Visão clara do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
+              <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720" alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
             </div>
+            <div class="landing-hero-phone">
+              <img class="landing-screen-light" src="${mobileLight}" width="612" height="680" alt="Visão clara do Aurora no celular, com tarefas do dia." fetchpriority="high">
+              <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680" alt="Visão escura do Aurora no celular, com tarefas do dia." fetchpriority="high">
+            </div>
+            <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
           </figure>
         </section>
-        <section class="public-features" id="public-features" aria-labelledby="public-features-title">
-          <div class="public-section-heading"><p class="public-eyebrow">Feito para a vida como ela é</p><h2 id="public-features-title">Escolha por onde começar</h2><p class="public-section-lead">Cada espaço cuida de uma parte do seu dia. Você usa só o que fizer sentido agora.</p></div>
-          <div class="public-area-selector" data-area-selector role="group" aria-label="Escolha uma área para conhecer" hidden>
-            <button type="button" aria-pressed="true">Planejar</button>
-            <button type="button" aria-pressed="false">Hábitos</button>
-            <button type="button" aria-pressed="false">Finanças</button>
-            <button type="button" aria-pressed="false">Ciclo</button>
+
+        <section class="public-tutorials landing-section" id="areas" aria-labelledby="public-tutorials-title" data-landing-areas>
+          <div class="public-section-heading landing-section-heading">
+            <p class="public-eyebrow">O que dá para organizar</p>
+            <h2 id="public-tutorials-title" class="type-editorial-title">Cinco partes da sua vida, sem trocar de app.</h2>
           </div>
-          <div class="public-values" role="group" aria-label="Demonstração visual das quatro áreas">
-          <article class="card public-value">
-            <span class="public-value-icon" aria-hidden="true">${demoIcon('calendarCheck', 22)}</span>
-            <div><h3>Planejar</h3><p>Organize tarefas e prazos; acompanhe o que já foi concluído.</p></div>
-            <div class="public-value-preview preview-area-planner" aria-hidden="true">
-              <span class="preview-mini-heading">HOJE <b>3</b><small>2 de 3 feitas</small></span>
-              <span class="preview-mini-progress"><i></i></span>
-              <span class="preview-mini-task is-done"><i>✓</i>Organizar a semana</span>
-              <span class="preview-mini-task is-done"><i>✓</i>Responder uma mensagem</span>
-              <span class="preview-mini-task"><i></i>Ler por alguns minutos</span>
-            </div>
-          </article>
-          <article class="card public-value">
-            <span class="public-value-icon" aria-hidden="true">${demoIcon('leaf', 22)}</span>
-            <div><h3>Hábitos</h3><p>Registre check-ins e metas semanais com espaço para ajustar o plano à sua rotina.</p></div>
-            <div class="public-value-preview preview-area-habits" aria-hidden="true">
-              <span class="preview-mini-heading">Beber água <small>5/7</small></span>
-              <span class="preview-habit-days"><i>Seg</i><i>Ter</i><i>Qua</i><i>Qui</i><i>Sex</i><i>Sáb</i><i>Dom</i></span>
-              <span class="preview-habit-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-              <span class="preview-mini-heading">Ler 10 minutos <small>3/5</small></span>
-              <span class="preview-habit-days is-short"><i>Seg</i><i>Ter</i><i>Qua</i><i>Qui</i><i>Sex</i></span>
-              <span class="preview-habit-dots is-short"><i></i><i></i><i></i><i></i><i></i></span>
-            </div>
-          </article>
-          <article class="card public-value">
-            <span class="public-value-icon" aria-hidden="true">${demoIcon('wallet', 22)}</span>
-            <div><h3>Finanças</h3><p>Registre receitas, despesas e cartões manualmente. O Aurora não se conecta a bancos.</p></div>
-            <div class="public-value-preview preview-area-finance" aria-hidden="true">
-              <div><small>Receitas</small><strong>R$ 3.200</strong></div>
-              <div><small>Despesas</small><strong>R$ 1.960</strong></div>
-              <span class="preview-finance-bars"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-            </div>
-          </article>
-          <article class="card public-value">
-            <span class="public-value-icon" aria-hidden="true">${demoIcon('heart', 22)}</span>
-            <div><h3>Ciclo</h3><p>Com consentimento específico, acompanhe períodos e sintomas. As informações são gerais e não substituem orientação profissional.</p></div>
-            <div class="public-value-preview preview-area-cycle">
-              <span class="preview-cycle-week"><i>S</i><i>T</i><i>Q</i><i>Q</i><i>S</i><i>S</i><i>D</i></span>
-              <span class="preview-cycle-days"><i>2</i><i class="is-period">3</i><i class="is-period">4</i><i class="is-period">5</i><i>6</i><i>7</i><i>8</i></span>
-              <span class="preview-cycle-note">${demoIcon('lock', 13)}Acesso restrito à sua conta</span>
-              <a class="preview-cycle-privacy" href="/privacy" target="_blank" rel="noopener noreferrer">Saiba mais na Política de Privacidade</a>
-            </div>
-          </article>
-          </div>
-        </section>
-        <section class="public-tutorials" aria-labelledby="public-tutorials-title" data-landing-tutorials>
-          <div class="public-section-heading">
-            <p class="public-eyebrow">Veja por dentro</p>
-            <h2 id="public-tutorials-title">Veja cada área funcionando</h2>
-            <p class="public-section-lead">Escolha uma área para conhecer o Aurora em ação.</p>
-          </div>
-          <div class="landing-tutorial-tabs" role="tablist" aria-label="Áreas do Aurora">
+          <div class="landing-tutorial-tabs" role="tablist" aria-label="Áreas da sua rotina">
             ${LANDING_TUTORIALS.map((area) => {
               const selected = area.id === activeTutorialArea;
-              return `<button type="button" class="landing-tutorial-tab" role="tab" id="landing-tutorial-tab-${area.id}" aria-controls="landing-tutorial-panel-${area.id}" aria-selected="${selected}" tabindex="${selected ? '0' : '-1'}" data-landing-tutorial-tab="${area.id}" data-area="${area.id}">${area.title}</button>`;
+              return `<button type="button" class="landing-tutorial-tab" role="tab" id="landing-tutorial-tab-${area.id}" aria-controls="landing-tutorial-panel-${area.id}" aria-selected="${selected}" tabindex="${selected ? '0' : '-1'}" data-landing-tutorial-tab="${area.id}" style="--area-icon:${area.color}"><span class="landing-tab-icon">${iconSvg(area.icon, 20)}</span>${area.title}</button>`;
             }).join('')}
           </div>
           <div class="landing-tutorial-panels">
             ${LANDING_TUTORIALS.map((area) => {
               const selected = area.id === activeTutorialArea;
-              return `<section class="landing-tutorial-panel" role="tabpanel" id="landing-tutorial-panel-${area.id}" aria-labelledby="landing-tutorial-tab-${area.id}" tabindex="0" data-landing-tutorial-panel="${area.id}" data-tutorial-poster="${area.poster}" data-area="${area.id}"${selected ? '' : ' hidden'}>
-                <div class="landing-tutorial-frame">
-                <video class="landing-tutorial-video" width="1280" height="720" controls preload="none" muted playsinline aria-label="Demonstração em vídeo: ${area.title}">
-                  <source data-tutorial-source="mp4" type="video/mp4">
-                </video>
-                <button type="button" class="landing-tutorial-play" data-landing-tutorial-play aria-label="Carregar e reproduzir o vídeo de ${area.title}">${demoIcon('play', 24)}<span>Reproduzir vídeo</span></button>
-                </div>
-                <div class="landing-tutorial-summary" data-tutorial-summary>
-                  <h3>O que você vê neste vídeo</h3>
+              return `<section class="landing-tutorial-panel" role="tabpanel" id="landing-tutorial-panel-${area.id}" aria-labelledby="landing-tutorial-tab-${area.id}" tabindex="0" data-landing-tutorial-panel="${area.id}" data-area="${area.id}"${selected ? '' : ' hidden'}>
+                <div class="landing-area-copy">
+                  <h3>${area.heading}</h3>
+                  <p>${area.description}</p>
                   <ul>${area.steps.map((step) => `<li>${step}</li>`).join('')}</ul>
                 </div>
-                <p class="landing-tutorial-status" data-landing-tutorial-status role="status" aria-live="polite" hidden></p>
-                <p class="landing-tutorial-description">${area.description}</p>
+                <div class="landing-area-preview">
+                  <div class="landing-preview-chrome" aria-hidden="true"><i></i><i></i><i></i></div>
+                  <img src="${area.image}" alt="${area.alt}" loading="lazy" width="1280" height="720">
+                </div>
               </section>`;
             }).join('')}
           </div>
         </section>
-        <section class="public-community" aria-labelledby="public-community-title">
-          <div class="public-community-copy">
-            <p class="public-eyebrow">Convite aberto</p>
-            <h2 id="public-community-title">Sua experiência pode ajudar o Aurora a evoluir.</h2>
-            <p>Ainda não temos avaliações ou números públicos para compartilhar. Enquanto isso, conheça a demonstração e envie uma sugestão baseada na sua rotina.</p>
+
+        <section class="landing-steps landing-section" id="steps" aria-labelledby="landing-steps-title">
+          <div class="public-section-heading landing-section-heading">
+            <p class="public-eyebrow">Como começar</p>
+            <h2 id="landing-steps-title" class="type-editorial-title">Três passos e o dia já fica mais leve.</h2>
           </div>
-          <a class="btn primary large public-community-link" href="#public-suggestion">Compartilhar uma sugestão</a>
+          <ol class="landing-steps-grid">
+            <li><span>1</span><h3>Crie sua conta</h3><p>É grátis e não pede cartão. Funciona direto no navegador.</p></li>
+            <li><span>2</span><h3>Anote o que está pendente</h3><p>Tarefas, contas, hábitos: coloque tudo do jeito que vier à cabeça.</p></li>
+            <li><span>3</span><h3>Escolha o que cabe hoje</h3><p>O Aurora mostra o seu dia. O resto fica guardado para quando der.</p></li>
+          </ol>
+          <a class="btn primary large landing-steps-cta" href="${signup}" data-public-action="signup">Começar agora, é grátis</a>
         </section>
-        <section class="public-cta-panel" aria-labelledby="public-cta-title">
-          <div class="public-cta-copy">
-            <h2 id="public-cta-title">Leve sua rotina com você</h2>
-            <p>Adicione o Aurora à tela inicial do celular e tenha seu espaço à mão quando precisar.</p>
-            <ul class="public-install-note">
-              <li><strong>Android:</strong> toque em “Instalar no celular” e siga as instruções.</li>
-              <li><strong>iPhone:</strong> no Safari, toque em Compartilhar → Adicionar à Tela de Início.</li>
-            </ul>
+
+        <section class="public-trust landing-trust landing-section" aria-labelledby="public-trust-title">
+          <div class="public-section-heading landing-section-heading">
+            <p class="public-eyebrow">Pode confiar</p>
+            <h2 id="public-trust-title" class="type-editorial-title">Simples de usar, tranquilo de confiar.</h2>
           </div>
-          <div class="public-actions">
-            <button class="btn primary" type="button" data-action="pwa-install">${demoIcon('download', 16)}Instalar no celular</button>
+          <div class="landing-trust-grid">
+            <article><span>${iconSvg('sparkles', 22)}</span><div><h3>Grátis de verdade</h3><p>Você usa tudo sem pagar e sem informar cartão.</p></div></article>
+            <article><span>${iconSvg('download', 22)}</span><div><h3>Seus dados são seus</h3><p>Baixe uma cópia dos seus registros ou exclua a conta quando quiser, nos Ajustes.</p></div></article>
+            <article><span>${iconSvg('bank', 22)}</span><div><h3>Não acessa seu banco</h3><p>Você anota receitas e despesas. Nenhuma conta bancária é conectada.</p></div></article>
+            <article><span>${iconSvg('grid', 22)}</span><div><h3>Vira app no celular</h3><p>Adicione o Aurora à tela inicial no Android ou no iPhone e abra com um toque.</p></div></article>
+          </div>
+          <p class="landing-trust-privacy">Quer os detalhes? <a href="${privacy}">Leia a Política de Privacidade.</a></p>
+        </section>
+
+        <section class="public-faq landing-faq landing-section" id="faq" aria-labelledby="public-faq-title">
+          <div class="public-section-heading landing-section-heading">
+            <p class="public-eyebrow">Perguntas</p>
+            <h2 id="public-faq-title" class="type-editorial-title">Antes de começar.</h2>
+          </div>
+          <div class="public-faq-list">
+            <details class="public-faq-item" name="landing-faq">
+              <summary>O Aurora é grátis?</summary>
+              <p>Sim. É grátis e você não precisa informar cartão.</p>
+            </details>
+            <details class="public-faq-item" name="landing-faq">
+              <summary>Posso testar antes de criar conta?</summary>
+              <p>Pode. A demonstração usa dados de exemplo: você adiciona uma tarefa e marca um hábito para ver como funciona. Nada fica salvo quando você sai.</p>
+            </details>
+            <details class="public-faq-item" name="landing-faq">
+              <summary>Preciso baixar alguma coisa?</summary>
+              <p>Não. O Aurora funciona pelo navegador do celular ou do computador. Se quiser, adicione um atalho na tela inicial do celular.</p>
+            </details>
+            <details class="public-faq-item" name="landing-faq">
+              <summary>O Aurora se conecta ao meu banco?</summary>
+              <p>Não. Ele não acessa sua conta bancária. Você anota cada receita, despesa ou cartão.</p>
+            </details>
+            <details class="public-faq-item" name="landing-faq">
+              <summary>Posso levar meus dados ou apagar a conta?</summary>
+              <p>Sim. Em Ajustes, você baixa uma cópia dos seus registros ou inicia a exclusão da conta e dos dados.</p>
+            </details>
+            <details class="public-faq-item" name="landing-faq">
+              <summary>O que posso fazer em Ciclo?</summary>
+              <p>Com seu consentimento, você anota datas e sintomas e consulta médias. É um acompanhamento informativo e não substitui orientação de um profissional de saúde.</p>
+            </details>
           </div>
         </section>
-        <section class="public-faq" id="public-faq" aria-labelledby="public-faq-title">
-          <div class="public-section-heading">
-            <p class="public-eyebrow">Antes de começar</p>
-            <h2 id="public-faq-title">Perguntas frequentes</h2>
-          </div>
-          <div class="public-faq-list compact-card-grid">
-            <details class="card public-faq-item" open>
-              <summary>O Aurora é grátis?${demoIcon('chevDown', 16)}</summary>
-              <p>Sim. O Aurora é totalmente grátis e não pede cartão de crédito.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>Posso experimentar sem criar conta?${demoIcon('chevDown', 16)}</summary>
-              <p>Sim. A demonstração usa dados fictícios. Você pode adicionar uma tarefa e marcar um hábito; as mudanças ficam só durante a visita e não são salvas.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>Funciona no celular?${demoIcon('chevDown', 16)}</summary>
-              <p>Sim. O Aurora funciona no navegador do celular e pode ser instalado na tela inicial.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>O Aurora se conecta ao meu banco?${demoIcon('chevDown', 16)}</summary>
-              <p>Não. Receitas, despesas e cartões são registrados manualmente; o Aurora não se conecta a contas bancárias.</p>
-            </details>
-            <details class="card public-faq-item">
-              <summary>O que posso fazer em Ciclo?${demoIcon('chevDown', 16)}</summary>
-              <p>Acompanhe datas e sintomas com seu consentimento específico. As informações são gerais e não substituem orientação profissional.</p>
-            </details>
-            <details class="card public-faq-item" id="public-suggestion" data-suggestion-disclosure>
-              <summary>Envie uma sugestão${demoIcon('chevDown', 16)}</summary>
-              ${renderSuggestionForm()}
-            </details>
+
+        <section class="public-closing landing-final-cta landing-section" aria-labelledby="public-closing-title">
+          <h2 id="public-closing-title" class="type-editorial-title">Menos coisa na cabeça.<br><em>Mais dia para viver.</em></h2>
+          <p>Crie sua conta grátis e organize o que importa hoje.</p>
+          <div class="landing-final-actions">
+            <a class="btn primary large" href="${signup}" data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
+            <a class="landing-text-link" href="${demo}" data-public-action="demo">ou testar sem cadastro</a>
           </div>
         </section>
       </main>
-      ${publicFooter({ demoAvailable: true })}
-      <a class="public-mobile-cta btn primary" href="/demonstracao" data-public-action="demo" hidden>Abrir demonstração</a>
+      ${landingFooter()}
+      <a class="public-mobile-cta btn primary" href="${signup}" data-public-action="signup" aria-hidden="true" hidden>Criar minha conta grátis</a>
     </div>`;
 }

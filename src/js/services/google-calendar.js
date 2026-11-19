@@ -1,4 +1,5 @@
 export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const GOOGLE_CODE_SCOPE = `openid email ${GOOGLE_CALENDAR_SCOPE}`;
 
 const GOOGLE_IDENTITY_SCRIPT = 'https://accounts.google.com/gsi/client';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
@@ -31,6 +32,9 @@ function normalizeEvent(event, calendarId) {
   if (!isCalendarDay(day)) return null;
 
   return {
+    id: typeof event.id === 'string' && event.id
+      ? event.id
+      : `${calendarId}:${day}:${allDay ? 'allday' : String(start.dateTime)}:${typeof event.summary === 'string' ? event.summary : ''}`,
     calendarId,
     title: typeof event.summary === 'string' && event.summary.trim()
       ? event.summary.trim().slice(0, 200)
@@ -42,6 +46,20 @@ function normalizeEvent(event, calendarId) {
       : new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(instant)),
     order: allDay ? new Date(`${day}T00:00:00`).getTime() : instant,
   };
+}
+
+export function googleCalendarEventTaskKey(accountIdentity, event) {
+  if (typeof accountIdentity !== 'string' || !accountIdentity
+    || typeof event?.calendarId !== 'string' || !event.calendarId
+    || typeof event?.id !== 'string' || !event.id) return '';
+  return `google-calendar:${accountIdentity}:${event.calendarId}:${event.id}`;
+}
+
+export function formatGoogleCalendarEventSource(calendarName, accountLabel) {
+  const calendar = typeof calendarName === 'string' ? calendarName.trim() : '';
+  const account = typeof accountLabel === 'string' ? accountLabel.trim() : '';
+  if (calendar && account && calendar !== account) return `${calendar} · ${account}`;
+  return calendar || account || 'Google Calendar';
 }
 
 async function loadGoogleIdentity() {
@@ -69,6 +87,16 @@ function requireCalendarClientId(clientId) {
   }
 }
 
+function googlePopupErrorMessage(error) {
+  if (error?.type === 'popup_closed') {
+    return 'O Google não devolveu o código de autorização ao Aurora (popup_closed). Isso não significa necessariamente que você fechou a janela.';
+  }
+  if (error?.type === 'popup_failed_to_open') {
+    return 'O navegador bloqueou a janela de autorização do Google. Permita pop-ups para este site e tente novamente.';
+  }
+  return 'Não foi possível abrir a janela de autorização do Google. Tente novamente.';
+}
+
 export function createGoogleCalendarService({
   clientId = import.meta.env?.VITE_GOOGLE_CALENDAR_CLIENT_ID || '',
   fetchImpl = globalThis.fetch,
@@ -79,22 +107,40 @@ export function createGoogleCalendarService({
   let identityPromise;
   let accessToken = '';
   let accessTokenExpiresAt = 0;
+  let tokenProvider = null;
+  let tokenRefresh = null;
 
   const clearAccess = () => {
     accessToken = '';
     accessTokenExpiresAt = 0;
   };
 
-  const getAccessToken = () => {
-    if (!accessToken || accessTokenExpiresAt <= now()) {
-      clearAccess();
-      throw new Error('A autorização do Google Calendar expirou. Conecte novamente para continuar.');
-    }
-    return accessToken;
+  const setAccess = (token, expiresIn) => {
+    accessToken = token;
+    // Renova um minuto antes de vencer para não falhar no meio de uma consulta.
+    accessTokenExpiresAt = now() + Math.max(expiresIn - 60, 30) * 1000;
   };
 
-  const request = async (url) => {
-    const token = getAccessToken();
+  const getAccessToken = async () => {
+    if (accessToken && accessTokenExpiresAt > now()) return accessToken;
+    clearAccess();
+    if (!tokenProvider) throw new Error('A autorização do Google Calendar expirou. Conecte novamente para continuar.');
+    // Várias consultas em paralelo compartilham a mesma renovação.
+    tokenRefresh ||= Promise.resolve()
+      .then(() => tokenProvider())
+      .then((result) => {
+        if (!result?.accessToken || !Number.isFinite(Number(result.expiresIn))) {
+          throw new Error('Não foi possível renovar o acesso ao Google Calendar. Tente novamente.');
+        }
+        setAccess(result.accessToken, Number(result.expiresIn));
+        return accessToken;
+      })
+      .finally(() => { tokenRefresh = null; });
+    return tokenRefresh;
+  };
+
+  const request = async (url, retried = false) => {
+    const token = await getAccessToken();
     let response;
     try {
       response = await fetchImpl(url, {
@@ -110,6 +156,7 @@ export function createGoogleCalendarService({
 
     if (response.status === 401) {
       clearAccess();
+      if (tokenProvider && !retried) return request(url, true);
       throw new Error('A autorização do Google Calendar expirou ou foi revogada. Conecte novamente.');
     }
     if (response.status === 403) throw new Error('O Google não autorizou a leitura deste calendário.');
@@ -151,7 +198,12 @@ export function createGoogleCalendarService({
       return typeof clientId === 'string' && clientId.trim().length > 0;
     },
     isConnected() {
-      return Boolean(accessToken && accessTokenExpiresAt > now());
+      return Boolean(tokenProvider || (accessToken && accessTokenExpiresAt > now()));
+    },
+    // Conexão guardada no servidor: o acesso é renovado sozinho, sem nova janela do Google.
+    useTokenProvider(provider, initial) {
+      tokenProvider = provider;
+      if (initial?.accessToken) setAccess(initial.accessToken, Number(initial.expiresIn) || 3600);
     },
     isPrepared() {
       return Boolean(identity?.accounts?.oauth2);
@@ -213,9 +265,49 @@ export function createGoogleCalendarService({
               accessTokenExpiresAt = now() + expiresIn * 1000;
               resolve();
             },
-            error_callback: () => fail('A janela de autorização do Google não pôde ser aberta. Tente novamente.'),
+            error_callback: (error) => fail(googlePopupErrorMessage(error)),
           });
           tokenClient.requestAccessToken();
+        } catch {
+          fail('Não foi possível iniciar a autorização do Google Calendar. Tente novamente.');
+        }
+      });
+    },
+    // Pede ao Google um código de autorização (acesso offline), que o servidor troca por token.
+    authorizeCode() {
+      requireCalendarClientId(clientId);
+      if (!identity?.accounts?.oauth2?.initCodeClient) throw new Error('Prepare a conexão com o Google antes de autorizar.');
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const fail = (message) => {
+          if (settled) return;
+          settled = true;
+          reject(new Error(message));
+        };
+        try {
+          const codeClient = identity.accounts.oauth2.initCodeClient({
+            client_id: clientId,
+            scope: GOOGLE_CODE_SCOPE,
+            ux_mode: 'popup',
+            select_account: true,
+            callback: (response) => {
+              if (response?.error) {
+                fail(response.error === 'access_denied'
+                  ? 'A autorização do Google Calendar foi cancelada.'
+                  : 'Não foi possível autorizar a leitura do Google Calendar.');
+                return;
+              }
+              const scopes = typeof response?.scope === 'string' ? response.scope.split(/\s+/) : [];
+              if (typeof response?.code !== 'string' || !response.code || !scopes.includes(GOOGLE_CALENDAR_SCOPE)) {
+                fail('O Google não confirmou a permissão necessária para ler os calendários.');
+                return;
+              }
+              settled = true;
+              resolve(response.code);
+            },
+            error_callback: (error) => fail(googlePopupErrorMessage(error)),
+          });
+          codeClient.requestCode();
         } catch {
           fail('Não foi possível iniciar a autorização do Google Calendar. Tente novamente.');
         }
@@ -246,6 +338,7 @@ export function createGoogleCalendarService({
       }
 
       const events = [];
+      const seen = new Set();
       for (const calendarId of new Set(calendarIds)) {
         const url = new URL(`${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
         url.searchParams.set('singleEvents', 'true');
@@ -256,13 +349,18 @@ export function createGoogleCalendarService({
         const items = await pagedItems(url.href);
         items.forEach((event) => {
           const normalized = normalizeEvent(event, calendarId);
-          if (normalized) events.push(normalized);
+          if (!normalized) return;
+          const key = `${calendarId}:${normalized.id}:${normalized.day}:${normalized.allDay ? 'allday' : normalized.time}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          events.push(normalized);
         });
       }
       return events.sort((left, right) => left.order - right.order || left.title.localeCompare(right.title, 'pt-BR'));
     },
     clear() {
       clearAccess();
+      tokenProvider = null;
     },
   };
 }

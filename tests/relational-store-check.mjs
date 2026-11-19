@@ -61,6 +61,19 @@ const taskIconsMigration = await readFile(
 );
 assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
 assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
+const taskIntegrationKeysMigration = await readFile(
+  new URL('../supabase/migrations/20261118000000_task_integration_keys.sql', import.meta.url),
+  'utf8',
+);
+assert.match(taskIntegrationKeysMigration, /alter column group_key type text/i);
+assert.match(taskIntegrationKeysMigration, /alter column group_title type text/i);
+assert.doesNotMatch(taskIntegrationKeysMigration, /update\s+public\.tasks/i);
+const legacyTaskMfaPolicyMigration = await readFile(
+  new URL('../supabase/migrations/20261118010000_tasks_legacy_mfa_policy.sql', import.meta.url),
+  'utf8',
+);
+assert.match(legacyTaskMfaPolicyMigration, /drop policy if exists "Owners with MFA access" on public\.tasks/i);
+assert.match(legacyTaskMfaPolicyMigration, /for all to authenticated[\s\S]*auth\.uid\(\).*user_id[\s\S]*with check/i);
 const checkinsMigration = await readFile(
   new URL('../supabase/migrations/20261105100000_daily_checkins.sql', import.meta.url),
   'utf8',
@@ -234,10 +247,11 @@ const state = {
       firstStepsDismissed: true,
       firstStepsStarted: true,
       profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      weeklyReflection: { weekOf: '2026-11-02', text: 'Mais pausas' },
       annualPlans: {
         2027: {
           intention: 'Abrir espaço para o que importa.',
-          goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+          goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, taskId: 'legacy-task-id' }],
         },
       },
       homeLayout: { order: ['today', 'summary', 'quick', 'habits'], visible: ['summary', 'today'] },
@@ -340,6 +354,9 @@ const orderedTables = writes[0].args.p_changes.map((change) => change.table);
 const taskDatabaseId = changeByTable.get('tasks')[0].id;
 assert.equal(changeByTable.get('tasks')[0].legacy_id, 'legacy-task-id');
 assert.equal(changeByTable.get('tasks')[0].icon_key, 'book');
+assert.equal(changeByTable.get('user_settings')[0].preferences.annualPlans[2027].goals[0].taskId, 'legacy-task-id');
+assert.equal(changeByTable.get('weekly_reflections')[0].week_of, '2026-11-02');
+assert.equal(changeByTable.get('weekly_reflections')[0].reflection, 'Mais pausas');
 assert.equal(changeByTable.get('finance_transactions')[0].amount_cents, 1234);
 assert.equal(changeByTable.get('finance_transactions')[0].settled_date, '2026-10-29');
 assert.equal(changeByTable.get('finance_transactions')[1].settled_date, null);
@@ -407,7 +424,7 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.habitWaterGoa
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, {
   2027: {
     intention: 'Abrir espaço para o que importa.',
-    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, taskId: 'legacy-task-id' }],
   },
 });
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
@@ -479,6 +496,8 @@ const loadClient = {
 };
 const loadedState = await new RelationalAccountStore(loadClient, userId).load();
 assert.equal(loadedState.settings.areas.gym, true);
+assert.equal(loadedState.settings.prefs.annualPlans[2027].goals[0].taskId, 'legacy-task-id');
+assert.deepEqual(loadedState.settings.prefs.weeklyReflection, { weekOf: '2026-11-02', text: 'Mais pausas' });
 assert.equal(loadedState.pomodoro.elapsedSeconds, 120);
 assert.equal(loadedState.pomodoro.completedPomodoros, 3);
 assert.deepEqual(loadedState.pomodoro.history, { '2026-10-29': 2 });
@@ -507,7 +526,7 @@ assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
 assert.deepEqual(loadedState.settings.prefs.annualPlans, {
   2027: {
     intention: 'Abrir espaço para o que importa.',
-    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false }],
+    goals: [{ id: 'annual-goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, taskId: 'legacy-task-id' }],
   },
 });
 assert.deepEqual(loadedState.settings.prefs.homeLayout, {

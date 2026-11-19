@@ -785,7 +785,7 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 }
 .dlg:not(.intro-dialog) .dlg-foot .btn {
   min-height: var(--control-md);
-  border-radius: var(--r-control);
+  border-radius: var(--button-radius);
 }
 
 @media (width <= 480px) {
@@ -870,3 +870,21 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
   .dlg-back.is-opening .dlg { animation: dialog-enter var(--duration-base) var(--ease-standard) both; }
   @keyframes dialog-enter { from { opacity: 0; } to { opacity: 1; } }
 }
+
+/* Celular: o modal vira uma folha que sobe da base e acompanha o dedo ao ser arrastada. */
+@media (width < 900px) {
+  .dlg-back::backdrop { opacity: var(--sheet-progress, 1); }
+  :root[data-theme="dark"] .dlg-back { background: color-mix(in srgb, var(--bg) calc(62% * var(--sheet-progress, 1)), transparent); }
+}
+@media (width < 900px) and (prefers-reduced-motion: no-preference) {
+  .dlg-back.is-opening:not(:has(.intro-dialog)) .dlg { animation: sheet-enter 280ms var(--ease-standard) both; }
+  .dlg-back.is-opening:not(:has(.intro-dialog))::backdrop { animation: sheet-backdrop-in 280ms ease both; }
+  @keyframes sheet-enter { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes sheet-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* Cópia visual do modal que acabou de fechar, só para animar a saída. */
+.dlg-ghost { position: fixed; z-index: var(--z-dialog); inset: 0; pointer-events: none; }
+.dlg-ghost-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--ink) 48%, transparent); }
+:root[data-theme="dark"] .dlg-ghost-backdrop { background: color-mix(in srgb, var(--bg) 62%, transparent); }
+.dlg-ghost > .dlg { position: fixed; margin: 0; }

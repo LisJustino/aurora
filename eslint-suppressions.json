@@ -4,11 +4,6 @@
       "count": 2
     }
   },
-  "src/js/features/appearance/public-controls.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/js/features/finance/dialogs.js": {
     "no-unused-vars": {
       "count": 2

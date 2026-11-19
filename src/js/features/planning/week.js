@@ -45,6 +45,11 @@ export function weeklyReview(
     .sort((a, b) => (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0)
       || a.dueDate.localeCompare(b.dueDate)
       || (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const overdueTasks = tasks
+    .filter((task) => !task.done && isDay(task.dueDate) && task.dueDate < today)
+    .sort((a, b) => (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0)
+      || a.dueDate.localeCompare(b.dueDate)
+      || (a.time || '99:99').localeCompare(b.time || '99:99'));
   const activeHabits = habits.filter((habit) => (habit.status || 'active') === 'active');
   let habitScheduled = 0;
   let habitCompleted = 0;
@@ -74,7 +79,8 @@ export function weeklyReview(
     tasks: {
       completed: completedTasks.length,
       pending: currentTasks.filter((task) => !task.done).length,
-      overdue: currentTasks.filter((task) => !task.done && task.dueDate < today).length,
+      overdue: overdueTasks.length,
+      overdueTasks,
     },
     waterDays: elapsedDays.filter(isWaterGoalReached).length,
     habits: {

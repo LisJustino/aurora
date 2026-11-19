@@ -50,11 +50,11 @@ export const HOME_AREA_COLOR_IDS = HOME_AREA_COLORS.map(({ id }) => id);
 export function homeFirstStepsProgress(value = {}) {
   const { theme, tasks, habits } = value && typeof value === 'object' ? value : {};
   return [
-    typeof theme === 'string' && theme !== 'rose',
     Array.isArray(tasks) && tasks.length > 0,
     Array.isArray(habits) && habits.some((habit) => (
       Array.isArray(habit?.completions) && habit.completions.length > 0
     )),
+    typeof theme === 'string' && theme !== 'rose',
   ];
 }
 

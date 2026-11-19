@@ -241,6 +241,27 @@ begin
   exception
     when insufficient_privilege then null;
   end;
+
+  begin
+    perform count(*) from public.public_suggestions;
+    raise exception 'Anonymous users read public suggestions';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.public_suggestions (message) values ('Inserção direta não permitida');
+    raise exception 'Anonymous users inserted suggestions directly';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  if public.submit_public_suggestion(
+    'Sugestão de teste da política pública',
+    repeat('a', 64)
+  ) ->> 'accepted' <> 'true' then
+    raise exception 'Anonymous suggestion submission did not succeed through the guarded function';
+  end if;
 end;
 $$;
 

@@ -4,7 +4,7 @@
   flex-direction: column;
   gap: var(--card-content-gap);
   padding: var(--card-padding);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--accent) 7%, var(--line));
   border-radius: var(--r-card);
   background: var(--surface-strong);
   box-shadow: var(--elev-1);
@@ -14,6 +14,18 @@
 .card.flat {
   background: var(--surface-soft);
   box-shadow: var(--elev-0);
+}
+
+.surface-open {
+  display: grid;
+  min-width: 0;
+  gap: var(--card-content-gap);
+  padding-block: var(--card-padding);
+  border-block: 1px solid var(--border-subtle);
+}
+
+.surface-open > .head {
+  align-items: flex-end;
 }
 
 .head, .row {
@@ -54,7 +66,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
   border-radius: var(--r-group);
   background: var(--surface);
   color: var(--ink);
@@ -123,7 +135,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--accent) 7%, var(--line));
   border-radius: var(--r-group);
   background: var(--surface);
   color: inherit;
@@ -150,7 +162,7 @@
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-4);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--accent) 7%, var(--line));
   border-radius: var(--r-group);
   background: var(--surface);
 }
@@ -171,7 +183,9 @@
   padding: var(--card-padding);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
   border-radius: var(--r-hero);
-  background: var(--hero);
+  background:
+    radial-gradient(ellipse at 92% 8%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 28rem),
+    linear-gradient(135deg, var(--surface-strong), var(--hero));
   box-shadow: var(--elev-2);
   color: var(--on-hero);
 }

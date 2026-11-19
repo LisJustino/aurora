@@ -170,6 +170,22 @@ export function byCategory(transactions, kind) {
   return [...totals.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+export function expenseBudgetByCategory(transactions, month, asOfDate) {
+  const expenses = transactions.filter((transaction) => transaction.type === 'out'
+    && transaction.date.startsWith(month));
+  return {
+    total: byCategory(expenses, 'out'),
+    throughToday: byCategory(
+      expenses.filter((transaction) => transaction.date <= asOfDate),
+      'out',
+    ),
+    afterToday: byCategory(
+      expenses.filter((transaction) => transaction.date > asOfDate),
+      'out',
+    ),
+  };
+}
+
 export function monthlyCloseSummary(transactions, month, accountForId) {
   const summary = monthStats(transactions, month, accountForId);
   const pending = summary.tx.filter((transaction) => !isPaid(transaction)

@@ -99,6 +99,12 @@ check(!fontShorthandLiterals.length, 'Atalhos font usam tokens tipográficos', f
 const fontWeightLiterals = offenders(/(?:font-weight:\s*\d+|font:\s*(?:400|500|600|650|700|750|800)\b)/g);
 check(!fontWeightLiterals.length, 'Pesos de fonte usam os quatro tokens compartilhados', fontWeightLiterals.slice(0, 6).join(' | '));
 
+const fontFamilyLiteral = offenders(
+  /font-family:\s*[^;{}]+[;}]/g,
+  (match) => !/\b(?:var|inherit)\(/.test(match[0]) && !match[0].includes('font-family: inherit'),
+);
+check(!fontFamilyLiteral.length, 'Famílias tipográficas usam os tokens --font-*', fontFamilyLiteral.slice(0, 6).join(' | '));
+
 const radiusLiterals = offenders(/border-radius:\s*[^;{}]*\d+(?:\.\d+)?px[^;{}]*[;}]/g);
 check(!radiusLiterals.length, 'Raios usam tokens --r-*', radiusLiterals.slice(0, 6).join(' | '));
 

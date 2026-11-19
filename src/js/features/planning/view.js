@@ -22,20 +22,19 @@ export function renderPlanningView({
   taskWeek,
   weeklyReviewView,
   taskListHtml,
-  plansHtml,
 }) {
   const filters = ui.filters;
   const annualPlanView = () => renderAnnualPlanView({ S, ui, plural, today });
-  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm" data-action="weekly-open-review">${icon('chart', 16)}Sua semana</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'primary' : 'ghost'}" data-action="plan-view" data-v="anual">${icon('calendar', 16)}Plano anual</button><button type="button" class="btn sm ${ui.planView === 'anual' ? 'ghost' : 'primary'}" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
-    <section class="card plain" aria-labelledby="mt"><h2 id="mt" class="sr">${ui.planView === 'anual' ? 'Plano anual' : 'Minhas tarefas'}</h2>
-      <div class="tabs plan-view-segments" role="tablist" aria-label="Modo de visualização">${[['lista', 'Lista', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']].map(([value, label, ic]) => h`<button type="button" class="tab" role="tab" id="plan-tab-${value}" aria-controls="plan-panel" tabindex="${ui.planView === value ? '0' : '-1'}" data-action="plan-view" data-v="${value}" aria-selected="${String(ui.planView === value)}">${icon(ic, 18)}<span>${label}</span></button>`)}</div>
-      <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${ui.planView}">${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${filterOptions.map(([key, label]) => h`<button class="chip" aria-pressed="${filters.f === key}" data-action="set-filter" data-f="${key}">${label}</button>`)}${allTags().map((tag) => h`<button class="chip" aria-pressed="${filters.f === 'etq:' + tag}" data-action="set-filter" data-f="${'etq:' + tag}">#${tag}</button>`)}</div>
+  const views = [['lista', 'Tarefas', 'list'], ['calendario', 'Calendário', 'calendar'], ['semana', 'Semana', 'calendarCheck'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']];
+  const activeView = views.find(([value]) => value === ui.planView) || views[0];
+  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
+    <section class="surface-open plain" aria-labelledby="mt"><h2 id="mt" class="sr">${activeView[1]}</h2>
+      <div class="tabs plan-view-segments" role="tablist" aria-label="Visualizações do Planejar">${views.map(([value, label, ic]) => h`<button type="button" class="tab" role="tab" id="plan-tab-${value}" aria-controls="plan-panel" tabindex="${ui.planView === value ? '0' : '-1'}" data-action="plan-view" data-v="${value}" aria-selected="${String(ui.planView === value)}">${icon(ic, 18)}<span>${label}</span></button>`)}</div>
+      <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${activeView[0]}">${ui.planView === 'anual' ? annualPlanView() : ui.planView === 'calendario' ? taskCalendar() : ui.planView === 'semana' ? taskWeek() : ui.planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${filterOptions.map(([key, label]) => h`<button class="chip" aria-pressed="${filters.f === key}" data-action="set-filter" data-f="${key}">${label}</button>`) }${allTags().map((tag) => h`<button class="chip" aria-pressed="${filters.f === 'etq:' + tag}" data-action="set-filter" data-f="${'etq:' + tag}">#${tag}</button>`)}</div>
       <div class="row"><label class="search"><span class="sr">Buscar tarefas</span>${icon('search', 18)}<input type="search" id="q" data-keep value="${filters.q}" placeholder="Buscar tarefas" data-input="search"></label>
         <label class="task-sort-field"><span class="sr">Ordenar</span><select id="sortsel" data-change="sort">${[['prazo', 'Por prazo'], ['prioridade', 'Prioridade'], ['recentes', 'Recentes'], ['manual', 'Manual']].map(([key, label]) => h`<option value="${key}" ${filters.sort === key ? raw('selected') : ''}>${label}</option>`)}</select></label></div>
-      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</div></section>
-    ${ui.planView === 'anual' ? '' : plansHtml()}`;
+      <div id="task-results" aria-live="polite" tabindex="-1">${taskListHtml()}</div>`}</div></section>`;
 }
-
 export function renderAnnualPlanView({ S, ui, plural, today }) {
   const currentYear = Number(today().slice(0, 4));
   const plans = S.settings.prefs.annualPlans || {};
@@ -55,13 +54,18 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
     { id: 'q4', title: '4º trimestre', months: 'out — dez' },
     { id: '', title: 'Ao longo do ano', months: 'sem data definida' },
   ];
-  const goalCard = (goal) => h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
-    <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
-    <div class="annual-goal-content"><h4>${goal.title}</h4>
-      ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}</div>
-    <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
-    <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
-  </li>`;
+  const goalCard = (goal) => {
+    const linkedTask = S.tasks.find((task) => task.id === goal.taskId);
+    return h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
+      <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
+      <div class="annual-goal-content"><h4>${goal.title}</h4>
+        ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}
+        <button type="button" class="btn ghost sm" data-action="annual-goal-task" data-id="${goal.id}">${linkedTask ? 'Abrir tarefa relacionada' : goal.action ? 'Criar tarefa do primeiro passo' : 'Criar tarefa para esta conquista'}</button>
+      </div>
+      <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}" aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
+      <button type="button" class="ibtn" data-action="annual-goal-delete" data-id="${goal.id}" aria-label="Excluir conquista: ${goal.title}">${icon('trash', 17)}</button>
+    </li>`;
+  };
   const ideas = filterAnnualPlanIdeas(ui.annualIdeaCategory, ui.annualIdeaQuery);
   const visibleIdeaIds = new Set(ideas.map((idea) => idea.id));
   const goalForm = (quarter) => h`<form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
@@ -135,7 +139,6 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
     })}</div>
   </section>`;
 }
-
 export function renderTaskCalendar({
   S,
   ui,
@@ -146,6 +149,7 @@ export function renderTaskCalendar({
   ymLabel,
   taskRow,
   googleCalendarPlanPanel,
+  calendarEventTaskKey,
 }) {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
   const eventsByDay = new Map();
@@ -182,13 +186,23 @@ export function renderTaskCalendar({
     .sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
   const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   const connectedAccounts = connectedGoogleCalendarAccounts();
+  const eventSourceLabel = (event) => event.calendarName === event.accountLabel
+    ? (event.calendarName || 'Google Calendar')
+    : (event.calendarName && event.accountLabel
+      ? `${event.calendarName} · ${event.accountLabel}`
+      : event.calendarName || event.accountLabel || 'Google Calendar');
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
     ${googleCalendarPlanPanel()}
     <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
-    ${connectedAccounts.length ? h`<section class="card google-calendar-day" aria-labelledby="google-calendar-day-title">
-      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Somente leitura</span></div>
+    ${connectedAccounts.length ? h`<section class="surface-open google-calendar-day" aria-labelledby="google-calendar-day-title">
+      <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Ações locais</span></div>
       ${selectedEvents.length
-        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => h`<li><time>${event.time}</time><span class="grow"><b>${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`
+        ? h`<ul class="google-calendar-events">${selectedEvents.map((event) => {
+          const key = calendarEventTaskKey(event);
+          const task = key ? S.tasks.find((item) => item.groupId === key) : null;
+          const done = task?.done === true;
+          return h`<li><time>${event.time}</time><button type="button" class="chk google-calendar-event-check" role="checkbox" aria-checked="${String(done)}" aria-label="${done ? 'Reabrir tarefa criada do evento' : 'Marcar evento como concluído'}: ${event.title}" data-action="google-calendar-event-toggle" data-event-key="${key}" data-event-title="${event.title}" data-event-day="${event.day}" data-event-time="${event.allDay ? '' : event.time}" data-calendar-name="${event.calendarName}" data-account-label="${event.accountLabel}"><span>${icon('check', 15)}</span></button><span class="grow"><b>${event.title}</b><small>${eventSourceLabel(event)}</small></span></li>`;
+        })}</ul>`
         : emptyState({
           title: 'Nenhum evento neste dia.',
           description: 'Você pode conferir as agendas conectadas ou escolher outra data.',
@@ -219,21 +233,16 @@ export function renderTaskWeek({ S, ui, weekStartDay, today, cap, taskRow }) {
     <div class="mnav"><button class="ibtn" data-action="tweek-nav" data-n="-1" aria-label="Semana anterior">${icon('chevLeft', 20)}</button><b>${label}</b><button class="ibtn" data-action="tweek-nav" data-n="1" aria-label="Próxima semana">${icon('chevRight', 20)}</button><button class="btn sm" data-action="tweek-today">Esta semana</button></div>
     <div class="week-days">${entries.map(({ day, tasks }) => h`<section class="week-day${day === today() ? ' is-today' : ''}" aria-labelledby="week-${day}">
       <div class="head"><h3 id="week-${day}">${cap(DIAS[pk(day).getDay()])} <span>${shortDate(day)}</span>${day === today() ? h` <span class="badge">Hoje</span>` : ''}</h3><span class="small muted">${tasks.filter((task) => !task.done).length} pendente(s)</span></div>
-      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>` : emptyState({
-        title: 'Dia livre.',
-        description: 'Nada marcado. Você pode adicionar uma tarefa se quiser.',
-        action: h`<button type="button" class="btn primary" data-action="week-add" data-d="${day}">Adicionar tarefa</button>`,
-        iconName: 'calendarCheck',
-        headingLevel: 'h4',
-      })}
+      ${tasks.length ? h`<ul class="list">${tasks.map(taskRow)}</ul><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}">${icon('plus', 15)}Adicionar tarefa</button>` : h`<div class="week-day-empty"><span class="small muted">Dia livre</span><button type="button" class="btn ghost sm" data-action="week-add" data-d="${day}" aria-label="Adicionar tarefa em ${cap(DIAS[pk(day).getDay()])} ${shortDate(day)}">${icon('plus', 15)}Adicionar</button></div>`}
     </section>`)}</div>
   </div>`;
 }
 
 export function renderGoogleCalendarPlanPanel(accounts) {
-  return h`<section class="card google-calendar-panel" aria-labelledby="google-calendar-title">
-    <div class="head"><div><h3 id="google-calendar-title">Agendas conectadas</h3><span class="badge">Somente leitura</span></div><a class="btn sm" href="/config?section=calendars">Gerenciar agendas</a></div>
-    ${accounts.length ? h`<p class="small muted">${accounts.length} ${accounts.length === 1 ? 'conta Google conectada' : 'contas Google conectadas'}. Os eventos ficam disponíveis junto às tarefas enquanto esta aba estiver aberta.</p>` : emptyState({
+  const selectedCalendars = accounts.reduce((count, account) => count + account.selectedIds.length, 0);
+  return h`<section class="surface-open google-calendar-panel" aria-labelledby="google-calendar-title">
+    <div class="head"><div><h3 id="google-calendar-title">Seus calendários</h3><span class="badge">Somente leitura</span></div><a class="btn sm" href="/config?section=calendars">Gerenciar</a></div>
+    ${accounts.length ? h`<p class="small muted">${selectedCalendars} ${selectedCalendars === 1 ? 'calendário selecionado' : 'calendários selecionados'} em ${accounts.length} ${accounts.length === 1 ? 'conta' : 'contas'}. Selecione um dia para ver os eventos junto às tarefas.</p>` : emptyState({
         title: 'Nenhuma agenda conectada.',
         description: 'Conecte uma agenda quando quiser ver seus eventos ao lado das tarefas.',
         action: h`<a class="btn primary" href="/config?section=calendars">Conectar agenda</a>`,
@@ -242,20 +251,4 @@ export function renderGoogleCalendarPlanPanel(accounts) {
         className: 'google-calendar-plan-empty',
       })}
   </section>`;
-}
-
-export function renderPlansView(tasks) {
-  const groups = {};
-  tasks.forEach((task) => {
-    if (task.groupId) {
-      (groups[task.groupId] ||= { title: task.groupTitle, items: [] }).items.push(task);
-    }
-  });
-  const plans = Object.entries(groups);
-  if (!plans.length) return '';
-  return h`<section class="card"><h2>Planos<i>.</i></h2><ul class="list">${plans.map(([id, plan]) => {
-    const done = plan.items.filter((task) => task.done).length;
-    const percent = Math.round(done / plan.items.length * 100);
-    return h`<li><div class="grow"><div class="ttl">${plan.title}</div><div class="bar plan-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${plan.title}"><span style="width:${percent}%"></span></div><span class="small muted">${done} de ${plan.items.length} concluídas</span></div><button class="ibtn" data-action="del-plan" data-id="${id}" aria-label="Excluir plano ${plan.title}">${icon('trash', 18)}</button></li>`;
-  })}</ul></section>`;
 }

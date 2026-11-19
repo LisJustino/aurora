@@ -12,7 +12,7 @@ import {
 } from './crypto-vault.js';
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
-import { calculateAge, createBirthdayReference, isValidBirthdayReference } from '../features/profile/birthday.js';
+import { calculateAge, isValidBirthdayReference } from '../features/profile/birthday.js';
 import {
   accountModeFromLocation,
   accountPathForMode,
@@ -24,17 +24,17 @@ import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  LEGACY_PASSWORD_MIN_LENGTH,
   PASSWORD_REJECTED_MESSAGE,
-  PASSWORD_REQUIREMENTS,
   PASSWORD_REQUIREMENTS_MESSAGE,
   validatePassword,
 } from './password-policy.js';
 
 export { calculateAge };
 
-export const TERMS_DOCUMENT_VERSION = '1.9';
-export const PRIVACY_POLICY_VERSION = '2.0';
-export const CYCLE_DATA_CONSENT_VERSION = '2.0';
+export const TERMS_DOCUMENT_VERSION = '2.0';
+export const PRIVACY_POLICY_VERSION = '2.2';
+export const CYCLE_DATA_CONSENT_VERSION = '2.1';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
 export function createLegalConsentMetadata(acceptedAt = new Date()) {
@@ -91,12 +91,12 @@ export function hasCompleteProfile(user) {
     && metadata.name.trim()
     && typeof metadata.preferred_name === 'string'
     && metadata.preferred_name.trim()
-    && isValidBirthdayReference({
+    && (metadata.age_confirmed === true || isValidBirthdayReference({
       month: metadata.birthday_month,
       day: metadata.birthday_day,
       ageAtReference: metadata.age,
       referenceDate: metadata.birthday_reference_date,
-    }));
+    })));
 }
 
 export function hasSocialIdentity(user) {
@@ -151,12 +151,6 @@ export function passwordRecoveryErrorMessage(error) {
     return 'Muitas solicitações foram feitas recentemente. Aguarde alguns minutos antes de tentar novamente.';
   }
   return genericAuthError();
-}
-
-function localDateValue(date) {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function navigateToAccountMode(mode, { replace = false } = {}) {
@@ -379,7 +373,7 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
   input.value = value;
   if (type === 'email') input.maxLength = 254;
   if (name === 'password' || name === 'confirmPassword') {
-    input.minLength = PASSWORD_MIN_LENGTH;
+    input.minLength = LEGACY_PASSWORD_MIN_LENGTH;
     input.maxLength = PASSWORD_MAX_LENGTH;
   }
   if (name === 'email') input.placeholder = 'voce@email.com';
@@ -390,12 +384,6 @@ function createField(form, labelText, name, type, autocomplete, value = '', help
     input.spellcheck = false;
     input.maxLength = 43;
     input.pattern = '[A-Za-z0-9_-]{43}';
-  }
-  if (name === 'confirmKey') {
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-    input.maxLength = 6;
-    input.pattern = '[A-Za-z0-9_-]{6}';
   }
   label.htmlFor = `account-${name}`;
   input.id = label.htmlFor;
@@ -460,15 +448,11 @@ function setSubmitPending(button, pending) {
   button.disabled = false;
 }
 
-const SPARKLE_PATH = 'M12 1.5c.7 5.6 3.4 8.3 9 9-5.6.7-8.3 3.4-9 9-.7-5.6-3.4-8.3-9-9 5.6-.7 8.3-3.4 9-9z';
 
 const SUCCESS_ART = `<svg class="account-success-svg" viewBox="0 0 120 96" role="presentation" focusable="false">
     <circle class="ok-halo" cx="60" cy="50" r="38"/>
     <circle class="ok-disc" cx="60" cy="50" r="28"/>
     <path class="ok-check" d="M46 51l10 10 19-21"/>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(94 8) scale(.9)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(10 22) scale(.6)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(98 62) scale(.5)"/>
   </svg>`;
 
 const ACCOUNT_ART = {
@@ -482,9 +466,6 @@ const ACCOUNT_ART = {
       <path class="art-env-fold" d="M36 162l76-56M224 162l-76-56" />
       <path class="art-heart" d="M130 158c-12-9-18-15-18-22a9 9 0 0 1 18-3 9 9 0 0 1 18 3c0 7-6 13-18 22z"/>
     </g>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(206 20) scale(1.1)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(24 40) scale(.8)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(228 112) scale(.6)"/>
   </svg>`,
   lock: `<svg class="account-art-svg" viewBox="0 0 260 200" role="presentation" focusable="false">
     <ellipse class="art-shadow" cx="130" cy="182" rx="76" ry="10"/>
@@ -495,9 +476,6 @@ const ACCOUNT_ART = {
       <circle class="art-keyhole" cx="130" cy="126" r="11"/>
       <path class="art-keyhole" d="M125 130h10l3 24h-16z"/>
     </g>
-    <path class="art-sparkle s1" d="${SPARKLE_PATH}" transform="translate(200 24) scale(1.1)"/>
-    <path class="art-sparkle s2" d="${SPARKLE_PATH}" transform="translate(30 70) scale(.8)"/>
-    <path class="art-sparkle s3" d="${SPARKLE_PATH}" transform="translate(214 120) scale(.6)"/>
   </svg>`,
   preview: `<div class="account-preview">
     <div class="account-preview-card is-tasks">
@@ -517,8 +495,6 @@ const ACCOUNT_ART = {
       <p class="account-preview-value">R$ 1.240,00</p>
       <div class="account-preview-bars"><span></span><span></span><span></span><span></span><span></span></div>
     </div>
-    <svg class="account-preview-sparkle s1" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
-    <svg class="account-preview-sparkle s2" viewBox="0 0 24 24" role="presentation" focusable="false"><path d="${SPARKLE_PATH}"/></svg>
   </div>`,
 };
 
@@ -560,7 +536,7 @@ function createAccountIntro(mode = '', brandLink = null) {
     heading: 'Mais clareza para o que importa.',
     description: 'Planeje seus dias, acompanhe hábitos e cuide das suas finanças em um só lugar.',
   };
-  const heading = create('h2', '', copy.heading);
+  const heading = create('h2', 'type-editorial-display', copy.heading);
   const description = create(
     'p',
     'account-intro-description',
@@ -669,28 +645,23 @@ export function createAccountForm(root, {
   const activeStage = { 'signup-profile': 1, 'signup-access': 2 }[mode];
   const profileMode = mode === 'signup-profile' || mode === 'oauth-profile';
   if (activeStage) page.dataset.accountStage = String(activeStage);
-  let publicBrand = null;
-  let publicActions = null;
   if (includePublicHeader) {
     const header = document.createElement('template');
     header.innerHTML = renderPublicHeader({ authMode: mode.startsWith('signup-') ? 'signup' : mode });
     const publicHeader = header.content.firstElementChild;
-    publicBrand = publicHeader.querySelector('.public-brand-link');
-    const publicNav = publicHeader.querySelector('.public-header-nav');
-    publicActions = publicHeader.querySelector('.public-header-actions');
+    const publicActions = publicHeader.querySelector('.public-header-actions');
     page.classList.add('is-public-account');
-    if (publicBrand && publicNav && publicActions) {
+    if (publicHeader && publicActions) {
+      publicHeader.classList.add('account-site-header');
       publicActions.classList.add('account-auth-header-actions');
-      const siteHeader = create('header', 'account-site-header');
-      siteHeader.append(publicBrand, publicNav, publicActions);
-      layout.insertBefore(siteHeader, page);
+      layout.insertBefore(publicHeader, page);
     }
   }
   page.append(createAccountIntro(mode, null));
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
   const brand = create('p', 'account-brand', 'aurora');
-  const heading = create('h1', '', title);
+  const heading = create('h1', 'type-editorial-title', title);
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', description);
@@ -733,9 +704,38 @@ export function createAccountForm(root, {
   else card.append(brand, heading, detail);
 
   if (recoveryKey) {
-    const instructions = create('p', 'account-security-note', 'Guarde esta chave fora do Aurora. Ela só aparece agora e será necessária para recuperar os dados se você redefinir a senha ou usar outro dispositivo.');
+    const instructions = create('p', 'account-security-note', 'Guarde esta chave fora do Aurora. Ela só é exibida nesta etapa; você pode copiá-la ou baixar um arquivo para consultar depois. Ela será necessária para recuperar os dados se você redefinir a senha ou usar outro dispositivo.');
     const key = create('code', 'account-secret', recoveryKey);
-    card.append(instructions, key);
+    const keyActions = create('div', 'account-recovery-key-actions');
+    const copyKey = create('button', 'btn sm', 'Copiar chave');
+    copyKey.type = 'button';
+    const downloadKey = create('button', 'btn sm back', 'Baixar chave');
+    downloadKey.type = 'button';
+    const keyStatus = create('p', 'account-recovery-key-status');
+    keyStatus.setAttribute('role', 'status');
+    keyStatus.setAttribute('aria-live', 'polite');
+    copyKey.addEventListener('click', async () => {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('A cópia automática não está disponível.');
+        await navigator.clipboard.writeText(recoveryKey);
+        keyStatus.textContent = 'Chave copiada.';
+      } catch (error) {
+        console.warn('Aurora: não foi possível copiar a chave de recuperação.', error);
+        keyStatus.textContent = 'Não foi possível copiar automaticamente. Selecione e copie a chave exibida.';
+      }
+    });
+    downloadKey.addEventListener('click', () => {
+      const contents = `Chave de recuperação do Aurora\n\n${recoveryKey}\n\nGuarde este arquivo em local seguro.`;
+      const url = URL.createObjectURL(new Blob([contents], { type: 'text/plain;charset=utf-8' }));
+      const link = create('a');
+      link.href = url;
+      link.download = 'aurora-chave-de-recuperacao.txt';
+      link.click();
+      URL.revokeObjectURL(url);
+      keyStatus.textContent = 'Arquivo da chave baixado. Guarde-o em local seguro.';
+    });
+    keyActions.append(copyKey, downloadKey);
+    card.append(instructions, key, keyActions, keyStatus);
   }
 
   let ageStatus = null;
@@ -759,23 +759,23 @@ export function createAccountForm(root, {
         preferredNameInput.value = nameInput.value.trim().split(/\s+/)[0].slice(0, 50);
       }
     });
-    const birthDate = createField(
-      form,
-      'Data de nascimento',
-      'birthDate',
-      'date',
-      'bday',
-      signupProfile?.birthDate || '',
-      'Usamos a data para calcular sua idade; guardamos somente a idade calculada.',
-    );
-    birthDate.closest('.account-field')?.classList.add('account-birth-field');
-    birthDate.max = localDateValue(new Date());
+    const ageConfirmation = create('label', 'account-age-confirmation');
+    const ageConfirmed = create('input');
+    ageConfirmed.type = 'checkbox';
+    ageConfirmed.name = 'ageConfirmed';
+    ageConfirmed.required = true;
+    ageConfirmed.checked = signupProfile?.ageConfirmed === true;
+    ageConfirmation.append(ageConfirmed, create(
+      'span',
+      '',
+      `Confirmo que tenho pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`,
+    ));
+    form.append(ageConfirmation);
     ageStatus = create('p', 'account-age-status');
     ageStatus.id = 'account-age-status';
     ageStatus.setAttribute('role', 'status');
     ageStatus.setAttribute('aria-live', 'polite');
     ageStatus.hidden = true;
-    birthDate.setAttribute('aria-describedby', `${birthDate.getAttribute('aria-describedby')} ${ageStatus.id}`.trim());
     form.append(ageStatus);
   }
   if (mode === 'login' || mode === 'signup-access' || mode === 'recovery') {
@@ -792,15 +792,6 @@ export function createAccountForm(root, {
     );
   }
   if (mode === 'signup-access') {
-    createField(
-      form,
-      'Confirmar e-mail',
-      'confirmEmail',
-      'email',
-      'email',
-      '',
-      'Digite novamente o endereço para evitar erros de recuperação.',
-    );
     const securityGroup = createFormGroup('account-form-group account-password-group', 'acesso seguro');
     form.append(securityGroup);
     createField(
@@ -847,7 +838,7 @@ export function createAccountForm(root, {
       '',
       '',
     );
-    form.elements.password.minLength = PASSWORD_MIN_LENGTH;
+    form.elements.password.minLength = LEGACY_PASSWORD_MIN_LENGTH;
     const rememberSession = create('input');
     rememberSession.type = 'checkbox';
     rememberSession.name = 'rememberSession';
@@ -859,9 +850,17 @@ export function createAccountForm(root, {
   }
   if (mode === 'setup-vault') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
   if (mode === 'unlock-password') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
-  if (mode === 'setup-vault' || mode === 'unlock-password') form.elements.password.minLength = 12;
+  if (mode === 'setup-vault' || mode === 'unlock-password') form.elements.password.minLength = LEGACY_PASSWORD_MIN_LENGTH;
   if (mode === 'unlock-recovery') createField(form, 'Chave de recuperação', 'recoveryKey', 'text', 'off');
-  if (mode === 'confirm-recovery') createField(form, 'Digite os últimos 6 caracteres da chave', 'confirmKey', 'text', 'off');
+  if (mode === 'confirm-recovery') {
+    const acknowledgement = create('label', 'account-recovery-acknowledgement');
+    const saved = create('input');
+    saved.type = 'checkbox';
+    saved.name = 'recoverySaved';
+    saved.required = true;
+    acknowledgement.append(saved, create('span', '', 'Já guardei a chave de recuperação em um local seguro.'));
+    form.append(acknowledgement);
+  }
   if (mode === 'update-password') {
     createField(
       form,
@@ -948,65 +947,24 @@ export function createAccountForm(root, {
     const emailInput = form.elements.email;
     const password = form.elements.password;
     const confirmPassword = form.elements.confirmPassword;
-    const passwordField = password.closest('.account-field');
-    const strength = create('div', 'account-password-strength');
-    strength.innerHTML = '<div class="account-strength-track" aria-hidden="true"><span></span></div><p class="account-strength-label" aria-live="polite">Critérios atendidos: <b>0 de 5</b></p>';
-    const checklist = create('ul', 'account-password-checklist');
-    checklist.id = 'account-password-checklist';
-    checklist.setAttribute('aria-live', 'polite');
-    password.setAttribute('aria-describedby', `${password.getAttribute('aria-describedby')} ${checklist.id}`.trim());
-    PASSWORD_REQUIREMENTS.forEach(([key, text]) => {
-      const item = create('li', 'account-password-criterion', text);
-      const indicator = create('span', 'account-password-criterion-icon');
-      indicator.setAttribute('aria-hidden', 'true');
-      indicator.innerHTML = iconSvg('circle', 12);
-      item.prepend(indicator);
-      item.dataset.criterion = key;
-      checklist.append(item);
-    });
-    passwordField.append(strength, checklist);
     let emailWasBlurred = false;
     emailInput.addEventListener('focus', () => {
       emailWasBlurred = false;
       setAccountFieldError(emailInput, '');
     });
     const updateSignupValidity = () => {
-      const value = password.value;
-      const passwordValidation = validatePassword(value);
-      let passed = 0;
-      PASSWORD_REQUIREMENTS.forEach(([key]) => {
-        const valid = passwordValidation.criteria[key];
-        const item = checklist.querySelector(`[data-criterion="${key}"]`);
-        item.classList.toggle('is-met', valid);
-        item.setAttribute('aria-label', `${valid ? 'atendido' : 'pendente'}: ${item.textContent}`);
-        item.querySelector('.account-password-criterion-icon').innerHTML = iconSvg(valid ? 'check' : 'circle', 12);
-        if (valid) passed += 1;
-      });
-      strength.dataset.criteriaState = passed === PASSWORD_REQUIREMENTS.length
-        ? 'complete'
-        : passed >= 3 ? 'partial' : 'incomplete';
-      strength.querySelector('.account-strength-track span').style.width =
-        `${(passed / PASSWORD_REQUIREMENTS.length) * 100}%`;
-      strength.querySelector('.account-strength-label b').textContent =
-        `${passed} de ${PASSWORD_REQUIREMENTS.length}`;
-      const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === value;
+      const passwordValidation = validatePassword(password.value);
+      const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === password.value;
       confirmPassword.setCustomValidity(confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '');
-      const confirmEmail = form.elements.confirmEmail;
-      const emailsMatch = confirmEmail.value.trim().toLowerCase() === emailInput.value.trim().toLowerCase();
-      confirmEmail.setCustomValidity(confirmEmail.value && !emailsMatch ? 'Os e-mails não coincidem.' : '');
       const emailIsValid = emailInput.validity.valid;
       setAccountFieldError(emailInput, emailInput.value && !emailIsValid && emailWasBlurred
         ? 'Digite um e-mail válido.'
-        : '');
-      setAccountFieldError(confirmEmail, confirmEmail.value && !emailsMatch
-        ? 'Os e-mails não coincidem.'
         : '');
       setAccountFieldError(confirmPassword, confirmPassword.value && !confirmationMatches
         ? 'As senhas não coincidem.'
         : '');
       submit.disabled = !(
         emailIsValid
-        && emailsMatch
         && passwordValidation.valid
         && confirmationMatches
         && form.elements.termsAccepted.checked
@@ -1036,50 +994,23 @@ export function createAccountForm(root, {
     form.addEventListener('change', updatePasswordValidity);
     updatePasswordValidity();
   } else if (profileMode) {
-    const birthDate = form.elements.birthDate;
-    let birthDateTouched = Boolean(birthDate.value);
+    let ageConfirmationTouched = Boolean(form.elements.ageConfirmed.checked);
     const updateProfileValidity = () => {
-      const age = calculateAge(birthDate.value);
-      if (!birthDate.value) {
-        ageStatus.hidden = !birthDateTouched;
-        if (birthDateTouched) {
-          ageStatus.textContent = 'Informe uma data de nascimento válida.';
-          ageStatus.dataset.state = 'invalid';
-        }
-        birthDate.setCustomValidity('');
-      } else if (age === null) {
-        ageStatus.hidden = false;
-        ageStatus.textContent = 'Informe uma data válida, com até 120 anos.';
-        ageStatus.dataset.state = 'invalid';
-        birthDate.setCustomValidity('Informe uma data de nascimento válida.');
-      } else if (age < MINIMUM_ACCOUNT_AGE) {
-        ageStatus.hidden = false;
-        ageStatus.textContent = `Para criar uma conta, é necessário ter pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`;
-        ageStatus.dataset.state = 'invalid';
-        birthDate.setCustomValidity(`É necessário ter pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`);
-      } else {
-        ageStatus.hidden = false;
-        ageStatus.textContent = `Você tem ${age} anos.`;
-        ageStatus.dataset.state = 'eligible';
-        birthDate.setCustomValidity('');
-      }
+      const ageConfirmed = form.elements.ageConfirmed.checked;
+      ageStatus.hidden = ageConfirmed || !ageConfirmationTouched;
+      ageStatus.textContent = ageConfirmed || !ageConfirmationTouched
+        ? ''
+        : `É necessário confirmar que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`;
+      ageStatus.dataset.state = ageConfirmed ? 'eligible' : ageConfirmationTouched ? 'invalid' : 'pristine';
       submit.disabled = !(
         form.elements.name.value.trim()
-        && age !== null
-        && age >= MINIMUM_ACCOUNT_AGE
+        && ageConfirmed
         && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
       );
     };
-    form.addEventListener('input', (event) => {
-      if (event.target === birthDate) birthDateTouched = true;
-      updateProfileValidity();
-    });
+    form.addEventListener('input', updateProfileValidity);
     form.addEventListener('change', (event) => {
-      if (event.target === birthDate) birthDateTouched = true;
-      updateProfileValidity();
-    });
-    birthDate.addEventListener('blur', () => {
-      birthDateTouched = true;
+      if (event.target === form.elements.ageConfirmed) ageConfirmationTouched = true;
       updateProfileValidity();
     });
     updateProfileValidity();
@@ -1155,7 +1086,7 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   const card = create('section', 'account-card');
   card.setAttribute('aria-labelledby', 'account-title');
   const brand = create('p', 'account-brand', 'aurora');
-  const heading = create('h1', '', title);
+  const heading = create('h1', 'type-editorial-title', title);
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', message);
@@ -1289,8 +1220,8 @@ async function unlockAccountData(client, user, knownPassword, root) {
           resolve({ password: form.elements.password.value, message });
         }, { once: true });
       });
-      if (result.password.length < 12 || result.password.length > 72) {
-        result.message.textContent = 'Use uma senha entre 12 e 72 caracteres.';
+      if (result.password.length < LEGACY_PASSWORD_MIN_LENGTH || result.password.length > PASSWORD_MAX_LENGTH) {
+        result.message.textContent = `Use uma senha entre ${LEGACY_PASSWORD_MIN_LENGTH} e ${PASSWORD_MAX_LENGTH} caracteres.`;
         continue;
       }
       password = result.password;
@@ -1298,7 +1229,6 @@ async function unlockAccountData(client, user, knownPassword, root) {
 
     const vault = await createVault(password, user.id);
     password = '';
-    const confirmation = vault.recoveryKey.slice(-6);
     for (;;) {
       const { form, message, submit } = createAccountForm(root, {
         title: 'Guarde sua chave de recuperação',
@@ -1309,11 +1239,11 @@ async function unlockAccountData(client, user, knownPassword, root) {
       const result = await new Promise((resolve) => {
         form.addEventListener('submit', (event) => {
           event.preventDefault();
-          resolve({ confirmation: form.elements.confirmKey.value, message, submit });
+          resolve({ recoverySaved: form.elements.recoverySaved.checked, message, submit });
         }, { once: true });
       });
-      if (result.confirmation !== confirmation) {
-        result.message.textContent = 'Os caracteres não correspondem. Guarde a chave e tente novamente.';
+      if (!result.recoverySaved) {
+        result.message.textContent = 'Confirme que guardou a chave para continuar.';
         continue;
       }
       setSubmitPending(result.submit, true);
@@ -1464,15 +1394,11 @@ export async function requireAccount(root, initialMode = 'login', {
     message.textContent = notice;
     const readSignupProfile = () => {
       if (mode !== 'signup-profile' && mode !== 'oauth-profile') return null;
-      const birthDate = form.elements.birthDate.value;
-      const birthdayReference = birthDate ? createBirthdayReference(birthDate) : null;
       return {
         name: form.elements.name.value.trim(),
         preferredName: form.elements.preferredName.value.trim()
           || form.elements.name.value.trim().split(/\s+/)[0],
-        birthDate,
-        age: birthdayReference?.ageAtReference ?? null,
-        birthdayReference,
+        ageConfirmed: form.elements.ageConfirmed.checked,
       };
     };
     const result = await new Promise((resolve) => {
@@ -1499,7 +1425,6 @@ export async function requireAccount(root, initialMode = 'login', {
         finish({
           email: form.elements.email?.value.trim() || email,
           password: form.elements.password?.value || '',
-          confirmEmail: form.elements.confirmEmail?.value.trim() || '',
           confirmPassword: form.elements.confirmPassword?.value || '',
           rememberSession: form.elements.rememberSession?.checked === true,
           signupProfile: profile,
@@ -1589,13 +1514,8 @@ export async function requireAccount(root, initialMode = 'login', {
         return null;
       }
       const profile = result.signupProfile;
-      if (!profile || !profile.name
-        || !profile.birthdayReference) {
-        message = 'Preencha seus dados e informe uma data de nascimento válida para continuar.';
-        continue;
-      }
-      if (profile.age < MINIMUM_ACCOUNT_AGE) {
-        message = `É necessário ter pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`;
+      if (!profile || !profile.name || !profile.ageConfirmed) {
+        message = `Preencha seu nome e confirme que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`;
         continue;
       }
       if (!result.termsAccepted) {
@@ -1608,10 +1528,7 @@ export async function requireAccount(root, initialMode = 'login', {
         data: {
           name: profile.name.slice(0, 50),
           preferred_name: profile.preferredName.slice(0, 50),
-          age: profile.age,
-          birthday_month: profile.birthdayReference.month,
-          birthday_day: profile.birthdayReference.day,
-          birthday_reference_date: profile.birthdayReference.referenceDate,
+          age_confirmed: true,
           ...createLegalConsentMetadata(),
         },
       });
@@ -1790,14 +1707,9 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       if (mode === 'signup-profile') {
-        const birthdayReference = result.signupProfile?.birthdayReference;
         if (!result.signupProfile || !result.signupProfile.name
-          || !birthdayReference) {
-          message = 'Preencha seus dados e informe uma data de nascimento válida para criar uma conta.';
-          continue;
-        }
-        if (result.signupProfile.age < MINIMUM_ACCOUNT_AGE) {
-          message = `É necessário ter pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`;
+          || !result.signupProfile.ageConfirmed) {
+          message = `Preencha seus dados e confirme que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`;
           continue;
         }
         profileDraft = result.signupProfile;
@@ -1806,17 +1718,13 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       if (mode === 'signup-access') {
-        if (!profileDraft || !profileDraft.birthdayReference) {
+        if (!profileDraft || !profileDraft.ageConfirmed) {
           mode = 'signup-profile';
-          message = 'Confirme seus dados e a data de nascimento para continuar o cadastro.';
+          message = 'Confirme seus dados e a idade mínima para continuar o cadastro.';
           continue;
         }
         if (!result.termsAccepted) {
           message = 'Leia e aceite os Termos de Uso e a Política de Privacidade para criar uma conta.';
-          continue;
-        }
-        if (result.confirmEmail.toLowerCase() !== email.toLowerCase()) {
-          message = 'Os endereços de e-mail não coincidem. Confira e digite ambos novamente.';
           continue;
         }
         if (!validatePassword(result.password).valid) {
@@ -1832,10 +1740,7 @@ export async function requireAccount(root, initialMode = 'login', {
             data: {
               name: profileDraft.name.slice(0, 50),
               preferred_name: profileDraft.preferredName.slice(0, 50),
-              age: profileDraft.age,
-              birthday_month: profileDraft.birthdayReference.month,
-              birthday_day: profileDraft.birthdayReference.day,
-              birthday_reference_date: profileDraft.birthdayReference.referenceDate,
+              age_confirmed: true,
               ...createLegalConsentMetadata(),
             },
           },

@@ -186,6 +186,44 @@ test('requisições autenticadas também respeitam o limite por instalação', a
   assert.equal(limited.body.error, 'rate-limited');
 });
 
+test('tentativas de Push geram logs estruturados sem dados da inscrição', async () => {
+  const env = await environment();
+  const subscription = await createSubscription();
+  const storage = new MemoryStorage();
+  const alarm = new PomodoroAlarm({ storage }, env);
+  const originalFetch = globalThis.fetch;
+  const originalInfo = console.info;
+  const originalWarn = console.warn;
+  const logs = [];
+  console.info = (message) => logs.push(JSON.parse(message));
+  console.warn = (message) => logs.push(JSON.parse(message));
+  try {
+    globalThis.fetch = async () => new Response(null, { status: 201 });
+    await alarm.sendNotification({ kind: 'habit-reminder' }, subscription);
+
+    globalThis.fetch = async () => new Response(null, { status: 503 });
+    await alarm.sendNotification({ kind: 'task-reminder' }, subscription);
+
+    globalThis.fetch = async () => new Response(null, { status: 410 });
+    await alarm.sendNotification({ kind: 'weekly-review' }, subscription);
+
+    globalThis.fetch = async () => { throw new Error('network failure'); };
+    await alarm.sendNotification({ kind: 'task-reminder' }, subscription);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.info = originalInfo;
+    console.warn = originalWarn;
+  }
+
+  assert.deepEqual(logs, [
+    { event: 'aurora_push_attempt', result: 'accepted_by_provider', kind: 'habit-reminder', status: 201 },
+    { event: 'aurora_push_attempt', result: 'provider_rejected', kind: 'task-reminder', status: 503 },
+    { event: 'aurora_push_attempt', result: 'subscription_expired', kind: 'weekly-review', status: 410 },
+    { event: 'aurora_push_attempt', result: 'request_failed', kind: 'task-reminder', status: null },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(subscription.endpoint), false);
+});
+
 test('a inscrição rejeita destinos de rede arbitrários e estruturas inesperadas', async () => {
   const env = await environment();
   const client = await register(env);

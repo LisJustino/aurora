@@ -17,6 +17,12 @@
   animation: task-title-complete var(--duration-base) var(--ease-standard) both;
 }
 
+.task.completion-feedback .chk span .ic path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: task-check-draw var(--duration-base) var(--ease-standard) forwards;
+}
+
 .ringw .ring-fg.is-progress-animating {
   animation: progress-ring-fill var(--duration-base) var(--ease-standard) both;
 }
@@ -32,6 +38,10 @@
 @keyframes task-check-pop {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.08); }
+}
+
+@keyframes task-check-draw {
+  to { stroke-dashoffset: 0; }
 }
 
 @keyframes task-title-complete {

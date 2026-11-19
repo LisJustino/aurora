@@ -2,13 +2,13 @@
   "name": "Aurora",
   "short_name": "Aurora",
   "lang": "pt-BR",
-  "description": "Organize tarefas, hábitos, finanças e ciclo no seu ritmo.",
+  "description": "Organize sua rotina num só lugar: tarefas, hábitos, finanças e ciclo. Grátis, sem cartão e funciona no celular.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f8f8f6",
-  "theme_color": "#f8f8f6",
+  "background_color": "#f5f3ed",
+  "theme_color": "#f5f3ed",
   "icons": [
     {
       "src": "./icons/aurora-192.png",
@@ -65,7 +65,7 @@
     {
       "name": "Água",
       "short_name": "Água",
-      "url": "/agua",
+      "url": "/habitos",
       "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }]
     },
     {

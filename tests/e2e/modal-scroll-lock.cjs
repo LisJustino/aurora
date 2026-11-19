@@ -173,9 +173,8 @@ async function checkLegalDialog(browser, options, label, base) {
   try {
     for (const [label, options] of viewports) {
       await checkCustomDialog(browser, options, label, base);
-      await checkPanel(browser, options, `${label}, notificações`, base, '[data-action="toggle-notifications"]', '#notification-panel', '[data-action="close-notifications"]');
       await checkLegalDialog(browser, options, label, base);
-      console.log(`${label}: notificações não bloqueiam a tela; diálogos modais bloqueiam e restauram o scroll.`);
+      console.log(`${label}: diálogos modais bloqueiam e restauram o scroll.`);
     }
   } finally {
     await browser.close();

@@ -33,11 +33,17 @@ const check = (passed, name, detail = '') => {
 
   const routes = ['inicio', 'planejar', 'financas', 'ciclo', 'habitos', 'config'];
   for (const route of routes) {
-    const link = route === 'config'
-      ? page.locator('.profile-menu-trigger')
-      : page.locator(`.nav a[href="/${route}"]`).first();
-    await link.click();
-    if (route === 'config') await page.locator('#profile-menu a[href="/config"]').click();
+    const direct = page.locator(`.nav a.nav-item[href="/${route}"]:visible`);
+    if (route === 'config') {
+      await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
+      await page.locator('#profile-menu a[href="/config"]').click();
+    } else if (await direct.count()) {
+      await direct.first().click();
+    } else {
+      // No celular, as áreas além das três primeiras ficam dentro do menu Mais.
+      await page.locator('.topbar .nav .profile-menu-trigger:visible').click();
+      await page.locator(`#profile-menu a[href="/${route}"]`).click();
+    }
     await page.waitForFunction((expected) => location.pathname === `/${expected}`, route);
     check(await page.locator('main h1, main h2').count() > 0, `rota ${route} renderiza conteúdo`);
   }

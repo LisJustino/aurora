@@ -6,18 +6,7 @@ import { readReleaseMetadata } from './scripts/release-metadata.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const releaseMetadata = readReleaseMetadata(root);
-const pageEntries = [
-  'pages/agua.html',
-  'pages/ajustes.html',
-  'pages/ciclo.html',
-  'pages/financas.html',
-  'pages/habitos.html',
-  'pages/inicio.html',
-  'pages/perfil.html',
-  'pages/planejar.html',
-  'privacy.html',
-  'terms.html',
-];
+const pageEntries = ['privacy.html', 'terms.html'];
 
 // Expõe o chunk de autenticação para aquecer o formulário sem baixar o app.
 function accountChunkHint() {

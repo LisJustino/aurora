@@ -31,9 +31,14 @@
 .btn:hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--surface-raised);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(var(--button-hover-lift));
 }
-.btn:active { background: var(--soft); }
+.btn:active {
+  background: var(--soft);
+  box-shadow: none;
+  transform: translateY(var(--button-press-lift));
+}
 
 /* Tamanhos */
 .btn.sm { min-height: var(--control-sm); padding-inline: var(--button-padding-inline-sm); font-size: var(--text-sm); }
@@ -43,13 +48,13 @@
 /* Primário */
 .btn.primary {
   border-color: transparent;
-  background: var(--btn);
+  background: linear-gradient(135deg, var(--btn), color-mix(in srgb, var(--btn) 84%, var(--plum)));
   color: var(--on-btn);
   box-shadow: none;
 }
 .btn.primary:hover {
   background: color-mix(in srgb, var(--btn) 92%, var(--ink));
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Padrão (secundário) */
@@ -76,7 +81,7 @@
   color: var(--accent);
   font-weight: var(--weight-bold);
 }
-.btn.ghost:hover { background: var(--soft); }
+.btn.ghost:hover { background: var(--soft); box-shadow: none; }
 
 /* Perigo */
 .btn.danger {
@@ -87,6 +92,7 @@
 .btn.danger:hover {
   border-color: var(--bad);
   background: var(--bad-soft);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Desabilitado */
@@ -148,4 +154,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
+  .btn:hover, .btn:active { box-shadow: none; transform: none; }
 }
