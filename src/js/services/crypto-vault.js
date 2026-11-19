@@ -85,8 +85,8 @@ async function unwrapRawKey(wrapped, wrappingKey, userId, purpose) {
 
 export async function createVault(password, userId) {
   requireCrypto();
-  if (typeof password !== 'string' || password.length < 12 || password.length > 72) {
-    throw new Error('Use uma senha entre 12 e 72 caracteres.');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 72) {
+    throw new Error('Use uma senha entre 6 e 72 caracteres.');
   }
   const rawKey = crypto.getRandomValues(new Uint8Array(32));
   const salt = crypto.getRandomValues(new Uint8Array(16));

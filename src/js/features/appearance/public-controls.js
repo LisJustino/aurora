@@ -1,6 +1,7 @@
 import { LOOK_DEFAULT, paletteColors } from './palettes.js';
 import { iconSvg } from '../../utils/icons.js';
-import { prefersReducedMotion } from '../../utils/motion.js';
+import { syncNativeAppearance } from '../../services/native-experience.js';
+import { APP_URL, login as loginUrl, signup as signupUrl } from '../landing/links.js';
 
 const publicLook = { ...LOOK_DEFAULT };
 let accessibilityOpen = false;
@@ -18,34 +19,37 @@ function setAccessibilityOpen(open) {
 
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const isLanding = !demo && !authMode;
+  const sectionHref = (id) => isLanding ? `#${id}` : `/#${id}`;
   const publicNav = demo ? '' : `
     <nav class="public-header-nav" aria-label="Navegação principal">
-      <a href="${authMode ? '/#public-features' : '#public-features'}"><span class="ni" aria-hidden="true">${icon('grid', 20)}</span><span>Áreas</span></a>
-      <a href="/demonstracao" data-public-action="demo"><span class="ni" aria-hidden="true">${icon('play', 20)}</span><span>Demonstração</span></a>
-      <a href="${authMode ? '/#public-faq' : '#public-faq'}"><span class="ni" aria-hidden="true">${icon('info', 20)}</span><span>Perguntas</span></a>
+      <a href="${sectionHref('areas')}">O que dá para organizar</a>
+      <a href="${sectionHref('steps')}">Como começar</a>
+      <a href="${sectionHref('faq')}">Perguntas</a>
     </nav>`;
   const accountAction = (mode, label) => {
     const isCurrentMode = authMode === mode;
     const action = authMode ? `data-account-mode="${mode}"` : `data-public-action="${mode}"`;
     const current = isCurrentMode ? 'aria-current="page" disabled' : '';
-    const variant = demo && mode === 'signup' ? 'primary' : '';
-    const accessibleLabel = mode === 'signup' ? 'Criar conta' : 'Entrar';
+    const variant = mode === 'signup' ? 'primary' : '';
+    const accessibleLabel = mode === 'signup' ? 'Criar conta grátis' : 'Entrar';
     if (!authMode) {
-      const href = mode === 'signup' ? '/criar-conta' : '/entrar';
+      const href = isLanding
+        ? (mode === 'signup' ? signupUrl : loginUrl)
+        : (mode === 'signup' ? '/criar-conta' : '/entrar');
       return `<a class="btn ${variant} public-account-action" href="${href}" data-public-action="${mode}" aria-label="${accessibleLabel}">${label}</a>`;
     }
     return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
+  const accountSignupLabel = 'Criar conta<span class="landing-header-free"> grátis</span>';
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
-      <a class="brand public-brand-link" href="./" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
+      <a class="brand public-brand-link" href="${isLanding ? `${APP_URL}/` : './'}" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
       ${publicNav}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'Entrar')}
-        ${accountAction('signup', 'Criar conta')}
+        ${accountAction('signup', accountSignupLabel)}
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
           <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="${themeAction(publicLook.mode)}" title="${themeTooltip(publicLook.mode)}">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
-          ${isLanding || demo || authMode ? '' : `<button type="button" class="iconbtn" data-public-control="refresh" aria-label="Atualizar a aplicação" title="Atualizar a aplicação">${icon('refresh', 20)}</button>`}
         </span>
       </span>
     </header>`;
@@ -70,6 +74,7 @@ function applyPublicLook() {
   root.setAttribute('data-motion', publicLook.reduceMotion ? 'reduce' : 'normal');
   const themeColor = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
+  syncNativeAppearance(effectiveMode);
   syncPublicControls();
 }
 

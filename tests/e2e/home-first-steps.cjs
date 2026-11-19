@@ -22,7 +22,7 @@ const check = (passed, name, detail = '') => {
   await quickCard.waitFor({ state: 'visible' });
   check(await quickCard.locator('#home-quick-title-input').isVisible(), 'próximo passo fica visível sem abrir Mais do Início');
   check(await quickCard.evaluate((element) => !element.closest('.home-extras')), 'captura rápida fica fora do conteúdo secundário');
-  check(await page.locator('.home-extras').getAttribute('open') === null, 'Mais do Início começa recolhido');
+  check(await page.locator('.home-extras').count() === 0, 'Início não usa mais blocos adicionais recolhíveis');
   const card = page.locator('.home-first-steps');
   check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração com tarefas fictícias');
   check(await page.locator('#dlg').count() === 0, 'tutorial não abre automaticamente');
@@ -56,11 +56,11 @@ const check = (passed, name, detail = '') => {
       guideInHeader: Boolean(guide),
       guideAlignedRight,
       guideMatchesGhostStyle,
-      stepsColumn: getComputedStyle(document.querySelector('.home-extras')).gridColumn,
+      quickCardColumn: getComputedStyle(document.querySelector('.home-quick-card')).gridColumn,
       stepsPresent: Boolean(steps),
     };
   });
-  check(desktopLayout.guideInHeader && desktopLayout.stepsColumn === '1 / -1' && !desktopLayout.stepsPresent, 'atalho do tutorial fica no cabeçalho e cartão de primeiro acesso não aparece na demonstração');
+  check(desktopLayout.guideInHeader && desktopLayout.quickCardColumn === '1 / -1' && !desktopLayout.stepsPresent, 'atalho do tutorial fica no cabeçalho e cartão de primeiro acesso não aparece na demonstração');
   check(desktopLayout.guideAlignedRight, 'atalho “Como usar?” fica alinhado à direita no cabeçalho do Início');
   check(desktopLayout.guideMatchesGhostStyle, 'atalho do Início mantém o estilo compartilhado dos botões “Como usar?”');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -77,7 +77,7 @@ const check = (passed, name, detail = '') => {
   }
   await page.goto(`${BASE}/?preview#inicio`);
   check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
-  await page.locator('.profile-menu-trigger').click();
+  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
@@ -86,7 +86,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração');
 
-  await page.locator('.profile-menu-trigger').click();
+  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
@@ -173,11 +173,11 @@ const check = (passed, name, detail = '') => {
   check(await Promise.all(sources.map(async ({ src }) => (await page.request.get(src)).ok())).then((results) => results.every(Boolean)), 'arquivo MP4 responde pela origem local');
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
-  await page.locator('.profile-menu-trigger').click();
+  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
   await page.locator('#profile-menu a[href="/config"]').click();
   await page.locator('.settings-link[data-settings-tab="account"]').click();
   check(await page.locator('.account-session-card [data-account-signout]').count() === 0,
-    'sair da conta fica disponível apenas no menu de perfil');
+    'a prévia sem sessão autenticada não exibe botão de sair');
   await page.locator('.account-resources-card').waitFor({ state: 'visible' });
   await page.locator('.account-resources-card [data-legal-document="terms"]').click();
   await page.locator('dialog[data-legal-modal][open] .legal-document').waitFor({ state: 'visible' });

@@ -5,19 +5,13 @@ const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href
 
 export function renderSuggestionForm() {
   return `<div class="footer-faq-content">
-    <p>O formulário abre o aplicativo de e-mail configurado no seu dispositivo. Confira a mensagem e toque em Enviar; o Aurora não recebe nem guarda o rascunho. Se não tiver um aplicativo configurado, copie o e-mail de contato. Não inclua senhas nem informações pessoais sensíveis.</p>
+    <p>A mensagem vai para análise. Não pedimos seu nome nem e-mail; por segurança, evite incluir dados pessoais, senhas ou informações de saúde.</p>
     <form class="footer-suggestion-form" data-footer-suggestion>
-      <label for="footer-suggestion-name">Seu nome (opcional)</label>
-      <input id="footer-suggestion-name" name="name" type="text" maxlength="100" autocomplete="name">
-      <label for="footer-suggestion-email">E-mail para resposta (opcional)</label>
-      <input id="footer-suggestion-email" name="email" type="email" maxlength="254" autocomplete="email">
       <label for="footer-suggestion-message">Sua sugestão</label>
-      <textarea id="footer-suggestion-message" name="message" rows="4" maxlength="2000" required></textarea>
+      <textarea id="footer-suggestion-message" name="message" rows="4" minlength="10" maxlength="2000" required></textarea>
       <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
-      <button class="btn ghost" type="submit">Abrir meu e-mail para enviar</button>
-      <button class="btn back" type="button" data-action="copy-contact-email">Copiar e-mail de contato</button>
-      <p class="fine" data-suggestion-copy-status role="status" aria-live="polite"></p>
-      <p class="fine" data-suggestion-copy-fallback hidden>Copie este endereço: ${CONTACT_EMAIL}</p>
+      <button class="btn ghost" type="submit">Enviar sugestão</button>
+      <p class="fine" data-suggestion-status role="status" aria-live="polite"></p>
     </form>
   </div>`;
 }
@@ -46,7 +40,7 @@ export function renderFooterContent({
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
   const demoLink = demoAvailable
-    ? '<a class="footer-link" href="/demonstracao" data-public-action="demo">Explorar demonstração</a>'
+    ? '<a class="footer-link" href="/demonstracao" data-public-action="demo">Ver demonstração</a>'
     : '';
   const installLink = pwaInstall && !isStandalone && typeof window !== 'undefined'
     ? '<button class="footer-link" type="button" data-action="pwa-install">Baixar o app</button>'
@@ -56,7 +50,7 @@ export function renderFooterContent({
     <div class="site-footer-content">
       <div class="footer-brand">
         <div class="footer-brand-mark"><img src="${brandLogo}" alt="" aria-hidden="true" width="32" height="32"><span class="wordmark">aurora<span>.</span></span></div>
-        <p>Organize tarefas, hábitos, finanças e ciclo no seu ritmo.</p>
+        <p>Um lugar para anotar as coisas e voltar a elas quando der.</p>
       </div>
       <nav class="footer-nav" aria-label="Conta">
         <h2>Conta</h2>
@@ -89,6 +83,10 @@ export function renderFooterContent({
             <p>O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente.</p>
           </details>
           <details>
+            <summary>Posso exportar ou apagar meus dados?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
+            <p>Sim. Exporte seus dados em Ajustes → Dados e backup ou inicie a exclusão permanente da conta em Ajustes → Seu perfil. Backups baixados ficam sob seu controle.</p>
+          </details>
+          <details>
             <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
             ${renderSuggestionForm()}
           </details>
@@ -111,7 +109,7 @@ export function renderFooterContent({
 }
 
 export function initializeFaqDisclosure(root) {
-  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item').forEach((details) => {
+  root.querySelectorAll('details.footer-faq, .footer-faq-content details, details.public-faq-item, details[data-suggestion-disclosure]').forEach((details) => {
     const summary = details.querySelector(':scope > summary');
     if (!summary || summary.dataset.expandedStateBound) return;
     summary.dataset.expandedStateBound = 'true';

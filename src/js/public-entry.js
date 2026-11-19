@@ -10,8 +10,9 @@ import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } 
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
-import { CONTACT_EMAIL, createSuggestionMailto } from './features/footer/suggestions.js';
+import { normalizeSuggestionMessage } from './features/footer/suggestions.js';
 import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { hasStoredAuthSession, hasSupabaseConfig } from './data/supabase-client.js';
 import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
@@ -119,7 +120,8 @@ function observeLandingScroll() {
   const update = () => {
     const cta = root.querySelector('.public-mobile-cta');
     if (!cta) return;
-    cta.hidden = !window.matchMedia('(max-width: 700px)').matches || window.scrollY < 420;
+    cta.hidden = !window.matchMedia('(max-width: 899px)').matches || window.scrollY < 560;
+    cta.setAttribute('aria-hidden', String(cta.hidden));
   };
   window.addEventListener('scroll', update, { passive: true });
   window.addEventListener('resize', update);
@@ -244,10 +246,20 @@ function normalizeLegacyRoute() {
 
 normalizeLegacyRoute();
 
+function hasSavedAccountSession() {
+  try {
+    return hasSupabaseConfig() && hasStoredAuthSession(window);
+  } catch {
+    return false;
+  }
+}
+
+// O app instalado só pula a landing quando há sessão salva; sem sessão, mostra a landing.
 const installedLanding = routeMeta
   && !isDemoLocation(location)
   && document.documentElement.dataset.auroraAuthCallback !== 'true'
   && isAppInstalled()
+  && hasSavedAccountSession()
   && isPublicLandingLocation(location);
 if (installedLanding) {
   history.replaceState(null, '', `/inicio${location.search}`);
@@ -289,7 +301,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     } else {
       root.removeAttribute('aria-busy');
       renderLanding(root);
-      document.title = 'aurora. - rotinas';
+      document.title = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
       observeLandingScroll();
     }
     updatePublicConnectionNotice();
@@ -385,24 +397,6 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
 
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const copyContactButton = event.target instanceof Element
-      ? event.target.closest('[data-action="copy-contact-email"]')
-      : null;
-    if (copyContactButton) {
-      const status = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-status]');
-      const fallback = copyContactButton.closest('form')?.querySelector('[data-suggestion-copy-fallback]');
-      try {
-        if (!navigator.clipboard?.writeText) throw new Error('A área de transferência não está disponível.');
-        await navigator.clipboard.writeText(CONTACT_EMAIL);
-        if (status) status.textContent = 'E-mail copiado.';
-        if (fallback) fallback.hidden = true;
-      } catch (error) {
-        console.warn('Aurora: não foi possível copiar o e-mail de contato.', error);
-        if (status) status.textContent = 'Não foi possível copiar automaticamente.';
-        if (fallback) fallback.hidden = false;
-      }
-      return;
-    }
     const installAction = event.target instanceof Element
       ? event.target.closest('[data-action="pwa-install"]')
       : null;
@@ -474,22 +468,39 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     }
   });
 
-  root.addEventListener('submit', (event) => {
+  root.addEventListener('submit', async (event) => {
     if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
     event.preventDefault();
     const form = event.target;
+    const submit = form.querySelector('button[type="submit"]');
+    const errorMessage = form.querySelector('[data-suggestion-error]');
+    const status = form.querySelector('[data-suggestion-status]');
     try {
-      window.location.href = createSuggestionMailto({
-        name: form.elements.name.value,
-        email: form.elements.email.value,
-        message: form.elements.message.value,
-      });
+      const message = normalizeSuggestionMessage(form.elements.message.value);
+      if (!(submit instanceof HTMLButtonElement)) throw new Error('O botão de envio da sugestão não está disponível.');
+      submit.disabled = true;
+      submit.setAttribute('aria-busy', 'true');
+      if (errorMessage) errorMessage.hidden = true;
+      if (status) status.textContent = 'Enviando…';
+      const { getSupabaseClient } = await import('./data/supabase-client.js');
+      const client = await getSupabaseClient();
+      const { error } = await client.functions.invoke('submit-suggestion', { body: { message } });
+      if (error) throw error;
+      form.reset();
+      if (status) status.textContent = 'Sugestão enviada. Obrigada por ajudar o Aurora a melhorar.';
     } catch (error) {
-      console.error('Aurora: não foi possível preparar a sugestão de e-mail.', error);
-      const message = form.querySelector('[data-suggestion-error]');
-      if (message) {
-        message.textContent = 'Não foi possível preparar o e-mail. Confira os campos e tente novamente.';
-        message.hidden = false;
+      console.error('Aurora: não foi possível enviar a sugestão.', error);
+      if (errorMessage) {
+        errorMessage.textContent = error instanceof TypeError
+          ? error.message
+          : 'Não foi possível enviar agora. Confira sua conexão e tente novamente.';
+        errorMessage.hidden = false;
+      }
+      if (status) status.textContent = '';
+    } finally {
+      if (submit instanceof HTMLButtonElement) {
+        submit.disabled = false;
+        submit.removeAttribute('aria-busy');
       }
     }
   });

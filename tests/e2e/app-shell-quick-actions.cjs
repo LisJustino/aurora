@@ -19,6 +19,32 @@ const check = (passed, name, detail = '') => {
 
   await page.goto(`${BASE}/?preview#inicio`);
   await page.locator('.preview-shell .main').waitFor();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const headerButtonOrder = await page.locator('.header-actions').evaluate((actions) =>
+    Array.from(actions.children)
+      .filter((child) => child.getClientRects().length && getComputedStyle(child).visibility !== 'hidden')
+      .map((child) => {
+        if (child.matches('.profile-menu-control')) {
+          const trigger = child.querySelector('.profile-menu-trigger');
+          return {
+            name: 'profile',
+            label: trigger.getAttribute('aria-label'),
+            title: trigger.title,
+            left: child.getBoundingClientRect().left,
+          };
+        }
+        if (child.matches('.nav-quick-control')) return { name: 'create', left: child.getBoundingClientRect().left };
+        if (child.matches('.theme-trigger')) return { name: 'theme', left: child.getBoundingClientRect().left };
+        return { name: 'other', left: child.getBoundingClientRect().left };
+      }),
+  );
+  await page.setViewportSize({ width: 320, height: 700 });
+  check(headerButtonOrder.map(({ name }) => name).join(',') === 'create,theme,profile'
+    && headerButtonOrder[2].label === 'Perfil e conta'
+    && headerButtonOrder[2].title === 'Perfil e conta'
+    && headerButtonOrder.every((item, index) => index === 0 || headerButtonOrder[index - 1].left < item.left),
+    'cabeçalho mantém Criar, Tema e Perfil nessa ordem',
+    headerButtonOrder.map(({ name }) => name).join(' → '));
   check(await page.locator('.global-quick-actions, .global-quick-fab').count() === 0, 'não há botão flutuante de criação duplicado');
   const mobileNavBackgrounds = await page.locator('.topbar .nav').evaluate((nav) => {
     const root = document.documentElement;
@@ -37,7 +63,7 @@ const check = (passed, name, detail = '') => {
   });
   check(mobileNavBackgrounds.every(({ alpha }) => alpha === 1),
     'menu móvel tem fundo opaco nos temas claro e escuro', JSON.stringify(mobileNavBackgrounds));
-  const quickTrigger = () => page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first();
+  const quickTrigger = () => page.locator('.nav-quick-trigger:visible').first();
   const quickMenu = page.locator('#quick-actions-menu');
   const openQuickActions = async () => {
     if (await quickMenu.isVisible()) return;
@@ -53,8 +79,9 @@ const check = (passed, name, detail = '') => {
   const shortcutErrors = [];
   shortcutPage.on('pageerror', (error) => shortcutErrors.push(error.message));
   await shortcutPage.goto(`${BASE}/?preview#inicio`);
-  await shortcutPage.locator('.home-extras > summary').click();
-  await shortcutPage.locator('.home-tools [data-action="quick-action-finance"]').click();
+  await shortcutPage.locator('.nav-quick-trigger:visible').first().click();
+  await shortcutPage.locator('#quick-actions-menu').waitFor({ state: 'visible' });
+  await shortcutPage.locator('#quick-actions-menu [data-action="quick-action-expense"], #quick-actions-menu [data-action="quick-action-transaction"]').first().click();
   await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento.' }).waitFor();
   check(shortcutErrors.length === 0, 'atalho financeiro do Início carrega o formulário sem abrir Finanças', shortcutErrors.join(' | '));
   await shortcutPage.keyboard.press('Escape');
@@ -198,15 +225,11 @@ const check = (passed, name, detail = '') => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a:not(.nav-enable-areas)')];
         const items = [...nav.children].filter((child) => getComputedStyle(child).display !== 'none');
-        const create = nav.querySelector('.mobile-nav-create-trigger');
         const profile = nav.querySelector('.profile-menu-control');
-        const navBounds = nav.getBoundingClientRect();
-        const createBounds = create.getBoundingClientRect();
-        return !nav.querySelector('.nav-more-trigger')
-          && links.length === 5 && items.length === 7 && items[3] === create
-          && profile && profile.parentElement === nav
-          && Math.abs((createBounds.left + createBounds.right) / 2 - (navBounds.left + navBounds.right) / 2) <= 2
-          && links.every((link) => getComputedStyle(link).display !== 'none');
+        const shownLinks = links.filter((link) => getComputedStyle(link).display !== 'none');
+        const moreLabel = profile?.querySelector('.mobile-nav-label')?.textContent.replace('.', '').trim();
+        return links.length === 5 && shownLinks.length === 3 && items.length === 4 && !nav.querySelector('.mobile-nav-create-trigger')
+          && items[3] === profile && profile.parentElement === nav && moreLabel === 'Mais';
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
     })));
@@ -217,15 +240,14 @@ const check = (passed, name, detail = '') => {
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ directNavigation }) => directNavigation),
-    'dock mostra cinco destinos e o botão de criação centralizado', JSON.stringify(mobileNavLabels));
+    'dock mostra três áreas, o botão de criação centralizado e o Mais', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ brandVisible }) => brandVisible),
     'nome da marca permanece visível no cabeçalho móvel', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ collapseToggleHidden }) => collapseToggleHidden),
     'controle da barra lateral não aparece no dock móvel', JSON.stringify(mobileNavLabels));
   await page.setViewportSize({ width: 320, height: 700 });
-  check(await page.locator('.home-extras').getAttribute('open') === null
-    && await page.locator('.home-quick-card .home-quick-form').isVisible(), 'conteúdo secundário começa recolhido e o próximo passo permanece visível');
-  await page.locator('.home-extras > summary').click();
+  check(await page.locator('.home-extras').count() === 0
+    && await page.locator('.home-quick-card .home-quick-form').isVisible(), 'o próximo passo permanece visível sem blocos extras recolhíveis');
   const homeOrder = await page.evaluate(() => ({
     plan: document.querySelector('.home-today-card')?.getBoundingClientRect().top,
     primaryBottom: document.querySelector('.home-primary')?.getBoundingClientRect().bottom,
@@ -271,12 +293,15 @@ const check = (passed, name, detail = '') => {
     const root = document.documentElement;
     const header = document.querySelector('.home-head');
     const message = document.createElement('p');
+    const transitionOverride = document.createElement('style');
     const original = {
       theme: root.getAttribute('data-theme'),
       contrast: root.getAttribute('data-contrast'),
       primary: root.style.getPropertyValue('--p'),
       accent: root.style.getPropertyValue('--pd'),
     };
+    transitionOverride.textContent = '.home-head, .home-head * { transition: none !important; }';
+    document.head.append(transitionOverride);
     message.className = 'home-personal-message';
     message.textContent = 'Mensagem de teste';
     header.querySelector(':scope > div').append(message);
@@ -321,6 +346,7 @@ const check = (passed, name, detail = '') => {
         }
       }
     } finally {
+      transitionOverride.remove();
       message.remove();
       if (original.theme === null) root.removeAttribute('data-theme');
       else root.setAttribute('data-theme', original.theme);
@@ -407,6 +433,15 @@ const check = (passed, name, detail = '') => {
   });
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
   await page.setViewportSize({ width: 1024, height: 900 });
+  await page.locator('.profile-menu-trigger:visible').click();
+  const profileSettingsLink = page.locator('#profile-menu a[href="/config"]');
+  const profileMenuClickable = await profileSettingsLink.evaluate((link) => {
+    const bounds = link.getBoundingClientRect();
+    const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    return bounds.width > 0 && link.contains(hit);
+  });
+  check(profileMenuClickable, 'menu de perfil desktop fica acima do conteúdo e pode ser acionado');
+  await page.keyboard.press('Escape');
   await openQuickActions();
   check(await quickMenu.isVisible(), 'ações rápidas continuam disponíveis no tablet');
   check(await quickMenu.getByRole('button', { name: 'Nova tarefa' }).count() === 1, 'ações rápidas oferecem criação de tarefa');
@@ -455,10 +490,12 @@ const check = (passed, name, detail = '') => {
       breakpoints.push(await page.evaluate(() => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a.nav-item')];
+        // No celular só as três primeiras áreas ficam na barra; as demais vão para o Mais.
+        const shown = links.filter((link) => link.getClientRects().length);
         const active = nav.querySelector('[aria-current="page"]');
         const areaBounds = {
-          left: links[0].getBoundingClientRect().left,
-          right: links[links.length - 1].getBoundingClientRect().right,
+          left: shown[0].getBoundingClientRect().left,
+          right: shown[shown.length - 1].getBoundingClientRect().right,
         };
         const headerBounds = nav.closest('.topbar').getBoundingClientRect();
         const navBackground = getComputedStyle(nav).backgroundColor;
@@ -474,17 +511,15 @@ const check = (passed, name, detail = '') => {
           areaCenterDelta: Math.abs(
             (areaBounds.left + areaBounds.right) / 2 - (headerBounds.left + headerBounds.right) / 2,
           ),
-          labelsVisible: links.length === 5 && links.every((link) => {
+          labelsVisible: shown.length === (innerWidth < 900 ? 3 : 5) && shown.every((link) => {
             const label = link.querySelector('.tab-label-group');
             const rect = label.getBoundingClientRect();
             return rect.width > 0 && label.scrollWidth <= label.clientWidth + 1;
           }),
           activeCircle: active && getComputedStyle(active.querySelector('.ni')).backgroundColor !== 'rgba(0, 0, 0, 0)',
           noMore: !document.querySelector('.nav-more-trigger, .nav-more-menu, .sidebar-toggle'),
-          headerCreate: Boolean(document.querySelector('.mobile-nav-create-trigger')?.getClientRects().length)
-            === (innerWidth < 900)
-            && Boolean(document.querySelector('.header-actions .nav-quick-trigger')?.getClientRects().length)
-              === (innerWidth >= 900),
+          headerCreate: !document.querySelector('.mobile-nav-create-trigger')
+            && Boolean(document.querySelector('.header-actions .nav-quick-trigger')?.getClientRects().length),
         };
       }));
     }
@@ -537,14 +572,23 @@ const check = (passed, name, detail = '') => {
     links.map((link) => link.getAttribute('href'))
   ));
   check(mobilePrimaryLinks.join(',') === '/inicio,/planejar,/habitos,/financas,/ciclo',
-    'dock móvel mostra todas as áreas na ordem escolhida');
-  check(await page.locator('.nav-more-trigger').count() === 0, 'dock móvel não mostra Mais');
-  check(await page.locator('.topbar .nav .profile-menu-trigger').isVisible(),
-    'menu da conta fica acessível no dock móvel');
+    'dock móvel mantém todas as áreas na ordem escolhida');
+  const mobileShownLinks = await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').evaluateAll((links) => (
+    links.map((link) => link.getAttribute('href'))
+  ));
+  check(mobileShownLinks.join(',') === '/inicio,/planejar,/habitos',
+    'dock móvel mostra as três primeiras áreas na ordem escolhida');
+  check(await page.locator('.topbar .nav .profile-menu-trigger').isVisible()
+    && (await page.locator('.topbar .nav .profile-menu-trigger .mobile-nav-label').innerText()).includes('Mais'),
+  'menu Mais fica acessível no dock móvel');
   await page.locator('.profile-menu-trigger').click();
   const profileMenu = page.locator('#profile-menu');
-  check(await profileMenu.locator('a[href="/config"]').isVisible(),
-    'menu de perfil oferece acesso a Perfil e ajustes');
+  const overflowHrefs = await profileMenu.locator('.nav-overflow-item').evaluateAll((links) => (
+    links.map((link) => link.getAttribute('href'))
+  ));
+  check(overflowHrefs.join(',') === '/financas,/ciclo', 'menu Mais lista as demais áreas na ordem escolhida');
+  check(await profileMenu.locator('.profile-menu-account-item').evaluate((item) => getComputedStyle(item).display) === 'none',
+    'menu Mais do dock não repete o acesso à conta');
   const profileMenuBounds = await profileMenu.evaluate((menu) => {
     const { left, right, bottom } = menu.getBoundingClientRect();
     return { left, right, bottom, viewport: innerWidth, navTop: document.querySelector('.topbar .nav').getBoundingClientRect().top };
@@ -556,10 +600,16 @@ const check = (passed, name, detail = '') => {
   await page.keyboard.press('Escape');
   check(await page.locator('.profile-menu-control').getAttribute('open') === null,
     'Escape fecha o menu da conta');
+  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
+  check(await profileMenu.locator('a[href="/config"]').isVisible(),
+    'cabeçalho móvel mantém o acesso a Perfil e ajustes');
+  check(await profileMenu.locator('.nav-overflow-group').evaluate((group) => getComputedStyle(group).display) === 'none',
+    'menu da conta no cabeçalho não repete as áreas do Mais');
+  await page.keyboard.press('Escape');
   await cycleMenuToggle.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 4);
-  check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 4,
-    'dock mostra quatro destinos quando Ciclo não está no menu');
+  check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 3,
+    'dock mostra três áreas e Finanças vai para o Mais quando Ciclo não está no menu');
   await cycleMenuToggle.check();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 5);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -628,7 +678,7 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#fin-view-cal').getAttribute('aria-selected') === 'true'
     && await page.locator('#fin-view-panel').getAttribute('aria-labelledby') === 'fin-view-cal',
   'teclado seleciona a visão de lançamentos');
-  await page.locator('.profile-menu-trigger').click();
+  await page.locator('.profile-menu-trigger:visible').first().click();
   await page.locator('#profile-menu a[href="/config"]').click();
   const settingsState = await page.locator('.settings-link[aria-current="page"]').evaluate((link) => ({
     background: getComputedStyle(link).backgroundColor,
@@ -655,23 +705,56 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('#dlg input[data-dlg="query"]').inputValue() === '/',
     'barra continua abrindo a busca fora dos campos');
   await page.keyboard.press('Escape');
-  const refreshTrigger = page.locator('.app > .topbar .mobile-refresh-trigger');
   await page.setViewportSize({ width: 1280, height: 900 });
-  check(!(await refreshTrigger.isVisible()), 'atualizar app fica oculto em desktop');
+  check(await page.locator('.app > .topbar .mobile-refresh-trigger').count() === 0,
+    'cabeçalho não mostra botão de recarga');
   check(await page.locator('.app > .topbar .header-actions').evaluate((actions) => parseFloat(getComputedStyle(actions).gap) >= 8),
     'ações do cabeçalho têm espaçamento confortável em desktop');
   await page.setViewportSize({ width: 320, height: 720 });
-  check(await refreshTrigger.isVisible()
-    && await refreshTrigger.evaluate((button) => {
-      const bounds = button.getBoundingClientRect();
-      return bounds.left >= 0 && bounds.right <= innerWidth && bounds.width >= 44 && bounds.height >= 44;
-    }), 'atualizar app aparece com alvo acessível no celular');
+  check(await page.locator('.app > .topbar .mobile-refresh-trigger').count() === 0,
+    'celular usa o gesto de puxar para atualizar em vez de um botão');
   check(await page.locator('.app > .topbar .global-search-trigger').count() === 0,
     'busca não aparece no celular');
   check(await page.locator('.app > .topbar .header-actions').evaluate((actions) => parseFloat(getComputedStyle(actions).gap) >= 4),
     'ações do cabeçalho mantêm espaçamento entre botões no celular');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     'cabeçalho não causa overflow no celular');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const shortPull = await page.evaluate(() => {
+    const target = document.querySelector('#main');
+    const dispatch = (type, y, isTouching) => {
+      const touch = new Touch({ identifier: 1, target, clientX: 120, clientY: y });
+      target.dispatchEvent(new TouchEvent(type, {
+        touches: isTouching ? [touch] : [],
+        changedTouches: [touch],
+        bubbles: true,
+        cancelable: true,
+      }));
+    };
+    dispatch('touchstart', 100, true);
+    dispatch('touchmove', 145, true);
+    const label = document.querySelector('.pull-refresh-label').textContent;
+    dispatch('touchend', 145, false);
+    return {
+      label,
+      cleared: document.querySelector('.pull-refresh-indicator').getAttribute('aria-hidden') === 'true',
+    };
+  });
+  check(shortPull.label === 'Continue puxando para atualizar' && shortPull.cleared,
+    'puxão curto mostra a orientação e não dispara atualização');
+  const pullRefreshTime = await page.evaluate(() => performance.timeOrigin);
+  await page.evaluate(() => {
+    const target = document.querySelector('#main');
+    const touch = (clientY) => new Touch({ identifier: 1, target, clientX: 120, clientY });
+    const start = touch(100);
+    target.dispatchEvent(new TouchEvent('touchstart', { touches: [start], changedTouches: [start], bubbles: true, cancelable: true }));
+    const move = touch(220);
+    target.dispatchEvent(new TouchEvent('touchmove', { touches: [move], changedTouches: [move], bubbles: true, cancelable: true }));
+    target.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [move], bubbles: true, cancelable: true }));
+  });
+  await page.waitForFunction((previousTime) => performance.timeOrigin > previousTime, pullRefreshTime);
+  check(await page.locator('.app > .topbar').count() === 1,
+    'puxar do topo recarrega o app');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));
 
   await browser.close();

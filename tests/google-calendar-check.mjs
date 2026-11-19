@@ -126,6 +126,28 @@ await denied.prepare();
 await assert.rejects(denied.authorize(), /autorização.*cancelada/i);
 assert.equal(denied.isConnected(), false);
 
+const popupBlocked = createGoogleCalendarService({
+  clientId: 'calendar-test.apps.googleusercontent.com',
+  loadIdentity: async () => ({
+    accounts: { oauth2: { initCodeClient: (options) => ({
+      requestCode: () => options.error_callback({ type: 'popup_failed_to_open' }),
+    }) } },
+  }),
+});
+await popupBlocked.prepare();
+await assert.rejects(popupBlocked.authorizeCode(), /navegador bloqueou.*permita pop-ups/i);
+
+const popupClosed = createGoogleCalendarService({
+  clientId: 'calendar-test.apps.googleusercontent.com',
+  loadIdentity: async () => ({
+    accounts: { oauth2: { initCodeClient: (options) => ({
+      requestCode: () => options.error_callback({ type: 'popup_closed' }),
+    }) } },
+  }),
+});
+await popupClosed.prepare();
+await assert.rejects(popupClosed.authorizeCode(), /não devolveu o código.*popup_closed/i);
+
 const expiring = createGoogleCalendarService({
   clientId: 'calendar-test.apps.googleusercontent.com',
   now: () => now,
@@ -137,5 +159,46 @@ await expiring.authorize();
 now += 3_600_001;
 assert.equal(expiring.isConnected(), false);
 await assert.rejects(expiring.getCalendars(), /expirou/i);
+
+// Conexão guardada no servidor: renovação automática e fluxo por código de autorização.
+let codeOptions;
+const codeIdentity = {
+  accounts: { oauth2: { initCodeClient(options) {
+    codeOptions = options;
+    return { requestCode: () => options.callback({ code: 'auth-code-1', scope: `openid email ${GOOGLE_CALENDAR_SCOPE}` }) };
+  } } },
+};
+let refreshCount = 0;
+let clock = 50_000;
+const persistent = createGoogleCalendarService({
+  clientId: 'calendar-test.apps.googleusercontent.com',
+  now: () => clock,
+  loadIdentity: async () => codeIdentity,
+  fetchImpl: async (url, options) => {
+    const token = options.headers.Authorization;
+    if (token === 'Bearer stale') return jsonResponse({}, 401);
+    return jsonResponse({ items: [{ id: token, summary: 'Agenda', accessRole: 'owner' }] });
+  },
+});
+await persistent.prepare();
+assert.equal(await persistent.authorizeCode(), 'auth-code-1');
+assert.equal(codeOptions.ux_mode, 'popup');
+assert.match(codeOptions.scope, /calendar\.readonly/);
+assert.equal(codeOptions.select_account, true);
+assert.equal('prompt' in codeOptions, false);
+persistent.useTokenProvider(async () => ({ accessToken: `fresh-${++refreshCount}`, expiresIn: 3600 }));
+assert.equal(persistent.isConnected(), true);
+const [firstA, firstB] = await Promise.all([persistent.getCalendars(), persistent.getCalendars()]);
+assert.equal(firstA[0].id, 'Bearer fresh-1');
+assert.equal(firstB[0].id, 'Bearer fresh-1');
+assert.equal(refreshCount, 1);
+clock += 3_600_000;
+assert.equal((await persistent.getCalendars())[0].id, 'Bearer fresh-2');
+persistent.useTokenProvider(async () => ({ accessToken: refreshCount++ ? 'ok-after-401' : 'stale', expiresIn: 3600 }));
+refreshCount = 0;
+clock += 3_600_000;
+assert.equal((await persistent.getCalendars())[0].id, 'Bearer ok-after-401');
+persistent.clear();
+assert.equal(persistent.isConnected(), false);
 
 console.log('google-calendar-check: all checks passed');

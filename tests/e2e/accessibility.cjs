@@ -5,7 +5,7 @@ const { completeProfile } = require('./setup.cjs');
 const BASE = process.argv[2] || 'http://127.0.0.1:5173';
 
 async function checkLandingInstallAndContrast(page) {
-  const link = page.locator('.public-hero .public-account-note a');
+  const link = page.locator('.public-trust-copy a');
   const instructions = page.locator('.public-install-note > li');
   assert.equal(await instructions.count(), 2, 'instalação apresenta uma instrução por plataforma');
   assert.match(await instructions.nth(0).innerText(), /^Android:/);
@@ -17,9 +17,13 @@ async function checkLandingInstallAndContrast(page) {
       await link.scrollIntoViewIfNeeded();
       const foreground = await link.evaluate((element) => getComputedStyle(element).color);
       const bounds = await link.boundingBox();
+      const paragraph = link.locator('xpath=..');
+      const paragraphColor = await paragraph.evaluate((element) => getComputedStyle(element).color);
+      await paragraph.evaluate((element) => { element.style.color = 'transparent'; });
       await link.evaluate((element) => { element.style.visibility = 'hidden'; });
       const background = await page.screenshot({ clip: bounds });
       await link.evaluate((element) => { element.style.visibility = ''; });
+      await paragraph.evaluate((element, color) => { element.style.color = color; }, paragraphColor);
       const minimum = await page.evaluate(async ({ image, foregroundColor }) => {
         const bitmap = new Image();
         bitmap.src = `data:image/png;base64,${image}`;
@@ -161,14 +165,14 @@ async function checkContrast(page) {
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
     assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
-    await publicPage.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
+    await publicPage.locator('.public-hero').getByRole('link', { name: 'Ver demonstração' }).click();
     await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
     await systemPage.goto(BASE);
-    await systemPage.locator('.public-hero').getByRole('link', { name: 'Abrir demonstração' }).click();
+    await systemPage.locator('.public-hero').getByRole('link', { name: 'Ver demonstração' }).click();
     await systemPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;

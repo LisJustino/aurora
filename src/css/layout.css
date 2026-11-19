@@ -27,16 +27,19 @@
   padding: clamp(var(--space-6), 3vw, var(--space-7)) var(--gut-r) calc(var(--nav-h) + 36px + env(safe-area-inset-bottom, 0px)) var(--gut-l);
 }
 
-.main.route-enter { animation: route-enter var(--duration-fast) var(--ease-standard) both; }
+.main.route-enter { animation: route-enter var(--duration-base) var(--ease-standard) both; }
 @keyframes route-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateX(var(--route-shift, 0px)); }
+  to { opacity: 1; transform: none; }
 }
 .main { view-transition-name: route-page; }
-::view-transition-old(route-page) { animation: 120ms ease both route-page-out; }
-::view-transition-new(route-page) { animation: 160ms ease both route-page-in; }
-@keyframes route-page-out { to { opacity: 0; transform: translateX(-6px); } }
-@keyframes route-page-in { from { opacity: 0; transform: translateX(6px); } }
+/* A direção segue a ordem das abas: avançar entra pela direita, voltar entra pela esquerda. */
+:root[data-route-dir="forward"] { --route-shift: 22px; }
+:root[data-route-dir="back"] { --route-shift: -22px; }
+::view-transition-old(route-page) { animation: 140ms var(--ease-standard) both route-page-out; }
+::view-transition-new(route-page) { animation: 220ms var(--ease-standard) both route-page-in; }
+@keyframes route-page-out { to { opacity: 0; transform: translateX(calc(var(--route-shift, 6px) * -.6)); } }
+@keyframes route-page-in { from { opacity: 0; transform: translateX(var(--route-shift, 6px)); } }
 
 .topbar {
   position: sticky;
@@ -58,7 +61,7 @@
   padding-inline: var(--gut-l) var(--gut-r);
 }
 
-.main > :not(.topbar, .notification-panel, .fab) {
+.main > :not(.topbar, .fab) {
   width: 100%;
   max-width: var(--content-width);
   margin-inline: auto;

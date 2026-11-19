@@ -1,6 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { deleteAccountPermanently } from './account-deletion.js';
 import {
+  decryptRefreshToken,
+  importEncryptionKey,
+  revokeGoogleToken,
+} from '../_shared/google-calendar-tokens.js';
+import {
   parseAllowedOrigins,
   removeRemotePushSubscriptions,
 } from './push-cleanup.js';
@@ -80,6 +85,28 @@ Deno.serve(async (request) => {
   } catch (error) {
     console.error('delete-account: remote Push cleanup was not confirmed.', error);
     return jsonResponse({ error: 'push-cleanup-unavailable' }, 503, requestOrigin || undefined);
+  }
+
+  // Revoga no Google as conexões do Agenda antes de apagar a conta (a linha some por cascade).
+  const googleSecret = Deno.env.get('GOOGLE_TOKEN_ENCRYPTION_KEY');
+  const { data: googleRows, error: googleError } = await adminClient
+    .from('google_calendar_connections')
+    .select('refresh_token_encrypted')
+    .eq('user_id', userData.user.id);
+  if (googleError) {
+    console.error('delete-account: Google connections could not be loaded.');
+    return jsonResponse({ error: 'account-deletion-unavailable' }, 503, requestOrigin || undefined);
+  }
+  if (googleRows?.length && googleSecret) {
+    try {
+      const key = await importEncryptionKey(googleSecret);
+      for (const row of googleRows) {
+        const token = await decryptRefreshToken(row.refresh_token_encrypted, key, userData.user.id);
+        await revokeGoogleToken(token);
+      }
+    } catch {
+      console.error('delete-account: Google revocation was not confirmed.');
+    }
   }
 
   const { error: deleteError } = await deleteAccountPermanently(adminClient, userData.user.id);

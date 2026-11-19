@@ -28,7 +28,7 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
   if (t.notes) metadata.push({ icon: 'note', label: 'Nota', tone: '' });
   (t.tags || []).forEach((tag) => metadata.push({ icon: 'tag', label: `#${tag}`, tone: '' }));
   if (t.groupTitle) metadata.push({ icon: 'list', label: t.groupTitle, tone: '' });
-  if (t.sample) metadata.push({ icon: 'sparkles', label: 'Exemplo', tone: '' });
+  if (t.sample) metadata.push({ icon: 'note', label: 'Exemplo', tone: '' });
   const shownMetadata = metadata.slice(0, 3);
   const extraMetadata = metadata.length - shownMetadata.length;
 
@@ -37,6 +37,6 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
     <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
       <span class="meta">${shownMetadata.map(({ icon: iconName, label, tone }) => h`<span class="meta-chip ${tone}" title="${label}">${icon(iconName, 12)}${label}</span>`)}${extraMetadata ? h`<span class="meta-chip meta-overflow" aria-label="${extraMetadata} metadados adicionais">+${extraMetadata}</span>` : ''}</span></button>
     <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
-    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Decisão para ${t.title}"><button type="button" class="btn ghost sm" data-action="weekly-keep-task" data-id="${t.id}">Manter</button><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
+    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Ações para ${t.title}"><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
   </li>`;
 }

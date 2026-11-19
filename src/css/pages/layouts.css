@@ -379,7 +379,6 @@
   text-transform: uppercase;
 }
 .planning-overview-copy h2 { margin: 0; font-size: var(--text-heading); letter-spacing: -.035em; }
-.planning-overview-copy h2 i { color: var(--accent); }
 .planning-overview-copy p { max-width: 48ch; margin: 0; color: var(--muted); line-height: 1.5; }
 .planning-overview-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 6px; }
 

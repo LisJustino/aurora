@@ -2,7 +2,7 @@
   "name": "Aurora",
   "short_name": "Aurora",
   "lang": "pt-BR",
-  "description": "Organize tarefas, hábitos, finanças e ciclo no seu ritmo.",
+  "description": "Organize sua rotina num só lugar: tarefas, hábitos, finanças e ciclo. Grátis, sem cartão e funciona no celular.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -22,7 +22,7 @@
     { "name": "Hoje", "short_name": "Hoje", "url": "./inicio", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] },
     { "name": "Tarefas", "short_name": "Tarefas", "url": "./planejar", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] },
     { "name": "Hábitos", "short_name": "Hábitos", "url": "/habitos", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] },
-    { "name": "Água", "short_name": "Água", "url": "/agua", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] },
+    { "name": "Água", "short_name": "Água", "url": "/habitos", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] },
     { "name": "Finanças", "short_name": "Finanças", "url": "/financas", "icons": [{ "src": "./icons/aurora-192.png", "sizes": "192x192" }] }
   ]
 }
