@@ -365,6 +365,7 @@ details.card:not([open]) { gap: 0; }
 .google-calendar-events b,
 .google-calendar-events small { display: block; overflow-wrap: anywhere; }
 .google-calendar-events small { margin-top: var(--space-1); color: var(--muted); }
+.google-calendar-event-check { flex: none; }
 .google-calendar-day { display: grid; gap: var(--space-3); }
 .google-calendar-day > .head { align-items: center; }
 

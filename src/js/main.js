@@ -2907,7 +2907,19 @@ function todayCalendarEvents() {
     .filter((event) => event.day === today() && (!query || norm(`${event.title} ${event.calendarName}`).includes(query)))
     .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
 }
-const calendarEventsList = (events) => h`<ul class="google-calendar-events">${events.map((event) => h`<li><time>${event.time}</time><span class="grow"><b class="user-value">${event.title}</b><small>${event.calendarName} · ${event.accountLabel}</small></span></li>`)}</ul>`;
+const calendarEventSourceLabel = (event) => event.calendarName === event.accountLabel
+  ? (event.calendarName || 'Google Calendar')
+  : (event.calendarName && event.accountLabel
+    ? `${event.calendarName} · ${event.accountLabel}`
+    : event.calendarName || event.accountLabel || 'Google Calendar');
+const calendarEventsList = (events) => h`<ul class="google-calendar-events">${events.map((event) => {
+  const key = event.accountIdentity && event.calendarId && event.id
+    ? `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`
+    : '';
+  const task = key ? S.tasks.find((item) => item.groupId === key) : null;
+  const done = task?.done === true;
+  return h`<li><time>${event.time}</time><button type="button" class="chk google-calendar-event-check" role="checkbox" aria-checked="${String(done)}" aria-label="${done ? 'Reabrir tarefa criada do evento' : 'Marcar evento como concluído'}: ${event.title}" data-action="google-calendar-event-toggle" data-event-key="${key}" data-event-title="${event.title}" data-event-day="${event.day}" data-event-time="${event.allDay ? '' : event.time}" data-calendar-name="${event.calendarName}" data-account-label="${event.accountLabel}"><span>${icon('check', 15)}</span></button><span class="grow"><b class="user-value">${event.title}</b><small>${calendarEventSourceLabel(event)}</small></span></li>`;
+})}</ul>`;
 function taskListHtml() {
   const all = filteredTasks(), { f, sort } = ui.filters, tdy = today();
   const events = todayCalendarEvents();
@@ -3034,6 +3046,7 @@ async function loadGoogleCalendarEvents(accountIds = connectedGoogleCalendarAcco
     const names = new Map(account.calendars.map((calendar) => [calendar.id, calendar.name]));
     account.events = events.map((event) => ({
       ...event,
+      accountIdentity: account.identity,
       accountLabel: account.label,
       calendarName: names.get(event.calendarId) || 'Google Calendar',
     }));
@@ -3218,6 +3231,10 @@ function viewPlanejar() {
       ymLabel,
       taskRow,
       googleCalendarPlanPanel: () => renderGoogleCalendarPlanPanel(connectedGoogleCalendarAccounts()),
+      calendarEventTaskKey: (event) => {
+        if (!event?.accountIdentity || !event?.calendarId || !event?.id) return '';
+        return `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`;
+      },
     }),
     taskWeek: () => renderTaskWeek({
       S,
@@ -5223,6 +5240,33 @@ function focusQuickActionsTrigger() {
 }
 
 const ACTIONS = {
+  'google-calendar-event-toggle': (el) => {
+    const key = String(el.dataset.eventKey || '');
+    if (!key) return;
+    const snapshot = snapshotSlices(['tasks']);
+    let task = S.tasks.find((item) => item.groupId === key);
+    if (!task) {
+      const title = String(el.dataset.eventTitle || '').trim().slice(0, 120);
+      if (!title) return;
+      task = {
+        id: newId(),
+        title,
+        done: false,
+        dueDate: isDay(el.dataset.eventDay) ? el.dataset.eventDay : null,
+        priority: 'normal',
+        createdAt: Date.now(),
+        groupId: key,
+        groupTitle: String(el.dataset.calendarName || el.dataset.accountLabel || 'Google Calendar').slice(0, 120),
+      };
+      if (el.dataset.eventTime) task.time = el.dataset.eventTime;
+      S.tasks.push(task);
+    }
+    task.done = !task.done;
+    task.doneAt = task.done ? new Date().toISOString() : undefined;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, false, 'a conclusão do evento')) return;
+    render();
+    toast(task.done ? 'Evento marcado como concluído.' : 'Evento reaberto.', task.done ? 'success' : 'info');
+  },
   'cycle-consent-revoke': async () => {
     if (ui.cycleConsentBusy || !accountSession?.client?.auth?.updateUser) return;
     const confirmed = await confirmInDialog(

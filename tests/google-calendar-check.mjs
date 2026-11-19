@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { createGoogleCalendarService, GOOGLE_CALENDAR_SCOPE } from '../src/js/services/google-calendar.js';
+import {
+  createGoogleCalendarService,
+  formatGoogleCalendarEventSource,
+  googleCalendarEventTaskKey,
+  GOOGLE_CALENDAR_SCOPE,
+} from '../src/js/services/google-calendar.js';
 
 let now = 10_000;
 let tokenOptions;
@@ -50,6 +55,8 @@ const service = createGoogleCalendarService({
         items: [
           { summary: 'Feriado', start: { date: '2026-11-03' } },
           { summary: 'Reunião <teste>', start: { dateTime: '2026-11-02T10:30:00-03:00' } },
+          { id: 'meeting-1', summary: 'Reunião repetida', start: { dateTime: '2026-11-02T11:00:00-03:00' } },
+          { id: 'meeting-1', summary: 'Reunião repetida', start: { dateTime: '2026-11-02T11:00:00-03:00' } },
           { status: 'cancelled', summary: 'Cancelado', start: { date: '2026-11-04' } },
           { summary: 'Data inválida', start: { date: '2026-02-30' } },
         ],
@@ -79,11 +86,17 @@ const events = await service.getEvents(['primary'], {
   start: new Date(2026, 10, 1),
   end: new Date(2026, 11, 1),
 });
-assert.equal(events.length, 2);
-assert.deepEqual(events.map((event) => event.day), ['2026-11-02', '2026-11-03']);
+assert.equal(events.length, 3);
+assert.deepEqual(events.map((event) => event.day), ['2026-11-02', '2026-11-02', '2026-11-03']);
 assert.equal(events[0].title, 'Reunião <teste>');
-assert.equal(events[1].allDay, true);
-assert.equal(events[1].time, 'Dia inteiro');
+assert.equal(events[2].allDay, true);
+assert.equal(events[2].time, 'Dia inteiro');
+assert.equal(formatGoogleCalendarEventSource('elisa@wefit.com.br', 'elisa@wefit.com.br'), 'elisa@wefit.com.br');
+assert.equal(formatGoogleCalendarEventSource('Pessoal', 'elisa@wefit.com.br'), 'Pessoal · elisa@wefit.com.br');
+assert.equal(
+  googleCalendarEventTaskKey('elisa@wefit.com.br', { calendarId: 'primary', id: 'meeting-1' }),
+  'google-calendar:elisa@wefit.com.br:primary:meeting-1',
+);
 assert.equal(requests.every(({ options }) => options.method === 'GET'
   && options.credentials === 'omit'
   && options.cache === 'no-store'
