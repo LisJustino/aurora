@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Início do Aurora: organize seu dia, tarefas e áreas pessoais.">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#f8f8f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#f5f3ed" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Aurora">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="icon" type="image/svg+xml" href="../icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="512x512" href="../icons/favicon-512.png">
   <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
   <link rel="manifest" href="%BASE_URL%manifest.webmanifest">
   <meta name="aurora-route" content="inicio">
@@ -23,12 +23,17 @@
     <div class="account-loading-content">
       <header class="account-loading-header">
         <span class="account-loading-brand" aria-hidden="true"><img src="%BASE_URL%icons/favicon.svg" alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
-        <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
       </header>
-      <div class="account-loading-skeleton" aria-hidden="true">
-        <div class="loading-skeleton-hero"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line title"></span><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-button"></span></div>
-        <div class="loading-skeleton-dashboard"><div class="loading-skeleton-card"><span class="loading-skeleton-line medium"></span><span class="loading-skeleton-line short"></span><span class="loading-skeleton-field"></span></div><div class="loading-skeleton-card"><span class="loading-skeleton-line short"></span><span class="loading-skeleton-line medium"></span></div></div>
+      <div class="account-loading-preview" aria-hidden="true">
+        <div class="loading-welcome-card">
+          <span class="loading-welcome-mark"></span>
+          <span class="loading-welcome-kicker">UM DIA DE CADA VEZ</span>
+          <span class="loading-welcome-title">Vamos por partes.</span>
+          <span class="loading-welcome-copy">Planejar, cuidar e acompanhar — no seu ritmo.</span>
+          <span class="loading-welcome-areas"><span class="loading-welcome-area plan">Planejar</span><span class="loading-welcome-area habits">Hábitos</span><span class="loading-welcome-area finance">Finanças</span><span class="loading-welcome-area cycle">Ciclo</span></span>
+        </div>
       </div>
+      <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
     </div>
   </main></div>
   <noscript>O Aurora precisa de JavaScript para autenticar sua conta e salvar seus dados com segurança.</noscript>

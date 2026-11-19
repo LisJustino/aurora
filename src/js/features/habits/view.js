@@ -98,13 +98,14 @@ export function renderHabitsView(dependencies) {
   ).map((suggestion) => suggestion.id));
   const slots = {
     'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
+    'habit-dashboard-class': live.length ? 'has-week' : '',
     'today-summary': h`${todaySummary}`.s,
     'add-button': todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`.s : '',
     'today-progress': eligibleToday
       ? h`<div class="habit-today-bar" role="progressbar" aria-label="Hábitos concluídos hoje, sem contar dias pulados" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`.s
       : '',
     'day-complete': dayComplete
-      ? h`<div class="habit-day-complete${ui.habitCelebrationDay === today() ? ' is-celebrating' : ''}" role="status" aria-live="polite">${icon('sparkles', 20)}<span><b>Dia concluído!</b><small>Você marcou todos os hábitos programados para hoje.</small></span></div>`.s
+      ? h`<div class="habit-day-complete${ui.habitCelebrationDay === today() ? ' is-celebrating' : ''}" role="status" aria-live="polite">${icon('check', 20)}<span><b>Dia concluído!</b><small>Você marcou todos os hábitos programados para hoje.</small></span></div>`.s
       : '',
     'todays-habits': todays.length
       ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
@@ -125,7 +126,7 @@ export function renderHabitsView(dependencies) {
         <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
       </div>`.s
       : '',
-    'week-overview': live.length ? h`<section class="card habit-week-overview" aria-labelledby="habit-week-overview-title">
+    'week-overview': live.length ? h`<section class="surface-open habit-week-overview" aria-labelledby="habit-week-overview-title">
       <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
         : 'Ainda não há dias ativos programados nesta semana.'}</p></div>
@@ -164,11 +165,11 @@ export function renderHabitsView(dependencies) {
               ${target ? h`<progress value="${progress}" max="${target}" aria-label="Progresso de ${habit.name} na meta semanal"></progress>` : ''}
               ${goalMet ? h`<small>Meta semanal alcançada</small>` : ''}
             </div>
-            <button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Ajustar ${habit.name}">Ajustar</button>
+            <button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar ${habit.name}">${icon('pencil', 15)}Editar</button>
           </li>`;
         })}</ul>
       </details>` : ''}
-      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">Retomar</button></li>`)}</ul></details>` : ''}
+      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon('play', 15)}Retomar</button></li>`)}</ul></details>` : ''}
     </section>`.s : '',
     'other-habits': others.length
       ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
@@ -205,7 +206,7 @@ export function renderHabitsView(dependencies) {
       </details>`.s
       : '',
     'archived-habits': archived.length
-      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">Restaurar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button><button type="button" class="ibtn" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar hábito arquivado ${habit.name}">${icon('pencil', 18)}</button></li>`)}</ul></details>`.s
+      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><div class="habit-actions habit-actions--archived" role="group" aria-label="Ações de ${habit.name}"><button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">${icon('undo', 15)}Restaurar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></li>`)}</ul></details>`.s
       : '',
   };
   return raw(renderHabitsTemplate(habitsTemplate, slots));

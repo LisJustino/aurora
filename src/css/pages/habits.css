@@ -34,6 +34,14 @@
 .week-day h3 { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .week-day .list { min-width: 0; }
 .week-day > .btn { align-self: flex-start; }
+.week-day-empty {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.week-day-empty > .btn { min-width: 0; min-height: var(--control-md); padding-inline: var(--space-2); }
 
 .habit-schedule { min-width: 0; margin: 0; padding: 0; border: 0; }
 .habit-schedule legend { margin-bottom: 8px; font-size: var(--text-sm); font-weight: var(--weight-bold); }
@@ -57,8 +65,12 @@
 .habit-weekday-picker input:checked + span { border-color: var(--accent); background: var(--soft); color: var(--accent); }
 .habit-weekday-picker input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 .habit-schedule .small { margin-top: 8px; }
-.habit-actions { flex-wrap: wrap; gap: var(--space-2); }
-.habit-actions .btn, .habit-archived .habit-row > .btn { min-height: 36px; }
+/* Ações de hábito: mesma grade, ordem e estilo nos hábitos ativos e arquivados. */
+.habit-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); padding-top: var(--space-2); }
+.habit-actions .btn { min-height: var(--control-sm); justify-content: center; gap: var(--space-2); }
+.habit-actions .habit-action-wide { grid-column: 1 / -1; }
+.habit-actions--archived { grid-column: 1 / -1; padding-top: 0; }
+.habit-actions--archived .btn.danger { grid-column: 1 / -1; }
 .habit-edit-history { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .habit-edit-history .habit-month { border: 0; padding: 0; }
 .habit-month { border-top: 1px solid var(--line); padding-top: 2px; }
@@ -200,7 +212,6 @@
 }
 .habit-row.is-done { border-color: color-mix(in srgb, var(--hc) 40%, var(--line)); background: color-mix(in srgb, var(--hc) 7%, var(--surface)); }
 .habit-row.is-off { opacity: .82; }
-.habit-row:has(> .btn) { grid-template-columns: 52px minmax(0, 1fr) auto auto; align-items: center; }
 .habit-circle {
   position: relative;
   display: grid;
@@ -484,8 +495,8 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .main[data-route="habitos"] .habit-reminder-note p { margin: 0; }
 .main[data-route="habitos"] .habit-week-overview { display: grid; gap: var(--space-3); }
 .main[data-route="habitos"] .habit-today {
-  border-color: color-mix(in srgb, var(--area) 28%, var(--line));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--area) 4%, var(--surface)), var(--surface) 48%);
+  border-color: var(--line);
+  background: var(--surface-strong);
 }
 .main[data-route="habitos"] .habit-week-overview h2 { margin: 0; font-size: var(--text-lg); }
 .main[data-route="habitos"] .habit-week-overview > div > p { margin: 4px 0 0; }
@@ -551,38 +562,25 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   .week-day > .head { align-items: flex-start; flex-direction: column; }
   .week-day .list > .task { flex-wrap: wrap; padding: var(--space-2); }
   .week-day .task .tt { flex-basis: calc(100% - 44px); }
-  .week-day .empty-state { min-width: 0; min-height: 0; grid-template-columns: 48px minmax(0, 1fr); padding: var(--space-2); }
-  .week-day .empty-state .empty-action,
-  .week-day .empty-state .empty-action > .btn { grid-column: 1 / -1; width: 100%; min-width: 0; }
+  .week-day-empty { align-items: flex-start; flex-direction: column; }
 }
 .main[data-route="habitos"] .habit-reminder-note .ic { flex: none; margin-top: 1px; color: var(--area); }
 .main[data-route="habitos"] .habit-record-actions > .btn { min-height: var(--control-sm); padding-inline: 14px; }
 :root[data-theme="dark"] .habit-record { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
 
-.main[data-route="habitos"] .tabs {
-  padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
-}
-
 @media (width <= 700px) {
   .main[data-route="habitos"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }
 }
 .habit-streak { display: inline-flex; width: fit-content; padding: 2px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--area-habits) 12%, var(--surface)); color: var(--area-habits); font-size: var(--text-meta); font-weight: var(--weight-semibold); }
-.habit-week-chart,
-.water-week-chart { display: grid; min-width: 0; gap: var(--space-2); }
+.habit-week-chart { display: grid; min-width: 0; gap: var(--space-2); }
 .habit-week-chart h3 { margin: 0; font-size: var(--text-sm); }
-.habit-week-chart-grid,
-.water-week-chart-grid {
+.habit-week-chart-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--space-2);
 }
-.habit-week-chart-column,
-.water-week-chart-column { display: grid; min-width: 0; grid-template-rows: 88px auto; gap: var(--space-1); }
-.habit-week-chart-bar,
-.water-week-chart-bar {
+.habit-week-chart-column { display: grid; min-width: 0; grid-template-rows: 88px auto; gap: var(--space-1); }
+.habit-week-chart-bar {
   display: flex;
   min-width: 0;
   height: 88px;
@@ -592,19 +590,31 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
   border-radius: var(--r-group);
   background: color-mix(in srgb, var(--area-habits) 7%, var(--surface));
 }
-.habit-week-chart-bar > span,
-.water-week-chart-bar > span {
+.habit-week-chart-bar > span {
   display: block;
   width: 100%;
   height: var(--week-fill);
   background: var(--area-habits);
 }
-.habit-week-chart-bar.is-today,
-.water-week-chart-bar.is-today {
+.habit-week-chart-bar.is-today {
   border: 2px solid var(--area-habits);
 }
-.habit-week-chart-day,
-.water-week-chart-day { color: var(--muted); font-size: var(--text-xs); text-align: center; text-transform: uppercase; }
-.water-week-chart-bar { border-color: color-mix(in srgb, var(--area-water) 24%, var(--line)); background: color-mix(in srgb, var(--area-water) 7%, var(--surface)); }
-.water-week-chart-bar > span { background: var(--area-water); }
-.water-week-chart-bar.is-today { border-color: var(--area-water); }
+.habit-week-chart-day { color: var(--muted); font-size: var(--text-xs); text-align: center; text-transform: uppercase; }
+
+.main[data-route="habitos"] .habit-dashboard,
+.main[data-route="habitos"] .habit-secondary-grid {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+.main[data-route="habitos"] .habit-dashboard > *,
+.main[data-route="habitos"] .habit-secondary-grid > * { min-width: 0; }
+.main[data-route="habitos"] .habit-secondary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+}
+@media (width >= 1000px) {
+  .main[data-route="habitos"] .habit-dashboard.has-week {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, .85fr);
+    align-items: start;
+  }
+}

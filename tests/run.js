@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { filterValidRecords, isPlainObject, validateFinanceReferences } from '../src/js/core/data-integrity.js';
 import { formatMoneyInput, parseMoney } from '../src/js/utils/currency.js';
-import { addDays, addMonths, isDay, normalizeDay } from '../src/js/utils/dates.js';
+import { addDays, addMonths, isDay, normalizeDay, today } from '../src/js/utils/dates.js';
 import {
   accountModeFromLocation,
   accountPathForMode,
@@ -38,6 +38,7 @@ import {
   installmentSummary,
   reportMonthStats,
   recurringBillsDueOn,
+  expenseBudgetByCategory,
 } from '../src/js/features/finance/calculations.js';
 import {
   ACCOUNT_TYPES,
@@ -57,6 +58,7 @@ import {
 } from '../src/js/features/area-guides.js';
 
 import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, paletteColors } from '../src/js/features/appearance/palettes.js';
+import { renderPublicHeader } from '../src/js/features/appearance/public-controls.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
 import {
@@ -169,7 +171,17 @@ import { renderLanding } from '../src/js/features/landing/view.js';
 import { renderHomeView } from '../src/js/features/home/view.js';
 import { renderCycleView } from '../src/js/features/cycle/view.js';
 import { renderFinanceView } from '../src/js/features/finance/view.js';
+import { renderGoogleCalendarPlanPanel, renderPlanningView } from '../src/js/features/planning/view.js';
 import { createToastController } from '../src/js/features/feedback/toast.js';
+import {
+  FEEDBACK_PROMPT_INTERVAL_MS,
+  feedbackPromptNextAt,
+  feedbackSuggestionHref,
+  isFeedbackPromptDue,
+  isValidFeedbackPromptNextAt,
+  normalizeFeedbackPromptNextAt,
+  renderFeedbackPrompt,
+} from '../src/js/features/feedback/prompt.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
 import { emptyState } from '../src/js/utils/empty-state.js';
 import { h } from '../src/js/utils/dom.js';
@@ -188,6 +200,38 @@ const test = (name, run) => {
     });
   }
 };
+
+test('convite de feedback respeita os cinco dias e usa envio de e-mail opcional', () => {
+  const now = Date.UTC(2026, 0, 1);
+  const nextAt = feedbackPromptNextAt(now);
+  if (Date.parse(nextAt) !== now + FEEDBACK_PROMPT_INTERVAL_MS
+    || isFeedbackPromptDue(nextAt, now + FEEDBACK_PROMPT_INTERVAL_MS - 1)
+    || !isFeedbackPromptDue(nextAt, now + FEEDBACK_PROMPT_INTERVAL_MS)
+    || isFeedbackPromptDue('data inválida', now + FEEDBACK_PROMPT_INTERVAL_MS)
+    || normalizeFeedbackPromptNextAt(nextAt) !== nextAt
+    || normalizeFeedbackPromptNextAt('data inválida') !== null
+    || !isValidFeedbackPromptNextAt(nextAt)
+    || !isValidFeedbackPromptNextAt(null)
+    || isValidFeedbackPromptNextAt('data inválida')
+    || !/^mailto:lisjustino@gmail\.com\?subject=/.test(feedbackSuggestionHref())
+    || decodeURIComponent(feedbackSuggestionHref().split('subject=')[1]) !== 'Sugestão sobre o Aurora') {
+    throw new Error('O agendamento, a validação ou o link de sugestão está incorreto.');
+  }
+  const prompt = renderFeedbackPrompt().s;
+  if (!prompt.includes('Está gostando do Aurora?')
+    || !prompt.includes('data-action="feedback-prompt-dismiss"')
+    || !prompt.includes('href="mailto:lisjustino@gmail.com?subject=')
+    || !prompt.includes('A mensagem só será enviada por você.')) {
+    throw new Error('O convite deve oferecer avaliação, adiamento e e-mail voluntário.');
+  }
+  let invalidNowRejected = false;
+  try {
+    feedbackPromptNextAt(Number.NaN);
+  } catch (error) {
+    invalidNowRejected = error instanceof TypeError;
+  }
+  if (!invalidNowRejected) throw new Error('Um horário inválido deve ser rejeitado.');
+});
 
 test('estado vazio preserva semântica, ação e escape de texto', () => {
   const markup = emptyState({
@@ -219,19 +263,109 @@ test('Ciclo não renderiza o estado vazio antes do controle de consentimento', (
   }
 });
 
-test('Finanças não renderiza o gráfico de despesas da semana', () => {
-  const html = renderFinanceView({
+test('Ciclo identifica estimativas passadas e resume sinais registrados sem inferir causas', () => {
+  const asOfDate = today();
+  const logDay = addDays(asOfDate, -1);
+  const cycleLog = { [logDay]: { pain: ['cramps'] } };
+  const render = (daysSinceLastStart) => {
+    const lastStart = addDays(asOfDate, -daysSinceLastStart);
+    const previousStart = addDays(lastStart, -28);
+    return renderCycleView({
+      S: {
+        cycle: [{ start: previousStart, end: previousStart }, { start: lastStart, end: lastStart }],
+        cycleLog,
+      },
+      ui: { cycDay: '', calMonth: asOfDate.slice(0, 7), openDetails: {} },
+      gate: () => null,
+      areaPageTitle: () => h`<header>Ciclo</header>`,
+      cycleStats,
+      dayLog: (day) => cycleLog[day] || {},
+      cycleDayNumber,
+      hasAnyLog: (log) => Boolean(log?.flow || log?.pain?.length),
+      cyclePeriodEnd: (period) => period.end || period.start,
+      cycleCalendarPhase: () => '',
+      topSymptoms,
+      cycLabel: (_category, value) => value,
+      weekStartDay: () => 1,
+      clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
+      plural: (count, singular, pluralForm) => count === 1 ? singular : pluralForm,
+      cycleLogSummary: () => '',
+      CYC_ICON: { flow: 'droplet' },
+      cap: (value) => value,
+      ymLabel: (value) => value,
+    }).s;
+  };
+  const pastEstimate = render(40);
+  const futureEstimate = render(10);
+
+  if (!pastEstimate.includes('Data estimada já passou')
+    || !pastEstimate.includes('A data estimada já passou.')
+    || pastEstimate.includes('Próximo início estimado')
+    || !futureEstimate.includes('Próximo início estimado')
+    || futureEstimate.includes('Data estimada já passou')
+    || !pastEstimate.includes('Mais registrados nos últimos 90 dias')
+    || !pastEstimate.includes('cramps')
+    || !pastEstimate.includes('não indica causa nem diagnóstico')) {
+    throw new Error('O Ciclo deve sinalizar datas estimadas passadas e resumir registros sem inferências.');
+  }
+});
+
+test('aviso de conexão de Finanças aparece apenas na visão geral e no acesso bloqueado', () => {
+  const options = {
     S: { finance: { accounts: [], tx: [] } },
     ui: { finTab: 'resumo', financeValuesHidden: false },
     gate: () => null,
     areaPageTitle: () => h`<header>Finanças</header>`,
-    financePrivacyNotice: () => h`<aside>Privacidade</aside>`,
+    financePrivacyNotice: () => h`<aside class="finance-privacy-note">Privacidade</aside>`,
     finSectionPicker: () => h`<nav>Seções</nav>`,
     panels: { resumo: () => h`<section>Resumo</section>`, cartoes: () => h`<section>Cartões</section>` },
+  };
+  const overview = renderFinanceView(options).s;
+  const cards = renderFinanceView({ ...options, ui: { ...options.ui, finTab: 'cartoes' } }).s;
+  const locked = renderFinanceView({
+    ...options,
+    gate: () => h`<section>Acesso necessário</section>`,
   }).s;
-  if (html.includes('finance-week-chart') || html.includes('Despesas desta semana')
-    || !html.includes('<header>Finanças</header>') || !html.includes('fin-section-content')) {
-    throw new Error('Finanças não deve exibir o gráfico semanal e deve manter o restante da tela.');
+  if ((overview.match(/finance-privacy-note/g) || []).length !== 1
+    || overview.includes('finance-week-chart') || overview.includes('Despesas desta semana')
+    || !overview.includes('<header>Finanças</header>') || !overview.includes('fin-section-content')
+    || cards.includes('finance-privacy-note')
+    || (locked.match(/finance-privacy-note/g) || []).length !== 1
+    || !locked.includes('Acesso necessário')) {
+    throw new Error('O aviso deve aparecer na visão geral e no acesso bloqueado, sem repetição nas outras seções.');
+  }
+});
+
+test('Planejar mantém Calendário acessível junto às outras visualizações', () => {
+  const html = renderPlanningView({
+    S: { settings: { prefs: { annualPlans: {} } } },
+    ui: { planView: 'revisao', filters: { f: 'todas', q: '', sort: 'prazo' } },
+    filterOptions: [],
+    allTags: () => [],
+    areaPageTitle: (_route, _title, action) => h`<header>${action}</header>`,
+    plural: (count, singular, pluralForm) => count === 1 ? singular : pluralForm,
+    today: () => '2026-11-18',
+    taskCalendar: () => '<section>Calendário de tarefas e eventos</section>',
+    taskWeek: () => '<section>Semana</section>',
+    weeklyReviewView: () => '<section>Revisão semanal</section>',
+    taskListHtml: () => '<ul></ul>',
+  }).s;
+  const expectedViews = ['lista', 'calendario', 'semana', 'revisao', 'anual'];
+  if (!expectedViews.every((view) => html.includes(`id="plan-tab-${view}"`))
+    || !html.includes('aria-labelledby="plan-tab-revisao"')
+    || !html.includes('Revisão semanal')
+    || !html.includes('data-action="task-new"')
+    || html.includes('plan-tool-review')
+    || html.includes('>Ver tarefas</button>')) {
+    throw new Error('Todas as visualizações, incluindo o Calendário, devem estar acessíveis no mesmo seletor.');
+  }
+  const calendarsPanel = renderGoogleCalendarPlanPanel([
+    { selectedIds: ['primary', 'work'] },
+    { selectedIds: ['primary'] },
+  ]).s;
+  if (!calendarsPanel.includes('3 calendários selecionados em 2 contas')
+    || !calendarsPanel.includes('Selecione um dia para ver os eventos junto às tarefas.')) {
+    throw new Error('O Calendário deve indicar os calendários conectados e como ver os eventos.');
   }
 });
 
@@ -244,10 +378,11 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     dateLabel: 'Hoje',
     daySummary: {
       tasks: { done: 2, total: 3 },
-      habits: { done: 1, total: 2 },
+      habits: { done: 1, total: 2, remaining: 1 },
       water: { total: 750, goal: 2000, percent: 38 },
       cycle: null,
     },
+    weekProgress: { completed: 3, pending: 2 },
     homeMessage: '',
     lead: '',
     tt: [],
@@ -276,16 +411,16 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     homeHabitCheckins: () => 'HABITS',
     homeInboxReminder: () => '',
     homeUpcomingBill: () => '',
-    homeUpcomingTasks: () => '',
+    homeUpcomingTasks: () => 'UPCOMING',
     profileAvatarMarkup: () => '',
     sampleBanner: () => '',
     taskRow: () => '',
   };
   const html = renderHomeView(model, renderers).s;
-  const quickIndex = html.indexOf('class="card home-quick-card"');
+  const quickIndex = html.indexOf('class="card surface-open home-quick-card"');
   const todayIndex = html.indexOf('class="home-today-card"');
   const habitsIndex = html.indexOf('HABITS');
-  const summaryIndex = html.indexOf('class="home-day-summary"');
+  const summaryIndex = html.indexOf('class="home-day-summary card"');
   if (html.includes('Mais do Início') || html.includes('class="home-extras"')) {
     throw new Error('A Home não deve exibir a seção Mais do Início.');
   }
@@ -295,11 +430,16 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
     throw new Error('A hierarquia do Início deve priorizar próximo passo, Hoje e hábitos.');
   }
   if (!html.includes('aria-label="Tarefas, 2 de 3 feitas"')
-    || !html.includes('aria-label="Hábitos, 1 de 2 feitos"')
+    || !html.includes('aria-label="Hábitos, 1 de 2 feitos, 1 faltando"')
     || !html.includes('aria-label="Água, 750 de 2.000 mililitros"')
     || !html.includes('home-day-chip-count" aria-hidden="true">38%')
+    || !html.includes('aria-valuetext="3 de 5 tarefas concluídas"')
+    || !html.includes('name="kind"')
+    || !html.includes('value="appointment">Compromisso')
+    || !html.includes('name="priority"')
+    || !html.includes('UPCOMING')
     || html.includes('href="/ciclo"')) {
-    throw new Error('A faixa deve apresentar contagens acessíveis e ocultar Ciclo sem consentimento.');
+    throw new Error('A Home deve apresentar dados acessíveis, captura configurável e ocultar Ciclo sem consentimento.');
   }
   const cycleHtml = renderHomeView({
     ...model,
@@ -308,6 +448,43 @@ test('Início prioriza a captura rápida e o estado vazio não duplica a ação 
   if (!cycleHtml.includes('href="/ciclo" aria-label="Ciclo, dia 12 do ciclo"')
     || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
     throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
+  }
+  const noWaterHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, water: null },
+  }, renderers).s;
+  if (noWaterHtml.includes('href="/agua"') || noWaterHtml.includes('home-day-chip--water')) {
+    throw new Error('A faixa deve ocultar Água quando o hábito de água não está ativo.');
+  }
+  const noHabitsHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, habits: null, water: null },
+  }, renderers).s;
+  if (noHabitsHtml.includes('href="/habitos"') || noHabitsHtml.includes('home-day-chip--habits')) {
+    throw new Error('A faixa deve ocultar Hábitos quando a área está desativada.');
+  }
+  const noWeekTasksHtml = renderHomeView({
+    ...model,
+    weekProgress: { completed: 0, pending: 0 },
+  }, renderers).s;
+  if (!noWeekTasksHtml.includes('Sua semana ainda está em aberto.')
+    || noWeekTasksHtml.includes('home-week-progress-track')) {
+    throw new Error('O progresso semanal sem registros deve mostrar uma orientação, sem percentuais artificiais.');
+  }
+  const hiddenBalanceHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, balance: { cents: 12345, hidden: true } },
+  }, renderers).s;
+  if (!hiddenBalanceHtml.includes('Saldo atual nas contas oculto')
+    || hiddenBalanceHtml.includes('R$ 123,45')) {
+    throw new Error('O saldo financeiro deve respeitar a preferência de ocultação.');
+  }
+  const visibleBalanceHtml = renderHomeView({
+    ...model,
+    daySummary: { ...model.daySummary, balance: { cents: 12345, hidden: false } },
+  }, renderers).s;
+  if (!/Saldo atual nas contas: R\$[^0-9]*123,45/.test(visibleBalanceHtml)) {
+    throw new Error('O resumo financeiro deve apresentar o saldo real quando estiver visível.');
   }
   if (emptyArgs?.[0] !== 'Seu Início começa aqui'
     || emptyArgs[2] !== ''
@@ -342,7 +519,7 @@ test('planos anuais validam formato, limites e preservam campos desconhecidos', 
     2027: {
       intention: 'Abrir espaço para o que importa.',
       customField: 'preservado',
-      goals: [{ id: 'goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, customField: true }],
+      goals: [{ id: 'goal-1', title: 'Viajar', action: 'Pesquisar destinos', quarter: 'q2', done: false, taskId: 'task-123', customField: true }],
     },
   };
   if (!isValidAnnualPlans(plans)
@@ -354,6 +531,7 @@ test('planos anuais validam formato, limites e preservam campos desconhecidos', 
   const normalized = normalizeAnnualPlans(plans);
   if (normalized[2027].customField !== 'preservado'
     || normalized[2027].goals[0].customField !== true
+    || normalized[2027].goals[0].taskId !== 'task-123'
     || normalizeAnnualPlans({ invalid: plans[2027] })[2027] !== undefined) {
     throw new Error('A normalização não preservou os campos futuros ou aceitou o ano inválido.');
   }
@@ -410,7 +588,7 @@ test('confirmações nativas foram substituídas e o feedback de persistência n
   }
 });
 
-test('landing comunica valor, demonstração e privacidade financeira com precisão', () => {
+test('landing prioriza cadastro e apresenta as áreas e garantias com clareza', () => {
   const root = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener: () => {} };
   const previousDocument = globalThis.document;
   const documentStub = { title: '' };
@@ -421,111 +599,89 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
-  if (documentStub.title !== 'aurora. — tarefas, hábitos, finanças e ciclo') {
-    throw new Error('A landing deve atualizar o título da aba.');
-  }
+  const markup = root.innerHTML;
+  const landingTitle = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
+  if (documentStub.title !== landingTitle) throw new Error('A landing deve atualizar o título da aba.');
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'Menos ruído. Mais clareza no dia',
-    'Um planner independente para a vida real',
-    'Feito para a vida como ela é',
-    'Organize tarefas e prazos; acompanhe o que já foi concluído.',
-    'Criar conta',
-    'Explorar demonstração',
-    'Abrir demonstração',
-    'A demonstração usa dados fictícios e não salva suas mudanças.',
-    'Organize tarefas, hábitos, finanças e ciclo no seu ritmo, com clareza para o que importa hoje e sem culpa.',
-    'totalmente grátis',
-    'preview-area-cycle',
-    'Ciclo',
-    'Escolha por onde começar',
-    'Posso experimentar sem criar conta?',
-    'data-footer-suggestion',
-    'Leve sua rotina com você',
-    'Sua experiência pode ajudar o Aurora a evoluir.',
-    'Ainda não temos avaliações ou números públicos para compartilhar.',
-    'Compartilhar uma sugestão',
-    'Adicione o Aurora à tela inicial do celular',
-    'O Aurora não se conecta a bancos',
-    'href="/privacy"',
-    'Acompanhe datas e sintomas com seu consentimento específico',
+    'App de organização pessoal',
+    'Sua rotina inteira,',
+    'num app só.',
+    'Criar minha conta grátis',
+    'Testar sem cadastro',
+    'Grátis, sem cartão',
+    'Funciona no celular',
+    'Em português',
+    'Cinco partes da sua vida, sem trocar de app.',
+    'O seu dia, numa tela só',
+    'Tire as pendências da cabeça',
+    'Hábitos que cabem na sua semana',
+    'Saiba para onde vai o dinheiro',
+    'Seu ciclo junto com o resto da rotina',
+    'Três passos e o dia já fica mais leve.',
+    'Simples de usar, tranquilo de confiar.',
+    'Seus dados são seus',
+    'Não acessa seu banco',
+    'Vira app no celular',
+    'Posso testar antes de criar conta?',
+    'Posso levar meus dados ou apagar a conta?',
+    'Com seu consentimento, você anota datas e sintomas e consulta médias.',
+    'Menos coisa na cabeça.',
+    'Mais dia para viver.',
+    'Leia a Política de Privacidade.',
   ];
   expectedContent.forEach((text) => {
-    if (!root.innerHTML.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
+    if (!markup.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
   });
+  const heroStart = markup.indexOf('class="public-hero landing-hero"');
+  const heroEnd = markup.indexOf('</section>', heroStart);
+  const hero = markup.slice(heroStart, heroEnd);
+  if (hero.indexOf('data-public-action="signup"') < 0
+    || hero.indexOf('data-public-action="signup"') > hero.indexOf('data-public-action="demo"')
+    || !hero.includes('btn primary large')
+    || !hero.includes('landing-hero-phone')) {
+    throw new Error('O cadastro deve ser a ação principal e aparecer antes da demonstração no hero.');
+  }
+  const sectionMarkers = [
+    'class="public-hero landing-hero"',
+    'class="public-tutorials landing-section"',
+    'class="landing-steps landing-section"',
+    'class="public-trust landing-trust landing-section"',
+    'class="public-faq landing-faq landing-section"',
+    'class="public-closing landing-final-cta landing-section"',
+  ].map((marker) => markup.indexOf(marker));
+  if (sectionMarkers.some((position) => position < 0)
+    || sectionMarkers.some((position, index) => index > 0 && position <= sectionMarkers[index - 1])) {
+    throw new Error('A landing deve manter os seis blocos na ordem definida.');
+  }
+  if ((markup.match(/role="tab" /g) || []).length !== 5
+    || (markup.match(/role="tabpanel"/g) || []).length !== 5
+    || (markup.match(/class="public-faq-item"/g) || []).length !== 6
+    || (markup.match(/name="landing-faq"/g) || []).length !== 6) {
+    throw new Error('As cinco abas e seis perguntas devem estar disponíveis com controles acessíveis.');
+  }
+  if (!markup.includes('href="https://aurora-rotinas.com.br/criar-conta"')
+    || !markup.includes('href="https://aurora-rotinas.com.br/entrar"')
+    || !markup.includes('href="https://aurora-rotinas.com.br/demonstracao"')
+    || !markup.includes('href="https://aurora-rotinas.com.br/privacy.html"')) {
+    throw new Error('As ações da landing devem apontar apenas para rotas definidas do Aurora.');
+  }
+  if (!markup.includes('loading="lazy"')
+    || !markup.includes('alt="Tela de tarefas do Aurora')
+    || !markup.includes('aria-label="Navegação principal"')
+    || !markup.includes('data-public-control="theme-cycle"')) {
+    throw new Error('Imagens, navegação e controle de tema precisam acompanhar os critérios da landing.');
+  }
   const structuredData = [...entryHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
     .flatMap((match) => JSON.parse(match[1]));
   const softwareApplication = structuredData.find((item) => item['@type'] === 'SoftwareApplication');
-  const landingFaq = structuredData.find((item) => item['@type'] === 'FAQPage');
-  const faqNames = landingFaq?.mainEntity?.map((question) => question.name) || [];
-  if (softwareApplication?.description !== 'Organize tarefas, hábitos, finanças e ciclo no seu ritmo.'
-    || faqNames.length !== 5
-    || !faqNames.every((name) => root.innerHTML.includes(name))) {
-    throw new Error('Metadados e FAQ estruturado devem acompanhar as áreas e perguntas atuais da landing.');
-  }
-  if (root.innerHTML.includes('public-hero-support')
-    || root.innerHTML.includes('Veja como Planejar, Hábitos, Finanças e Ciclo se encaixam')) {
-    throw new Error('A landing não deve repetir benefícios que já aparecem no título e nos cartões das áreas.');
-  }
-  if (root.innerHTML.includes('public-maker')) {
-    throw new Error('A landing não deve exibir a seção de autoria removida.');
-  }
-  if (root.innerHTML.includes('É o dado mais sensível do app')) {
-    throw new Error('O aviso de privacidade não deve aparecer no cartão Ciclo da landing.');
-  }
-  if (root.innerHTML.includes('Na demonstração, tarefas, hábitos e Pomodoro')) {
-    throw new Error('O aviso sobre dados fictícios da demonstração não deve aparecer no hero da landing.');
-  }
-  if (root.innerHTML.includes('public-testimonial')
-    || root.innerHTML.includes('profissional e mãe')
-    || root.innerHTML.includes('estudante e freelancer')
-    || root.innerHTML.includes('gestora de rotina')) {
-    throw new Error('A landing não deve apresentar depoimentos ou perfis fictícios como prova social.');
-  }
-  const communityStart = root.innerHTML.indexOf('class="public-community"');
-  const featuresEnd = root.innerHTML.indexOf('</section>', root.innerHTML.indexOf('class="public-features"'));
-  const faqStart = root.innerHTML.indexOf('class="public-faq"');
-  if (communityStart < featuresEnd || communityStart > faqStart
-    || !root.innerHTML.includes('href="#public-suggestion"')
-    || !root.innerHTML.includes('id="public-suggestion"')) {
-    throw new Error('O convite da comunidade deve aparecer entre as áreas e o FAQ e levar ao formulário de sugestões.');
-  }
-  if (root.innerHTML.includes('não são criptografados')
-    || root.innerHTML.includes('Preciso confirmar meu e-mail?')
-    || root.innerHTML.includes('O que acontece sem conexão?')) {
-    throw new Error('Detalhes de segurança, conta e conectividade devem ficar na Política de Privacidade e no próprio app.');
-  }
-  if (root.innerHTML.includes('Sem cobrança') || root.innerHTML.includes('Privacidade</strong>')) {
-    throw new Error('A landing não deve prometer condições de cobrança ou privacidade sem especificá-las.');
-  }
-  const heroStart = root.innerHTML.indexOf('class="public-hero');
-  const heroEnd = root.innerHTML.indexOf('</section>', heroStart);
-  const heroMarkup = root.innerHTML.slice(heroStart, heroEnd);
-  if (!heroMarkup.includes('href="/criar-conta" data-public-action="signup">Criar conta grátis</a>')
-    || !heroMarkup.includes('href="/demonstracao" data-public-action="demo">Conhecer o Aurora</a>')
-    || !heroMarkup.includes('class="public-account-note">Já tem conta? <a href="/entrar" data-public-action="login">Entre com Google</a></p>')
-    || (heroMarkup.match(/class="public-subtitle"/g) || []).length !== 1
-    || heroMarkup.includes('class="public-lead"')) {
-    throw new Error('O hero deve mostrar uma chamada de cadastro, uma de demonstração e apenas uma frase de apoio.');
-  }
-  const phoneNavigation = heroMarkup.match(/class="preview-phone-nav"[\s\S]*?<\/div>/)?.[0] || '';
-  if (!['preview-nav-home', 'preview-nav-planner', 'preview-nav-habits', 'preview-nav-cycle', 'preview-nav-finances']
-    .every((area) => phoneNavigation.includes(area))
-    || !['planner', 'habits', 'finances'].every((area) => heroMarkup.includes(`data-preview-area="${area}"`))) {
-    throw new Error('A prévia do celular deve exibir cinco áreas e distinguir as cores dos três itens.');
-  }
-  if (!root.innerHTML.includes('role="group" aria-label="Demonstração visual das quatro áreas"')) {
-    throw new Error('A apresentação nomeada das áreas deve ter semântica de grupo compatível.');
-  }
-  if (root.innerHTML.includes('public-onboarding')) {
-    throw new Error('A landing não deve repetir a apresentação das áreas com uma seção de onboarding separada.');
-  }
-  const landingTitle = 'aurora. — tarefas, hábitos, finanças e ciclo';
-  if (!entryHtml.includes(`<title>${landingTitle}</title>`)
+  const description = 'Organize sua rotina num só lugar: tarefas, hábitos, finanças e ciclo. Grátis, sem cartão e funciona no celular.';
+  if (softwareApplication?.description !== description
+    || !entryHtml.includes(`<title>${landingTitle}</title>`)
     || !entryHtml.includes(`property="og:title" content="${landingTitle}"`)
     || !entryHtml.includes(`name="twitter:title" content="${landingTitle}"`)
-    || landingTitle.length > 60) {
-    throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a promessa atual da landing.');
+    || !entryHtml.includes(`name="description" content="${description}"`)) {
+    throw new Error('Os metadados de busca e compartilhamento precisam acompanhar a landing.');
   }
   if (!entryHtml.includes('id="app"') || !entryHtml.includes('app-skeleton')
     || !entryHtml.includes('account-loading-indicator')
@@ -535,6 +691,17 @@ test('landing comunica valor, demonstração e privacidade financeira com precis
   const prerenderScript = readFileSync(new URL('../scripts/prerender-landing.mjs', import.meta.url), 'utf8');
   if (!prerenderScript.includes('data-prerendered') || !prerenderScript.includes('file://')) {
     throw new Error('O build precisa pré-renderizar a landing sem URLs file://.');
+  }
+});
+
+test('cabeçalho de autenticação compartilha navegação e ação principal da landing', () => {
+  const markup = renderPublicHeader({ authMode: 'login' });
+  if (!markup.includes('href="/#areas">O que dá para organizar</a>')
+    || !markup.includes('href="/#steps">Como começar</a>')
+    || !markup.includes('href="/#faq">Perguntas</a>')
+    || !/class="btn primary public-account-action[^"]*"\s+data-account-mode="signup"/.test(markup)
+    || !markup.includes('data-public-control="theme-cycle"')) {
+    throw new Error('O cabeçalho de autenticação deve manter navegação, CTA e controle de tema da landing.');
   }
 });
 
@@ -623,8 +790,29 @@ test('captura rápida reconhece datas civis, horário e preserva etiquetas', () 
   equal(parseQuickDate('Planejar amanhã', '2026-12-31').date, '2027-01-01');
   equal(parseQuickDate('Revisar #sexta', '2026-11-10').title, 'Revisar #sexta');
   equal(parseQuickDate('Revisar tarefa', '2026-11-10').date, '2026-11-10');
+  const nextWeek = parseQuickDate('Revisar próxima semana', '2026-11-18');
+  equal(nextWeek.title, 'Revisar');
+  equal(nextWeek.date, '2026-11-25');
+  equal(parseQuickDate('Renovar documento 20/11', '2026-11-18').date, '2026-11-20');
+  equal(parseQuickDate('Renovar documento 20/11/2027', '2026-11-18').date, '2027-11-20');
+  ok(parseQuickDate('Agendar consulta 31/02', '2026-11-18').error);
+  ok(parseQuickDate('Agendar consulta 20/11/26', '2026-11-18').error);
   ok(parseQuickDate('Revisar amanhã 25h', '2026-11-10').error);
   ok(parseQuickDate('Revisar hoje sexta', '2026-11-10').error);
+});
+
+test('revisão semanal inclui atrasos antigos e tarefas priorizadas da próxima semana', () => {
+  const review = weeklyReview([
+    { id: 'overdue', title: 'Tarefa atrasada', dueDate: '2026-11-10', priority: 'normal', done: false },
+    { id: 'this-week', title: 'Tarefa desta semana', dueDate: '2026-11-20', priority: 'normal', done: false },
+    { id: 'next-week', title: 'Tarefa da próxima semana', dueDate: '2026-11-25', priority: 'high', done: false },
+    { id: 'completed', title: 'Tarefa concluída', dueDate: '2026-11-12', done: true, doneAt: '2026-11-17T12:00:00.000Z' },
+  ], [], '2026-11-18');
+  equal(review.tasks.completed, 1);
+  equal(review.tasks.pending, 1);
+  equal(review.tasks.overdue, 1);
+  equal(review.tasks.overdueTasks[0].id, 'overdue');
+  equal(review.nextWeek.tasks[0].id, 'next-week');
 });
 
 test('Push de tarefas envia apenas horários futuros sem título e limita o lote', () => {
@@ -1524,6 +1712,22 @@ test('fechamento mensal resume pendências, fixas e cartão em centavos', () => 
   equal(summary.topExpense.join(':'), 'Moradia:3000');
 });
 
+test('limites financeiros separam despesas pela data do lançamento em centavos', () => {
+  const totals = expenseBudgetByCategory([
+    { type: 'out', date: '2026-10-10', cents: 1234, paid: false, category: 'Mercado' },
+    { type: 'out', date: '2026-10-15', cents: 200, paid: true, category: 'Mercado' },
+    { type: 'out', date: '2026-10-16', cents: 567, paid: false, category: 'Mercado' },
+    { type: 'out', date: '2026-10-31', cents: 890, paid: false, category: 'Moradia' },
+    { type: 'in', date: '2026-10-12', cents: 1000, category: 'Mercado' },
+    { type: 'tr', date: '2026-10-12', cents: 500, category: 'Mercado' },
+    { type: 'out', date: '2026-09-30', cents: 9000, category: 'Fora do mês' },
+  ], '2026-10', '2026-10-15');
+
+  equal(totals.total.map(([category, cents]) => `${category}:${cents}`).join(','), 'Mercado:2001,Moradia:890');
+  equal(totals.throughToday.map(([category, cents]) => `${category}:${cents}`).join(','), 'Mercado:1434');
+  equal(totals.afterToday.map(([category, cents]) => `${category}:${cents}`).join(','), 'Moradia:890,Mercado:567');
+});
+
 test('notificações incluem apenas contas fixas pendentes com vencimento hoje', () => {
   const transactions = [
     { id: 'due', type: 'out', recId: 'rent', date: '2026-10-26', paid: false, createdAt: 2 },
@@ -1951,6 +2155,15 @@ test('o tema padrão do Aurora é claro', () => {
   equal(LOOK_DEFAULT.mode, 'light');
 });
 
+test('a paleta Rosé acompanha as cores do gradiente da logo', () => {
+  const logo = readFileSync(new URL('../icons/favicon.svg', import.meta.url), 'utf8');
+  const logoColors = [...logo.matchAll(/stop-color="(#[0-9a-f]{6})"/gi)].map((match) => match[1].toLowerCase());
+  equal(PALETTES.rose[0], 'Rosé');
+  equal(PALETTES.rose[1], logoColors[0]);
+  equal(PALETTES.rose[2], logoColors[1]);
+  truthy(PROFILE_AVATAR_COLORS.some(([id, label]) => id === 'rose' && label === PALETTES.rose[0]));
+});
+
 test('toda paleta nomeada gera cor de destaque com contraste mínimo 4,5 contra branco', () => {
   Object.keys(PALETTES).forEach((name) => {
     const [, dark] = paletteColors(name, LOOK_DEFAULT);
@@ -2034,12 +2247,12 @@ test('preferências do Início normalizam modos, layouts, atalhos, mensagem e co
     theme: 'rose',
     tasks: [],
     habits: [{ completions: [] }, { completions: ['2026-10-20'] }],
-  })), JSON.stringify([false, false, true]));
+  })), JSON.stringify([false, true, false]));
   equal(JSON.stringify(homeFirstStepsProgress({
     theme: 'coral',
     tasks: [{ id: 'task', done: true }],
     habits: [{ completions: [] }],
-  })), JSON.stringify([true, true, false]));
+  })), JSON.stringify([true, false, true]));
   equal(JSON.stringify(homeFirstStepsProgress(null)), JSON.stringify([false, false, false]));
   equal(JSON.stringify(normalizeHomeAreaColors({ planning: 'coral', water: '#ffffff', unknown: 'rose' })), JSON.stringify({ planning: 'coral' }));
   truthy(HOME_AREA_COLORS.length >= 5);

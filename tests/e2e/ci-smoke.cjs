@@ -79,7 +79,6 @@ async function verifyPreviewMissingFiles() {
     ['/src/js/__aurora_missing_asset__.js', 404],
     ['/icons/__aurora_missing_icon__.svg', 404],
     ['/pages/__aurora_missing_page__.html', 404],
-    ['/pages/inicio.html', 200],
     ['/inicio', 200],
   ];
   let notFoundHtml = '';
@@ -187,6 +186,7 @@ async function main() {
   runSuite('loading-screen.cjs', DEV_URL);
   runSuite('public-demo-interactions.cjs', DEV_URL);
   runSuite('mobile-landing-matrix.cjs', DEV_URL);
+  runSuite('task-swipe.cjs', DEV_URL);
   runSuite('habits-app-experience.cjs', DEV_URL);
   runSuite('dashboard-hierarchy.cjs', DEV_URL);
   runSuite('backup-export-import.cjs', DEV_URL);

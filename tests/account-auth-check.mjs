@@ -25,6 +25,7 @@ import {
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  LEGACY_PASSWORD_MIN_LENGTH,
   PASSWORD_REJECTED_MESSAGE,
   PASSWORD_REQUIREMENTS,
   PASSWORD_REQUIREMENTS_MESSAGE,
@@ -227,9 +228,9 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   terms_version: TERMS_DOCUMENT_VERSION,
   privacy_policy_version: PRIVACY_POLICY_VERSION,
 });
-assert.equal(TERMS_DOCUMENT_VERSION, '1.9');
-assert.equal(PRIVACY_POLICY_VERSION, '2.0');
-assert.equal(CYCLE_DATA_CONSENT_VERSION, '2.0');
+assert.equal(TERMS_DOCUMENT_VERSION, '2.0');
+assert.equal(PRIVACY_POLICY_VERSION, '2.2');
+assert.equal(CYCLE_DATA_CONSENT_VERSION, '2.1');
 assert.deepEqual(createCycleDataConsentMetadata(new Date('2026-11-08T12:00:00.000Z')), {
   cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
   cycle_data_consent_version: CYCLE_DATA_CONSENT_VERSION,
@@ -243,10 +244,12 @@ assert.throws(() => createCycleDataConsentRevocationMetadata(new Date('invalid')
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
-assert.match(termsDocument, /<meta name="aurora-legal-version" content="1\.9">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.0">/);
+const ageAttestationMigration = readFileSync(new URL('../supabase/migrations/20261116010000_signup_age_attestation.sql', import.meta.url), 'utf8');
+assert.match(termsDocument, /<meta name="aurora-legal-version" content="2\.0">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.2">/);
 const analyticsSection = privacyDocument.match(/<section id="privacy-analytics">([\s\S]*?)<\/section>/)?.[1];
 assert.ok(analyticsSection, 'A política deve explicar a medição de acessos da Cloudflare.');
 assert.match(analyticsSection, /Cloudflare Web Analytics/);
@@ -256,25 +259,30 @@ assert.match(analyticsSection, /melhorias/);
 assert.match(analyticsSection, /cookies de publicidade/);
 assert.match(analyticsSection, /href="https:\/\/developers\.cloudflare\.com\/web-analytics\/"/);
 assert.match(analyticsSection, /href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/);
-assert.match(privacyDocument, /última atualização: 14 de novembro de 2026/);
-assert.doesNotMatch(privacyDocument, /11 de novembro de 2026/);
+assert.match(privacyDocument, /Versão 2\.2 · última atualização: 18 de novembro de 2026/);
+assert.match(privacyDocument, /métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações/);
+assert.match(mainSource, /Usar dados no Ciclo/);
+assert.match(mainSource, /Permito que o Aurora use esses dados no Ciclo/);
+assert.match(termsDocument, /última atualização: 16 de novembro de 2026/);
 assert.match(termsDocument, /pelo menos 16 anos/i);
 assert.match(privacyDocument, /pelo menos 16 anos/i);
 assert.match(signupAgeMigration, /metadata_age::integer < 16/);
 assert.match(signupAgeMigration, /message = 'signup_minimum_age'/);
 assert.match(signupAgeMigration, /make_date\(2000, birth_month, birth_day\)/);
-assert.match(termsDocument, /cadastro não exige confirmação do e-mail, mas pede que você digite o endereço duas vezes/);
+assert.match(ageAttestationMigration, /age_confirmed/);
+assert.match(termsDocument, /o Aurora não solicita nem armazena sua data de nascimento/i);
+assert.match(privacyDocument, /o Aurora não solicita nem armazena sua data de nascimento/i);
+assert.doesNotMatch(accountAuthSource, /confirmEmail/);
+assert.doesNotMatch(accountAuthSource, /birthDate/);
 assert.doesNotMatch(termsDocument, /confirme o endereço de e-mail/);
 assert.match(accountAuthSource, /não precisa confirmar o e-mail para entrar/i);
 assert.match(accountAuthSource, /erro pode impedir a recuperação da senha/i);
-assert.match(accountAuthSource, /Digite novamente o endereço para evitar erros de recuperação\./i);
-assert.match(accountAuthSource, /um erro pode impedir a recuperação da senha/i);
 assert.doesNotMatch(landingSource, /endereço.*recuperação da senha/i);
 assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-mail/i);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
-    terms_version: '1.9',
-    privacy_policy_version: '2.0',
+    terms_version: '2.0',
+    privacy_policy_version: '2.2',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
@@ -282,6 +290,13 @@ assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.9',
     privacy_policy_version: '1.9',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), false);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
+    terms_version: '1.9',
+    privacy_policy_version: '2.0',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), false);
@@ -310,10 +325,17 @@ assert.equal(hasCurrentLegalConsent({ user_metadata: null }), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
-    cycle_data_consent_version: '2.0',
+    cycle_data_consent_version: '2.1',
     cycle_data_consent_revoked_at: null,
   },
 }), true);
+assert.equal(hasCurrentCycleDataConsent({
+  user_metadata: {
+    cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
+    cycle_data_consent_version: '2.0',
+    cycle_data_consent_revoked_at: null,
+  },
+}), false);
 assert.equal(hasCurrentCycleDataConsent({
   user_metadata: {
     cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
@@ -362,10 +384,7 @@ assert.equal(hasCompleteProfile({
   user_metadata: {
     name: 'Ana',
     preferred_name: 'Ana',
-    age: 18,
-    birthday_month: 10,
-    birthday_day: 30,
-    birthday_reference_date: '2020-10-30',
+    age_confirmed: true,
   },
 }), true);
 assert.equal(hasCompleteProfile({
@@ -407,18 +426,16 @@ assert.doesNotMatch(accountAuthSource, /Continuar com Apple \(iCloud\)/);
 assert.match(accountAuthSource, /result\.oauthProvider !== 'google'/);
 assert.match(accountAuthSource, /oauth-profile/);
 
-assert.equal(PASSWORD_MIN_LENGTH, 6);
+assert.equal(PASSWORD_MIN_LENGTH, 12);
+assert.equal(LEGACY_PASSWORD_MIN_LENGTH, 6);
 assert.equal(PASSWORD_MAX_LENGTH, 72);
-assert.equal(PASSWORD_REQUIREMENTS[0][1], 'entre 6 e 72 caracteres');
-assert.equal(validatePassword('Abc1!').valid, false);
-assert.equal(validatePassword('Abc12!').valid, true);
-assert.equal(validatePassword('Abc12!x').valid, true);
-assert.equal(validatePassword('abcdef1!').valid, false);
-assert.equal(validatePassword('ABCDEF1!').valid, false);
-assert.equal(validatePassword('Abcdefg!').valid, false);
-assert.equal(validatePassword('Abcdef1g').valid, false);
-assert.equal(validatePassword(`A${'b'.repeat(69)}1!`).valid, true);
-assert.equal(validatePassword(`A${'b'.repeat(70)}1!`).valid, false);
+assert.equal(PASSWORD_REQUIREMENTS.length, 1);
+assert.equal(PASSWORD_REQUIREMENTS[0][1], 'entre 12 e 72 caracteres');
+assert.equal(validatePassword('Abcdefg1!').valid, false);
+assert.equal(validatePassword('abcdefghijkl').valid, true);
+assert.equal(validatePassword('abcdefghijkl!').valid, true);
+assert.equal(validatePassword(`A${'b'.repeat(70)}1`).valid, true);
+assert.equal(validatePassword(`A${'b'.repeat(71)}1`).valid, false);
 assert.equal(validatePassword(null).valid, false);
 assert.match(passwordRecoveryErrorMessage({ code: 'over_email_send_rate_limit' }), /aguarde alguns minutos/i);
 assert.match(passwordRecoveryErrorMessage({ status: 429 }), /aguarde alguns minutos/i);

@@ -6,13 +6,33 @@ const check = (passed, name, detail = '') => {
   results.push(passed);
   console.log(`${passed ? 'OK   ' : 'FALHA'} — ${name}${detail ? ` (${detail})` : ''}`);
 };
+const swipe = async (page, locator, direction) => {
+  await locator.evaluate((target, direction) => {
+    const bounds = target.getBoundingClientRect();
+    const startX = bounds.left + bounds.width / 2;
+    const startY = bounds.top + bounds.height / 2;
+    const pointer = (type, x) => new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 73,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: x,
+      clientY: startY,
+    });
+    target.dispatchEvent(pointer('pointerdown', startX));
+    document.dispatchEvent(pointer('pointermove', startX + (direction === 'left' ? -120 : 120)));
+    document.dispatchEvent(pointer('pointerup', startX + (direction === 'left' ? -120 : 120)));
+  }, direction);
+  await page.waitForTimeout(240);
+};
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const openFinanceQuickActions = async () => {
     const menu = page.locator('#quick-actions-menu');
     if (await menu.isVisible()) return;
-    await page.locator('.mobile-nav-create-trigger:visible, .nav-quick-trigger:visible').first().click();
+    await page.locator('.nav-quick-trigger:visible').first().click();
     await menu.waitFor({ state: 'visible' });
   };
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -42,16 +62,26 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).waitFor();
   check(await page.evaluate(() => {
     const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
+    const control = document.querySelector('.finance-quick-control');
+    const button = control?.querySelector('.finance-fab-trigger');
+    const buttonBounds = button?.getBoundingClientRect();
+    const navCreate = document.querySelector('.finance-nav-create-trigger');
     return Math.abs(nav.bottom - (innerHeight - 8)) <= 1
-      && !document.querySelector('.finance-fab, .finance-page-action, .global-quick-fab')
-      && Boolean(document.querySelector('.topbar .nav-quick-trigger'))
+      && getComputedStyle(control).position === 'fixed'
+      && buttonBounds?.width === 56 && buttonBounds.height === 56
+      && getComputedStyle(navCreate).visibility === 'hidden'
+      && !document.querySelector('.header-actions .nav-quick-control')
       && !document.querySelector('.fab-clearance');
-  }), 'atalho de criação fica apenas no header, sem botões flutuantes duplicados');
+  }), 'atalho flutuante fica acima do dock sem duplicar o botão central');
   check(await page.locator('.fin-section-option').count() === 5
     && await page.getByRole('tab', { name: 'Visão geral', exact: true }).count() === 1
     && await page.getByRole('tab', { name: 'Contas e cartões', exact: true }).count() === 1,
   'navegação financeira agrupa as áreas em cinco seções claras');
+  check(await page.locator('.finance-privacy-note').count() === 1,
+    'aviso sobre conexão bancária aparece uma vez na visão geral');
   await page.locator('.fin-section-option[data-t="contas"]').click();
+  check(await page.locator('.finance-privacy-note').count() === 0,
+    'aviso bancário não se repete nas outras seções');
   check(await page.locator('.finance-account-option').count() === 2,
     'contas e cartões aparecem como subseções no mesmo grupo');
   await page.locator('.finance-account-option[data-t="cartoes"]').click();
@@ -63,6 +93,14 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.finance-installments').count() === 1
     && await page.locator('.finance-fixas').count() === 1,
   'planejamento reúne parcelas e lançamentos fixos');
+  await page.locator('.fin-section-option[data-t="lancamentos"]').click();
+  check(await page.locator('.fin-tools-actions [data-action="rec-list"]').count() === 0,
+    'lançamentos não duplica o acesso à gestão de fixas do planejamento');
+  await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  check((await page.locator('.budget-list').textContent()).includes('Até hoje:')
+    && (await page.locator('.budget-list').textContent()).includes('data futura:')
+    && (await page.locator('.budget-list').textContent()).includes('total'),
+  'limites distinguem despesas por data e mantêm a comparação pelo total');
   await page.locator('.fin-section-option[data-t="resumo"]').click();
   const recent = await page.locator('.finance-recent').textContent();
   const selectedMonth = await page.locator('.mnav .mlabel').textContent();
@@ -192,6 +230,18 @@ const check = (passed, name, detail = '') => {
   check((await page.locator('#dlg').textContent()).includes('descrições diferentes')
     && (await page.locator('#dlg').textContent()).includes('permanecem marcados'),
   'importação explica os casos semelhantes que exigem conferência');
+  const importSummary = page.locator('#dlg [role="status"][aria-live="polite"]');
+  check((await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('Selecionados: 1')
+    && (await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('despesas R$ 1,00')
+    && (await importSummary.textContent()).replace(/\u00a0/g, ' ').includes('receitas R$ 0,00'),
+  'prévia soma despesas e receitas selecionadas em centavos');
+  await duplicateRows.nth(1).uncheck();
+  check((await importSummary.textContent()).includes('Selecionados: 0')
+    && await page.locator('#dlg [data-action="imp-apply"]').isDisabled(),
+  'resumo da importação atualiza ao desmarcar uma linha');
+  await duplicateRows.nth(1).check();
+  check((await importSummary.textContent()).includes('Selecionados: 1'),
+    'resumo da importação atualiza ao marcar uma linha');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
   if (await page.getByRole('button', { name: 'Descartar alterações', exact: true }).count()) {
     await page.getByRole('button', { name: 'Descartar alterações', exact: true }).click();
@@ -304,11 +354,9 @@ const check = (passed, name, detail = '') => {
   'modal parcelado não cria overflow horizontal em 320 px');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#dlg .dlg-foot [data-action="dlg-close"]').click();
-  await editInstallment(
-    page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' }),
-    '4 de 10',
-  );
-  await page.locator('#dlg [data-action="tx-del-dlg"]').click();
+  const installmentRow = page.locator('#tx-results .fr').filter({ hasText: 'Série parcelada de teste (4/10)' });
+  await swipe(page, installmentRow.locator('.fr-main'), 'left');
+  await page.locator('#dlg .finance-series-delete-option').first().waitFor({ state: 'visible' });
   const seriesDeleteOptions = page.locator('#dlg .finance-series-delete-option');
   const seriesDeleteDetails = {
     count: await seriesDeleteOptions.count(),
@@ -492,7 +540,7 @@ const check = (passed, name, detail = '') => {
   const quickMenu = page.locator('#quick-actions-menu');
   await quickMenu.getByRole('button', { name: 'Despesa cartão', exact: true }).waitFor();
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement?.matches('.nav-quick-trigger, .mobile-nav-create-trigger'));
+  await page.waitForFunction(() => document.activeElement?.matches('.nav-quick-trigger'));
   check(await quickMenu.isHidden(), 'Esc fecha as ações rápidas e devolve o foco ao botão do header');
   await openFinanceQuickActions();
   check(await quickMenu.getByRole('button', { name: 'Transferência', exact: true }).count() === 1, 'ações rápidas oferecem transferência');
@@ -595,6 +643,18 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   const recentFixedCount = await page.locator('.finance-recent .ttl').filter({ hasText: /^icloud$/i }).count();
   check(recentFixedCount === 1, 'fixa criada aparece uma vez no resumo, sem meses futuros', String(recentFixedCount));
+  const fixedTitle = page.locator('.finance-recent .ttl').filter({ hasText: /^icloud$/i });
+  const fixedRow = fixedTitle.locator('xpath=ancestor::li');
+  const fixedInitiallyPending = await fixedRow.evaluate((row) => row.classList.contains('pend'));
+  await swipe(page, fixedRow.locator('.fr-main'), 'right');
+  check(await fixedRow.count() === 1
+    && await fixedRow.evaluate((row) => row.classList.contains('pend')) === fixedInitiallyPending,
+  'deslizar à direita não altera o status financeiro');
+  await swipe(page, fixedRow.locator('.fr-main'), 'left');
+  await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).waitFor({ state: 'visible' });
+  check(await fixedRow.count() === 0, 'deslizar à esquerda envia um lançamento individual à lixeira');
+  await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).click();
+  check(await fixedRow.count() === 1, 'desfazer restaura o lançamento financeiro');
   await openFinanceQuickActions();
   await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
   check(await page.locator('#dlg [data-dlg="accountId"]').inputValue() === latestAccount, 'novo lançamento reutiliza a conta usada por último');
@@ -740,18 +800,21 @@ const check = (passed, name, detail = '') => {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
-  check(await page.locator('.topbar .mobile-nav-create-trigger').isVisible()
-    && !await page.locator('.finance-fab').count()
-    && !await page.locator('.finance-page-action').count()
+  check(await page.locator('.finance-fab-trigger').isVisible()
+    && await page.locator('.finance-quick-control').evaluate((control) => getComputedStyle(control).position === 'fixed')
     && !await page.locator('.global-quick-fab').count(),
-  'celular mostra o atalho de criação centralizado no dock');
+  'celular mantém o atalho financeiro flutuante');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
-  check(await page.locator('.topbar .nav-quick-trigger').isVisible()
-    && !await page.locator('.finance-fab').count()
-    && !await page.locator('.finance-page-action').count()
+  check(await page.locator('.finance-fab-trigger').isVisible()
+    && await page.locator('.finance-quick-control').evaluate((control) => getComputedStyle(control).position === 'fixed')
     && !await page.locator('.global-quick-fab').count(),
-  'desktop mostra apenas o atalho de criação no header');
+  'desktop usa o mesmo atalho financeiro flutuante');
+  await openFinanceQuickActions();
+  check(await page.locator('.finance-actions-backdrop').isVisible()
+    && await page.locator('.finance-quick-actions-menu').isVisible(),
+  'painel flutuante e fundo escurecido aparecem também no desktop');
+  await page.keyboard.press('Escape');
   const overviewDesktopLayout = await page.evaluate(() => {
     const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
     const recent = document.querySelector('.finance-recent').getBoundingClientRect();

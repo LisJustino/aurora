@@ -524,7 +524,7 @@ async function main() {
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }
-        await page.locator('.profile-menu-trigger').click();
+        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
         await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
         const signout = page.locator('#profile-menu [data-account-signout]');
         await signout.waitFor({ state: 'visible' });
@@ -542,8 +542,14 @@ async function main() {
           && profileMenuAlignment.signoutRight <= profileMenuAlignment.menuRight,
         'botão Sair da conta deve ficar alinhado dentro do menu');
         await page.keyboard.press('Escape');
-        assert.equal(await page.locator('.profile-menu-control').getAttribute('open'), null,
+        assert.equal(await page.locator('.mobile-profile-menu').getAttribute('open'), null,
           'menu da conta fecha ao pressionar Escape');
+        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
+        await page.locator('#profile-menu a[href="/config"]').click();
+        await page.locator('.settings-link[data-settings-tab="account"]').click();
+        await page.locator('.account-session-card [data-account-signout]').waitFor({ state: 'visible' });
+        await page.locator('.nav a[href="/inicio"]').click();
+        await page.locator('.main[data-route="inicio"]').waitFor({ state: 'visible' });
         const firstSteps = page.locator('.home-first-steps');
         assert.equal(await firstSteps.count(), 0,
           'cartão de primeiro acesso não aparece quando já existem tarefas');
@@ -845,18 +851,18 @@ async function main() {
     const preferredName = page.getByLabel('Nome de preferência (opcional)', { exact: true });
     assert.equal(await preferredName.evaluate((input) => input.required), false, 'nome de preferência deve ser opcional');
     await preferredName.fill('');
-    await page.getByLabel('Data de nascimento').fill('1990-01-01');
+    assert.equal(await page.locator('input[type="date"]').count(), 0, 'cadastro não solicita data de nascimento');
+    const ageConfirmation = page.getByLabel('Confirmo que tenho pelo menos 16 anos.');
+    const profileContinue = page.getByRole('button', { name: 'Continuar' });
+    assert.equal(await profileContinue.isDisabled(), true, 'o cadastro exige confirmação da idade mínima');
+    await ageConfirmation.check();
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
-    const passwordCriteria = page.locator('.account-password-strength .account-strength-label');
     const signupPassword = page.getByLabel('Senha', { exact: true });
-    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 0 de 5');
-    assert.equal(await signupPassword.getAttribute('minlength'), '6');
+    assert.equal(await signupPassword.getAttribute('minlength'), '12');
     assert.equal(await signupPassword.getAttribute('maxlength'), '72');
-    await signupPassword.fill('Aa1!x');
-    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 4 de 5');
-    await signupPassword.fill('Aurora1!');
-    assert.equal(await passwordCriteria.innerText(), 'Critérios atendidos: 5 de 5');
+    assert.equal(await page.locator('.account-password-strength, .account-password-checklist').count(), 0,
+      'senha nova não exige composição de caracteres');
     assert.equal(await page.locator('.account-auth-header-actions').count(), 1, 'etapa de acesso deve manter os controles de aparência');
     await page.setViewportSize({ width: 1280, height: 720 });
     await assertAccountCardDoesNotScrollInternally('cadastro em desktop');
@@ -864,21 +870,22 @@ async function main() {
     await page.setViewportSize({ width: 390, height: 844 });
     await assertAuthLayout('cadastro no celular');
     await page.setViewportSize({ width: 320, height: 780 });
-    await assertNoHorizontalOverflow('a confirmação de e-mail deve caber em 320 px');
+    await assertNoHorizontalOverflow('a etapa de acesso deve caber em 320 px');
     await page.setViewportSize({ width: 390, height: 844 });
     const email = page.getByLabel('E-mail', { exact: true });
-    const confirmEmail = page.getByLabel('Confirmar e-mail', { exact: true });
     const signupButton = page.locator('.account-form button[type="submit"]');
     await email.fill('pessoa@example.com');
-    await confirmEmail.fill('pessoa-errada@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
-    await page.getByLabel('Confirmar senha', { exact: true }).fill('Aurora123!');
+    await signupPassword.fill('longpass');
+    await page.getByLabel('Confirmar senha', { exact: true }).fill('longpass');
     await page.locator('.account-form input[name="termsAccepted"]').check();
-    assert.equal(await signupButton.isDisabled(), true, 'o cadastro deve bloquear e-mails divergentes');
-    assert.match(await page.locator('#account-confirmEmail-error').textContent(), /não coincidem/i);
-    assert.equal(signupRequests, 0, 'e-mails divergentes não devem chamar o provedor');
-    await confirmEmail.fill('PESSOA@EXAMPLE.COM');
-    assert.equal(await signupButton.isEnabled(), true, 'endereços coincidentes ignorando caixa alta liberam o cadastro');
+    assert.equal(await signupButton.isDisabled(), true, 'senha abaixo de 12 caracteres deve ser bloqueada');
+    await signupPassword.fill('longpassword');
+    await page.getByLabel('Confirmar senha', { exact: true }).fill('longpassword');
+    await page.locator('.account-form input[name="termsAccepted"]').check();
+    assert.equal(await signupButton.isEnabled(), true,
+      'senha de 12 caracteres sem maiúscula, dígito ou símbolo pode ser usada');
+    assert.equal(await page.getByLabel('Confirmar e-mail', { exact: true }).count(), 0,
+      'cadastro solicita o endereço de e-mail apenas uma vez');
     await signupButton.click();
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
@@ -893,13 +900,12 @@ async function main() {
     await page.getByRole('heading', { name: 'Seu perfil' }).waitFor();
     await page.getByLabel('Nome', { exact: true }).fill('Segunda tentativa');
     await page.getByLabel('Nome de preferência (opcional)', { exact: true }).fill('');
-    await page.getByLabel('Data de nascimento').fill('1990-01-01');
+    await page.getByLabel('Confirmo que tenho pelo menos 16 anos.').check();
     await page.getByRole('button', { name: 'Continuar' }).click();
     await page.getByRole('heading', { name: 'Crie seu acesso' }).waitFor();
     await page.getByLabel('E-mail', { exact: true }).fill('PESSOA@example.com');
-    await page.getByLabel('Confirmar e-mail', { exact: true }).fill('pessoa@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
-    await page.getByLabel('Confirmar senha', { exact: true }).fill('Aurora123!');
+    await page.getByLabel('Senha', { exact: true }).fill('longpassword');
+    await page.getByLabel('Confirmar senha', { exact: true }).fill('longpassword');
     await page.locator('.account-form input[name="termsAccepted"]').check();
     await page.locator('.account-form button[type="submit"]').click();
     await page.getByText(/já está vinculado a uma conta, então não criamos outra/i).waitFor();
@@ -912,7 +918,7 @@ async function main() {
     await loginPassword.fill('SenhaErrada123!');
     await loginPassword.press('Enter');
     await page.getByText('E-mail ou senha incorretos. Confira os dados e tente novamente.').waitFor();
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
+    await page.getByLabel('Senha', { exact: true }).fill('longpassword');
     delayNextLogin = true;
     await page.getByLabel('Senha', { exact: true }).press('Enter');
     const loginSubmit = page.locator('.account-form button[type="submit"]');
@@ -972,7 +978,7 @@ async function main() {
     });
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('Aurora123!');
+    await page.getByLabel('Senha', { exact: true }).fill('longpassword');
     await page.locator('.account-form button[type="submit"]').click();
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
@@ -993,16 +999,16 @@ async function main() {
     const updatePasswordButton = page.locator('.account-form button[type="submit"]');
     const newPassword = page.getByLabel('Nova senha', { exact: true });
     const confirmNewPassword = page.getByLabel('Confirmar nova senha', { exact: true });
-    assert.equal(await newPassword.getAttribute('minlength'), '6');
+    assert.equal(await newPassword.getAttribute('minlength'), '12');
     assert.equal(await newPassword.getAttribute('maxlength'), '72');
     await newPassword.fill('Aa1!x');
     await confirmNewPassword.fill('Aa1!x');
     assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas abaixo do mínimo');
-    await newPassword.fill('Aa1!xy');
+    await newPassword.fill('longpassword');
     await confirmNewPassword.fill('Diferente456!');
     assert.equal(await updatePasswordButton.isDisabled(), true, 'a redefinição deve bloquear senhas divergentes');
-    await confirmNewPassword.fill('Aa1!xy');
-    assert.equal(await updatePasswordButton.isEnabled(), true, 'senhas correspondentes liberam a redefinição');
+    await confirmNewPassword.fill('longpassword');
+    assert.equal(await updatePasswordButton.isEnabled(), true, 'frase de acesso correspondente libera a redefinição');
     await updatePasswordButton.click();
     await page.getByRole('heading', { name: 'Entrar na sua conta' }).waitFor();
     await page.getByText('Senha atualizada. Entre usando sua nova senha.').waitFor();
@@ -1010,7 +1016,7 @@ async function main() {
     assert.equal(await page.evaluate(() => location.search), '', 'callback de redefinição é removido da URL');
     assert.equal(await page.locator('.account-message[data-tone="success"]').count(), 1);
     await page.getByLabel('E-mail', { exact: true }).fill('pessoa@example.com');
-    await page.getByLabel('Senha', { exact: true }).fill('Aa1!xy');
+    await page.getByLabel('Senha', { exact: true }).fill('longpassword');
     await page.locator('.account-form button[type="submit"]').click();
     await page.waitForFunction(() => window.authFlowDone);
     assert.equal(await page.evaluate(() => window.authFlowError), '');
@@ -1024,7 +1030,7 @@ async function main() {
       0,
       'uma sessão recusada pelo serviço deve ser removida',
     );
-    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'Aurora123!', 'Aurora123!', 'Aa1!xy']);
+    assert.deepEqual(loginPasswords, ['SenhaErrada123!', 'longpassword', 'longpassword', 'longpassword']);
     assert.deepEqual(externalRequests, [], 'nenhuma requisição real fora do servidor local e do mock deve ocorrer');
     assert.deepEqual(unexpectedAuthRequests, [], 'somente endpoints de autenticação esperados devem ser chamados');
     assert.deepEqual(errors, [], 'o fluxo não deve gerar erros no console');

@@ -17,24 +17,29 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#planejar`);
-  await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
+  await page.locator('[data-action="weekly-open-review"]').click();
   check(await page.locator('.weekly-review').count() === 1
     && await page.locator('.weekly-review-hero').getByText('Sua semana.').count() === 1
-    && await page.locator('.weekly-review .review-stats .stat').count() === 3
+    && await page.locator('.weekly-review .review-stats .stat').count() === 4
+    && await page.locator('#weekly-overdue-title').count() === 1
+    && await page.locator('#weekly-next-title').count() === 1
     && await page.locator('.weekly-review textarea').count() === 0,
-  'revisão mostra o período e exatamente três números, sem campo para guardar respostas');
+  'revisão mostra o período, pendências, atrasos e tarefas da próxima semana');
   check(await page.locator('.weekly-review').getByText(/Ciclo|Finanças|peso/i).count() === 0,
     'a revisão não exibe dados de Ciclo, finanças ou peso');
 
-  await page.locator('.weekly-review [data-action="weekly-note"][data-v="Mais pausas"]').click();
-  check((await page.locator('#toast').textContent()).includes('Anotação adicionada à sua lista de tarefas'),
-    'resposta rápida cria somente uma anotação na lista de tarefas');
+  await page.locator('.weekly-review [data-action="weekly-reflection-save"][data-v="Mais pausas"]').click();
+  check((await page.locator('#toast').textContent()).includes('Reflexão semanal salva'),
+    'resposta rápida é salva como reflexão semanal');
+  check(await page.locator('.weekly-reflection [aria-pressed="true"]').textContent() === 'Mais pausas',
+    'a resposta salva fica selecionada na revisão');
   await page.locator('[data-action="plan-view"][data-v="lista"]').click();
-  check(await page.locator('#task-results li.task').filter({ hasText: 'Mais pausas' }).count() === 1,
-    'a anotação aparece na lista de tarefas');
+  check(await page.locator('#task-results li.task').filter({ hasText: 'Mais pausas' }).count() === 0,
+    'a reflexão não cria tarefa indevida');
   await page.locator('[data-action="weekly-open-review"]').click();
-  check(await page.locator('.weekly-review').count() === 1,
-    'Planejar oferece um atalho para abrir Sua semana');
+  check(await page.locator('.weekly-review').count() === 1
+    && await page.locator('.weekly-reflection [aria-pressed="true"]').textContent() === 'Mais pausas',
+  'resposta permanece visível ao reabrir Sua semana');
 
   const mobileLayout = await page.evaluate(() => ({
     width: innerWidth,

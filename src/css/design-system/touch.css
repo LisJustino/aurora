@@ -33,9 +33,9 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 /* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
 @keyframes check-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
-.habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: check-pop .42s var(--ease-standard); }
+.habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .chk span { animation: check-pop .42s var(--ease-standard); }
 @media (prefers-reduced-motion: reduce) {
-  .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .check { animation: none; }
+  .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .chk span { animation: none; }
 }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
@@ -47,7 +47,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
 /* ---- Tema escuro: cartões se destacam pelo contorno ---- */
-:root[data-theme="dark"] .card {
+:root[data-theme="dark"] .card:not(.surface-open) {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
   box-shadow: var(--elev-1);
 }
@@ -91,6 +91,30 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
 .dlg-handle { display: none; }
 @media (width < 900px) {
+  /* Zona de arrasto: a barrinha é pequena, mas a área tocável tem altura confortável. */
+  .dlg:not(.intro-dialog) > .dlg-handle {
+    position: relative;
+    display: block;
+    flex: none;
+    height: 24px;
+    margin-bottom: -8px;
+    cursor: grab;
+    touch-action: none;
+  }
+  .dlg:not(.intro-dialog) > .dlg-handle::before {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 40px;
+    height: 5px;
+    border-radius: var(--r-pill);
+    background: var(--line-strong);
+    content: "";
+    transform: translateX(-50%);
+  }
+  .dlg:not(.intro-dialog) .head { touch-action: none; }
+  .dlg.is-dragging { transition: none; will-change: transform; }
+  .dlg.is-settling { transition: transform var(--duration-base) var(--ease-standard); }
   .dlg-back {
     display: flex;
     align-items: flex-end;
@@ -100,7 +124,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   .dlg-back:has(.dlg.intro-dialog) { align-items: center; padding: var(--space-3); }
   .dlg:not(.intro-dialog) {
     width: 100%;
-    max-height: min(92dvh, 820px);
+    max-height: min(var(--dialog-available-height, 92dvh), 820px);
     margin: 0;
     border-radius: var(--r-hero) var(--r-hero) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
@@ -111,5 +135,32 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     z-index: 1;
     padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     background: var(--surface-strong);
+  }
+}
+
+/* Com o teclado aberto o rodapé do modal fica compacto: botão principal em cima, os demais lado a lado.
+   Empilhados em coluna eles ocupavam metade da área visível e escondiam o formulário. */
+@media (width < 900px) {
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) {
+    padding-bottom: 0;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot {
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-block: 8px;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+  /* Só com 3 botões o principal ocupa a primeira linha; com 2 eles já cabem lado a lado. */
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn.primary {
+    flex: 1 1 100%;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn.back {
+    flex: 0 0 auto;
   }
 }

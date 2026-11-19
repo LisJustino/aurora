@@ -24,7 +24,13 @@ const check = (passed, name) => {
   await lazyPage.goto(`${BASE}/?preview#inicio`);
   await lazyPage.locator('.home-head').waitFor();
   check(cycleViewRequests.length === 0, 'a tela de Ciclo não é carregada ao abrir o Início');
-  await lazyPage.locator('.nav a[href="/ciclo"]').click();
+  const cycleDirect = lazyPage.locator('.nav a.nav-item[href="/ciclo"]:visible');
+  if (await cycleDirect.count()) {
+    await cycleDirect.first().click();
+  } else {
+    await lazyPage.locator('.profile-menu-trigger').click();
+    await lazyPage.locator('#profile-menu a[href="/ciclo"]').click();
+  }
   await lazyPage.locator('.cycle-health-card').waitFor();
   check(cycleViewRequests.length === 1, 'a tela de Ciclo é carregada ao acessar a área');
   await lazyPage.close();
@@ -192,6 +198,10 @@ const check = (passed, name) => {
   check((await summary.textContent()).includes('Teste de ovulação: Positivo'), 'resultado do teste de ovulação aparece no resumo');
   check((await summary.textContent()).includes('Teste de gravidez: Negativo'), 'resultado do teste de gravidez aparece no resumo');
   check((await summary.textContent()).includes('Tomou medicação'), 'registro de medicação aparece no resumo sem detalhes');
+  const symptomSummary = page.locator('.cycle-symptom-summary');
+  check(await symptomSummary.count() === 1
+    && (await symptomSummary.textContent()).includes('não indica causa nem diagnóstico'),
+  'sintomas mais registrados aparecem como contagem descritiva, sem inferência médica');
 
   await page.getByRole('button', { name: 'Registrar este dia' }).click();
   check(await mindGroup.locator('[data-action="cyc-opt"][data-v="concentration"]').getAttribute('aria-pressed') === 'true', 'opções de mente permanecem ao reabrir o dia');
@@ -222,6 +232,29 @@ const check = (passed, name) => {
   await page.getByRole('button', { name: 'Registrar este dia' }).click();
   check(await noPartneredActivity.getAttribute('aria-pressed') === 'true', 'ausência de relação permanece após reabrir');
   check(await noOrgasm.getAttribute('aria-pressed') === 'true', 'ausência de orgasmo permanece após reabrir');
+  await page.locator('#dlg').getByRole('button', { name: 'Fechar' }).click();
+  await consentDetails.locator('summary').click();
+  const clearCycleButton = consentDetails.getByRole('button', { name: 'Mover registros para a lixeira' });
+  check(await clearCycleButton.isEnabled()
+    && (await consentDetails.textContent()).includes('O peso do Perfil e a meta de água dos Hábitos são compartilhados'),
+  'privacidade oferece exclusão recuperável e explica quais dados compartilhados serão preservados');
+  await clearCycleButton.click();
+  const clearConfirmation = page.locator('#dlg');
+  check((await clearConfirmation.textContent()).includes('por 30 dias')
+    && (await clearConfirmation.textContent()).includes('peso do Perfil')
+    && (await clearConfirmation.textContent()).includes('meta de água'),
+  'confirmação explica o prazo de recuperação e a preservação dos dados compartilhados');
+  await clearConfirmation.locator('[data-action="action-confirm-cancel"]').click();
+  check(await page.locator('.cycle-day-entry').count() === 1,
+    'cancelar a exclusão mantém os registros do Ciclo');
+  await consentDetails.locator('summary').click();
+  await consentDetails.getByRole('button', { name: 'Mover registros para a lixeira' }).click();
+  await page.locator('#dlg [data-action="action-confirm-accept"]').click();
+  check(await page.locator('.cycle-start-empty').count() === 1,
+    'confirmar move os períodos e registros diários para fora do Ciclo');
+  await page.locator('#toast').getByRole('button', { name: 'Desfazer' }).click();
+  check(await page.locator('.cycle-day-entry').count() === 1,
+    'desfazer restaura os registros removidos do Ciclo');
   check(errors.length === 0, 'sem erros no console');
 
   await browser.close();
