@@ -612,7 +612,6 @@
   --landing-phone-screen-radius: 34px;
   --landing-tab-icon-size: 28px;
   --landing-dot-size: 9px;
-  --font-sans: "DM Sans", Inter, system-ui, sans-serif;
   --elev-1: 0 2px 6px oklch(0.33 0.06 355 / 4%), 0 14px 32px -24px oklch(0.33 0.06 355 / 22%);
   --elev-2: 0 24px 58px -34px oklch(0.28 0.01 60 / 28%), 0 5px 16px -12px oklch(0.33 0.06 355 / 14%);
   width: 100%;
@@ -767,10 +766,10 @@ html:has(.landing-marketing) {
   max-width: 11ch;
   margin: var(--space-3) 0 0;
   color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-family: var(--font-editorial);
+  font-size: var(--text-landing-hero);
   font-style: normal;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   letter-spacing: -.015em;
   line-height: 1.08;
 }
@@ -913,10 +912,10 @@ html:has(.landing-marketing) {
   max-width: 22ch;
   margin: 0;
   color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.2rem, 4vw, 3.25rem);
+  font-family: var(--font-editorial);
+  font-size: var(--text-landing-section);
   font-style: normal;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   letter-spacing: -.01em;
   line-height: 1.08;
 }
@@ -3113,7 +3112,7 @@ html:has(.landing-marketing) { overflow-x: clip; }
 
 .public-site.landing-marketing .public-hero h1.type-editorial-display {
   max-width: none;
-  font-size: clamp(2.6rem, 4.7vw, 4.1rem);
+  font-size: var(--text-marketing-hero);
   letter-spacing: -.025em;
   line-height: 1.06;
   text-wrap: balance;
@@ -3130,7 +3129,7 @@ html:has(.landing-marketing) { overflow-x: clip; }
 /* Títulos de seção: um degrau mais firmes e com respiro normal entre letras. */
 .landing-marketing .public-section-heading h2,
 .landing-marketing .landing-final-cta h2 {
-  font-size: clamp(2rem, 3.6vw, 2.9rem);
+  font-size: var(--text-marketing-section);
   letter-spacing: -.02em;
   line-height: 1.1;
   text-wrap: balance;

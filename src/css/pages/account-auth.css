@@ -1221,7 +1221,7 @@
   max-width: 34ch;
   margin: 0;
   color: var(--muted);
-  font-size: var(--text-account-intro);
+  font-size: var(--text-account-description);
   line-height: 1.55;
 }
 
@@ -2132,7 +2132,7 @@
 
 .account-page .account-gate.is-public-account > .account-intro h2 {
   max-width: 13ch;
-  font-size: clamp(2.4rem, 4.4vw, 3.7rem);
+  font-size: var(--text-account-display);
   font-weight: var(--weight-regular);
   letter-spacing: -.025em;
   line-height: 1.06;
@@ -2155,7 +2155,7 @@
 }
 
 .account-page .account-gate.is-public-account > .account-card h1 {
-  font-size: clamp(1.6rem, 2.6vw, 2.05rem);
+  font-size: var(--text-account-card-title);
   letter-spacing: -.02em;
   line-height: 1.1;
 }
