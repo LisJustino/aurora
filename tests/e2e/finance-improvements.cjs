@@ -575,6 +575,45 @@ const swipe = async (page, locator, direction) => {
   await page.locator('#dlg [data-dlg="desc"]').fill('Despesa com categoria rápida');
   check(await page.locator('#dlg [data-dlg="category"] option[data-icon][data-color]').count() >= recentCategoryOptions.length - 1,
     'categorias do lançamento incluem metadados visuais de ícone e cor');
+  const categorySelect = page.locator('#dlg [data-dlg="category"]');
+  const subcategorySelect = page.locator('#dlg [data-dlg="subcategory"]');
+  const chooseFinanceOption = async (field, label) => {
+    await page.locator(`#dlg .ds-select:has(> select[data-dlg="${field}"]) .ds-select__trigger`).click();
+    await page.getByRole('option', { name: label, exact: true }).click();
+  };
+  await chooseFinanceOption('category', 'Saúde');
+  const healthSubcategories = await subcategorySelect.locator('option').evaluateAll((options) => options.map((option) => option.value));
+  check(healthSubcategories.includes('Consultas') && healthSubcategories.includes('Medicamentos')
+    && !healthSubcategories.includes('Combustível'),
+  'subcategorias prontas dependem da categoria pai selecionada');
+  const healthSubcategoryStyles = await subcategorySelect.locator('option[data-icon][data-color]').evaluateAll((options) => options.map((option) => ({
+    icon: option.dataset.icon,
+    color: option.dataset.color,
+  })));
+  check(healthSubcategoryStyles.length >= 4
+    && new Set(healthSubcategoryStyles.map(({ icon }) => icon)).size > 1
+    && new Set(healthSubcategoryStyles.map(({ color }) => color)).size > 1,
+  'subcategorias prontas têm ícones e cores próprios');
+  const subcategoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="subcategory"]) .ds-select__trigger');
+  await subcategoryTrigger.click();
+  check(await page.locator('.ds-select__menu .ds-select__category-icon').count() >= 4,
+    'subcategorias apresentam ícones na lista de opções');
+  await page.keyboard.press('Escape');
+  await chooseFinanceOption('subcategory', 'Criar subcategoria…');
+  check((await page.locator('#dlg h2').textContent()).includes('Nova subcategoria')
+    && await page.locator('#dlg [data-dlg="parent"]').inputValue() === 'Saúde',
+  'criação de subcategoria abre com a categoria pai já definida');
+  await page.locator('#dlg [data-dlg="name"]').fill('Terapias de teste');
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
+  check(await categorySelect.inputValue() === 'Saúde'
+    && await subcategorySelect.inputValue() === 'Terapias de teste',
+  'subcategoria criada fica selecionada no lançamento sem mudar seu pai');
+  await chooseFinanceOption('category', 'Transporte');
+  const transportSubcategories = await subcategorySelect.locator('option').evaluateAll((options) => options.map((option) => option.value));
+  check(transportSubcategories.includes('Combustível')
+    && !transportSubcategories.includes('Terapias de teste'),
+  'subcategoria personalizada não aparece em outra categoria pai');
+  await chooseFinanceOption('category', 'Saúde');
   const categoryTrigger = page.locator('#dlg .ds-select:has(> select[data-dlg="category"]) .ds-select__trigger');
   await categoryTrigger.click();
   check(await page.locator('#dlg > .ds-select__menu .ds-select__option .ds-select__category-icon').count() >= recentCategoryOptions.length - 1,

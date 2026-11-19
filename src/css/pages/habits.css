@@ -584,6 +584,7 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .main[data-route="habitos"] .habit-secondary-grid > * { min-width: 0; }
 .main[data-route="habitos"] .habit-secondary-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  align-items: start;
 }
 @media (width >= 1000px) {
   .main[data-route="habitos"] .habit-dashboard.has-week {

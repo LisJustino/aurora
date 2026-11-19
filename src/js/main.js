@@ -342,11 +342,40 @@ const DEF_CATS = {
   out: [['Alimentação', '#c97994', 'utensils'], ['Moradia', '#7c8fd4', 'home'], ['Transporte', '#5fa68a', 'car'], ['Saúde', '#d9a05b', 'heart'], ['Educação', '#8a7ac4', 'book'], ['Lazer', '#d27a6a', 'sparkles'], ['Compras', '#5aa5b8', 'bag'], ['Assinaturas', '#a3b55a', 'repeat'], ['Cuidados pessoais', '#b78a6e', 'user'], ['Outros', '#8b8b95', 'tag']],
   in: [['Salário', '#3d9a6b', 'wallet'], ['Renda extra', '#5fb08a', 'plus'], ['Rendimentos', '#7bb89c', 'trendUp'], ['Presente', '#8fc7a8', 'sparkles'], ['Reembolso', '#4f9a74', 'repeat'], ['Outros', '#8b8b95', 'tag']]
 };
+const DEFAULT_CATEGORY_SUBCATEGORIES = {
+  out: new Map([
+    ['Alimentação', [['Mercado', 'bag', '#5aa5b8'], ['Feira', 'sparkles', '#5fa68a'], ['Restaurante', 'utensils', '#d9a05b'], ['Delivery', 'car', '#d27a6a']]],
+    ['Moradia', [['Aluguel', 'home', '#7c8fd4'], ['Contas da casa', 'bank', '#5aa5b8'], ['Condomínio', 'card', '#a24f9e'], ['Manutenção', 'repeat', '#5fa68a']]],
+    ['Transporte', [['Combustível', 'car', '#d9a05b'], ['Estacionamento', 'card', '#7c8fd4'], ['Transporte público', 'calendar', '#5aa5b8'], ['Manutenção', 'repeat', '#5fa68a']]],
+    ['Saúde', [['Consultas', 'heart', '#d27a6a'], ['Exames', 'calendar', '#7c8fd4'], ['Medicamentos', 'plus', '#5fa68a'], ['Plano de saúde', 'card', '#5aa5b8']]],
+    ['Educação', [['Mensalidade', 'book', '#8a7ac4'], ['Cursos', 'calendar', '#5aa5b8'], ['Material escolar', 'bag', '#d9a05b']]],
+    ['Lazer', [['Viagens', 'calendar', '#5aa5b8'], ['Passeios', 'sparkles', '#a3b55a'], ['Eventos', 'sparkles', '#d27a6a']]],
+    ['Compras', [['Roupas', 'bag', '#d27a6a'], ['Eletrônicos', 'card', '#7c8fd4'], ['Casa', 'home', '#5fa68a']]],
+    ['Assinaturas', [['Streaming', 'sparkles', '#a24f9e'], ['Aplicativos', 'plus', '#5aa5b8'], ['Serviços', 'repeat', '#d9a05b']]],
+    ['Cuidados pessoais', [['Higiene', 'user', '#5aa5b8'], ['Beleza', 'sparkles', '#d27a6a'], ['Academia', 'heart', '#5fa68a']]],
+  ].map(([name, subcategories]) => [norm(name), subcategories.map(([subcategory, icon, color]) => ({ name: subcategory, icon, color }))])),
+  in: new Map([
+    ['Salário', [['Salário mensal', 'wallet', '#3d9a6b'], ['13º salário', 'calendar', '#7bb89c'], ['Férias', 'sparkles', '#5aa5b8']]],
+    ['Renda extra', [['Freelance', 'user', '#5fb08a'], ['Vendas', 'bag', '#d9a05b'], ['Serviços', 'bank', '#7c8fd4']]],
+    ['Rendimentos', [['Juros', 'trendUp', '#5fa68a'], ['Dividendos', 'wallet', '#7c8fd4']]],
+    ['Presente', [['Aniversário', 'sparkles', '#d27a6a'], ['Datas comemorativas', 'calendar', '#a24f9e']]],
+    ['Reembolso', [['Despesas reembolsadas', 'repeat', '#5aa5b8'], ['Devoluções', 'wallet', '#5fa68a']]],
+  ].map(([name, subcategories]) => [norm(name), subcategories.map(([subcategory, icon, color]) => ({ name: subcategory, icon, color }))])),
+};
 const DEFAULT_CATEGORY_STYLES = Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
   kind,
   new Map(categories.map(([name, color, iconName]) => [norm(name), { color, icon: iconName }])),
 ]));
-const defCats = () => ({ out: DEF_CATS.out.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })), in: DEF_CATS.in.map(([name, color, icon]) => ({ name, color, icon, subcategories: [] })) });
+const defCats = () => Object.fromEntries(Object.entries(DEF_CATS).map(([kind, categories]) => [
+  kind,
+  categories.map(([name, color, icon]) => ({
+    name,
+    color,
+    icon,
+    subcategories: (DEFAULT_CATEGORY_SUBCATEGORIES[kind]?.get(norm(name)) || [])
+      .map((subcategory) => ({ ...subcategory, subcategories: [] })),
+  })),
+]));
 const categoryLeafName = (category) => {
   if (typeof category === 'string') return category.trim();
   if (isPlainObject(category) && typeof category.name === 'string') return category.name.trim();
@@ -359,27 +388,41 @@ const categoryPathParts = (value) => {
   if (parts.length === 1) return { parent: '', child: parts[0] };
   return { parent: parts[0], child: parts.slice(1).join(' > ') };
 };
-const normalizeCategoryEntry = (category, kind, inherited = {}) => {
-  if (typeof category === 'string') {
-    const name = category.trim();
-    if (!name) return null;
-    const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
-    return {
-      name: name.slice(0, 30),
-      color: inherited.color || defaults?.color || '#8b8b95',
-      icon: inherited.icon || defaults?.icon || 'tag',
-      subcategories: [],
-    };
-  }
-  if (!isPlainObject(category) || typeof category.name !== 'string') return null;
-  const name = category.name.trim();
+const normalizeCategoryEntry = (category, kind, inherited = {}, includeDefaults = true, upgradeInheritedStyles = false) => {
+  const source = typeof category === 'string' ? { name: category } : category;
+  if (!isPlainObject(source) || typeof source.name !== 'string') return null;
+  const name = source.name.trim();
   if (!name) return null;
   const defaults = DEFAULT_CATEGORY_STYLES[kind]?.get(norm(name));
-  const color = hexOk(category.color) ? category.color : inherited.color || defaults?.color || '#8b8b95';
-  const iconName = CAT_ICONS.includes(category.icon) ? category.icon : defaults?.icon || inherited.icon || 'tag';
-  const subcategories = Array.isArray(category.subcategories)
-    ? category.subcategories.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName })).filter(Boolean)
+  const color = hexOk(source.color) ? source.color : inherited.color || defaults?.color || '#8b8b95';
+  const iconName = CAT_ICONS.includes(source.icon) ? source.icon : defaults?.icon || inherited.icon || 'tag';
+  const defaultSubcategories = includeDefaults
+    ? DEFAULT_CATEGORY_SUBCATEGORIES[kind]?.get(norm(name)) || []
     : [];
+  const savedSubcategories = (Array.isArray(source.subcategories) ? source.subcategories : [])
+    .map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName }, false))
+    .filter(Boolean)
+    .map((subcategory) => {
+      const preset = defaultSubcategories.find((item) => norm(item.name) === norm(subcategory.name));
+      if (!upgradeInheritedStyles || !preset
+        || subcategory.color !== color || subcategory.icon !== iconName) return subcategory;
+      return {
+        ...subcategory,
+        color: preset.color,
+        icon: preset.icon,
+      };
+    });
+  const candidates = [
+    ...savedSubcategories,
+    ...defaultSubcategories,
+  ];
+  const seenSubcategories = new Set();
+  const subcategories = candidates.map((item) => normalizeCategoryEntry(item, kind, { color, icon: iconName }, false))
+    .filter((subcategory) => {
+      if (!subcategory || seenSubcategories.has(norm(subcategory.name))) return false;
+      seenSubcategories.add(norm(subcategory.name));
+      return true;
+    });
   return {
     name: name.slice(0, 30),
     color,
@@ -787,7 +830,10 @@ function normalizeSettings(s) {
   if (!hexOk(L.custom)) L.custom = LOOK_DEFAULT.custom;
   o.look = L;
   const cleanL = (a, withIcon) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x.name === 'string' && x.name.trim()).slice(0, 60).map((x) => ({ name: x.name.trim().slice(0, 30), color: hexOk(x.color) ? x.color : '#8b8b95', ...(withIcon ? { icon: CAT_ICONS.includes(x.icon) ? x.icon : 'tag' } : (typeof x.folder === 'string' && x.folder.trim() ? { folder: x.folder.trim().slice(0, 30) } : {})) }));
-  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : []).map((category) => normalizeCategoryEntry(category, kind)).filter(Boolean).slice(0, 60);
+  const cleanCategoryGroup = (a, kind) => (Array.isArray(a) ? a : [])
+    .map((category) => normalizeCategoryEntry(category, kind, {}, true, true))
+    .filter(Boolean)
+    .slice(0, 60);
   o.lists = cleanL(s?.lists); if (!o.lists.length) o.lists = DEF_LISTS.map((x) => ({ ...x }));
   const dc = defCats(); o.cats = { out: cleanCategoryGroup(s?.cats?.out, 'out'), in: cleanCategoryGroup(s?.cats?.in, 'in') };
   if (!o.cats.out.length) o.cats.out = dc.out; if (!o.cats.in.length) o.cats.in = dc.in;
@@ -2311,7 +2357,7 @@ function loadFinanceModules() {
     import('./features/finance/view.js'),
   ]).then(([dialogs, view]) => {
     financeDialogViews = dialogs.createFinanceDialogViews({
-      ui, S, catNames, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
+      ui, S, catNames, topCategoryNames, categoryMatch, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
       accountOptionLabel, accById, isCredit, expenseTitle,
       categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
       anticipationCandidates,
@@ -2758,16 +2804,30 @@ function showMoreResults(name, selector, renderResults) {
   (next || results.querySelector('[data-action$="-show-more"]') || results).focus();
 }
 function filteredTasks() {
-  return selectFilteredTasks(S.tasks, ui.filters, today(), { normalize: norm, orderOf });
+  return selectFilteredTasks(
+    S.tasks.filter((task) => !String(task.groupId || '').startsWith('google-calendar:')),
+    ui.filters,
+    today(),
+    { normalize: norm, orderOf },
+  );
 }
 /* Eventos de hoje das agendas Google conectadas: o mesmo que o Calendário mostra, para a lista ter tudo de hoje. */
 function todayCalendarEvents() {
   const { f, q } = ui.filters;
   if (f !== 'todas' && f !== 'pendentes') return [];
   const query = norm(q.trim());
+  const seen = new Set();
   return connectedGoogleCalendarAccounts()
     .flatMap((account) => account.events)
     .filter((event) => event.day === today() && (!query || norm(`${event.title} ${event.calendarName}`).includes(query)))
+    .filter((event) => {
+      const key = event.accountIdentity && event.calendarId && event.id
+        ? `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`
+        : `google-calendar:fallback:${event.title}:${event.day}:${event.time}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
 }
 const calendarEventSourceLabel = (event) => event.calendarName === event.accountLabel
@@ -6589,6 +6649,7 @@ const FORMS = {
     } finally {
       ui.cycleConsentBusy = false;
       render();
+      if (consentRecorded) requestAnimationFrame(() => window.scrollTo(0, 0));
     }
   },
   'account-delete': deleteAccountFromSettings,
@@ -7197,8 +7258,10 @@ document.addEventListener('input', (e) => {
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
-  const opensCategoryDialog = ui.dlg?.type === 'tx' && el.matches('[data-dlg="category"]') && el.value === '__new';
-  if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'category' && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
+  const isTransactionCategoryField = ui.dlg?.type === 'tx'
+    && ['category', 'subcategory'].includes(el.dataset?.dlg);
+  const opensCategoryDialog = isTransactionCategoryField && el.value === '__new';
+  if (isTransactionCategoryField && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
   if (ui.dlg && ui.dlg.type !== 'search' && !opensCategoryDialog && el instanceof Element && el.closest('#dlg') && el.matches('input:not([type="file"]),textarea,select')) ui.dlg.dirty = true;
   if (el.dataset.profileField && ['name', 'preferredName', 'sex', 'age'].includes(el.dataset.profileField)) {
     const preferredInput = $('#ppreferred');
@@ -7220,16 +7283,28 @@ document.addEventListener('input', (e) => {
     if (previewGreeting) previewGreeting.textContent = profileGreeting(draft.appearance.greeting);
   }
   if (el.dataset.dlg && ui.dlg) {
-    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'category' && el.value === '__new') {
+    if (ui.dlg.type === 'tx' && opensCategoryDialog) {
       const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      const selectedParent = el.dataset.dlg === 'subcategory'
+        ? categoryMatch(kind, ui.dlg.d.category)?.category
+        : null;
       ui.categoryReturnDialog = ui.dlg;
       ui.dlg = createDialog('category-new', {
         kind,
+        ...(selectedParent ? { parent: selectedParent.name } : {}),
         name: '',
-        icon: 'tag',
-        color: LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
+        icon: selectedParent?.icon || 'tag',
+        color: selectedParent?.color || LIST_COLORS[listArr(kind).length % LIST_COLORS.length],
         fromTransaction: true,
       });
+      render();
+      return;
+    }
+    if (ui.dlg.type === 'tx' && el.dataset.dlg === 'subcategory') {
+      const kind = ui.dlg.d.kind === 'in' ? 'in' : 'out';
+      const parentName = categoryMatch(kind, ui.dlg.d.category)?.category.name || ui.dlg.d.category;
+      ui.dlg.d.category = el.value ? `${parentName} > ${el.value}` : parentName;
+      ui.dlg.d.dirty = true;
       render();
       return;
     }
@@ -8721,6 +8796,7 @@ Object.assign(FORMS, {
     if (d.fromTransaction) {
       if (!addedPath) return toast('Não foi possível adicionar a categoria. Confira os dados e tente novamente.', 'warning');
       transactionDialog.d.category = addedPath;
+      transactionDialog.d.categoryTouched = true;
       transactionDialog.dirty = true;
       ui.categoryReturnDialog = null;
       ui.dlg = transactionDialog;
