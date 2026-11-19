@@ -3198,3 +3198,118 @@ html:has(.landing-marketing) { overflow-x: clip; }
 @media (900px <= width < 1200px) {
   .public-site.landing-marketing .public-hero { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); }
 }
+
+/* Revisão visual (nov/2026): ritmo das seções, "Como começar" alinhado, abas com pista de rolagem e rodapé mais compacto. */
+.landing-marketing .public-section-heading h2,
+.landing-marketing .landing-final-cta h2 { max-width: 30ch; }
+
+/* As seções claras usam a mesma família de tons do hero; só "Pode confiar" fica escura. */
+.landing-marketing .landing-steps { background: var(--soft); }
+.landing-marketing .landing-final-cta { background: var(--soft2); }
+
+/* Os três passos dividem as linhas do grid, então títulos de uma ou duas linhas não desalinham os textos. */
+.landing-steps-grid { row-gap: var(--space-4); }
+@media (width >= 901px) {
+  .landing-steps-grid li {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+  }
+  .landing-steps-grid li > p { margin-top: var(--space-2); }
+}
+.landing-steps-grid h3 { text-wrap: balance; }
+.landing-marketing .landing-steps-cta { justify-self: center; }
+
+/* No celular as abas rolam de lado: o degradê no fim mostra que há mais áreas. */
+@media (width <= 700px) {
+  .landing-marketing .landing-tutorial-tabs {
+    padding-inline-end: var(--space-6);
+    scroll-padding-inline: var(--space-3);
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--space-7)), transparent);
+  }
+}
+
+/* Rodapé: links mais próximos com mouse; o alvo de toque de 44px continua no celular. */
+@media (pointer: fine) {
+  .landing-footer-link-group a,
+  .landing-footer-top { min-height: 32px; }
+}
+.landing-footer-nav { align-content: start; }
+
+/* Demonstração: mesma tipografia editorial do app (título em serifa, ponto na cor da marca). */
+.demo-app .home-head h1.type-editorial-display,
+.demo-app .demo-page-heading h1 {
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-editorial);
+  line-height: var(--leading-editorial);
+}
+.demo-app .home-head h1 i,
+.demo-app .demo-page-heading h1 i { color: var(--accent); font-style: normal; }
+.demo-app .home-head h1.type-editorial-display { max-width: none; }
+.demo-app .home-today-card > .head h2.type-editorial-title,
+.demo-app .home-quick-card h2.type-editorial-title,
+.demo-app .demo-area-panel > .head h2 {
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-editorial-title);
+  font-weight: var(--weight-regular);
+  letter-spacing: -.04em;
+  line-height: var(--leading-tight);
+}
+.demo-app .home-quick-card h2 i { color: var(--accent); font-style: normal; }
+
+/* Finanças: entradas e saídas com tom próprio e ícone de categoria em cada linha. */
+.demo-finance-summary .is-income { --summary-tone: var(--ok); }
+.demo-finance-summary .is-expense { --summary-tone: var(--bad); }
+.demo-finance-summary article {
+  border: 1px solid color-mix(in srgb, var(--summary-tone) 22%, var(--line));
+  background: color-mix(in srgb, var(--summary-tone) 7%, var(--surface-raised));
+}
+.demo-finance-summary span { display: flex; align-items: center; gap: var(--space-2); }
+.demo-finance-summary span i {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--summary-tone) 16%, var(--surface));
+  color: var(--summary-tone);
+}
+.demo-finance-summary strong { color: var(--summary-tone); font-size: var(--text-xl); font-variant-numeric: tabular-nums; }
+.demo-finance-list .demo-finance-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: var(--soft2);
+  color: var(--accent);
+}
+.demo-finance-list li > strong { color: var(--bad); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Hábitos: o cartão e a nota dividem a largura no desktop, e o ícone ganha um apoio visual. */
+@media (width >= 900px) {
+  .demo-area-single:has(.demo-habit-card--large) {
+    width: 100%;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.demo-habit-card > .head > .ic {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: var(--soft2);
+}
+
+/* Menu da demonstração no celular: o degradê no fim mostra que há mais áreas ao rolar. */
+@media (width < 900px) {
+  .demo-app .topbar .demo-nav { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+}

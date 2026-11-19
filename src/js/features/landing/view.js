@@ -139,10 +139,10 @@ function landingFooter() {
           <h2>Começar</h2>
           <a href="${signup}" data-public-action="signup">Criar conta</a>
           <a href="${login}" data-public-action="login">Entrar</a>
+          <a href="${demo}" data-public-action="demo">Demonstração</a>
         </div>
         <div class="landing-footer-link-group">
           <h2>Explorar</h2>
-          <a href="${demo}" data-public-action="demo">Demonstração</a>
           <a href="${privacy}">Privacidade</a>
           <a href="${APP_URL}/terms.html">Termos de uso</a>
         </div>

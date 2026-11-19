@@ -66,7 +66,7 @@ function renderHabitCard(state, { large = false } = {}) {
 }
 
 function renderPageHeading(eyebrow, title, description = '') {
-  return `<header class="demo-page-heading"><div><p class="section-kicker">${eyebrow}</p><h1 tabindex="-1">${title}</h1>${description ? `<p>${description}</p>` : ''}</div></header>`;
+  return `<header class="demo-page-heading"><div><p class="section-kicker">${eyebrow}</p><h1 tabindex="-1">${title}<i>.</i></h1>${description ? `<p>${description}</p>` : ''}</div></header>`;
 }
 
 function demoNotice() {
@@ -94,7 +94,7 @@ function renderToday(state) {
     <header class="home-head" aria-labelledby="demo-greeting">
       <div>
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
-        <h1 id="demo-greeting" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span></h1>
+        <h1 id="demo-greeting" class="type-editorial-display" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span><i>.</i></h1>
         <p class="lead" aria-live="polite">${lead}</p>
       </div>
       <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
@@ -102,7 +102,7 @@ function renderToday(state) {
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         <section class="card home-today-card" aria-labelledby="demo-today-tasks-title">
-          <div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="demo-today-tasks-title">Hoje</h2></div><div class="row"><button type="button" class="btn ghost sm" data-demo-view="tasks">Ver planejamento</button></div></div>
+          <div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="demo-today-tasks-title" class="type-editorial-title">Hoje</h2></div><div class="row"><button type="button" class="btn ghost sm" data-demo-view="tasks">Ver planejamento</button></div></div>
           <div class="home-task-groups">
             ${open.length ? `<section class="home-task-group" aria-label="Tarefas para hoje"><h3>${demoIcon('calendarCheck', 15)}Para hoje <span>${open.length}</span></h3><ul class="list">${open.map(renderHomeTask).join('')}</ul></section>` : ''}
             ${done.length ? `<details class="home-completed"><summary>${demoIcon('check', 15)}Concluídas hoje <span class="home-completed-count">${done.length}</span></summary><ul class="list">${done.map(renderHomeTask).join('')}</ul></details>` : ''}
@@ -114,7 +114,7 @@ function renderToday(state) {
           <a href="/demonstracao" data-demo-view="tasks"><b>${open.length}</b><span>Pendentes</span></a>
         </section>
         <section class="card home-quick-card" aria-labelledby="demo-quick-title">
-          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title">Qual é o próximo passo<i>?</i></h2><p>Experimente adicionar uma tarefa.</p></div></div>
+          <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span><div><h2 id="demo-quick-title" class="type-editorial-title">Qual é o próximo passo<i>?</i></h2><p>Experimente adicionar uma tarefa.</p></div></div>
           <form class="home-quick-form demo-quick-form" data-demo-task-form>
             <label class="sr" for="demo-home-task">Nova tarefa</label>
             <input id="demo-home-task" name="title" type="text" maxlength="80" autocomplete="off" placeholder="Ex.: caminhar por 10 minutos" required data-demo-task-input>
@@ -175,16 +175,16 @@ function renderFinance(state) {
   const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   const extraExpenses = state.demoExpenses.filter((item) => item.month === monthKey);
   const items = state.financeMonth === 0
-    ? [['Moradia', 'Casa', 145000], ['Mercado', 'Alimentação', 42000], ['Transporte', 'Rotina', 9000]]
-    : [['Moradia', 'Casa', 120000], ['Mercado', 'Alimentação', 39000]];
+    ? [['Moradia', 'Casa', 145000, 'home'], ['Mercado', 'Alimentação', 42000, 'utensils'], ['Transporte', 'Rotina', 9000, 'bike']]
+    : [['Moradia', 'Casa', 120000, 'home'], ['Mercado', 'Alimentação', 39000, 'utensils']];
   const expenses = items.reduce((total, [, , cents]) => total + cents, 0)
     + extraExpenses.reduce((total, item) => total + item.cents, 0);
   return `${renderPageHeading('Exemplo fictício', 'Finanças', 'Uma visão simples para entender como organizar entradas e saídas.')}
     <section class="card demo-area-panel" aria-labelledby="demo-finance-title">
       <div class="head"><div><p class="section-kicker">Resumo do mês</p><h2 id="demo-finance-title">${escapeDemoText(title)}</h2></div><div class="demo-month-controls" role="group" aria-label="Mês de exemplo"><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="-1" aria-label="Mês anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="1" aria-label="Próximo mês" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button></div></div>
-      <div class="demo-finance-summary"><article><span>Entradas</span><strong>${brl(320000)}</strong></article><article><span>Saídas</span><strong>${brl(expenses)}</strong></article></div>
+      <div class="demo-finance-summary"><article class="is-income"><span><i aria-hidden="true">${demoIcon('arrowDown', 15)}</i>Entradas</span><strong>${brl(320000)}</strong></article><article class="is-expense"><span><i aria-hidden="true">${demoIcon('arrowUp', 15)}</i>Saídas</span><strong>${brl(expenses)}</strong></article></div>
       <h3 class="demo-list-heading">Movimentações de exemplo</h3>
-      <ul class="demo-finance-list">${items.map(([name, category, cents]) => `<li><span class="demo-finance-mark">${demoIcon('wallet', 17)}</span><span><b>${name}</b><small>${category} · exemplo</small></span><strong>− ${brl(cents)}</strong></li>`).join('')}${extraExpenses.map((item) => `<li><span class="demo-finance-mark">${demoIcon('wallet', 17)}</span><span><b>${escapeDemoText(item.title)}</b><small>Outra despesa · exemplo</small></span><strong>− ${brl(item.cents)}</strong></li>`).join('')}</ul>
+      <ul class="demo-finance-list">${items.map(([name, category, cents, icon]) => `<li><span class="demo-finance-mark">${demoIcon(icon, 17)}</span><span><b>${name}</b><small>${category} · exemplo</small></span><strong>− ${brl(cents)}</strong></li>`).join('')}${extraExpenses.map((item) => `<li><span class="demo-finance-mark">${demoIcon('tag', 17)}</span><span><b>${escapeDemoText(item.title)}</b><small>Outra despesa · exemplo</small></span><strong>− ${brl(item.cents)}</strong></li>`).join('')}</ul>
       <form class="demo-add-form" data-demo-expense-form>
         <label for="demo-expense-title">Lançar uma despesa fictícia</label>
         <div><input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: café" required><input name="amount" type="text" inputmode="decimal" maxlength="16" placeholder="R$ 12,50" aria-label="Valor da despesa" required><button class="btn primary" type="submit">Adicionar</button></div>
