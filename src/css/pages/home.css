@@ -1649,3 +1649,9 @@
   background: transparent;
   box-shadow: none;
 }
+
+/* Resumo do dia: no desktop os indicadores dividem a linha em vez de deixar um sozinho embaixo. */
+@media (width > 700px) {
+  .main[data-route="inicio"] .home-dashboard .strip,
+  .demo-app .home-dashboard .strip { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
