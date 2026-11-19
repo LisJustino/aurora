@@ -61,6 +61,13 @@ const taskIconsMigration = await readFile(
 );
 assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
 assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
+const taskIntegrationKeysMigration = await readFile(
+  new URL('../supabase/migrations/20261118000000_task_integration_keys.sql', import.meta.url),
+  'utf8',
+);
+assert.match(taskIntegrationKeysMigration, /alter column group_key type text/i);
+assert.match(taskIntegrationKeysMigration, /alter column group_title type text/i);
+assert.doesNotMatch(taskIntegrationKeysMigration, /update\s+public\.tasks/i);
 const checkinsMigration = await readFile(
   new URL('../supabase/migrations/20261105100000_daily_checkins.sql', import.meta.url),
   'utf8',
