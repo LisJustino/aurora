@@ -69,6 +69,7 @@ import {
   normalizeAnnualPlans,
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
+import { habitStartedOnOrBefore } from './features/habits/dates.js';
 import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -587,48 +588,6 @@ function withoutRemovedStudyTrash(entries) {
     return records.length ? [{ ...entry, records }] : [];
   });
 }
-function refreshSettingsSaveControls() {
-  const dirty = settingsDraftDirty();
-  const saving = ui.settingsSaving || ui.profileSaving;
-  document.querySelectorAll('[data-settings-save-button]').forEach((button) => {
-    button.disabled = !dirty || saving;
-    button.textContent = saving ? 'Salvando...' : button.dataset.settingsSaveLabel || 'Salvar alterações';
-    button.setAttribute('aria-busy', String(saving));
-  });
-  document.querySelectorAll('[data-settings-discard-button]').forEach((button) => {
-    button.disabled = !dirty || saving;
-    button.hidden = !dirty;
-  });
-  refreshUnsavedSettingsBanner();
-}
-function refreshUnsavedSettingsBanner() {
-  const banner = document.querySelector('.settings-unsaved-bar');
-  const dirty = Boolean(ui.profileDraft);
-  const saving = ui.profileSaving;
-  if (banner) {
-    banner.hidden = !dirty;
-    const discardButton = banner.querySelector('[data-action="profile-discard"]');
-    if (discardButton) discardButton.disabled = !dirty || saving;
-  }
-  const saveButton = banner?.querySelector('[data-action="profile-save"]');
-  if (saveButton) {
-    saveButton.disabled = !dirty || saving;
-    saveButton.textContent = saving ? 'Salvando...' : 'Salvar alterações';
-    saveButton.setAttribute('aria-busy', String(saving));
-  }
-  const profileActions = document.querySelector('.profile-settings-actions');
-  if (profileActions) {
-    const profileDirty = Boolean(ui.profileDraft);
-    const discardProfile = profileActions.querySelector('[data-action="profile-discard"]');
-    const saveProfile = profileActions.querySelector('[data-action="profile-save"]');
-    if (discardProfile) discardProfile.disabled = !profileDirty || saving;
-    if (saveProfile) {
-      saveProfile.disabled = !profileDirty || saving;
-      saveProfile.textContent = saving ? 'Salvando...' : 'Salvar alterações';
-      saveProfile.setAttribute('aria-busy', String(saving));
-    }
-  }
-}
 function updateSettingsDraft(update, shouldRender = true) {
   if (!ui.settingsDraft) {
     ui.settingsDraftBase = cloneSettings(S.settings);
@@ -636,19 +595,29 @@ function updateSettingsDraft(update, shouldRender = true) {
   }
   update(ui.settingsDraft);
   if (shouldRender) render();
-  else refreshSettingsSaveControls();
   scheduleSettingsAutosave();
 }
 function settingsDraftDirty() {
   return Boolean(ui.settingsDraft && JSON.stringify(settingsView()) !== JSON.stringify(S.settings));
 }
 let settingsAutosaveTimer = null;
+let profileAutosaveTimer = null;
 function scheduleSettingsAutosave() {
   clearTimeout(settingsAutosaveTimer);
   settingsAutosaveTimer = setTimeout(() => {
     settingsAutosaveTimer = null;
     void saveSettingsDraft();
   }, 250);
+}
+function scheduleProfileAutosave(delay = 500) {
+  clearTimeout(profileAutosaveTimer);
+  profileAutosaveTimer = null;
+  if (!ui.profileDraft) return;
+  profileAutosaveTimer = setTimeout(() => {
+    profileAutosaveTimer = null;
+    if (ui.profileSaving || ui.settingsSaving || ui.profileImageBusy) return;
+    void saveProfileDraft();
+  }, delay);
 }
 async function saveSettingsDraft() {
   if (!settingsDraftDirty()) return true;
@@ -688,24 +657,32 @@ async function saveSettingsDraft() {
     ui.settingsSaving = false;
     render();
     if (saveAgain) scheduleSettingsAutosave();
+    if (ui.profileDraft) scheduleProfileAutosave();
   }
 }
 async function saveProfileDraft() {
-  if (ui.profileSaving || ui.settingsSaving || ui.profileImageBusy) return;
-  const draft = ui.profileDraft || profileDraftFromSettings(S.settings);
+  clearTimeout(profileAutosaveTimer);
+  profileAutosaveTimer = null;
+  if (!ui.profileDraft) return true;
+  if (ui.profileSaving || ui.settingsSaving || ui.profileImageBusy) return false;
+  const draft = {
+    ...ui.profileDraft,
+    appearance: normalizeProfileAppearance(ui.profileDraft.appearance),
+  };
   const ageInput = String(draft.age ?? '').trim();
   const age = ageInput ? Number(ageInput) : null;
-  if (!draft.name.trim()) { toast('Informe seu nome.', 'error'); $('#pname')?.focus(); return; }
-  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).', 'error'); $('#ppreferred')?.focus(); return; }
-  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.', 'error'); $('#psex')?.focus(); return; }
+  if (!draft.name.trim()) { toast('Informe seu nome.', 'error'); $('#pname')?.focus(); return false; }
+  if (!draft.preferredName.trim()) { toast('Informe como prefere ser chamado(a).', 'error'); $('#ppreferred')?.focus(); return false; }
+  if (!Object.hasOwn(SEX, draft.sex)) { toast('Selecione uma identidade de gênero.', 'error'); $('#psex')?.focus(); return false; }
   if (ageInput && (!Number.isInteger(age) || age < 0 || age > 120)) {
     toast('A idade deve ser um número inteiro entre 0 e 120 anos.', 'error');
     $('#page')?.focus();
-    return;
+    return false;
   }
   const previousSettings = cloneSettings(S.settings);
   ui.profileSaving = true;
-  render();
+  let saveAgain = false;
+  let renderAfterSave = false;
   try {
     Object.assign(S.settings.profile, {
       name: draft.name.trim().slice(0, 50),
@@ -717,23 +694,34 @@ async function saveProfileDraft() {
     if (!saveSlices('settings')) {
       S.settings = previousSettings;
       toast('Não foi possível salvar as alterações. Tente novamente.', 'error');
-      return;
+      renderAfterSave = true;
+      return false;
     }
     if (!ui.preview && !(await Persist.flush())) {
       S.settings = previousSettings;
-      return;
+      renderAfterSave = true;
+      return false;
     }
-    ui.profileDraft = null;
-    toast(ui.preview
-      ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
-      : 'Perfil salvo.', 'success');
+    if (!ui.profileDraft || sameJsonValue(ui.profileDraft, draft)) {
+      ui.profileDraft = null;
+      toast(ui.preview
+        ? 'Alterações aplicadas nesta demonstração; elas não serão salvas após sair.'
+        : 'Perfil salvo automaticamente.', 'success');
+    } else {
+      saveAgain = true;
+    }
+    return !saveAgain;
   } catch (error) {
     S.settings = previousSettings;
     console.error('Aurora: não foi possível salvar o perfil.', error);
     toast('Não foi possível salvar o perfil. Suas alterações continuam na tela; tente novamente.', 'error');
+    renderAfterSave = true;
+    return false;
   } finally {
     ui.profileSaving = false;
-    render();
+    if (renderAfterSave) render();
+    if (saveAgain) scheduleProfileAutosave();
+    if (settingsDraftDirty()) scheduleSettingsAutosave();
   }
 }
 let habitsTemplate = null;
@@ -2294,11 +2282,11 @@ function scheduleRouteRender() {
 function hasUnsavedSettingsChanges() {
   return Boolean(ui.profileDraft);
 }
-async function confirmLeavingSettingsRoute(route) {
+async function savePendingProfileDraft() {
   if (!hasUnsavedSettingsChanges()) return true;
-  const next = routeFromLocation(new URL(route.startsWith('/') ? route : routePathFor(route), location.href), new Set(Object.keys(ROUTES))).route;
-  if (ui.route === 'config' && next === 'config') return true;
-  return await confirmInDialog('Sair sem salvar?');
+  clearTimeout(profileAutosaveTimer);
+  profileAutosaveTimer = null;
+  return await saveProfileDraft();
 }
 function nav(route) {
   const requestedPath = route.startsWith('/') ? route : routePathFor(route);
@@ -2314,13 +2302,8 @@ function nav(route) {
   const currentPath = `${location.pathname}${location.search}`;
   const nextPath = `${destinationUrl.pathname}${destinationUrl.search}`;
   if (hasUnsavedSettingsChanges() && nextRoute !== ui.route) {
-    void confirmLeavingSettingsRoute(route).then((confirmed) => {
-      if (!confirmed) return;
-      if (ui.profileDraft) ui.profileDraft = null;
-      if (settingsDraftDirty()) {
-        ui.settingsDraft = null;
-        ui.settingsDraftBase = null;
-      }
+    void savePendingProfileDraft().then((saved) => {
+      if (!saved) return;
       history.pushState(null, '', destination);
       onRoute();
     });
@@ -2485,11 +2468,8 @@ function onRoute() {
   if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
     const destination = `${location.pathname}${location.search}${location.hash}`;
     history.replaceState(history.state, '', `${routePathFor('config')}?section=${encodeURIComponent(ui.settingsTab)}`);
-    void confirmLeavingSettingsRoute(destination).then((confirmed) => {
-      if (!confirmed) return;
-      ui.profileDraft = null;
-      ui.settingsDraft = null;
-      ui.settingsDraftBase = null;
+    void savePendingProfileDraft().then((saved) => {
+      if (!saved) return;
       history.replaceState(history.state, '', destination);
       onRoute();
     });
@@ -2620,12 +2600,11 @@ function homeFirstSteps() {
   }
   homeFirstStepsRendered = true;
 
-  const [taskComplete, habitComplete, colorComplete] = homeFirstStepsProgress({
+  const complete = homeFirstStepsProgress({
     theme: settings.theme,
     tasks: S.tasks,
     habits: S.habits,
   });
-  const complete = [colorComplete, taskComplete, habitComplete];
   const completedCount = complete.filter(Boolean).length;
   if (completedCount === 3) {
     const snapshot = snapshotSlices(['settings']);
@@ -2718,9 +2697,10 @@ function viewInicio() {
     ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
     : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
   const waterTotal = waterMlForDay(S.water, todayKey);
-  const waterGoal = waterGoalForHabit(S.habits.find(isWaterHabit), S.settings.prefs.waterGoalMl);
+  const waterHabit = S.habits.find(isWaterHabit);
+  const waterGoal = waterGoalForHabit(waterHabit, S.settings.prefs.waterGoalMl);
   const showWaterSummary = areaOn('habits')
-    && S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active');
+    && (S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active') || waterTotal > 0);
   const showCycleSummary = !ui.preview
     && !S.settings.prefs.sample
     && areaOn('cycle')
@@ -3204,9 +3184,10 @@ function habitMonthlyHistory(habit) {
       ${Array.from({ length: 7 }, (_, index) => DIAS[(weekStartDay() + index) % 7]).map((day) => h`<span class="habit-month-weekday">${day}</span>`)}
       ${days.map((day) => {
         if (!day) return h`<span class="habit-month-empty" aria-hidden="true"></span>`;
-        const scheduled = habit.days.includes(pk(day).getDay());
-        const completed = habitCompletedFor(habit, day);
-        const skipped = habitIsSkipped(habit, day, today());
+        const started = habitStartedOnOrBefore(habit, day);
+        const scheduled = started && habit.days.includes(pk(day).getDay());
+        const completed = started && habitCompletedFor(habit, day);
+        const skipped = started && habitIsSkipped(habit, day, today());
         const future = day > today();
         const label = `${longDate(day)}: ${skipped ? 'dia pulado' : completed ? 'concluído' : scheduled ? future ? 'programado' : 'não concluído' : 'não programado'}`;
         const cls = `habit-month-day${completed ? ' is-done' : ''}${skipped ? ' is-skipped' : ''}${!scheduled ? ' is-off' : ''}${future ? ' is-future' : ''}`;
@@ -3226,9 +3207,10 @@ function habitYearHeat(habit) {
   for (let day = firstWeek; day <= end; day = addDays(day, 1)) days.push(day);
   let done = 0, planned = 0;
   const cells = days.map((day) => {
-    const scheduled = habit.days.includes(pk(day).getDay());
-    const completed = habitCompletedFor(habit, day);
-    const skipped = habitIsSkipped(habit, day, end);
+    const started = habitStartedOnOrBefore(habit, day);
+    const scheduled = started && habit.days.includes(pk(day).getDay());
+    const completed = started && habitCompletedFor(habit, day);
+    const skipped = started && habitIsSkipped(habit, day, end);
     if (scheduled && !skipped) planned += 1;
     if (completed) done += 1;
     return { day, scheduled, completed, skipped };
@@ -3296,6 +3278,18 @@ function habitWaterTracker(habit) {
     <p class="small muted" aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'} · Meta diária cumprida em ${goalDays} de 7 dias nesta semana.</p>
   </section>`;
 }
+function waterSummary() {
+  const total = waterMlForDay(S.water, today());
+  const habit = S.habits.find(isWaterHabit);
+  const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
+  const remaining = Math.max(0, target - total);
+  return h`<section class="water-tracker" style="--hc:var(--area-water)" aria-label="Acompanhamento de água">
+    <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
+    <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
+    <button type="button" class="btn sm" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
+    <p class="small muted" aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'}</p>
+  </section>`;
+}
 function habitRow(habit) {
   const status = habit.status || 'active';
   const saved = S.habits.includes(habit);
@@ -3344,7 +3338,7 @@ function viewHabits() {
   return renderHabitsView({
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
-    weekStartDay, habitCompletedFor, plural, habitRow,
+    weekStartDay, habitCompletedFor, plural, habitRow, waterSummary,
     preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
   });
 }
@@ -3492,7 +3486,7 @@ function aparencia(s) {
     && L.density === LOOK_DEFAULT.density && L.font === LOOK_DEFAULT.font
     && !L.contrast && !L.readable && !L.highlightLinks && !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
-    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Aparência e leitura</h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. Use Salvar para manter as alterações.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
+    <div class="appearance-settings-heading"><div><h2 id="appearance-settings-title">Aparência e leitura</h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. As alterações são salvas automaticamente.</p></div><button type="button" class="btn sm" data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
     ${group('appearance-presets-title', 'Estilos prontos', 'Escolha uma combinação inicial; você pode ajustar cada opção depois.', h`<div class="appearance-preset-grid" role="group" aria-label="Estilos prontos">${Object.entries(APPEARANCE_PRESETS).map(([id, preset]) => h`<button type="button" class="appearance-preset" data-action="appearance-preset" data-v="${id}" aria-pressed="${String(activeAppearancePreset(s) === id)}"><span class="appearance-preset-swatch" style="--preset-color:${PALETTES[preset.theme][1]}" aria-hidden="true">${icon('check', 14)}</span><span><b>${preset.label}</b><small>${preset.description}</small></span></button>`)}</div>`) }
     ${group('appearance-mode-title', 'Tema', 'Claro, escuro ou o mesmo do seu aparelho. O tema é salvo ao tocar.', h`<div class="seg" role="group" aria-label="Tema">${[['auto', 'Automático', 'monitor'], ['light', 'Claro', 'sun'], ['dark', 'Escuro', 'moon']].map(([value, text, ic]) => h`<button type="button" id="personalization-mode-${value}" aria-pressed="${String(L.mode === value)}" data-action="accessibility-mode" data-v="${value}">${icon(ic, 16)}<span>${text}</span></button>`)}</div>`)}
     ${group('appearance-color-title', 'Cor de destaque', `Paleta atual: ${currentPalette}.`, h`<div class="swatches appearance-swatches" role="group" aria-label="Paletas de cor">${Object.entries(PALETTES).map(([k, [n, c]]) => h`<button type="button" class="swatch" aria-label="Cor ${n}" aria-pressed="${String(s.theme === k)}" data-action="set-theme" data-v="${k}"><i style="background:${c}" aria-hidden="true"></i><span>${n}</span></button>`)}
@@ -3512,9 +3506,8 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de lembretes e hábitos do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos e lembretes' : 'Ativar Hábitos'}</a>
-      <p class="small muted">Os avisos de Hábitos fora do app são opcionais e dependem da rede, das permissões e do serviço de notificações. O interruptor em Hábitos controla este dispositivo. O serviço recebe o token de notificação e somente dias, horários e fuso, sem nomes de hábitos.</p>
+    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de Hábitos do Aurora.', h`<div class="routine-settings-links">
+      <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos' : 'Ativar Hábitos'}</a>
     </div>`) }
   </form>`;
 }
@@ -3540,12 +3533,11 @@ function profileSettings(s) {
   s = settingsView();
   const p = ui.profileDraft || profileDraftFromSettings(s);
   const appearance = normalizeProfileAppearance(p.appearance);
-  const profileDirty = profileDraftHasChanges(p, s.profile, s.prefs.profileAppearance);
   const defaultProfileAppearance = sameJsonValue(appearance, PROFILE_APPEARANCE_DEFAULT);
   const profileControlsDisabled = ui.profileSaving || ui.profileImageBusy;
   return h`<div class="profile-settings-container">
     <form id="profile-settings-form" class="card profile-settings" aria-labelledby="settings-profile-title" data-form="settings-profile" novalidate>
-    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil</h2><p>É assim que o Aurora se apresenta para você. Mude quando quiser.</p></div>
+    <div class="profile-settings-heading"><h2 id="settings-profile-title">Seu perfil</h2><p>É assim que o Aurora se apresenta para você. Suas alterações são salvas automaticamente.</p></div>
     <div class="profile-greeting-preview" aria-live="polite">${profileAvatarMarkup(appearance)}<span class="profile-greeting-copy"><span>Prévia na tela Início</span><b><span id="profile-preview-greeting">${profileGreeting(appearance.greeting)}</span>, <span id="profile-preview-name" class="proper-name">${p.preferredName.trim() || p.name.trim() || 'Seu nome'}</span>.</b></span></div>
     <section class="profile-settings-group" aria-labelledby="profile-name-title">
       <div><h3 id="profile-name-title">Informações do perfil</h3></div>
@@ -3574,10 +3566,6 @@ function profileSettings(s) {
         <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
-    <div class="row settings-save-actions profile-settings-actions">
-      <button class="btn back" type="button" data-action="profile-discard" ${profileDirty && !profileControlsDisabled ? '' : raw('disabled')}>Descartar alterações</button>
-      <button class="btn primary" type="button" data-action="profile-save" aria-busy="${String(ui.profileSaving || ui.profileImageBusy)}" ${profileDirty && !profileControlsDisabled ? '' : raw('disabled')}>${ui.profileSaving ? 'Salvando...' : 'Salvar alterações'}</button>
-    </div>
   </form>
   </div>`;
 }
@@ -3641,8 +3629,11 @@ async function adjustAndApplyProfileAvatar(openBitmap, title) {
     bitmap?.close();
     ui.profileImageBusy = false;
     render();
+    if (ui.profileDraft) scheduleProfileAutosave();
   }
-  if (routeAtStart === ui.route && success) toast('Foto pronta. Salve as alterações para aplicá-la ao perfil.', 'success');
+  if (routeAtStart === ui.route && success) {
+    toast('Foto pronta. Ela será salva automaticamente.', 'success');
+  }
   else if (routeAtStart === ui.route && errorMessage) toast(errorMessage, 'error');
 }
 
@@ -4130,7 +4121,6 @@ function viewConfig() {
       persistFailed: ui.persistFailed,
       isOnline: navigator.onLine,
     }),
-    settingsDirty: settingsDraftDirty(),
     renderers: {
       appearance: aparencia,
       home: homeSettings,
@@ -4344,9 +4334,10 @@ function dlgCycleLog() { return cycleDialogViews.log(); }
 function dlgCyclePeriod() { return cycleDialogViews.period(); }
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
-  const waterHabit = Boolean(d.waterSuggestion || isWaterHabit(habit));
+  const waterHabit = Boolean(d.waterSuggestion || d.tracking === 'water' || isWaterHabit(habit));
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
-  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${edit ? 'Ajuste os dias deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+  return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${d.recordWaterAfterSave ? 'Criar acompanhamento de água' : edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${d.recordWaterAfterSave ? 'Ao criar o hábito, 250 mL serão registrados.' : edit ? 'Ajuste os dias deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
+    ${d.enableHabits ? h`<p class="fine">A área Hábitos será ativada para mostrar seu acompanhamento.</p>` : ''}
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
@@ -4362,7 +4353,7 @@ function dlgHabitEdit() {
       <label class="f full">Meta na semana (opcional)<select name="weeklyGoal"><option value="" ${d.weeklyGoal ? '' : raw('selected')}>Todos os dias marcados</option>${[1, 2, 3, 4, 5, 6, 7].map((n) => h`<option value="${n}" ${Number(d.weeklyGoal) === n ? raw('selected') : ''}>${n} ${plural(n, 'vez', 'vezes')} por semana</option>`)}</select><span class="small muted">Com meta, a semana conta como cumprida ao atingir esse número de dias, mesmo sem marcar todos.</span></label>
     </form>
     ${habit ? h`<div class="habit-edit-history">${habitMonthlyHistory(habit)}</div>` : ''}`,
-    h`${edit ? h`<button type="button" class="btn danger back" data-action="habit-delete-dialog">${icon('trash', 18)}Excluir</button><button type="button" class="btn back" data-action="${habit?.status === 'archived' ? 'habit-restore' : 'habit-archive'}" data-id="${d.id}">${habit?.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${edit ? 'Salvar alterações' : 'Adicionar hábito'}</button>`);
+    h`${edit ? h`<button type="button" class="btn danger back" data-action="habit-delete-dialog">${icon('trash', 18)}Excluir</button><button type="button" class="btn back" data-action="${habit?.status === 'archived' ? 'habit-restore' : 'habit-archive'}" data-id="${d.id}">${habit?.status === 'archived' ? 'Restaurar' : 'Arquivar'}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">${d.recordWaterAfterSave ? 'Criar e registrar 250 mL' : edit ? 'Salvar alterações' : 'Adicionar hábito'}</button>`);
 }
 function waterSuggestionPreview(weightInput) {
   const text = String(weightInput ?? '').trim();
@@ -4601,7 +4592,7 @@ function dlgAreaTutorial() {
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}</h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
-    <video class="area-tutorial-video" controls playsinline preload="metadata" aria-label="Tutorial em vídeo: ${guide.title}">
+    <video class="area-tutorial-video" controls playsinline preload="metadata" poster="${guide.poster}" width="1280" height="720" aria-label="Tutorial em vídeo: ${guide.title}">
       <source src="${guide.video}" type="video/mp4">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
@@ -5187,19 +5178,20 @@ async function importFile(file) {
 /* ---- Ações por clique ---- */
 function recordWaterEntry(amount, habit) {
   const day = today();
-  S.water.push({ id: newId(), ml: amount, at: new Date().toISOString() });
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
-  const reached = waterGoalReached(waterMlForDay(S.water, day), target);
+  const reached = waterGoalReached(waterMlForDay(S.water, day) + amount, target);
   const completing = Boolean(habit && reached && habit.days.includes(pk(day).getDay())
     && !habitIsSkipped(habit, day, day) && !habit.completions.includes(day));
+  const slices = ['water', ...(completing ? ['habits'] : [])];
+  const snapshot = snapshotSlices(slices);
+  S.water.push({ id: newId(), ml: amount, at: new Date().toISOString() });
   if (completing) habit.completions.push(day);
-  const saved = saveSlices('water', ...(completing ? ['habits'] : []));
+  const saved = saveSlicesWithRollback(slices, snapshot, false, 'o registro de água');
+  if (!saved) return false;
   render();
-  if (saved) {
-    vibrateFeedback();
-    toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
-  }
-  return saved;
+  vibrateFeedback();
+  toast(completing ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.` : `${amount.toLocaleString('pt-BR')} mL registrados.`, 'success');
+  return true;
 }
 function focusQuickActionsTrigger() {
   const trigger = [...document.querySelectorAll('.nav-quick-trigger')]
@@ -5300,6 +5292,20 @@ const ACTIONS = {
   'quick-action-water': () => {
     const habit = S.habits.find((item) => isWaterHabit(item) && item.status === 'active');
     ui.quickActionsOpen = false;
+    if (!habit && !S.habits.some(isWaterHabit)) {
+      dlgOpen('habit-edit', {
+        name: 'Beber água',
+        days: [0, 1, 2, 3, 4, 5, 6],
+        weeklyGoal: '',
+        icon: 'droplet',
+        color: HABIT_COLORS[S.habits.length % HABIT_COLORS.length],
+        tracking: 'water',
+        waterGoalMl: S.settings.prefs.waterGoalMl,
+        enableHabits: !areaOn('habits'),
+        recordWaterAfterSave: true,
+      });
+      return;
+    }
     render();
     const amount = parseWaterMl('250');
     if (amount === null) return toast('Não foi possível registrar um copo de água.', 'error');
@@ -5340,25 +5346,6 @@ const ACTIONS = {
     }
     dlgOpen('area-tutorial', { route });
   },
-  'discard-settings': () => {
-    ui.settingsDraft = null;
-    ui.settingsDraftBase = null;
-    render();
-    toast('Alterações descartadas.', 'info');
-  },
-  'profile-discard': () => {
-    ui.profileDraft = null;
-    if (settingsDraftDirty()) {
-      ui.settingsDraft = null;
-      ui.settingsDraftBase = null;
-    }
-    render();
-    toast('Alterações descartadas.', 'info');
-  },
-  'profile-save': async () => {
-    if (ui.profileDraft) await saveProfileDraft();
-    if (!ui.profileDraft && settingsDraftDirty()) await saveSettingsDraft();
-  },
   'profile-avatar-choose': () => {
     if (!ui.profileImageBusy && !ui.profileSaving) $('#profile-avatar-file')?.click();
   },
@@ -5373,7 +5360,8 @@ const ACTIONS = {
     draft.appearance = normalizeProfileAppearance(appearance);
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     render();
-    toast('Foto removida da prévia. Salve as alterações para aplicá-la.', 'info');
+    scheduleProfileAutosave();
+    toast('Foto removida. A alteração será salva automaticamente.', 'info');
   },
   'focus-quick-task': () => openTaskDialog(today()),
   'focus-task-title': () => openTaskDialog(),
@@ -6009,7 +5997,7 @@ const ACTIONS = {
     );
     updateSettingsDraft((settings) => Object.assign(settings.prefs, defaults));
     document.querySelector('[data-settings-tab="areas-navigation"]')?.focus();
-    toast('Padrão dos menus selecionado. Salve para aplicar permanentemente.', 'info');
+    toast('Padrão dos menus selecionado. Será salvo automaticamente.', 'info');
   },
   'home-block-move': (el) => {
     const id = el.dataset.homeBlock, direction = Number(el.dataset.direction);
@@ -6043,7 +6031,7 @@ const ACTIONS = {
       settings.prefs.homeShortcuts = [...defaults.shortcuts];
       saveActiveHomeMode(settings);
     });
-    toast('Modo inicial restaurado. Salve para aplicar permanentemente.', 'success');
+    toast('Modo inicial restaurado. Será salvo automaticamente.', 'success');
   },
   'retry-habits-template': () => { requestHabitsTemplate(); render(); },
   'habit-push-toggle': () => toggleHabitPush(),
@@ -6322,6 +6310,7 @@ const ACTIONS = {
     draft.appearance = normalizeProfileAppearance({ ...draft.appearance, [key]: value });
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     render();
+    scheduleProfileAutosave();
   },
   'profile-appearance-reset': () => {
     if (ui.profileImageBusy || ui.profileSaving) return;
@@ -6330,7 +6319,8 @@ const ACTIONS = {
     draft.appearance = { ...PROFILE_APPEARANCE_DEFAULT };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
     render();
-    toast('Identidade visual padrão selecionada. Salve para aplicar.', 'info');
+    scheduleProfileAutosave();
+    toast('Identidade visual padrão selecionada. Será salva automaticamente.', 'info');
   },
   'preferences-week-start': (el) => {
     const weekStart = Number(el.dataset.v);
@@ -6358,7 +6348,7 @@ const ACTIONS = {
         reduceMotion: LOOK_DEFAULT.reduceMotion,
       };
     });
-    toast('Padrão visual selecionado. Salve para aplicar permanentemente.', 'info');
+    toast('Padrão visual selecionado. Será salvo automaticamente.', 'info');
   },
   'look': (el) => {
     const k = el.dataset.k, v = k === 'weekStart' ? Number(el.dataset.v) : el.dataset.v;
@@ -6722,7 +6712,7 @@ const FORMS = {
     if (!name) return toast('Dê um nome ao hábito.', 'info');
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return toast('Selecione pelo menos um dia válido.', 'error');
     if (S.habits.some((habit) => norm(habit.name) === norm(name))) return toast('Você já acompanha um hábito com esse nome.', 'info');
-    S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...(weeklyGoal ? { weeklyGoal } : {}) });
+    S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], createdAt: Date.now(), status: 'active', ...(weeklyGoal ? { weeklyGoal } : {}) });
     f.reset();
     f.querySelectorAll('input[name="days"]').forEach((input) => { input.checked = true; });
     const saved = saveSlices('habits');
@@ -6731,7 +6721,7 @@ const FORMS = {
   },
   'habit-edit': (f, d) => {
     const draft = ui.dlg?.d;
-    const habit = S.habits.find((item) => item.id === draft?.id);
+    let habit = S.habits.find((item) => item.id === draft?.id);
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
@@ -6750,20 +6740,38 @@ const FORMS = {
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
-    const tracksWater = Boolean(draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
+    const tracksWater = Boolean(draft?.tracking === 'water' || draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
     const waterGoalMl = tracksWater
       ? Number(d.has('waterGoalMl') ? d.get('waterGoalMl') : (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
       : null;
     if (tracksWater && !isValidWaterGoalMl(waterGoalMl)) {
       return fieldError('A meta deve ser um valor inteiro entre 500 e 10.000 mL.', '[data-dlg="waterGoalMl"]');
     }
+    const recordWaterAfterSave = !draft?.id && draft?.recordWaterAfterSave === true;
+    const enableHabits = recordWaterAfterSave && draft.enableHabits && !areaOn('habits');
+    const slices = ['habits', ...(enableHabits ? ['settings'] : [])];
+    const snapshot = recordWaterAfterSave ? snapshotSlices(slices) : null;
     if (habit) {
       Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}) });
       delete habit.remind;
       if (weeklyGoal) habit.weeklyGoal = weeklyGoal;
       else delete habit.weeklyGoal;
     } else {
-      S.habits.push({ id: newId(), name: name.slice(0, 60), days, completions: [], status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) });
+      habit = { id: newId(), name: name.slice(0, 60), days, completions: [], createdAt: Date.now(), status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) };
+      S.habits.push(habit);
+    }
+    if (recordWaterAfterSave) {
+      if (enableHabits) {
+        if (!setAreaEnabled(S.settings, 'habits', true)) {
+          restoreSliceSnapshot(snapshot);
+          return toast('Não foi possível ativar Hábitos para acompanhar a água.', 'error');
+        }
+      }
+      if (!saveSlicesWithRollback(slices, snapshot, false, 'o acompanhamento de água')) return;
+      ui.dlg = null;
+      render();
+      if (recordWaterEntry(parseWaterMl('250'), habit)) focusQuickActionsTrigger();
+      return;
     }
     ui.dlg = null;
     const saved = saveSlices('habits');
@@ -7294,7 +7302,7 @@ document.addEventListener('input', (e) => {
       appearance: ui.profileDraft?.appearance || profileDraftFromSettings(S.settings).appearance,
     };
     ui.profileDraft = profileDraftHasChanges(draft, S.settings.profile, S.settings.prefs.profileAppearance) ? draft : null;
-    refreshUnsavedSettingsBanner();
+    scheduleProfileAutosave();
     const previewName = $('#profile-preview-name');
     if (previewName) previewName.textContent = draft.preferredName.trim() || draft.name.trim() || 'seu nome';
     const previewGreeting = $('#profile-preview-greeting');

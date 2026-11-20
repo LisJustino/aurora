@@ -38,6 +38,37 @@ const swipe = async (page, locator, direction) => {
 
   await page.goto(`${BASE}/?preview#habitos`);
   await page.locator('.habit-today').waitFor({ state: 'visible' });
+
+  const waterPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const waterErrors = [];
+  waterPage.on('pageerror', (error) => waterErrors.push(error.message));
+  waterPage.on('console', (message) => {
+    if (message.type() === 'error') waterErrors.push(message.text());
+  });
+  await waterPage.goto(`${BASE}/?preview#inicio`);
+  await waterPage.locator('[data-action="clear-sample"]').click();
+  await waterPage.locator('[data-action="action-confirm-accept"]').click();
+  await waterPage.locator('#toast .toast-message').filter({ hasText: 'Exemplos removidos.' }).waitFor({ state: 'visible' });
+  await waterPage.locator('.nav-quick-trigger:visible').first().click();
+  await waterPage.locator('[data-action="quick-action-water"]').click();
+  check(await waterPage.locator('#dlg [data-dlg="name"]').inputValue() === 'Beber água'
+    && await waterPage.locator('#dlg [data-dlg="waterGoalMl"]').count() === 1,
+  'atalho de água oferece criar acompanhamento quando ainda não há hábito');
+  await waterPage.locator('#dlg button[form="dlgform"][type="submit"]').click();
+  await waterPage.locator('#toast .toast-message').filter({ hasText: '250 mL registrados.' }).waitFor({ state: 'visible' });
+  const waterChip = waterPage.locator('.home-day-chip--water');
+  await waterChip.waitFor({ state: 'visible' });
+  const waterTotal = waterChip.locator('.home-day-chip-copy small');
+  check(await waterTotal.isVisible() && (await waterTotal.innerText()).includes('250 / 2.000 mL'),
+    'total de água recém-registrado aparece no Início');
+  await waterChip.click();
+  const createdWaterHabit = waterPage.locator('.habit-row').filter({ hasText: 'Beber água' });
+  await createdWaterHabit.locator('.habit-more > summary').click();
+  check((await createdWaterHabit.locator('.water-tracker-summary').textContent()).includes('250 mL'),
+    'total de água aparece em Hábitos depois da criação');
+  check(waterErrors.length === 0, 'atalho de água sem erros de execução', waterErrors.slice(0, 3).join(' | '));
+  await waterPage.close();
+
   check(await page.locator('.habit-today .empty').count() === 1, 'estado vazio usa uma orientação sem ação duplicada');
   check(await page.locator('.habit-today [data-action="habit-new"]').count() === 1, 'criação manual tem uma única ação principal');
   check(await page.locator('.habit-ideas').getAttribute('open') === null

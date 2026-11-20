@@ -90,6 +90,7 @@ import {
   SUGGESTED_HABIT_TAGS,
   habitStats,
   habitDayOverview,
+  habitMonthStats,
   habitWeekDailyProgress,
   habitWeekReview,
   habitWeekOverview,
@@ -125,6 +126,7 @@ import {
 } from '../src/js/features/profile/model.js';
 import { isProfileAvatarImageData, PROFILE_AVATAR_MAX_BYTES } from '../src/js/features/profile/avatar-image.js';
 import { canAccessCycle } from '../src/js/features/cycle/access.js';
+import { habitCreatedOn, habitStartedOnOrBefore, isValidHabitCreatedAt } from '../src/js/features/habits/dates.js';
 import {
   defaultHomeLayout,
   HOME_AREA_COLORS,
@@ -1773,6 +1775,32 @@ test('hábito aceita meta semanal de 1 a 7 e continua válido sem ela', () => {
   falsy(isValidHabit({ ...habitBase, weeklyGoal: 2.5 }));
 });
 
+test('hábitos contam dias programados somente a partir da criação conhecida', () => {
+  const createdAt = new Date(2026, 10, 18, 12).getTime();
+  const habit = { ...habitBase, createdAt };
+  equal(habitCreatedOn(habit), '2026-11-18');
+  equal(habitStartedOnOrBefore(habit, '2026-11-17'), false);
+  equal(habitStartedOnOrBefore(habit, '2026-11-18'), true);
+  truthy(isValidHabit({ ...habit, createdAt }));
+  falsy(isValidHabit({ ...habit, createdAt: Number.MAX_VALUE }));
+  equal(isValidHabitCreatedAt(Number.MAX_VALUE), false);
+
+  const before = habitDayOverview([habit], '2026-11-17');
+  equal(before.planned, 0);
+  const firstDay = habitDayOverview([habit], '2026-11-18');
+  equal(firstDay.planned, 1);
+  const isComplete = (item, day) => item.completions.includes(day);
+  const isSkipped = (item, day) => habitIsSkipped(item, day, '2026-11-18');
+  const week = habitWeekOverview([habit], '2026-11-18', 1, isComplete, isSkipped);
+  equal(week.planned, 1);
+  const month = habitMonthStats(habit, '2026-11', '2026-11-18');
+  equal(month.scheduled, 1);
+  const review = weeklyReview([], [habit], '2026-11-18', 1);
+  equal(review.habits.scheduled, 1);
+
+  equal(habitWeekOverview([habitBase], '2026-11-18', 1, isComplete, isSkipped).planned, 3);
+});
+
 test('meta semanal nunca passa do número de dias escolhidos', () => {
   equal(habitWeeklyTarget({ ...habitBase, days: [1, 3], weeklyGoal: 5 }), 2);
   equal(habitWeeklyTarget({ ...habitBase, weeklyGoal: 3 }), 3);
@@ -1980,6 +2008,7 @@ test('sugestão de água cria um hábito comum e evita duplicatas', () => {
   equal(created.length, 1);
   equal(created[0].name, 'Beber água');
   equal(created[0].tracking, 'water');
+  truthy(isValidHabitCreatedAt(created[0].createdAt));
   const again = createSuggestedHabits(['water'], [{ ...habitBase, id: 'w', name: 'Água', tracking: 'water' }], () => 'x');
   equal(again.length, 0);
   const customized = createSuggestedHabits(['water'], [{ ...habitBase, name: 'Beber água · 3.850 mL/dia' }], () => 'x');
@@ -2253,6 +2282,18 @@ test('Home só oferece Ciclo nas áreas opcionais para perfis elegíveis', () =>
   if (!areaTiles.includes('canAccessCycle(S.settings.profile, ui.preview)')) {
     throw new Error('A Home não deve oferecer Ciclo para perfis sem acesso à área.');
   }
+  const onboardingStart = source.indexOf('function dlgOnboard() {');
+  const onboardingEnd = source.indexOf('\nfunction dlgExport()', onboardingStart);
+  if (onboardingStart < 0 || onboardingEnd <= onboardingStart) throw new Error('Não foi possível localizar o onboarding.');
+  const onboarding = source.slice(onboardingStart, onboardingEnd);
+  equal(onboarding.includes("ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))"), true);
+  equal(onboarding.includes("ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))"), true);
+});
+
+test('progresso dos primeiros passos segue a ordem tarefa, hábito e cor', () => {
+  equal(JSON.stringify(homeFirstStepsProgress({ theme: 'rose', tasks: [{}], habits: [] })), '[true,false,false]');
+  equal(JSON.stringify(homeFirstStepsProgress({ theme: 'rose', tasks: [], habits: [{ completions: ['2026-11-18'] }] })), '[false,true,false]');
+  equal(JSON.stringify(homeFirstStepsProgress({ theme: 'indigo', tasks: [], habits: [] })), '[false,false,true]');
 });
 
 test('preferências do Início normalizam modos, layouts, atalhos, mensagem e cores', () => {

@@ -53,23 +53,29 @@ const check = (passed, name, detail = '') => {
   const profileName = page.locator('#pname');
   await profileName.waitFor();
   const originalProfileName = await profileName.inputValue();
-  await profileName.fill(`${originalProfileName} editado`);
-  const profileSave = page.locator('.profile-settings-actions [data-action="profile-save"]');
-  const profileDiscard = page.locator('.profile-settings-actions [data-action="profile-discard"]');
-  await page.waitForFunction(() => !document.querySelector('.profile-settings-actions [data-action="profile-save"]:disabled'));
-  check(await profileSave.isEnabled(), 'perfil oferece salvar junto aos campos editados');
-  check(await profileDiscard.isEnabled(), 'perfil oferece descartar junto aos campos editados');
-  await profileDiscard.click();
-  check(await profileName.inputValue() === originalProfileName, 'descartar restaura o perfil sem voltar ao topo');
+  const profileSex = page.locator('#psex');
+  if (!await profileSex.inputValue()) await profileSex.selectOption('f');
+  const editedProfileName = `${originalProfileName} editado`;
+  await profileName.fill(editedProfileName);
+  await page.locator('#toast .toast-message')
+    .filter({ hasText: 'Alterações aplicadas nesta demonstração' })
+    .waitFor({ state: 'visible' });
+  check(await profileName.inputValue() === editedProfileName, 'alterar o perfil salva automaticamente');
+  check(await page.locator('.profile-settings-actions, .settings-unsaved-bar').count() === 0,
+    'perfil não exibe botões de salvar nem barra de alterações pendentes');
+  await page.locator('#toast .toast-message').waitFor({ state: 'hidden' });
 
-  await profileName.fill(`${originalProfileName} em rascunho`);
+  const secondProfileName = `${originalProfileName} em rascunho`;
+  await profileName.fill(secondProfileName);
+  await page.locator('#toast .toast-message')
+    .filter({ hasText: 'Alterações aplicadas nesta demonstração' })
+    .waitFor({ state: 'visible' });
   await page.locator('.settings-link[data-settings-tab="personalization"]').click();
   await page.waitForFunction(() => location.search === '?section=personalization');
   await page.locator('#settings-content[role="region"][aria-label="Seção de ajustes: Aparência e leitura"]').waitFor();
   await page.goBack();
   await page.waitForFunction(() => location.search === '?section=profile');
-  check(await profileName.inputValue() === `${originalProfileName} em rascunho`, 'voltar entre seções preserva alterações não salvas');
-  await profileDiscard.click();
+  check(await profileName.inputValue() === secondProfileName, 'perfil permanece salvo ao trocar de seção');
   await page.goForward();
   await page.waitForFunction(() => location.search === '?section=personalization');
 
@@ -89,9 +95,17 @@ const check = (passed, name, detail = '') => {
     'aparência salva automaticamente sem barra de alterações pendentes');
   await page.goBack();
   await page.waitForFunction(() => location.search === '?section=profile');
+  const pendingProfileName = `${originalProfileName} antes de navegar`;
+  await profileName.fill(pendingProfileName);
+  await page.locator('.topbar a[href="/inicio"]').first().click();
+  await page.waitForFunction(() => location.pathname === '/inicio');
+  check(await page.locator('#dlg').count() === 0, 'sair do Perfil salva automaticamente sem pedir confirmação');
+  await page.goBack();
+  await profileName.waitFor({ state: 'visible' });
+  check(await profileName.inputValue() === pendingProfileName, 'alteração pendente permanece salva ao voltar');
   await page.goBack();
   await page.waitForFunction(() => location.pathname === '/inicio');
-  check(await page.locator('#dlg').count() === 0, 'ajustes salvos não bloqueiam a navegação com aviso de rascunho');
+  check(await page.locator('#dlg').count() === 0, 'ajustes salvos não bloqueiam a navegação');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
