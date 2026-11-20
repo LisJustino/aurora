@@ -92,6 +92,7 @@
   --status-halo-shadow: 0 0 0 4px var(--ok-soft);
   --current-control-shadow: inset 0 0 0 1px var(--accent);
   --font-sans: "DM Sans", sans-serif;
+  --font-readable: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-editorial: Georgia, "Times New Roman", serif;
   --font: "DM Sans", sans-serif;
   --font-h: "DM Sans", sans-serif;
@@ -181,7 +182,7 @@
   --tracking-wide: .08em;
   --tracking-wider: .1em;
   --tracking-editorial-wide: -.045em;
-  --tracking-editorial: -.055em;
+  --tracking-editorial: -.02em;
   --content-width: 1200px;
   --reading-width: 880px;
   --control-height: 48px;

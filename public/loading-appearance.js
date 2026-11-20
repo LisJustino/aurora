@@ -1,5 +1,5 @@
 (function () {
-  var appearanceMode = 'light';
+  var appearanceMode = 'auto';
   var root = document.documentElement;
   var systemTheme = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-color-scheme: dark)')

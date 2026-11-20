@@ -451,6 +451,27 @@ const check = (passed, name, detail = '') => {
   check(demoProgressMotion.animationName === 'progress-ring-fill'
     && demoProgressMotion.from !== demoProgressMotion.to,
   'anel do Início preenche do progresso anterior ao novo');
+  let welcomeLayoutFits = true;
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await page.locator('.home-head').evaluate((header) => {
+      const copy = header.firstElementChild.getBoundingClientRect();
+      const progress = header.querySelector('.demo-home-progress').getBoundingClientRect();
+      return {
+        gap: progress.left - copy.right,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    welcomeLayoutFits &&= layout.gap >= 0 && layout.gap <= 16 && !layout.overflow;
+  }
+  check(welcomeLayoutFits && await page.locator('.demo-home-progress-label').textContent() === 'Tarefas'
+    && await page.getByRole('img', { name: /tarefas de hoje concluídas/ }).count() === 1
+    && await page.locator('.home-today-card .task .meta').evaluateAll((metadata) =>
+      metadata.every((item) => item.textContent.trim() === 'Exemplo'))
+    && await page.locator('.home-completed').evaluate((completed) =>
+      getComputedStyle(completed).borderTopWidth === '0px'),
+  'Início aproxima e identifica o progresso e reduz rótulos repetidos e divisores pesados');
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator('.demo-nav [data-demo-view="tasks"]').click();
 
@@ -488,14 +509,38 @@ const check = (passed, name, detail = '') => {
   const currentMonth = await page.evaluate(() => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
     .format(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   check(await page.getByRole('heading', { name: new RegExp(`^${currentMonth}$`, 'i') }).count() === 1
-    && await page.getByText('R$ 1.960,00', { exact: true }).count() === 1,
-  'resumo financeiro usa o mês atual e mantém o total alinhado à landing');
+    && await page.getByText('R$ 1.960,00', { exact: true }).count() === 1
+    && await page.getByText('R$ 1.240,00', { exact: true }).count() === 1,
+  'resumo financeiro mostra entradas, saídas e resultado alinhados ao mês atual');
+  let financeSummaryFits = true;
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const financeSummary = await page.locator('.demo-finance-summary').evaluate((summary) => ({
+      columns: getComputedStyle(summary).gridTemplateColumns.split(' ').length,
+      labels: [...summary.querySelectorAll('article > span')].map((label) => label.textContent.trim()),
+      borders: [...summary.querySelectorAll('article')].map((item) => getComputedStyle(item).borderWidth),
+      titleStylesMatch: (() => {
+        const listTitle = getComputedStyle(document.querySelector('.demo-list-heading'));
+        const panelTitle = getComputedStyle(document.querySelector('#demo-finance-title'));
+        return listTitle.fontFamily === panelTitle.fontFamily && listTitle.fontSize === panelTitle.fontSize;
+      })(),
+      pageFits: document.documentElement.scrollWidth <= innerWidth,
+    }));
+    financeSummaryFits &&= financeSummary.columns === 3
+      && financeSummary.labels.join(',') === 'Entradas,Saídas,Resultado'
+      && financeSummary.borders.every((border) => border === '0px')
+      && financeSummary.titleStylesMatch && financeSummary.pageFits;
+  }
+  check(financeSummaryFits,
+    'resumo financeiro mobile usa três indicadores sem cartões aninhados e títulos unificados');
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel('Lançar uma despesa fictícia').waitFor();
   await page.locator('#demo-expense-title').fill('Café de teste');
   await page.getByLabel('Valor da despesa').fill('12,50');
   await page.locator('[data-demo-expense-form] button[type="submit"]').click();
   check(await page.getByText('Café de teste', { exact: true }).count() === 1
-    && await page.getByText('R$ 1.972,50', { exact: true }).count() === 1,
+    && await page.getByText('R$ 1.972,50', { exact: true }).count() === 1
+    && await page.getByText('R$ 1.227,50', { exact: true }).count() === 1,
   'despesa fictícia atualiza o total usando centavos');
   await page.getByRole('button', { name: 'Mês anterior' }).click();
   const previousMonth = await page.evaluate(() => {

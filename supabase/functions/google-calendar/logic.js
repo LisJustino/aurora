@@ -7,6 +7,7 @@ import {
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
+const CALENDAR_LIST_URL = 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1';
 const CONNECTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTED_CALENDARS = 50;
 const COLUMNS = 'id,email,selected_calendar_ids,refresh_token_encrypted';
@@ -46,6 +47,29 @@ async function postToken(params, { clientId, clientSecret, fetchImpl }) {
   return { ok: response.ok, body };
 }
 
+async function verifyCalendarReadAccess(accessToken, fetchImpl) {
+  let response;
+  try {
+    response = await fetchImpl(CALENDAR_LIST_URL, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new GoogleCalendarError('service-unavailable', 503);
+  }
+  if (response.status === 403) {
+    const body = await response.json().catch(() => ({}));
+    const reasons = Array.isArray(body?.error?.errors)
+      ? body.error.errors.map((error) => error?.reason)
+      : [];
+    if (reasons.includes('accessNotConfigured')) {
+      throw new GoogleCalendarError('calendar-api-not-enabled', 503);
+    }
+    throw new GoogleCalendarError('calendar-scope-missing', 403);
+  }
+  if (response.status === 401) throw new GoogleCalendarError('authorization-rejected', 400);
+  if (!response.ok) throw new GoogleCalendarError('service-unavailable', 503);
+}
+
 async function findConnection(db, userId, id) {
   if (!CONNECTION_ID_PATTERN.test(String(id || ''))) throw new GoogleCalendarError('invalid-request', 400);
   const { data, error } = await db
@@ -82,6 +106,7 @@ export async function handleGoogleCalendarAction(input, {
     }
     const exchange = await postToken({ code, grant_type: 'authorization_code', redirect_uri: origin }, credentials);
     if (!exchange.ok || !exchange.body.access_token) throw new GoogleCalendarError('authorization-rejected', 400);
+    await verifyCalendarReadAccess(exchange.body.access_token, fetchImpl);
     const infoResponse = await fetchImpl(USERINFO_URL, {
       headers: { Authorization: `Bearer ${exchange.body.access_token}` },
     });

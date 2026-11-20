@@ -11,9 +11,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
   page.on('pageerror', (error) => errors.push(error.message));
   try {
     await page.goto(`${base}/?preview#config`);
-    await page.locator('.profile-settings-actions').waitFor();
-    assert.equal(await page.locator('.profile-settings-actions').evaluate((element) => getComputedStyle(element).position), 'static');
-    assert.equal(await page.locator('.settings-unsaved-bar').evaluate((element) => getComputedStyle(element).position), 'static');
+    await page.locator('.profile-settings').waitFor();
+    assert.equal(await page.locator('.profile-settings-actions, .settings-unsaved-bar').count(), 0);
     await page.locator('[data-settings-tab="mental-health"]').click();
     assert.match(await page.locator('#settings-content').innerText(), /UBS/);
     assert.equal(await page.locator('#settings-content a[href="tel:188"]').count(), 1);

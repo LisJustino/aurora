@@ -13,10 +13,11 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.locator('.home-today-card').waitFor();
     const home = await page.evaluate(() => {
       const nav = [...document.querySelectorAll('.nav > a:not(.nav-enable-areas)')];
+      const visibleNav = nav.filter((item) => getComputedStyle(item).display !== 'none');
       const row = document.querySelector('.home-today-card .task');
       return {
-        labels: nav.filter((item) => getComputedStyle(item).display !== 'none').map((item) => (item.querySelector('.tab-label') || item).textContent.trim()),
-        targets: nav.map((item) => [item.getBoundingClientRect().width, item.getBoundingClientRect().height, parseFloat(getComputedStyle(item.querySelector('.tab-label') || item).fontSize)]),
+        labels: visibleNav.map((item) => (item.querySelector('.tab-label') || item).textContent.trim()),
+        targets: visibleNav.map((item) => [item.getBoundingClientRect().width, item.getBoundingClientRect().height, parseFloat(getComputedStyle(item.querySelector('.tab-label') || item).fontSize)]),
         card: document.querySelector('.home-today-card').classList.contains('card'),
         radius: getComputedStyle(row).borderRadius,
         hasProgressRing: Boolean(document.querySelector('.home-head .ringw')),
@@ -24,24 +25,26 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         heroHeight: document.querySelector('.home-head').getBoundingClientRect().height,
         quickIsVisible: Boolean(document.querySelector('.home-quick-card')
           && !document.querySelector('.home-quick-card').closest('.home-extras')),
-        hierarchy: ['.home-quick-card', '.home-today-card', '.home-habit-checkins']
+        hierarchy: ['.home-quick-card', '.home-today-block', '.home-habits-block', '.home-day-summary']
           .map((selector) => [...document.querySelectorAll(selector)]
             .find((element) => element.offsetParent !== null)?.getBoundingClientRect().top ?? -1),
         todayTop: document.querySelector('.home-today-card').getBoundingClientRect().top,
         viewportHeight: innerHeight,
       };
     });
-    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Ciclo', 'Hábitos']);
+    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças']);
+    assert(!home.labels.includes('Ciclo'), 'Ciclo não aparece na prévia sem sexo informado');
     assert(home.targets.every(([width, height, font]) => width >= 44 && height >= 44 && font >= 12));
     assert.equal(home.card, false);
     assert.equal(home.radius, '0px');
     assert.equal(home.hasProgressRing, false);
     assert.equal(home.planLink, '/planejar');
     assert.equal(home.quickIsVisible, true);
+    const visibleBlockTops = home.hierarchy.filter((top) => top >= 0);
     assert(home.hierarchy[0] >= 0
       && home.hierarchy[1] >= 0
-      && home.hierarchy[0] < home.hierarchy[1]
-      && (home.hierarchy[2] < 0 || home.hierarchy[1] < home.hierarchy[2]));
+      && home.hierarchy[3] >= 0
+      && visibleBlockTops.every((top, index) => !index || visibleBlockTops[index - 1] < top));
     assert(home.todayTop < home.viewportHeight, 'Hoje aparece na primeira tela do celular');
     assert(home.heroHeight < 210, `cabeçalho compacto em mobile (${home.heroHeight}px)`);
     for (const width of [360, 390]) {

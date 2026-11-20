@@ -161,6 +161,21 @@
   align-items: center;
   gap: var(--space-3);
 }
+.main[data-route="config"] .profile-appearance-option:first-child {
+  align-items: start;
+}
+.main[data-route="config"] .profile-appearance-option:first-child > .appearance-settings-label {
+  padding-top: 7px;
+}
+.main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-actions,
+.main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-help,
+.main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-status {
+  grid-column: 2;
+  min-width: 0;
+}
+.main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-help {
+  max-width: 68ch;
+}
 .main[data-route="config"] .profile-appearance-option .seg { max-width: 420px; }
 .main[data-route="config"] .appearance-settings-controls { gap: var(--space-5); }
 .main[data-route="config"] .appearance-preset,
@@ -222,6 +237,35 @@
   margin: 4px 0 0;
   overflow-wrap: anywhere;
 }
+.main[data-route="config"] .account-feedback-card {
+  gap: var(--space-5);
+}
+.main[data-route="config"] .account-feedback-card .footer-faq-content {
+  gap: var(--space-4);
+  max-width: 640px;
+  padding: 0;
+}
+.main[data-route="config"] .account-feedback-card .footer-faq-content > p {
+  margin: 0;
+  padding: 0;
+  max-width: 64ch;
+  line-height: 1.6;
+}
+.main[data-route="config"] .account-feedback-card .footer-suggestion-form {
+  gap: var(--space-3);
+  max-width: 520px;
+  padding-bottom: 0;
+}
+.main[data-route="config"] .account-feedback-card .footer-suggestion-form textarea {
+  margin-top: var(--space-half);
+}
+.main[data-route="config"] .account-feedback-card .footer-suggestion-form button {
+  margin-top: var(--space-1);
+}
+.main[data-route="config"] .account-feedback-card .footer-suggestion-form [data-suggestion-status] {
+  min-height: 1.4em;
+  margin: 0;
+}
 
 .main[data-route="config"] .settings-unsaved-bar {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
@@ -234,6 +278,10 @@
 }
 
 @container (max-width: 620px) {
+  .main[data-route="config"] {
+    --settings-card-padding: var(--space-4);
+  }
+
   .main[data-route="config"] .profile-settings-fields {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -241,6 +289,14 @@
   .main[data-route="config"] .profile-appearance-option {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
+  }
+  .main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-actions,
+  .main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-help,
+  .main[data-route="config"] .profile-appearance-option > .profile-avatar-upload-status {
+    grid-column: 1;
+  }
+  .main[data-route="config"] .profile-appearance-option:first-child > .appearance-settings-label {
+    padding-top: 0;
   }
 }
 
@@ -321,18 +377,16 @@
   .main[data-route="config"] .settings-link-copy { width: auto; align-items: flex-start; }
   .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); }
   .main[data-route="config"] .settings-link-copy small { display: none; }
-  .main[data-route="config"] .settings-content > .card,
-  .main[data-route="config"] .settings-content > .profile-settings-container > .card,
-  .main[data-route="config"] .settings-content > .settings-account-list > .card {
-    --settings-card-padding: var(--space-4);
-  }
 }
 
 @media (width <= 480px) {
+  .main[data-route="config"] {
+    --settings-card-padding: var(--space-4);
+  }
+
   .main[data-route="config"] .settings-content > .card,
   .main[data-route="config"] .settings-content > .profile-settings-container > .card,
   .main[data-route="config"] .settings-content > .settings-account-list > .card {
-    --settings-card-padding: var(--space-3);
     border-radius: var(--r-card);
   }
   .main[data-route="config"] .settings-section-heading > p { font-size: var(--text-sm); }

@@ -11,6 +11,8 @@ const MESSAGES = {
   'reauthorization-required': 'O Google revogou ou expirou o acesso desta conta. Conecte novamente.',
   'no-refresh-token': 'O Google não liberou o acesso contínuo. Conecte novamente e aceite todas as permissões.',
   'authorization-rejected': 'O Google recusou a autorização. Tente conectar novamente.',
+  'calendar-scope-missing': 'O Google não concedeu acesso de leitura aos calendários. Conecte novamente e aceite essa permissão.',
+  'calendar-api-not-enabled': 'A API do Google Calendar não está habilitada para este projeto.',
 };
 
 async function errorCode(error) {

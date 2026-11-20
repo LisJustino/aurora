@@ -24,6 +24,28 @@
   color: var(--profile-avatar-color);
 }
 .profile-greeting-avatar .ic { width: 22px; height: 22px; }
+.profile-avatar-image { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.profile-menu-avatar,
+.profile-menu-item-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.profile-menu-avatar { width: 26px; height: 26px; }
+.profile-menu-avatar .ic { width: 20px; height: 20px; }
+.profile-menu-item-avatar { width: 24px; height: 24px; }
+.profile-menu-item-avatar .ic { width: 18px; height: 18px; }
+.profile-avatar-upload-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.profile-avatar-upload-help {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.profile-avatar-upload-status { margin: 0; color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 .profile-appearance-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -177,4 +199,55 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-link,
   .settings-link-icon { transition: none; }
+}
+
+/* Ajuste da foto de perfil: arrastar, aproximar e ver a prévia como aparece no app. */
+.avatar-cropper { width: min(100%, 440px); }
+.avatar-cropper .head { padding: var(--dialog-padding) var(--dialog-padding) 0; }
+.avatar-cropper .head h2 { margin: 0; }
+.avatar-cropper .head p { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-sm); }
+.avatar-cropper-body { align-items: center; }
+.avatar-cropper-stage {
+  position: relative;
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--soft);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.avatar-cropper-stage.is-dragging { cursor: grabbing; }
+.avatar-cropper-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.avatar-cropper-canvas { display: block; width: 100%; height: 100%; }
+.avatar-cropper-zoom { display: flex; width: min(100%, 320px); align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.avatar-cropper-zoom input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.avatar-cropper-previews { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); }
+.avatar-cropper-preview { display: block; overflow: hidden; border-radius: var(--r-control); }
+.avatar-cropper-preview.is-lg { width: 56px; height: 56px; }
+.avatar-cropper-preview.is-sm { width: 26px; height: 26px; }
+.avatar-cropper-preview canvas { display: block; width: 100%; height: 100%; }
+.avatar-cropper-error { margin: 0; color: var(--bad); font-size: var(--text-sm); }
+.avatar-cropper .dlg-foot {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.35fr);
+}
+.avatar-cropper .dlg-foot .btn {
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+.avatar-cropper .dlg-foot .btn.primary { min-width: 0; }
+
+@media (width <= 380px) {
+  .avatar-cropper .dlg-foot {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .avatar-cropper .dlg-foot .btn.primary {
+    grid-column: 1 / -1;
+  }
 }

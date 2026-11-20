@@ -10,3 +10,12 @@ export function normalizeSuggestionMessage(value) {
   }
   return message;
 }
+
+export async function submitSuggestion(client, value) {
+  const message = normalizeSuggestionMessage(value);
+  if (typeof client?.functions?.invoke !== 'function') {
+    throw new Error('O envio de sugestões não está disponível.');
+  }
+  const { error } = await client.functions.invoke('submit-suggestion', { body: { message } });
+  if (error) throw error;
+}

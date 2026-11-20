@@ -246,7 +246,12 @@ const state = {
       birthdayCorrectionUsed: false,
       firstStepsDismissed: true,
       firstStepsStarted: true,
-      profileAppearance: { avatar: 'flower', avatarColor: 'sage', greeting: 'oi' },
+      profileAppearance: {
+        avatar: 'flower',
+        avatarColor: 'sage',
+        greeting: 'oi',
+        avatarImage: 'data:image/jpeg;base64,/9j/AAAA',
+      },
       weeklyReflection: { weekOf: '2026-11-02', text: 'Mais pausas' },
       annualPlans: {
         2027: {
@@ -428,7 +433,10 @@ assert.deepEqual(changeByTable.get('user_settings')[0].preferences.annualPlans, 
   },
 });
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.profileAppearance, {
-  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+  avatar: 'flower',
+  avatarColor: 'sage',
+  greeting: 'oi',
+  avatarImage: 'data:image/jpeg;base64,/9j/AAAA',
 });
 assert.deepEqual(changeByTable.get('user_settings')[0].preferences.homeLayout, {
   order: ['today', 'summary', 'quick', 'habits'],
@@ -521,7 +529,10 @@ assert.deepEqual(loadedState.checkins, [{
   date: '2026-11-05', energy: 'low', time: '30m', dismissed: false, deferred: ['legacy-task-id'],
 }]);
 assert.deepEqual(loadedState.settings.prefs.profileAppearance, {
-  avatar: 'flower', avatarColor: 'sage', greeting: 'oi',
+  avatar: 'flower',
+  avatarColor: 'sage',
+  greeting: 'oi',
+  avatarImage: 'data:image/jpeg;base64,/9j/AAAA',
 });
 assert.deepEqual(loadedState.settings.prefs.annualPlans, {
   2027: {

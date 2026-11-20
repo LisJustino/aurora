@@ -155,7 +155,17 @@ export function renderTaskCalendar({
   const eventsByDay = new Map();
   connectedGoogleCalendarAccounts().forEach((account) => account.events.forEach((event) => {
     const dayEvents = eventsByDay.get(event.day) || [];
-    dayEvents.push(event);
+    const eventIdentity = event.accountIdentity || account.identity;
+    const key = eventIdentity && event.calendarId && event.id
+      ? `${eventIdentity}:${event.calendarId}:${event.id}`
+      : `${event.title}:${event.day}:${event.time}`;
+    if (!dayEvents.some((existing) => {
+      const existingIdentity = existing.accountIdentity || account.identity;
+      const existingKey = existingIdentity && existing.calendarId && existing.id
+        ? `${existingIdentity}:${existing.calendarId}:${existing.id}`
+        : `${existing.title}:${existing.day}:${existing.time}`;
+      return existingKey === key;
+    })) dayEvents.push(event);
     eventsByDay.set(event.day, dayEvents);
   }));
   const weekdays = Array.from({ length: 7 }, (_, index) => DIAS[(ws + index) % 7]);
@@ -182,7 +192,7 @@ export function renderTaskCalendar({
     ].join('');
     cells.push(`<button type="button" class="tc ${key === tdy ? 't' : ''} ${key === ui.taskDay ? 's' : ''} ${pending.some((task) => key < task.dueDate) ? 'od' : ''}" data-action="tcal-day" data-d="${key}" aria-label="${dayNumber} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${dayNumber}</b><i>${markers}</i></button>`);
   }
-  const day = S.tasks.filter((task) => task.dueDate === ui.taskDay)
+  const day = S.tasks.filter((task) => task.dueDate === ui.taskDay && !String(task.groupId || '').startsWith('google-calendar:'))
     .sort((a, b) => a.done - b.done || (a.time || '99:99').localeCompare(b.time || '99:99'));
   const selectedEvents = eventsByDay.get(ui.taskDay) || [];
   const connectedAccounts = connectedGoogleCalendarAccounts();
@@ -224,7 +234,10 @@ export function renderTaskCalendar({
 
 export function renderTaskWeek({ S, ui, weekStartDay, today, cap, taskRow }) {
   const days = weekDays(ui.taskWeek, weekStartDay());
-  const entries = tasksForWeek(S.tasks, days);
+  const entries = tasksForWeek(
+    S.tasks.filter((task) => !String(task.groupId || '').startsWith('google-calendar:')),
+    days,
+  );
   const first = pk(days[0]), last = pk(days[6]);
   const label = first.getMonth() === last.getMonth()
     ? `${first.getDate()}–${last.getDate()} ${MESES_L[last.getMonth()]} ${last.getFullYear()}`

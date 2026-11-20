@@ -23,7 +23,6 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
   if (t.priority === 'high') metadata.push({ icon: 'flag', label: 'Alta', tone: 'm-hi' });
   else if (t.priority === 'low') metadata.push({ icon: 'flag', label: 'Baixa', tone: '' });
   if (t.repeat && t.repeat !== 'none') metadata.push({ icon: 'repeat', label: REPEATS[t.repeat], tone: '' });
-  if (t.remind != null && t.time) metadata.push({ icon: 'bell', label: `Lembrete · ${t.time}`, tone: '' });
   if (subs.length) metadata.push({ icon: 'list', label: `${sd}/${subs.length}`, tone: '' });
   if (t.notes) metadata.push({ icon: 'note', label: 'Nota', tone: '' });
   (t.tags || []).forEach((tag) => metadata.push({ icon: 'tag', label: `#${tag}`, tone: '' }));

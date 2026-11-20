@@ -33,7 +33,7 @@ import {
 export { calculateAge };
 
 export const TERMS_DOCUMENT_VERSION = '2.0';
-export const PRIVACY_POLICY_VERSION = '2.2';
+export const PRIVACY_POLICY_VERSION = '2.3';
 export const CYCLE_DATA_CONSENT_VERSION = '2.1';
 export const MINIMUM_ACCOUNT_AGE = 16;
 
@@ -1479,15 +1479,6 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
 
-      try {
-        const registration = await navigator.serviceWorker?.getRegistration();
-        const subscription = await registration?.pushManager?.getSubscription();
-        if (subscription && !(await subscription.unsubscribe())) {
-          throw new Error('O navegador não confirmou a remoção da inscrição Push local.');
-        }
-      } catch (pushError) {
-        console.error('Aurora: a conta foi excluída, mas a inscrição Push local não foi removida.', pushError);
-      }
       const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
       if (signOutError) console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', signOutError);
       onAccountDeleted?.();

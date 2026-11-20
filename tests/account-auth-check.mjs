@@ -229,7 +229,7 @@ assert.deepEqual(createLegalConsentMetadata(new Date('2026-10-29T12:00:00.000Z')
   privacy_policy_version: PRIVACY_POLICY_VERSION,
 });
 assert.equal(TERMS_DOCUMENT_VERSION, '2.0');
-assert.equal(PRIVACY_POLICY_VERSION, '2.2');
+assert.equal(PRIVACY_POLICY_VERSION, '2.3');
 assert.equal(CYCLE_DATA_CONSENT_VERSION, '2.1');
 assert.deepEqual(createCycleDataConsentMetadata(new Date('2026-11-08T12:00:00.000Z')), {
   cycle_data_consent_at: '2026-11-08T12:00:00.000Z',
@@ -249,7 +249,7 @@ const landingSource = readFileSync(new URL('../src/js/features/landing/view.js',
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
 const ageAttestationMigration = readFileSync(new URL('../supabase/migrations/20261116010000_signup_age_attestation.sql', import.meta.url), 'utf8');
 assert.match(termsDocument, /<meta name="aurora-legal-version" content="2\.0">/);
-assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.2">/);
+assert.match(privacyDocument, /<meta name="aurora-legal-version" content="2\.3">/);
 const analyticsSection = privacyDocument.match(/<section id="privacy-analytics">([\s\S]*?)<\/section>/)?.[1];
 assert.ok(analyticsSection, 'A política deve explicar a medição de acessos da Cloudflare.');
 assert.match(analyticsSection, /Cloudflare Web Analytics/);
@@ -259,7 +259,10 @@ assert.match(analyticsSection, /melhorias/);
 assert.match(analyticsSection, /cookies de publicidade/);
 assert.match(analyticsSection, /href="https:\/\/developers\.cloudflare\.com\/web-analytics\/"/);
 assert.match(analyticsSection, /href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/);
-assert.match(privacyDocument, /Versão 2\.2 · última atualização: 18 de novembro de 2026/);
+assert.match(privacyDocument, /Versão 2\.3 · última atualização: 19 de novembro de 2026/);
+assert.match(privacyDocument, /Foto de perfil opcional/);
+assert.match(privacyDocument, /comprimida para até 240 KB/);
+assert.match(privacyDocument, /não é criptografada de ponta a ponta/);
 assert.match(privacyDocument, /métodos contraceptivos, resultados de testes de gravidez ou ovulação, peso, uso de medicação e anotações/);
 assert.match(mainSource, /Usar dados no Ciclo/);
 assert.match(mainSource, /Permito que o Aurora use esses dados no Ciclo/);
@@ -282,10 +285,17 @@ assert.doesNotMatch(landingSource, /acesso é liberado sem confirmação de e-ma
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '2.0',
-    privacy_policy_version: '2.2',
+    privacy_policy_version: '2.3',
     terms_accepted_at: '2026-10-29T12:00:00.000Z',
   },
 }), true);
+assert.equal(hasCurrentLegalConsent({
+  user_metadata: {
+    terms_version: '2.0',
+    privacy_policy_version: '2.2',
+    terms_accepted_at: '2026-10-29T12:00:00.000Z',
+  },
+}), false);
 assert.equal(hasCurrentLegalConsent({
   user_metadata: {
     terms_version: '1.9',
