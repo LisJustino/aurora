@@ -76,7 +76,7 @@ function demoNotice() {
 function renderHomeTask(task) {
   return `<li class="task ${task.done ? 'done' : ''}">
       <span class="chk" aria-hidden="true"><span>${demoIcon('check', 15)}</span></span>
-      <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta"><span class="m-warn">Hoje</span><span>Exemplo</span></span></div>
+      <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span class="meta"><span>Exemplo</span></span></div>
     </li>`;
 }
 
@@ -87,7 +87,7 @@ function renderToday(state) {
   const total = state.tasks.length;
   const circumference = 2 * Math.PI * 32;
   const offset = circumference * (1 - completed / total);
-  const lead = open.length ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} para hoje.` : 'Tudo concluído por hoje. Aproveite o resto do dia.';
+  const lead = open.length ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}.` : 'Tudo concluído. Aproveite o resto do dia.';
   const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' }).format(new Date()).replace(/[.,]/g, '').replace(/^(\S+) /, '$1, ');
   return `
     ${demoNotice()}
@@ -97,7 +97,10 @@ function renderToday(state) {
         <h1 id="demo-greeting" class="type-editorial-display" tabindex="-1">${timeBasedGreeting()}, <span class="proper-name">Pessoa</span><i>.</i></h1>
         <p class="lead" aria-live="polite">${lead}</p>
       </div>
-      <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
+      <div class="demo-home-progress">
+        <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none" stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
+        <span class="demo-home-progress-label" aria-hidden="true">Tarefas</span>
+      </div>
     </header>
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
@@ -179,10 +182,11 @@ function renderFinance(state) {
     : [['Moradia', 'Casa', 120000, 'home'], ['Mercado', 'Alimentação', 39000, 'utensils']];
   const expenses = items.reduce((total, [, , cents]) => total + cents, 0)
     + extraExpenses.reduce((total, item) => total + item.cents, 0);
+  const result = 320000 - expenses;
   return `${renderPageHeading('Exemplo fictício', 'Finanças', 'Uma visão simples para entender como organizar entradas e saídas.')}
     <section class="card demo-area-panel" aria-labelledby="demo-finance-title">
       <div class="head"><div><p class="section-kicker">Resumo do mês</p><h2 id="demo-finance-title">${escapeDemoText(title)}</h2></div><div class="demo-month-controls" role="group" aria-label="Mês de exemplo"><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="-1" aria-label="Mês anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button><button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="1" aria-label="Próximo mês" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button></div></div>
-      <div class="demo-finance-summary"><article class="is-income"><span><i aria-hidden="true">${demoIcon('arrowDown', 15)}</i>Entradas</span><strong>${brl(320000)}</strong></article><article class="is-expense"><span><i aria-hidden="true">${demoIcon('arrowUp', 15)}</i>Saídas</span><strong>${brl(expenses)}</strong></article></div>
+      <div class="demo-finance-summary" role="group" aria-label="Resumo financeiro"><article class="is-income"><span><i aria-hidden="true">${demoIcon('arrowDown', 15)}</i>Entradas</span><strong>${brl(320000)}</strong></article><article class="is-expense"><span><i aria-hidden="true">${demoIcon('arrowUp', 15)}</i>Saídas</span><strong>${brl(expenses)}</strong></article><article class="is-result${result < 0 ? ' is-negative' : ''}"><span><i aria-hidden="true">${demoIcon('pie', 15)}</i>Resultado</span><strong>${brl(result)}</strong></article></div>
       <h3 class="demo-list-heading">Movimentações de exemplo</h3>
       <ul class="demo-finance-list">${items.map(([name, category, cents, icon]) => `<li><span class="demo-finance-mark">${demoIcon(icon, 17)}</span><span><b>${name}</b><small>${category} · exemplo</small></span><strong>− ${brl(cents)}</strong></li>`).join('')}${extraExpenses.map((item) => `<li><span class="demo-finance-mark">${demoIcon('tag', 17)}</span><span><b>${escapeDemoText(item.title)}</b><small>Outra despesa · exemplo</small></span><strong>− ${brl(item.cents)}</strong></li>`).join('')}</ul>
       <form class="demo-add-form" data-demo-expense-form>
