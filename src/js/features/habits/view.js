@@ -3,7 +3,7 @@ import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
 import {
-  featuredHabitSuggestions, filterSuggestedHabits, habitDayOverview, habitIsSkipped,
+  featuredHabitSuggestions, filterSuggestedHabits, habitDayOverview, habitIsSkipped, isWaterHabit,
   habitSuggestionTags, habitWeekDailyProgress, habitWeekOverview, habitWeekReview,
   remainingHabitSuggestions, SUGGESTED_HABIT_CATEGORIES, SUGGESTED_HABIT_TAGS,
 } from './model.js';
@@ -12,8 +12,8 @@ export function renderHabitsView(dependencies) {
   const {
     S, ui, areaOn, areaPageTitle, gate, habitsTemplate,
     habitsTemplatePromise, habitsTemplateError, requestHabitsTemplate,
-    weekStartDay, habitCompletedFor, getPushNotificationStatus, plural, habitRow,
-    preserveCopyTerms, habitColor, habitIconKey, habitDaysLabel, renderHabitsTemplate,
+    weekStartDay, habitCompletedFor, plural, habitRow,
+    habitColor, habitIconKey, habitDaysLabel, waterSummary, renderHabitsTemplate,
   } = dependencies;
 
   if (!areaOn('habits')) return h`${areaPageTitle('habitos', 'Hábitos')}${gate('habits', 'Hábitos')}`;
@@ -58,13 +58,6 @@ export function renderHabitsView(dependencies) {
     habitCompletedFor,
     skippedForDay,
   );
-  const hasTaskReminders = S.tasks.some((task) => !task.done && task.dueDate && task.time && task.remind != null);
-  const hasReminders = live.some((habit) => habit.status === 'active' && habit.remind)
-    || hasTaskReminders
-    || S.settings.prefs.weeklyReviewReminder;
-  const pushStatus = hasReminders ? getPushNotificationStatus() : null;
-  const pushButtonDisabled = ui.pushBusy || (pushStatus && !pushStatus.enabled
-    && (!pushStatus.configured || !pushStatus.supported || pushStatus.permission === 'denied'));
   const todayOverview = habitDayOverview(
     live,
     today(),
@@ -80,6 +73,9 @@ export function renderHabitsView(dependencies) {
   const todaySummary = eligibleToday
     ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}` : 'Nenhum hábito programado para hoje.';
+  const hasActiveWaterHabit = S.habits.some((habit) => (
+    (habit.status || 'active') === 'active' && isWaterHabit(habit)
+  ));
   const dayComplete = eligibleToday > 0 && doneN === eligibleToday;
   const ideasOpen = ui.openDetails.ideas ? raw('open') : '';
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES
@@ -98,6 +94,7 @@ export function renderHabitsView(dependencies) {
   ).map((suggestion) => suggestion.id));
   const slots = {
     'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
+    'water-tracker': !hasActiveWaterHabit && S.water.length ? waterSummary().s : '',
     'habit-dashboard-class': live.length ? 'has-week' : '',
     'today-summary': h`${todaySummary}`.s,
     'add-button': todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`.s : '',
@@ -119,13 +116,6 @@ export function renderHabitsView(dependencies) {
         headingLevel: 'h3',
         className: 'habit-today-empty',
       }).s,
-    'reminder-note': hasReminders
-      ? h`<div class="habit-reminder-note">
-        <button type="button" class="btn sm" role="switch" data-action="habit-push-toggle" aria-checked="${pushStatus.enabled ? 'true' : 'false'}" ${pushButtonDisabled ? raw('disabled') : ''}>${icon('bell', 16)}${ui.pushBusy ? 'Atualizando…' : 'Avisos fora do app'}</button>
-        <p class="small muted">Ative para receber lembretes de hábitos, tarefas e da revisão semanal com o Aurora fechado. A autorização vale para este dispositivo.</p>
-        <p class="small muted" role="status" aria-live="polite">${preserveCopyTerms(ui.habitPushNotice || pushStatus.message)}</p>
-      </div>`.s
-      : '',
     'week-overview': live.length ? h`<section class="surface-open habit-week-overview" aria-labelledby="habit-week-overview-title">
       <div><h2 id="habit-week-overview-title">Sua semana até agora<i>.</i></h2><p class="small muted">${overview.planned
         ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`

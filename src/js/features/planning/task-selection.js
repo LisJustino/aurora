@@ -1,8 +1,14 @@
 import { addDays, isoDay } from '../../utils/dates.js';
 
+export function taskCompletedOn(task, day) {
+  if (!task.done) return false;
+  if (task.doneAt) return isoDay(task.doneAt) === day;
+  return task.dueDate === day;
+}
+
 export function todayTasks(tasks, day) {
   return tasks.filter((task) => task.dueDate && task.dueDate <= day
-    && (!task.done || (task.doneAt && isoDay(task.doneAt) === day)))
+    && (!task.done || taskCompletedOn(task, day)))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate)
       || (a.time || '99:99').localeCompare(b.time || '99:99'));
 }
@@ -11,8 +17,9 @@ export function filteredTasks(tasks, { f, q, sort }, day, { normalize, orderOf }
   const query = normalize(q.trim());
   const nextWeek = addDays(day, 7);
   const result = tasks.filter((task) => {
+    if (task.done && !taskCompletedOn(task, day)) return false;
     if (f === 'pendentes' && task.done) return false;
-    if (f === 'concluidas' && !task.done) return false;
+    if (f === 'concluidas' && (!task.done || !taskCompletedOn(task, day))) return false;
     if (f === 'atrasadas' && (task.done || !task.dueDate || task.dueDate >= day)) return false;
     if (f === 'proximas' && (task.done || !task.dueDate || task.dueDate <= day || task.dueDate > nextWeek)) return false;
     if (f === 'caixa' && (task.done || task.dueDate)) return false;

@@ -1553,17 +1553,17 @@ html:has(.landing-marketing) {
 .demo-cycle-detail h3 { margin-top: var(--space-1); font-size: var(--text-base); }
 .demo-cycle-detail p:last-child,
 .demo-note { margin-top: var(--space-2); color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
-.demo-finance-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.demo-finance-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
 .demo-finance-summary article { display: grid; min-width: 0; gap: var(--space-2); padding: var(--space-4); border-radius: var(--r-control); background: var(--surface-raised); }
-.demo-finance-summary span { color: var(--muted); font-size: var(--text-sm); }
+.demo-finance-summary span { color: var(--ink); font-size: var(--text-sm); }
 .demo-finance-summary strong { overflow-wrap: anywhere; font-size: var(--text-lg); }
-.demo-list-heading { margin-top: var(--space-5); font-size: var(--text-sm); }
+.demo-list-heading { margin-top: var(--space-5); font-family: var(--font-editorial); font-size: var(--text-editorial-title); font-weight: var(--weight-regular); letter-spacing: -.04em; line-height: var(--leading-tight); }
 .demo-finance-list { display: grid; margin: var(--space-2) 0 0; padding: 0; list-style: none; }
 .demo-finance-list li { display: flex; min-width: 0; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .demo-finance-list li > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: var(--space-1); }
 .demo-finance-list b,
 .demo-finance-list strong { overflow-wrap: anywhere; font-size: var(--text-sm); }
-.demo-finance-list small { color: var(--muted); }
+.demo-finance-list small { color: var(--ink); font-size: var(--text-meta); }
 .demo-finance-mark { color: var(--accent); }
 .demo-month-controls { display: flex; flex: none; gap: var(--space-1); }
 .demo-cta { flex-wrap: wrap; }
@@ -1581,7 +1581,6 @@ html:has(.landing-marketing) {
   .demo-add-form > div { align-items: stretch; flex-direction: column; }
   .demo-add-form .btn { width: 100%; }
   .demo-habit-week { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); gap: var(--space-2); }
-  .demo-finance-summary { grid-template-columns: minmax(0, 1fr); }
   .demo-calendar { gap: var(--space-1); }
   .demo-calendar button { min-height: var(--control-md); padding: var(--space-1); }
   .demo-finance-list li { gap: var(--space-2); }
@@ -3197,4 +3196,159 @@ html:has(.landing-marketing) { overflow-x: clip; }
 
 @media (900px <= width < 1200px) {
   .public-site.landing-marketing .public-hero { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); }
+}
+
+/* Revisão visual (nov/2026): ritmo das seções, "Como começar" alinhado, abas com pista de rolagem e rodapé mais compacto. */
+.landing-marketing .public-section-heading h2,
+.landing-marketing .landing-final-cta h2 { max-width: 30ch; }
+
+/* As seções claras usam a mesma família de tons do hero; só "Pode confiar" fica escura. */
+.landing-marketing .landing-steps { background: var(--soft); }
+.landing-marketing .landing-final-cta { background: var(--soft2); }
+
+/* Os três passos dividem as linhas do grid, então títulos de uma ou duas linhas não desalinham os textos. */
+.landing-steps-grid { row-gap: var(--space-4); }
+@media (width >= 901px) {
+  .landing-steps-grid li {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+  }
+  .landing-steps-grid li > p { margin-top: var(--space-2); }
+}
+.landing-steps-grid h3 { text-wrap: balance; }
+.landing-marketing .landing-steps-cta { justify-self: center; }
+
+/* No celular as abas rolam de lado: o degradê no fim mostra que há mais áreas. */
+@media (width <= 700px) {
+  .landing-marketing .landing-tutorial-tabs {
+    padding-inline-end: var(--space-6);
+    scroll-padding-inline: var(--space-3);
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--space-7)), transparent);
+  }
+}
+
+/* Rodapé: links mais próximos com mouse; o alvo de toque de 44px continua no celular. */
+@media (pointer: fine) {
+  .landing-footer-link-group a,
+  .landing-footer-top { min-height: 32px; }
+}
+.landing-footer-nav { align-content: start; }
+
+/* Demonstração: mesma tipografia editorial do app (título em serifa, ponto na cor da marca). */
+.demo-app .home-head h1.type-editorial-display,
+.demo-app .demo-page-heading h1 {
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-editorial);
+  line-height: var(--leading-editorial);
+}
+.demo-app .home-head h1 i,
+.demo-app .demo-page-heading h1 i { color: var(--accent); font-style: normal; }
+.demo-app .home-head h1.type-editorial-display { max-width: none; }
+.demo-app .home-today-card > .head h2.type-editorial-title,
+.demo-app .home-quick-card h2.type-editorial-title,
+.demo-app .demo-area-panel > .head h2 {
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-editorial-title);
+  font-weight: var(--weight-regular);
+  letter-spacing: -.04em;
+  line-height: var(--leading-tight);
+}
+.demo-app .home-quick-card h2 i { color: var(--accent); font-style: normal; }
+.demo-app .section-kicker { color: var(--ink); font-size: var(--text-sm); letter-spacing: 0; }
+.demo-app .demo-home-progress {
+  display: grid;
+  flex: none;
+  justify-items: center;
+  gap: var(--space-1);
+}
+.demo-app .demo-home-progress-label {
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.demo-app .home-today-card .task .meta { color: var(--ink); }
+
+/* Finanças: entradas e saídas com tom próprio e ícone de categoria em cada linha. */
+.demo-finance-summary .is-income { --summary-tone: var(--ok); }
+.demo-finance-summary .is-expense { --summary-tone: var(--bad); }
+.demo-finance-summary .is-result { --summary-tone: var(--accent); }
+.demo-finance-summary .is-result.is-negative { --summary-tone: var(--bad); }
+.demo-finance-summary article {
+  padding: var(--space-2) 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.demo-finance-summary span { display: flex; align-items: center; gap: var(--space-2); }
+.demo-finance-summary span i {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--summary-tone) 16%, var(--surface));
+  color: var(--summary-tone);
+}
+.demo-finance-summary strong { color: var(--summary-tone); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
+.demo-finance-summary span i { width: 22px; height: 22px; flex: none; }
+.demo-app .home-head {
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+.demo-app .home-head > div:first-child { flex: 1 1 0; min-width: 0; }
+
+@media (width <= 480px) {
+  .demo-app .home-head { padding: var(--space-4); gap: var(--space-2); }
+  .demo-finance-summary { gap: var(--space-1); }
+  .demo-finance-summary article { padding-inline: 4px; }
+  .demo-finance-summary span { gap: 4px; font-size: var(--text-meta); }
+}
+.demo-finance-list .demo-finance-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: var(--soft2);
+  color: var(--accent);
+}
+.demo-finance-list li > strong { color: var(--bad); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Hábitos: o cartão e a nota dividem a largura no desktop, e o ícone ganha um apoio visual. */
+@media (width >= 900px) {
+  .demo-area-single:has(.demo-habit-card--large) {
+    width: 100%;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.demo-habit-card > .head > .ic {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: var(--soft2);
+}
+
+/* Menu da demonstração no celular: o degradê no fim mostra que há mais áreas ao rolar. */
+@media (width < 900px) {
+  .demo-app .topbar .demo-nav { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+}
+
+/* Prévias das áreas: a imagem acompanha o tema escolhido (mesmo padrão do hero). */
+.landing-area-preview .landing-screen-dark { display: none; }
+:root[data-theme="dark"] .landing-area-preview .landing-screen-light { display: none; }
+:root[data-theme="dark"] .landing-area-preview .landing-screen-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .landing-area-preview .landing-screen-light { display: none; }
+  :root:not([data-theme]) .landing-area-preview .landing-screen-dark { display: block; }
 }

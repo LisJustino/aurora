@@ -1,4 +1,5 @@
 import { addDays, isDay, isoDay } from '../../utils/dates.js';
+import { habitStartedOnOrBefore } from '../habits/dates.js';
 
 export function weekDays(day, weekStart = 1) {
   const current = new Date(`${day}T12:00:00`);
@@ -56,7 +57,8 @@ export function weeklyReview(
   let habitsOnTrack = 0;
   for (const habit of activeHabits) {
     const scheduledDays = elapsedDays.filter((day) => (
-      habit.days.includes(new Date(`${day}T12:00:00`).getDay())
+      habitStartedOnOrBefore(habit, day)
+      && habit.days.includes(new Date(`${day}T12:00:00`).getDay())
       && !isHabitSkipped(habit, day)
     ));
     let completed = 0;

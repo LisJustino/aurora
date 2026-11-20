@@ -12,7 +12,7 @@ const outputDirectory = process.env.AURORA_TUTORIAL_OUTPUT_DIR
   ? resolve(process.env.AURORA_TUTORIAL_OUTPUT_DIR)
   : join(rootDirectory, 'src', 'assets', 'tutorials');
 const VIDEO_FRAME_RATE = 30;
-const VIDEO_BITRATE = 2_800_000;
+const VIDEO_BITRATE = 6_000_000;
 const VIDEO_WIDTH = 1280;
 const VIDEO_HEIGHT = 720;
 const MAX_POSTER_BYTES = 180_000;
@@ -20,7 +20,7 @@ const FOCUS_SAFE_MARGIN = 32;
 const FOCUS_HORIZONTAL_MARGIN = 16;
 const CAPTION_HEIGHT = 176;
 const focusSteps = {
-  inicio: ['.home-today-card > .head', '.home-head-actions', '.profile-link'],
+  inicio: ['.home-today-card > .head', '.home-head-actions', '.header-account-trigger:visible, .profile-link:visible'],
   planejar: [
     '.plan-view-segments',
     { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },

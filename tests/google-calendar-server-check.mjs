@@ -69,7 +69,11 @@ const google = (handlers) => async (url, options = {}) => {
     tokenRedirectUris.push(new URLSearchParams(options.body).get('redirect_uri'));
   }
   const handler = Object.entries(handlers).find(([part]) => String(url).includes(part))?.[1];
-  const result = handler ? handler(options) : { status: 404, body: {} };
+  const result = handler
+    ? handler(options)
+    : String(url).includes('/calendar/v3/users/me/calendarList')
+      ? { status: 200, body: { items: [] } }
+      : { status: 404, body: {} };
   return { ok: result.status < 400, status: result.status, json: async () => result.body };
 };
 const base = (db, fetchImpl) => ({
@@ -89,6 +93,16 @@ assert.equal(JSON.stringify(connected).includes('refresh-1'), false);
 assert.equal(db.rows.length, 1);
 assert.equal(JSON.stringify(db.rows).includes('refresh-1'), false);
 const id = connected.account.id;
+
+const scopeDeniedDb = createDb();
+await assert.rejects(handleGoogleCalendarAction({ action: 'connect', code: 'scope-denied' }, base(scopeDeniedDb, google({
+  'oauth2.googleapis.com/token': () => ({ status: 200, body: { access_token: 'access-denied', refresh_token: 'refresh-denied', expires_in: 3599 } }),
+  '/calendar/v3/users/me/calendarList': () => ({
+    status: 403,
+    body: { error: { errors: [{ reason: 'insufficientPermissions' }] } },
+  }),
+}))), (error) => error.code === 'calendar-scope-missing');
+assert.equal(scopeDeniedDb.rows.length, 0, 'sem acesso de leitura, a conexão não é persistida');
 
 await assert.rejects(
   handleGoogleCalendarAction(

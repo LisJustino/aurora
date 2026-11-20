@@ -68,9 +68,9 @@
 }
 
 :root[data-readable="true"] {
-  --font: var(--font-sans);
-  --font-h: var(--font-sans);
-  --leading-body: 1.75;
+  --font: var(--font-readable);
+  --font-h: var(--font-readable);
+  --leading-body: 1.8;
 }
 :root[data-readable="true"] body { letter-spacing: .02em; }
 :root[data-links="highlight"] a[href] {
