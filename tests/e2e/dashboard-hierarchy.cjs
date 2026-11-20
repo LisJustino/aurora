@@ -25,7 +25,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         heroHeight: document.querySelector('.home-head').getBoundingClientRect().height,
         quickIsVisible: Boolean(document.querySelector('.home-quick-card')
           && !document.querySelector('.home-quick-card').closest('.home-extras')),
-        hierarchy: ['.home-today-block', '.home-habits-block', '.home-day-summary', '.home-quick-card']
+        hierarchy: ['.home-quick-card', '.home-today-block', '.home-habits-block', '.home-day-summary']
           .map((selector) => [...document.querySelectorAll(selector)]
             .find((element) => element.offsetParent !== null)?.getBoundingClientRect().top ?? -1),
         todayTop: document.querySelector('.home-today-card').getBoundingClientRect().top,
@@ -42,7 +42,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     assert.equal(home.quickIsVisible, true);
     const visibleBlockTops = home.hierarchy.filter((top) => top >= 0);
     assert(home.hierarchy[0] >= 0
-      && home.hierarchy[2] >= 0
+      && home.hierarchy[1] >= 0
       && home.hierarchy[3] >= 0
       && visibleBlockTops.every((top, index) => !index || visibleBlockTops[index - 1] < top));
     assert(home.todayTop < home.viewportHeight, 'Hoje aparece na primeira tela do celular');

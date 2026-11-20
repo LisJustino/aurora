@@ -395,6 +395,7 @@ function buildRows(userId, state, idMap) {
       weekly_goal: habit.weeklyGoal || null,
       is_test_data: habit.sample === true,
       deleted_at: removedAt,
+      ...(Number.isFinite(habit.createdAt) ? { created_at: toIso(habit.createdAt) } : {}),
     }));
     for (const [status, days] of [['completed', habit.completions || []], ['skipped', habit.skipped || []]]) {
       days.forEach((day) => pushRow(rows, 'habit_logs', rowId(idMap, 'habit_logs', userId, `${habit.id}|${status}|${day}`, {
@@ -783,6 +784,7 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
   const habitId = sourceId(idMap, 'habits', row.id);
   const habitWaterGoals = tables.user_settings?.[0]?.preferences?.habitWaterGoals;
   const waterGoalMl = habitWaterGoals?.[habitId];
+  const createdAt = fromIso(row.created_at);
   const logs = tables.habit_logs.filter((log) => log.habit_id === row.id && (includeDeleted || includeActive(log)));
   const completions = logs.filter((log) => log.status === 'completed').map((log) => log.log_date);
   const skipped = logs.filter((log) => log.status === 'skipped').map((log) => log.log_date);
@@ -799,6 +801,7 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
     icon: row.icon || undefined,
     color: row.color || undefined,
     weeklyGoal: row.weekly_goal || undefined,
+    ...(Number.isFinite(createdAt) ? { createdAt } : {}),
     ...(Number.isInteger(waterGoalMl) && waterGoalMl >= 500 && waterGoalMl <= 10000 ? { waterGoalMl } : {}),
     sample: row.is_test_data || undefined,
   };
