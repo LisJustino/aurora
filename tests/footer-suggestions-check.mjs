@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CONTACT_EMAIL, normalizeSuggestionMessage } from '../src/js/features/footer/suggestions.js';
+import { CONTACT_EMAIL, normalizeSuggestionMessage, submitSuggestion } from '../src/js/features/footer/suggestions.js';
 import { renderFooterContent, renderSuggestionForm } from '../src/js/features/footer/view.js';
 
 const publicFooter = renderFooterContent({ demoAvailable: true });
@@ -40,6 +40,24 @@ assert.throws(() => normalizeSuggestionMessage('   '), TypeError);
 assert.throws(() => normalizeSuggestionMessage('curto'), TypeError);
 assert.throws(() => normalizeSuggestionMessage('x'.repeat(2001)), TypeError);
 assert.throws(() => normalizeSuggestionMessage(null), TypeError);
+let submittedSuggestion;
+await submitSuggestion({
+  functions: {
+    invoke: async (name, options) => {
+      submittedSuggestion = { name, options };
+      return { error: null };
+    },
+  },
+}, '  Uma ideia que ajuda o app.  ');
+assert.deepEqual(submittedSuggestion, {
+  name: 'submit-suggestion',
+  options: { body: { message: 'Uma ideia que ajuda o app.' } },
+});
+const submissionError = new Error('submission failed');
+await assert.rejects(submitSuggestion({
+  functions: { invoke: async () => ({ error: submissionError }) },
+}, 'Uma ideia que ajuda o app.'), (error) => error === submissionError);
+await assert.rejects(submitSuggestion({}, 'Uma ideia que ajuda o app.'), /não está disponível/);
 
 const suggestionMigration = readFileSync(
   new URL('../supabase/migrations/20261116000000_public_suggestions.sql', import.meta.url),

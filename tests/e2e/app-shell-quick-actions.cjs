@@ -253,7 +253,7 @@ const check = (passed, name, detail = '') => {
     primaryBottom: document.querySelector('.home-primary')?.getBoundingClientRect().bottom,
     areas: document.querySelector('.home-areas')?.getBoundingClientRect().top,
     onboarding: document.querySelector('.home-first-steps')?.getBoundingClientRect().top,
-    summary: document.querySelector('.home-primary > .strip')?.getBoundingClientRect().top,
+    summary: document.querySelector('.home-day-summary')?.getBoundingClientRect().top,
     sampleNotice: [...document.querySelectorAll('.main > .notice')].find((item) => item.textContent.includes('dados de exemplo'))?.getBoundingClientRect().top,
   }));
   check(homeOrder.onboarding === undefined, 'cartão de primeiro acesso não aparece na demonstração com tarefas fictícias');

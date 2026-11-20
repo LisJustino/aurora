@@ -4,6 +4,7 @@ import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
 import { isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
+import { habitStartedOnOrBefore, isValidHabitCreatedAt } from './dates.js';
 
 export const HABIT_ICONS = Object.freeze([
   ['droplet', 'Água'], ['book', 'Leitura'], ['dumbbell', 'Treino'], ['activity', 'Movimento'],
@@ -68,13 +69,13 @@ const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
     'learn-language', 'practice-instrument',
   ]),
   home: Object.freeze([
-    'water', 'skincare', 'hair-care', 'personal-hygiene', 'sleep', 'medication',
+    'water', 'skincare', 'hair-care', 'sleep', 'medication',
     'reading', 'meditate', 'journal', 'gratitude', 'screens', 'pause', 'fruit',
     'cook', 'meal-plan', 'tidy', 'morning-plan', 'evening-routine', 'dental-care',
     'creative-time', 'mindful-meal', 'prepare-snack', 'make-bed', 'review-calendar',
     'organize-bag', 'care-for-plant', 'five-minute-tidy', 'prepare-for-bed',
     'check-in-with-yourself', 'plan-rest', 'study', 'weekly-reflection',
-    'screen-free-break', 'try-new-recipe', 'prepare-breakfast', 'add-vegetable',
+    'screen-free-break', 'try-new-recipe', 'prepare-breakfast',
     'make-grocery-list', 'clear-desk', 'wash-dishes', 'set-out-clothes',
     'keys-in-place', 'organize-digital-files', 'weekly-reset',
     'wash-face', 'use-floss', 'moisturize-skin', 'care-for-hands',
@@ -177,7 +178,7 @@ export function isValidHabit(habit) {
     && (habit.color === undefined || (typeof habit.color === 'string' && HEX_COLOR.test(habit.color)))
     && (habit.weeklyGoal === undefined || (Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1 && habit.weeklyGoal <= 7))
     && (habit.waterGoalMl === undefined || isValidWaterGoalMl(habit.waterGoalMl))
-    && (habit.remind === undefined || (typeof habit.remind === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(habit.remind)));
+    && (habit.createdAt === undefined || isValidHabitCreatedAt(habit.createdAt));
 }
 
 function optionalDates(habit, key) {
@@ -216,6 +217,7 @@ export function habitDayOverview(
   if (!isDay(day)) return { scheduled: [], completed: 0, planned: 0, skipped: 0 };
   const scheduled = (Array.isArray(habits) ? habits : []).filter((habit) => (
     (habit.status || 'active') === 'active'
+    && habitStartedOnOrBefore(habit, day)
     && habit.days.includes(pk(day).getDay())
   ));
   const skipped = scheduled.filter((habit) => skippedFor(habit, day));
@@ -244,6 +246,7 @@ export function createSuggestedHabits(selectedIds, existingHabits, createId) {
       name: suggestion.name,
       days: [0, 1, 2, 3, 4, 5, 6],
       completions: [],
+      createdAt: Date.now(),
       status: 'active',
       ...(suggestion.id === 'water' ? { tracking: 'water' } : {}),
       icon: suggestion.icon,
@@ -279,7 +282,8 @@ export function habitWeekOverview(habits, day, weekStart, completedFor, skippedF
   for (const habit of habits) {
     if ((habit.status || 'active') !== 'active') continue;
     for (const entry of days) {
-      if (!habit.days.includes(pk(entry).getDay()) || skippedFor(habit, entry)) continue;
+      if (!habitStartedOnOrBefore(habit, entry)
+        || !habit.days.includes(pk(entry).getDay()) || skippedFor(habit, entry)) continue;
       planned += 1;
       if (completedFor(habit, entry)) completed += 1;
     }
@@ -322,7 +326,8 @@ export function habitWeekReview(habits, day, weekStart, completedFor, skippedFor
     .filter((habit) => (habit.status || 'active') === 'active')
     .map((habit) => {
       const scheduled = days.filter((entry) => (
-        habit.days.includes(pk(entry).getDay()) && !skippedFor(habit, entry)
+        habitStartedOnOrBefore(habit, entry)
+        && habit.days.includes(pk(entry).getDay()) && !skippedFor(habit, entry)
       ));
       const weeklyTarget = habitWeeklyTarget(habit);
       const completed = scheduled.filter((entry) => completedFor(habit, entry)).length;
@@ -356,7 +361,8 @@ export function habitMonthStats(
   isSkipped = (day) => habitIsSkipped(habit, day, today),
 ) {
   const scheduled = habitMonthDays(month).filter((day) => (
-    day && day <= today && habit.days.includes(pk(day).getDay()) && !isSkipped(day)
+    day && day <= today && habitStartedOnOrBefore(habit, day)
+    && habit.days.includes(pk(day).getDay()) && !isSkipped(day)
   ));
   return {
     completed: scheduled.filter(isComplete).length,
@@ -375,7 +381,9 @@ function weeklyGoalStreak(habit, target, today, weekStart, isComplete, isSkipped
   let reference = today;
   for (let index = 0; index < 520; index++) {
     const week = weekDays(reference, weekStart);
+    if (!habitStartedOnOrBefore(habit, week[6])) break;
     const scheduled = week.filter((day) => day <= today
+      && habitStartedOnOrBefore(habit, day)
       && habit.days.includes(pk(day).getDay())
       && !isSkipped(day));
     if (!scheduled.length) {
@@ -398,13 +406,15 @@ export function habitStats(
   isSkipped = (day) => habitIsSkipped(habit, day, today),
 ) {
   const week = weekDays(today, weekStart);
-  const scheduled = week.filter((day) => habit.days.includes(pk(day).getDay()) && !isSkipped(day));
+  const scheduled = week.filter((day) => habitStartedOnOrBefore(habit, day)
+    && habit.days.includes(pk(day).getDay()) && !isSkipped(day));
   const completedThisWeek = scheduled.filter(isComplete).length;
   const weeklyTarget = habitWeeklyTarget(habit);
   let cursor = isComplete(today) ? today : addDays(today, -1);
   if (isSkipped(today)) cursor = today;
   let streak = 0;
   for (let checked = 0; checked < 3660; checked++) {
+    if (!habitStartedOnOrBefore(habit, cursor)) break;
     if (isSkipped(cursor)) {
       cursor = addDays(cursor, -1);
       continue;
@@ -424,9 +434,9 @@ export function habitStats(
     streak,
     week: week.map((day) => ({
       day,
-      completed: isComplete(day),
-      scheduled: habit.days.includes(pk(day).getDay()),
-      skipped: isSkipped(day),
+        completed: habitStartedOnOrBefore(habit, day) && isComplete(day),
+        scheduled: habitStartedOnOrBefore(habit, day) && habit.days.includes(pk(day).getDay()),
+        skipped: habitStartedOnOrBefore(habit, day) && isSkipped(day),
     })),
   };
 }

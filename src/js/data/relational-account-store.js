@@ -7,9 +7,9 @@ const TABLES = [
   'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
   'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
-  'cycle_periods', 'cycle_days', 'weight_logs', 'push_subscriptions', 'trash_records',
+  'cycle_periods', 'cycle_days', 'weight_logs', 'trash_records',
 ];
-const MANAGED_TABLES = TABLES.filter((table) => table !== 'push_subscriptions');
+const MANAGED_TABLES = [...TABLES];
 const VERSION_CONFIRMATION_ERROR = 'O Supabase não confirmou as versões salvas. Verifique se a migration 20261030100000_relational_version_conflict.sql foi aplicada no projeto correto e se apply_relational_changes(jsonb) retorna jsonb. A gravação pode ter sido concluída; recarregue os dados da conta antes de tentar novamente.';
 const versionId = (table, row) => (
   table === 'profiles' || table === 'user_settings'
@@ -324,7 +324,6 @@ function buildRows(userId, state, idMap) {
       completed_at: task.doneAt || null,
       planned_time: task.time || null,
       repeat_rule: task.repeat || 'none',
-      remind_minutes: task.remind ?? null,
       notes: task.notes || null,
       sort_order: Number.isFinite(task.order) ? task.order : 0,
       focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
@@ -394,9 +393,9 @@ function buildRows(userId, state, idMap) {
       icon: habit.icon || null,
       color: habit.color || null,
       weekly_goal: habit.weeklyGoal || null,
-      remind: habit.remind || null,
       is_test_data: habit.sample === true,
       deleted_at: removedAt,
+      ...(Number.isFinite(habit.createdAt) ? { created_at: toIso(habit.createdAt) } : {}),
     }));
     for (const [status, days] of [['completed', habit.completions || []], ['skipped', habit.skipped || []]]) {
       days.forEach((day) => pushRow(rows, 'habit_logs', rowId(idMap, 'habit_logs', userId, `${habit.id}|${status}|${day}`, {
@@ -664,7 +663,6 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
     ...(row.completed_at ? { doneAt: row.completed_at } : {}),
     ...(plannedTime ? { time: plannedTime } : {}),
     ...(row.repeat_rule && row.repeat_rule !== 'none' ? { repeat: row.repeat_rule } : {}),
-    ...(row.remind_minutes != null ? { remind: row.remind_minutes } : {}),
     ...(row.notes ? { notes: row.notes } : {}),
     order: Number(row.sort_order) || 0,
     focusSeconds: row.focus_seconds,
@@ -786,6 +784,7 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
   const habitId = sourceId(idMap, 'habits', row.id);
   const habitWaterGoals = tables.user_settings?.[0]?.preferences?.habitWaterGoals;
   const waterGoalMl = habitWaterGoals?.[habitId];
+  const createdAt = fromIso(row.created_at);
   const logs = tables.habit_logs.filter((log) => log.habit_id === row.id && (includeDeleted || includeActive(log)));
   const completions = logs.filter((log) => log.status === 'completed').map((log) => log.log_date);
   const skipped = logs.filter((log) => log.status === 'skipped').map((log) => log.log_date);
@@ -802,8 +801,8 @@ function habitFromRow(row, tables, idMap, includeDeleted = false) {
     icon: row.icon || undefined,
     color: row.color || undefined,
     weeklyGoal: row.weekly_goal || undefined,
+    ...(Number.isFinite(createdAt) ? { createdAt } : {}),
     ...(Number.isInteger(waterGoalMl) && waterGoalMl >= 500 && waterGoalMl <= 10000 ? { waterGoalMl } : {}),
-    remind: timeOnly(row.remind) || undefined,
     sample: row.is_test_data || undefined,
   };
 }
@@ -1070,74 +1069,6 @@ export class RelationalAccountStore {
     }
   }
 
-  async findPushSubscription(endpoint) {
-    const { data, error } = await this.client
-      .from('push_subscriptions')
-      .select('id,worker_client_id,worker_capability,subscription,is_enabled')
-      .eq('user_id', this.userId);
-    if (error) {
-      console.error('Aurora: não foi possível ler a inscrição Push da conta.', error);
-      throw new Error('Não foi possível verificar os avisos Push da conta.');
-    }
-    const row = (data || []).find((item) => item.subscription?.endpoint === endpoint
-      || (item.subscription?.provider === 'fcm' && item.subscription?.token === endpoint));
-    return row ? {
-      id: row.id,
-      clientId: row.worker_client_id,
-      capability: row.worker_capability,
-      subscription: row.subscription,
-      enabled: row.is_enabled,
-    } : null;
-  }
-
-  async hasPushSubscriptionProvider(provider) {
-    const { data, error } = await this.client
-      .from('push_subscriptions')
-      .select('subscription')
-      .eq('user_id', this.userId);
-    if (error) {
-      console.error('Aurora: não foi possível verificar as inscrições Push da conta.', error);
-      throw new Error('Não foi possível verificar os avisos Push da conta.');
-    }
-    return (data || []).some((item) => item.subscription?.provider === provider);
-  }
-
-  async savePushSubscription(credentials, subscription) {
-    const { data, error } = await this.client
-      .from('push_subscriptions')
-      .upsert({
-        user_id: this.userId,
-        worker_client_id: credentials.clientId,
-        worker_capability: credentials.capability,
-        subscription,
-        is_enabled: true,
-      }, { onConflict: 'worker_client_id' })
-      .select('id,worker_client_id,worker_capability,subscription,is_enabled')
-      .single();
-    if (error) {
-      console.error('Aurora: não foi possível salvar a inscrição Push no banco.', error);
-      throw new Error('Os avisos foram configurados, mas não foi possível salvar a inscrição na conta.');
-    }
-    return {
-      id: data.id,
-      clientId: data.worker_client_id,
-      capability: data.worker_capability,
-      subscription: data.subscription,
-      enabled: data.is_enabled,
-    };
-  }
-
-  async deletePushSubscription(clientId) {
-    const { error } = await this.client
-      .from('push_subscriptions')
-      .delete()
-      .eq('user_id', this.userId)
-      .eq('worker_client_id', clientId);
-    if (error) {
-      console.error('Aurora: não foi possível remover a inscrição Push do banco.', error);
-      throw new Error('Não foi possível remover a inscrição Push da conta.');
-    }
-  }
 
   async clear() {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {

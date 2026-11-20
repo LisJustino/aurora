@@ -69,6 +69,8 @@
 .profile-menu-control > .profile-menu-trigger { display: grid; place-items: center; list-style: none; cursor: pointer; }
 .profile-menu-control > .profile-menu-trigger::-webkit-details-marker { display: none; }
 .profile-menu-control[open] > .profile-menu-trigger { background: var(--soft); color: var(--accent); }
+.profile-menu-trigger > .profile-menu-avatar { background: color-mix(in srgb, var(--profile-avatar-color) 14%, var(--surface)); color: var(--profile-avatar-color); }
+.profile-menu-item > .profile-menu-item-avatar { background: color-mix(in srgb, var(--profile-avatar-color) 14%, var(--surface)); color: var(--profile-avatar-color); }
 .profile-menu-panel, .header-account-panel { right: 0; width: min(240px, calc(100vw - 24px)); }
 .nav-overflow-group, .profile-menu-trigger .ni-more { display: none; }
 .nav-overflow-item[aria-current="page"] { border-color: var(--line); background: var(--surface-soft); color: var(--accent); }

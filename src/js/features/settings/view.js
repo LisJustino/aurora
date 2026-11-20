@@ -42,17 +42,6 @@ function renderSettingsSectionContent(s, p, selectedTab, renderers) {
   }
 }
 
-function renderUnsavedSettingsBanner({ profileDraft, settingsDirty, saving }) {
-  const dirty = Boolean(profileDraft) || settingsDirty;
-  return h`<div class="settings-unsaved-bar" role="region" aria-label="Alterações não salvas" ${dirty ? '' : raw('hidden')}>
-    <span>Alterações não salvas</span>
-    <div class="settings-unsaved-actions">
-      <button type="button" class="btn back" data-action="profile-discard" ${dirty && !saving ? '' : raw('disabled')}>Descartar alterações</button>
-      <button type="button" class="btn primary" data-action="profile-save" aria-busy="${String(saving)}" ${dirty && !saving ? '' : raw('disabled')}>${saving ? 'Salvando...' : 'Salvar alterações'}</button>
-    </div>
-  </div>`;
-}
-
 export function renderSettingsView({
   S,
   ui,
@@ -62,7 +51,6 @@ export function renderSettingsView({
   tabLabel,
   pageTitle,
   storageNotice,
-  settingsDirty,
   renderers,
 }) {
   const s = S.settings;
@@ -77,12 +65,7 @@ export function renderSettingsView({
     const [key, label, ic, description] = section;
     return h`<a class="settings-link" href="/config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
   })}</div>`);
-  const unsavedBanner = renderUnsavedSettingsBanner({
-    profileDraft: ui.profileDraft,
-    settingsDirty,
-    saving: ui.profileSaving || ui.settingsSaving,
-  });
-  return h`${pageTitle('Ajustes')}${storageNotice(selected)}${unsavedBanner}
+  return h`${pageTitle('Ajustes')}${storageNotice(selected)}
     <div class="settings-layout">
       <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
       <div class="settings-content" id="settings-content" role="region" aria-label="Seção de ajustes: ${selectedSection[1]}">${content}</div>

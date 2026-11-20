@@ -568,7 +568,7 @@ async function main() {
         await page.reload();
         await firstSteps.waitFor({ state: 'visible' });
         const firstStepLabels = await firstSteps.locator('.home-first-steps-list li b').allTextContents();
-        assert.deepEqual(firstStepLabels, ['Escolher sua cor', 'Criar sua primeira tarefa', 'Marcar um hábito']);
+        assert.deepEqual(firstStepLabels, ['Criar sua primeira tarefa', 'Marcar um hábito', 'Escolher sua cor']);
         assert.equal(await firstSteps.getByRole('progressbar').getAttribute('aria-valuemax'), '3');
         assert.equal(await firstSteps.locator('a[href="/config?section=personalization"]').count(), 1);
         assert.equal(await firstSteps.locator('button[data-action="task-new"]').count(), 1);
@@ -579,6 +579,8 @@ async function main() {
         await page.locator('#dlg button[form="dlgform"]').click();
         await page.waitForFunction(() => document.querySelector('.home-first-steps [role="progressbar"]')?.getAttribute('aria-valuenow') === '1');
         assert.equal(await firstSteps.locator('.home-first-steps-progress').innerText(), '1 de 3 feitos');
+        assert.match(await firstSteps.locator('.home-first-steps-list li').nth(0).getAttribute('class'), /is-complete/);
+        assert.doesNotMatch(await firstSteps.locator('.home-first-steps-list li').nth(1).getAttribute('class'), /is-complete/);
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await firstSteps.isVisible(), true,
           'cartão de primeiro acesso permanece visível após renderização');
