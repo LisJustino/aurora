@@ -209,7 +209,7 @@
 .home-task-group h3 span, .home-completed-count { display: inline-grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: var(--r-pill); background: var(--soft2); font-size: var(--text-xs); letter-spacing: 0; }
 .home-task-group.is-overdue h3 { color: var(--bad); }
 .home-task-group.is-overdue h3 span { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); }
-.home-completed { border-top: 1px solid var(--line); padding-top: 14px; }
+.home-completed { padding-top: var(--space-2); }
 .home-completed summary { cursor: pointer; list-style: none; }
 .home-completed summary::-webkit-details-marker { display: none; }
 .home-completed .home-disclosure-indicator { display: grid; width: var(--control-sm); height: var(--control-sm); flex: none; place-items: center; margin-left: auto; color: var(--muted); transition: transform var(--duration-fast) var(--ease-standard); }
@@ -1599,7 +1599,7 @@
 .demo-main[data-route="inicio"] .home-primary .home-today-card {
   padding: var(--space-4) 0 0;
   border: 0;
-  border-top: 2px solid var(--plum);
+  border-top: 1px solid var(--border-subtle);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
