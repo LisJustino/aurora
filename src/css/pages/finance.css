@@ -368,11 +368,6 @@
 .finance-account-balance { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .finance-account-balance .balance-sparkline { flex: none; }
 .main[data-route="financas"] #fin-account-panel { display: flex; flex-direction: column; gap: var(--space-4); }
-.finance-section-intro { display: grid; gap: var(--space-1); padding-inline: 2px; }
-.finance-section-intro h2,
-.finance-section-intro p { margin: 0; }
-.finance-section-intro h2 { font-size: var(--text-xl); }
-.finance-section-intro > p:last-child { color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
 .finance-week-chart { display: grid; min-width: 0; gap: var(--space-3); }
 .finance-week-chart-grid { display: grid; grid-template-columns: repeat(var(--week-cols, 7), minmax(0, 1fr)); gap: clamp(2px, 1vw, var(--space-2)); }
 .finance-week-chart-grid.is-month { gap: 2px; }
@@ -930,7 +925,7 @@
 }
 .main[data-route="financas"] .finance-account-balance {
   border-color: color-mix(in srgb, var(--area-finances) 24%, var(--line));
-  background: linear-gradient(135deg, color-mix(in srgb, var(--area-finances) 6%, var(--surface-soft)), var(--surface-strong) 72%);
+  background: var(--surface-strong);
 }
 .main[data-route="financas"] .fin-hero {
   display: grid;
@@ -941,9 +936,7 @@
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
   border-inline-start: 4px solid var(--accent);
   border-radius: var(--r-card);
-  background:
-    radial-gradient(ellipse at 92% 8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 34%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--surface-strong) 72%);
+  background: var(--surface);
   box-shadow: var(--card-shadow);
 }
 .fin-hero-main { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: var(--space-5); }

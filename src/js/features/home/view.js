@@ -87,7 +87,7 @@ export function renderHomeView(model, renderers) {
           </form>
         </section>` : ''}
         ${showHomeBlock('today') ? h`<div class="home-today-block" ${raw(homeBlockStyle('today'))}>
-          <section class="home-today-card" aria-labelledby="th"><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th" class="type-editorial-title">Hoje</h2></div></div>
+          <section class="home-today-card" aria-labelledby="th"><div class="head"><div><h2 id="th" class="type-editorial-title">Hoje</h2></div></div>
             ${completed.length && !overdue.length && !dueToday.length ? h`<div class="home-day-complete" role="status">${icon('check', 20)}<div><b>Dia concluído</b><p>Você terminou as tarefas de hoje. Amanhã é um novo começo.</p></div></div>` : ''}
             ${tt.length ? h`<div class="home-task-groups">
               ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
@@ -104,7 +104,7 @@ export function renderHomeView(model, renderers) {
           </section>
           ${homeUpcomingTasks()}
           <section class="surface-open home-week-progress" aria-labelledby="home-week-progress-title">
-            <div class="head"><div><p class="section-kicker">Seu ritmo</p><h2 id="home-week-progress-title">Esta semana<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
+            <div class="head"><div><h2 id="home-week-progress-title">Esta semana</h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
             ${weekTotal
               ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span>tarefas resolvidas ou planejadas</span></div>
                 <div class="home-week-progress-track" role="progressbar" aria-label="Tarefas concluídas nesta semana" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${weekPercent}" aria-valuetext="${weekProgress.completed} de ${weekTotal} tarefas concluídas">
@@ -117,7 +117,7 @@ export function renderHomeView(model, renderers) {
       </div>
     </div>
     ${homeShortcuts.length ? h`<section class="surface-open home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><div><p class="section-kicker">Atalhos</p><h2 id="home-tools-title">Ações rápidas<i>.</i></h2></div></div>
+      <div class="head"><div><h2 id="home-tools-title">Ações rápidas</h2></div></div>
       <div class="home-tool-grid${homeShortcuts.length === 1 ? ' single' : ''}">
         ${homeShortcuts.map((shortcut) => h`<button class="home-tool" type="button" data-action="${shortcut.action}">
           <span class="home-tool-icon" aria-hidden="true">${icon(shortcut.icon, 18)}</span>
