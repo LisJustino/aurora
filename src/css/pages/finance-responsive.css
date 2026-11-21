@@ -131,9 +131,6 @@
     gap: var(--space-1);
     padding: 16px;
   }
-  .main[data-route="financas"] .balance-sparkline {
-    height: 38px;
-  }
   .main[data-route="financas"] .fh-row {
     gap: var(--space-3) var(--space-3);
     margin-top: 8px;
@@ -266,3 +263,15 @@
     bottom: auto;
   }
 }
+
+/* Cadastro em lote de lançamentos */
+.bulk-entry-text { min-height: 190px; font-size: 16px; line-height: 1.5; }
+.bulk-entry-examples { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.bulk-entry-example { display: flex; flex-direction: column; gap: 4px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--r-control); background: var(--surface-soft); }
+.bulk-entry-example-text { white-space: normal; overflow-wrap: anywhere; color: var(--ink); font-family: inherit; font-size: var(--text-sm); line-height: 1.45; }
+.bulk-entry-help { margin-top: var(--space-3); }
+.bulk-entry-help summary { cursor: pointer; font-size: var(--text-sm); color: var(--muted); }
+.bulk-entry-help ul { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-2) 0 0; padding-left: 1.2em; }
+.bulk-entry-list .small { display: block; }
+.bulk-entry-error { border-left: 3px solid var(--bad); padding-left: var(--space-3); }
+.bulk-entry-error-text { display: flex; align-items: flex-start; gap: 6px; color: var(--bad); }

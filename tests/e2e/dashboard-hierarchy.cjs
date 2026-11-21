@@ -25,10 +25,11 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         heroHeight: document.querySelector('.home-head').getBoundingClientRect().height,
         quickIsVisible: Boolean(document.querySelector('.home-quick-card')
           && !document.querySelector('.home-quick-card').closest('.home-extras')),
-        hierarchy: ['.home-quick-card', '.home-today-block', '.home-habits-block', '.home-day-summary']
+        hierarchy: ['.home-today-block', '.home-day-summary', '.home-quick-card', '.home-habits-block']
           .map((selector) => [...document.querySelectorAll(selector)]
             .find((element) => element.offsetParent !== null)?.getBoundingClientRect().top ?? -1),
         todayTop: document.querySelector('.home-today-card').getBoundingClientRect().top,
+        sampleBannerHeight: document.querySelector('.sample-banner')?.getBoundingClientRect().height ?? 0,
         viewportHeight: innerHeight,
       };
     });
@@ -43,8 +44,9 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     const visibleBlockTops = home.hierarchy.filter((top) => top >= 0);
     assert(home.hierarchy[0] >= 0
       && home.hierarchy[1] >= 0
-      && home.hierarchy[3] >= 0
+      && home.hierarchy[2] >= 0
       && visibleBlockTops.every((top, index) => !index || visibleBlockTops[index - 1] < top));
+    assert(home.sampleBannerHeight < 100, `aviso compacto em mobile (${home.sampleBannerHeight}px)`);
     assert(home.todayTop < home.viewportHeight, 'Hoje aparece na primeira tela do celular');
     assert(home.heroHeight < 210, `cabeçalho compacto em mobile (${home.heroHeight}px)`);
     for (const width of [360, 390]) {
@@ -66,23 +68,17 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     assert.equal(narrowHome.overflow, false);
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.locator('.nav-more-trigger').count(), 0);
-    assert.equal(await page.locator('.profile-menu-trigger').isVisible(), true);
+    assert.equal(await page.locator('.header-account-trigger:visible').count(), 1);
     await page.locator('.nav > a[href="/planejar"]').click();
     assert.equal(await page.locator('[role="tab"][data-action="plan-view"][data-v="lista"]').getAttribute('aria-selected'), 'true');
-    await page.locator('[data-action="plan-view"][data-v="semana"]').click();
+    await page.locator('[data-action="plan-view"][data-v="calendario"]').click();
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
-      const layout = await page.locator('.week-days').evaluate((grid) => ({
-        columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
-        today: grid.querySelector('.is-today') && getComputedStyle(grid.querySelector('.is-today')).order,
-        overflow: document.documentElement.scrollWidth > innerWidth,
-      }));
-      assert.equal(layout.columns, width < 900 ? 1 : 7);
-      if (width < 900 && layout.today !== null) assert.equal(layout.today, '-1');
-      assert.equal(layout.overflow, false);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false,
+        `${width}px Planejar sem overflow`);
     }
     await page.locator('.profile-menu-trigger:visible').click();
-    assert.equal(await page.locator('#profile-menu a[href="/config"]').isVisible(), true);
+    assert.equal(await page.locator('#profile-menu a[href="/ajustes"]').isVisible(), true);
     const profileMenuBounds = await page.locator('#profile-menu').evaluate((menu) => {
       const { left, right } = menu.getBoundingClientRect();
       return { left, right, viewport: innerWidth };
@@ -92,7 +88,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.locator('[data-action="plan-view"][data-v="lista"]').click();
     await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').click();
     assert.equal(await page.locator('[aria-label="Filtrar tarefas"] [data-f="atrasadas"]').getAttribute('aria-pressed'), 'true');
-    await page.locator('.area-page-actions [data-action="plan-view"][data-v="anual"]').click();
+    await page.locator('[role="tab"][data-action="plan-view"][data-v="anual"]').click();
     const annualYear = Number(await page.locator('[data-change="annual-plan-year"]').inputValue());
     assert.equal(annualYear, new Date().getFullYear() + 1);
     const annualYears = await page.locator('[data-change="annual-plan-year"] option').evaluateAll((options) => options.map((option) => Number(option.value)));
@@ -124,7 +120,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await annualIdeaSearch.fill('');
     await page.locator('[data-action="annual-idea-category"][data-category="dinheiro"]').click();
     assert.equal(await page.locator('[data-annual-idea]:visible').count(), 4);
-    await page.locator('[data-action="annual-ideas-clear"]').click();
+    await page.locator('[data-action="annual-ideas-clear"]').first().click();
     assert.equal(await page.locator('[data-annual-idea]:visible').count(), 24);
     await page.locator('.annual-ideas-summary').click();
     assert.equal(await page.locator('[data-annual-idea]:visible').count(), 0);
@@ -150,7 +146,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     const goal = page.locator('.goal-item').first();
     await goal.waitFor();
     await goal.locator('[data-action="goal-edit"]').click();
-    assert.equal(await page.locator('#dt').innerText(), 'Editar objetivo.');
+    assert.equal(await page.locator('#dt').innerText(), 'Editar objetivo');
     await page.locator('#dlg [data-dlg="name"]').fill('');
     await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
     assert.equal(await page.locator('#dlg [data-dlg="name"]').getAttribute('aria-invalid'), 'true');
@@ -185,8 +181,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     assert.equal(await page.locator('.goal-item').filter({ hasText: 'Novo objetivo de teste' }).count(), 1);
     await page.locator('[data-t="planejamento"].fin-section-option').click();
     await page.locator('[data-action="rec-list"]').first().click();
-    const recurringEmpty = page.locator('#dlg .empty[role="status"]').filter({ hasText: 'Nenhuma fixa ainda' });
-    await recurringEmpty.getByRole('button', { name: 'Novo lançamento' }).click();
+    const recurringEmpty = page.locator('#dlg .empty[role="status"]').filter({ hasText: 'Nenhum lançamento fixo ainda' });
+    await recurringEmpty.getByRole('button', { name: 'Criar lançamento fixo' }).click();
     assert.equal(await page.locator('#dlg [data-form="dlg-tx"]').count(), 1);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
     await page.locator('[data-t="planejamento"].fin-section-option').click();

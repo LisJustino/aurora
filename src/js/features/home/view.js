@@ -25,6 +25,7 @@ export function renderHomeView(model, renderers) {
     homeShortcuts,
     showHomeBlock,
     homeBlockStyle,
+    financeUpcoming = null,
   } = model;
   const {
     areaGuideButton,
@@ -47,7 +48,7 @@ export function renderHomeView(model, renderers) {
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         ${showHomeBlock('summary') ? h`<section class="home-day-summary card" ${raw(homeBlockStyle('summary'))} aria-labelledby="home-day-summary-title">
-          <h2 id="home-day-summary-title">Hoje</h2>
+          <h2 id="home-day-summary-title">Resumo do dia</h2>
           ${daySummary.tasks.next
             ? h`<a class="home-day-next-task" href="/planejar" aria-label="Próxima tarefa: ${daySummary.tasks.next.title}">${icon('calendarCheck', 18)}<span><small>PRÓXIMA TAREFA</small><b>${daySummary.tasks.next.title}</b></span>${icon('chevRight', 16)}</a>`
             : h`<p class="home-day-next-task is-empty">Nenhuma tarefa atrasada ou para hoje.</p>`}
@@ -68,6 +69,9 @@ export function renderHomeView(model, renderers) {
               <span class="home-day-chip-count" aria-hidden="true">${daySummary.balance.hidden ? '••••' : brl(daySummary.balance.cents)}</span><span class="home-day-chip-copy">Saldo</span>
             </a>` : ''}
           </div>
+          ${financeUpcoming ? h`<a class="home-day-upcoming${financeUpcoming.overdue ? ' has-overdue' : ''}" href="/financas" aria-label="${financeUpcoming.hidden ? `A vencer em ${financeUpcoming.days} dias: ${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso, valor oculto' : 'compromissos, valor oculto'}` : `A vencer em ${financeUpcoming.days} dias: ${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso' : 'compromissos'}, ${brl(financeUpcoming.cents)}`}${financeUpcoming.overdue ? `, ${financeUpcoming.overdue} em atraso` : ''}">
+            ${icon('wallet', 16)}<span><small>A VENCER EM ${financeUpcoming.days} DIAS</small><b>${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso' : 'compromissos'} · ${financeUpcoming.hidden ? '••••' : brl(financeUpcoming.cents)}${financeUpcoming.overdue ? ` · ${financeUpcoming.overdue} em atraso` : ''}</b></span>${icon('chevRight', 16)}
+          </a>` : ''}
         </section>` : ''}
         ${showHomeBlock('quick') ? h`<section class="card surface-open home-quick-card" ${raw(homeBlockStyle('quick'))} aria-labelledby="home-quick-title">
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title" class="type-editorial-title">Qual é o próximo passo<i>?</i></h2><p id="home-quick-help">Use “amanhã 14h” ou um dia da semana. Compromissos precisam de dia e hora.</p></div></div>
@@ -83,7 +87,7 @@ export function renderHomeView(model, renderers) {
           </form>
         </section>` : ''}
         ${showHomeBlock('today') ? h`<div class="home-today-block" ${raw(homeBlockStyle('today'))}>
-          <section class="home-today-card" aria-labelledby="th"><div class="head"><div><p class="section-kicker">Seu plano</p><h2 id="th" class="type-editorial-title">Hoje</h2></div></div>
+          <section class="home-today-card" aria-labelledby="th"><div class="head"><div><h2 id="th" class="type-editorial-title">Hoje</h2></div></div>
             ${completed.length && !overdue.length && !dueToday.length ? h`<div class="home-day-complete" role="status">${icon('check', 20)}<div><b>Dia concluído</b><p>Você terminou as tarefas de hoje. Amanhã é um novo começo.</p></div></div>` : ''}
             ${tt.length ? h`<div class="home-task-groups">
               ${overdue.length ? h`<section class="home-task-group is-overdue" aria-label="Tarefas atrasadas"><h3>${icon('alert', 15)}Atrasadas <span>${overdue.length}</span></h3><ul class="list">${overdue.map((task) => taskRow(task, false, task.id === nextTask?.id))}</ul></section>` : ''}
@@ -100,7 +104,7 @@ export function renderHomeView(model, renderers) {
           </section>
           ${homeUpcomingTasks()}
           <section class="surface-open home-week-progress" aria-labelledby="home-week-progress-title">
-            <div class="head"><div><p class="section-kicker">Seu ritmo</p><h2 id="home-week-progress-title">Esta semana<i>.</i></h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
+            <div class="head"><div><h2 id="home-week-progress-title">Esta semana</h2></div><a class="btn ghost sm" href="/planejar">Planejar</a></div>
             ${weekTotal
               ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span>tarefas resolvidas ou planejadas</span></div>
                 <div class="home-week-progress-track" role="progressbar" aria-label="Tarefas concluídas nesta semana" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${weekPercent}" aria-valuetext="${weekProgress.completed} de ${weekTotal} tarefas concluídas">
@@ -113,7 +117,7 @@ export function renderHomeView(model, renderers) {
       </div>
     </div>
     ${homeShortcuts.length ? h`<section class="surface-open home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><div><p class="section-kicker">Atalhos</p><h2 id="home-tools-title">Ações rápidas<i>.</i></h2></div></div>
+      <div class="head"><div><h2 id="home-tools-title">Ações rápidas</h2></div></div>
       <div class="home-tool-grid${homeShortcuts.length === 1 ? ' single' : ''}">
         ${homeShortcuts.map((shortcut) => h`<button class="home-tool" type="button" data-action="${shortcut.action}">
           <span class="home-tool-icon" aria-hidden="true">${icon(shortcut.icon, 18)}</span>

@@ -107,6 +107,29 @@ export function projectedNetAccountBalance(accounts, transactions, throughDate, 
   return netAccountBalance(accounts, transactions) + pendingImpact - invoiceImpact;
 }
 
+export function goalMonthlyPlan(goal, savedCents, asOfDate) {
+  const remainingCents = Math.max(0, (goal.targetCents || 0) - savedCents);
+  if (!remainingCents) return { remainingCents: 0, complete: true, months: 0, perMonthCents: 0, overdue: false };
+  if (!goal.deadline) return { remainingCents, complete: false, months: null, perMonthCents: null, overdue: false };
+  if (goal.deadline <= asOfDate) return { remainingCents, complete: false, months: 0, perMonthCents: remainingCents, overdue: true };
+  const [fromYear, fromMonth, fromDay] = asOfDate.split('-').map(Number);
+  const [toYear, toMonth, toDay] = goal.deadline.split('-').map(Number);
+  const months = Math.max(1, (toYear - fromYear) * 12 + (toMonth - fromMonth) + (toDay > fromDay ? 1 : 0));
+  return { remainingCents, complete: false, months, perMonthCents: Math.ceil(remainingCents / months), overdue: false };
+}
+
+export function balanceSplit(accounts, transactions) {
+  const noncredit = accounts.filter((account) => !isCreditAccount(account));
+  const saved = noncredit.filter((account) => account.type === 'savings' || account.type === 'investment');
+  const savedCents = saved.reduce((sum, account) => sum + accountBalance(account, transactions), 0);
+  const total = netAccountBalance(accounts, transactions);
+  return { hasSaved: saved.length > 0, savedCents, availableCents: total - savedCents };
+}
+
+export function savingsRatePercent(incomeCents, expenseCents) {
+  return incomeCents > 0 ? Math.round((incomeCents - expenseCents) / incomeCents * 100) : null;
+}
+
 export function monthStats(transactions, month, accountForId) {
   const monthTransactions = transactions.filter((transaction) => transaction.date.startsWith(month)
     && transaction.type !== 'tr');
@@ -186,6 +209,28 @@ export function expenseBudgetByCategory(transactions, month, asOfDate) {
   };
 }
 
+export function dailyBudgetRoom(budgets, transactions, month, asOfDate) {
+  const spentByCategory = new Map(expenseBudgetByCategory(transactions, month, asOfDate).total);
+  const limited = Object.entries(budgets || {}).filter(([, budget]) => budget?.cents > 0);
+  const limitCents = limited.reduce((sum, [, budget]) => sum + budget.cents, 0);
+  const spentCents = limited.reduce((sum, [category]) => sum + (spentByCategory.get(category) || 0), 0);
+  const [year, monthNumber] = month.split('-').map(Number);
+  const monthDays = new Date(year, monthNumber, 0).getDate();
+  const currentMonth = asOfDate.startsWith(month);
+  const daysLeft = currentMonth ? monthDays - Number(asOfDate.slice(8, 10)) + 1 : 0;
+  return {
+    hasLimits: limited.length > 0,
+    limitCents,
+    spentCents,
+    remainingCents: Math.max(0, limitCents - spentCents),
+    overCents: Math.max(0, spentCents - limitCents),
+    daysLeft,
+    perDayCents: daysLeft && limitCents > spentCents
+      ? Math.floor((limitCents - spentCents) / daysLeft)
+      : 0,
+  };
+}
+
 export function monthlyCloseSummary(transactions, month, accountForId) {
   const summary = monthStats(transactions, month, accountForId);
   const pending = summary.tx.filter((transaction) => !isPaid(transaction)
@@ -214,6 +259,35 @@ export function invoiceMonth(card, date, shiftMonth, parseDate) {
   return month;
 }
 
+const clampedDay = (month, day) => {
+  const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  return `${month}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+};
+
+export function invoiceDueDate(card, month, shiftMonth) {
+  if (!card.dueDay) return null;
+  const dueMonth = card.closingDay && card.dueDay <= card.closingDay ? shiftMonth(month, 1) : month;
+  return clampedDay(dueMonth, card.dueDay);
+}
+
+export function cardInvoice(finance, card, month, helpers) {
+  const { shiftMonth, parseDate } = helpers;
+  const purchases = finance.tx
+    .filter((transaction) => transaction.accountId === card.id
+      && transaction.type === 'out'
+      && invoiceMonth(card, transaction.date, shiftMonth, parseDate) === month)
+    .sort((a, b) => b.date.localeCompare(a.date)
+      || (b.createdAt || 0) - (a.createdAt || 0));
+  return {
+    month,
+    purchases,
+    total: purchases.reduce((sum, transaction) => sum + transaction.cents, 0),
+    closingDate: card.closingDay ? clampedDay(month, card.closingDay) : null,
+    dueDate: invoiceDueDate(card, month, shiftMonth),
+    installmentCount: purchases.filter((transaction) => transaction.groupId).length,
+  };
+}
+
 export function cardInfo(finance, card, currentDate, helpers) {
   const { shiftMonth, parseDate, accountBalance: balanceFor } = helpers;
   const month = invoiceMonth(card, currentDate, shiftMonth, parseDate);
@@ -222,15 +296,7 @@ export function cardInfo(finance, card, currentDate, helpers) {
       && transaction.type === 'out'
       && invoiceMonth(card, transaction.date, shiftMonth, parseDate) === month)
     .reduce((sum, transaction) => sum + transaction.cents, 0);
-  const dueMonth = card.dueDay && card.closingDay && card.dueDay <= card.closingDay
-    ? shiftMonth(month, 1)
-    : month;
-  const dueDate = card.dueDay
-    ? `${dueMonth}-${String(Math.min(
-      card.dueDay,
-      new Date(Number(dueMonth.slice(0, 4)), Number(dueMonth.slice(5)), 0).getDate(),
-    )).padStart(2, '0')}`
-    : null;
+  const dueDate = invoiceDueDate(card, month, shiftMonth);
   const used = Math.max(0, -balanceFor(card));
   return {
     ym: month,

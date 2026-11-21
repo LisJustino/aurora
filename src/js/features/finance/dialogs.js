@@ -1,14 +1,31 @@
 import { formatMoneyInput } from '../../utils/currency.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
+import { shortDate } from '../../utils/dates.js';
+import { bulkRowCount, bulkRowInstallmentCents, MAX_BULK_LINES } from './bulk-entry.js';
+
+const BULK_EXAMPLE = [
+  { label: 'Despesa única', text: 'Mercado - 230,50 - dia 15/12 - categoria alimentação' },
+  { label: 'Despesa fixa mensal', text: 'iCloud - 50,00 - fixa mensal - dia 04/12 - categoria assinaturas - subcategoria nuvem' },
+  { label: 'Compra parcelada', text: 'Casas Bahia - 87,76 - parcelado - parcela 2/90 - dia 07/12 - categoria compras - valor da parcela' },
+];
+
+function bulkRowSummary(row) {
+  if (row.repeat === 'fixed') return `Fixa mensal · todo dia ${Number(row.date.slice(8, 10))}, a partir de ${shortDate(row.date)}`;
+  if (row.repeat === 'parcel') {
+    const count = bulkRowCount(row);
+    return `Parcelada ${row.currentInstallment}/${row.totalInstallments} · ${count} ${count === 1 ? 'parcela' : 'parcelas'} a partir de ${shortDate(row.date)}`;
+  }
+  return shortDate(row.date);
+}
 
 export function createFinanceDialogViews(dependencies) {
   const {
     ui, S, topCategoryNames, categoryMatch,
     accountOptionLabel, accById, isCredit, expenseTitle, categoryInfo, recById, today, dlgWrap, dlgField, closeBtn,
-    anticipationCandidates,
+    anticipationCandidates, money, accName,
   } = dependencies;
-  return { transaction };
+  return { transaction, bulk };
 
 function transaction() {
   const d = ui.dlg.d, accs = S.finance.accounts, edit = !!d.id, tr = d.kind === 'tr', acc = accById(d.accountId);
@@ -59,5 +76,45 @@ function transaction() {
       </fieldset>` : ''}${d.repeat === 'fixed' ? h`<p class="fine full">Criada todo mês automaticamente, no mesmo dia. Edite ou pause em Fixas, na aba Lançamentos.</p>` : ''}` : ''}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="tx-del-dlg">${icon('trash', 18)}</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button>${canContinue ? h`<button class="btn ghost" type="submit" form="dlgform" data-action="tx-save-and-another">Continuar e salvar</button>` : ''}`}<button class="btn primary" type="submit" form="dlgform" data-action="tx-save">${edit ? 'Salvar' : 'Adicionar'}</button>`);
+}
+
+function bulk() {
+  const d = ui.dlg.d, accs = S.finance.accounts;
+  if (d.step === 'review') {
+    const valid = d.rows.filter((row) => !row.error), invalid = d.rows.length - valid.length;
+    const chosen = valid.filter((row) => row.on), created = chosen.reduce((sum, row) => sum + bulkRowCount(row), 0);
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Confira antes de salvar</h2>${closeBtn}</div>
+      <p class="small muted" role="status" aria-live="polite">${valid.length} ${valid.length === 1 ? 'linha entendida' : 'linhas entendidas'}${invalid ? h` · <b>${invalid} ${invalid === 1 ? 'precisa' : 'precisam'} de ajuste</b>` : ''}. Marcados: ${chosen.length}${created > chosen.length ? ` (${created} lançamentos ao todo, contando as parcelas)` : ''}.</p>
+      <ul class="list imp bulk-entry-list">${d.rows.map((row, index) => row.error
+        ? h`<li class="bulk-entry-error"><span class="grow"><b class="ellip user-value">${row.source}</b><span class="small bulk-entry-error-text">${icon('alert', 14)} Linha ${row.line}: ${row.error}</span></span></li>`
+        : h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${index}.on" ${row.on ? raw('checked') : ''} aria-label="Cadastrar ${row.name}"><span class="grow"><b class="ellip ${row.kind === 'out' ? 'expense-name' : 'user-value'}">${row.kind === 'out' ? expenseTitle(row.name) : row.name}</b><span class="small muted">${bulkRowSummary(row)}</span><span class="small muted">${row.categoryPath ? h`${row.kind === 'out' ? expenseTitle(row.categoryPath) : row.categoryPath}${row.createParent ? ' · categoria nova' : row.createChild ? ' · subcategoria nova' : ''}` : 'Sem categoria'}${row.accountId !== d.accountId ? ` · ${accName(row.accountId)}` : ''}${row.dup ? ' · parece já cadastrado (desmarcado)' : ''}</span></span><span class="amt ${row.kind}">${row.kind === 'in' ? '+' : '−'}${money(bulkRowInstallmentCents(row))}</span></label></li>`)}</ul>`,
+      h`<button type="button" class="btn back" data-action="txbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="txbulk-apply" ${chosen.length ? '' : raw('disabled')}>Cadastrar ${chosen.length ? `(${created})` : ''}</button>`);
+  }
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Cadastrar vários de uma vez</h2>${closeBtn}</div>
+    <p class="small muted">Escreva um lançamento por linha. Depois, confira as informações antes de salvar.</p>
+    <form id="dlgform" class="form" data-form="dlg-txbulk" novalidate>
+      ${dlgField('Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
+      ${dlgField('Lançamentos', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="false" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
+    </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos — copie o modelo que precisar e ajuste os dados:</b></p>
+      ${BULK_EXAMPLE.map((example) => h`<div class="bulk-entry-example"><span class="fine muted">${example.label}</span><code class="bulk-entry-example-text user-value">${example.text}</code></div>`)}
+    </section>
+    <details class="bulk-entry-help">
+      <summary>Como montar cada linha</summary>
+      <p class="fine">Comece pelo nome e separe os campos com " - ":</p>
+      <ul class="fine">
+        <li><b>Nome:</b> descreva o lançamento, por exemplo "Mercado".</li>
+        <li><b>Valor:</b> use vírgula nos centavos, por exemplo 230,50.</li>
+        <li><b>Data:</b> use dia 15/12 ou dia 15. Sem mês, usa o mês atual.</li>
+        <li><b>Tipo:</b> escreva "fixa mensal" ou "parcelado" só quando necessário.</li>
+        <li><b>Parcelas:</b> use "parcela 2/90" ou "12x". Informe "valor da parcela" ou "valor total".</li>
+        <li><b>Categoria:</b> use "categoria alimentação" e, se quiser, "subcategoria mercado". Categorias novas serão criadas.</li>
+        <li><b>Conta:</b> use "conta nubank" em uma linha que deve usar outra conta.</li>
+        <li><b>Receita:</b> acrescente "receita" quando o lançamento for uma entrada.</li>
+      </ul>
+      <p class="fine muted">Você pode usar até ${MAX_BULK_LINES} linhas por vez.</p>
+    </details>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
 }
 }

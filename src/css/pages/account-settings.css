@@ -268,14 +268,6 @@
 .main[data-route="config"] .settings-content > .card {
   max-width: 900px;
 }
-.main[data-route="config"] .account-session-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-.main[data-route="config"] .account-session-heading > div { flex: 1 1 18rem; min-width: 0; }
 .main[data-route="config"] .account-delete-heading {
   display: flex;
   align-items: center;

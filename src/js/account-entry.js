@@ -19,25 +19,22 @@ function renderAccountEntryLoading(root) {
   status.className = 'account-loading';
   status.setAttribute('role', 'status');
   status.setAttribute('aria-busy', 'true');
-  const content = document.createElement('div');
-  content.className = 'account-loading-content';
-  const header = document.createElement('header');
-  header.className = 'account-loading-header';
-  const brand = document.createElement('span');
-  brand.className = 'account-loading-brand';
-  brand.textContent = 'aurora.';
-  const progress = document.createElement('span');
-  progress.className = 'account-loading-status';
-  const indicator = document.createElement('span');
-  indicator.className = 'account-loading-indicator';
-  indicator.setAttribute('aria-hidden', 'true');
-  const message = document.createElement('span');
-  message.className = 'account-loading-message';
-  message.textContent = 'Preparando a tela de acesso…';
-  progress.append(indicator, message);
-  header.append(brand, progress);
-  content.append(header);
-  status.append(content);
+  status.innerHTML = `<div class="account-loading-content">
+    <header class="account-loading-header">
+      <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span class="wordmark">aurora.</span></span>
+    </header>
+    <div class="account-loading-preview" aria-hidden="true">
+      <div class="loading-welcome-card">
+        <span class="loading-welcome-mark"></span>
+        <span class="loading-welcome-kicker">UM DIA DE CADA VEZ</span>
+        <span class="loading-welcome-title">Vamos por partes.</span>
+        <span class="loading-welcome-copy">Planejar, cuidar e acompanhar — no seu ritmo.</span>
+        <span class="loading-welcome-areas"><span class="loading-welcome-area plan">Planejar</span><span class="loading-welcome-area habits">Hábitos</span><span class="loading-welcome-area finance">Finanças</span><span class="loading-welcome-area cycle">Ciclo</span></span>
+      </div>
+    </div>
+    <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span class="account-loading-message">Preparando a tela de acesso…</span></span>
+  </div>`;
+  status.querySelector('.account-loading-brand img').src = new URL('../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(status);
 }
 

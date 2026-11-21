@@ -21,13 +21,13 @@ const check = (passed, name, detail = '') => {
     'landing se ajusta a 320 px sem overflow e mantém uma demonstração selecionada',
   );
   check(
-    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    await page.locator('.public-hero .landing-hero-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
     'hero mobile estreito mantém as ações principais visíveis sem rolagem',
     `${heroAt320}px`,
   );
   await page.setViewportSize({ width: 390, height: 844 });
   check(
-    await page.locator('.public-hero .public-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
+    await page.locator('.public-hero .landing-hero-actions').evaluate((actions) => actions.getBoundingClientRect().bottom <= innerHeight),
     'hero mobile compacto mantém as ações principais visíveis sem rolagem',
   );
   await page.setViewportSize({ width: 768, height: 900 });

@@ -82,7 +82,7 @@ const check = (passed, name, detail = '') => {
   await shortcutPage.locator('.nav-quick-trigger:visible').first().click();
   await shortcutPage.locator('#quick-actions-menu').waitFor({ state: 'visible' });
   await shortcutPage.locator('#quick-actions-menu [data-action="quick-action-expense"], #quick-actions-menu [data-action="quick-action-transaction"]').first().click();
-  await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento.' }).waitFor();
+  await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento' }).waitFor();
   check(shortcutErrors.length === 0, 'atalho financeiro do Início carrega o formulário sem abrir Finanças', shortcutErrors.join(' | '));
   await shortcutPage.keyboard.press('Escape');
   check(await shortcutPage.locator('.home-day-complete').count() === 0, 'dia não aparece concluído com tarefas pendentes');
@@ -434,7 +434,7 @@ const check = (passed, name, detail = '') => {
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.locator('.profile-menu-trigger:visible').click();
-  const profileSettingsLink = page.locator('#profile-menu a[href="/config"]');
+  const profileSettingsLink = page.locator('#profile-menu a[href="/ajustes"]');
   const profileMenuClickable = await profileSettingsLink.evaluate((link) => {
     const bounds = link.getBoundingClientRect();
     const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
@@ -601,7 +601,7 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.profile-menu-control').getAttribute('open') === null,
     'Escape fecha o menu da conta');
   await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  check(await profileMenu.locator('a[href="/config"]').isVisible(),
+  check(await profileMenu.locator('a[href="/ajustes"]').isVisible(),
     'cabeçalho móvel mantém o acesso a Perfil e ajustes');
   check(await profileMenu.locator('.nav-overflow-group').evaluate((group) => getComputedStyle(group).display) === 'none',
     'menu da conta no cabeçalho não repete as áreas do Mais');
@@ -679,7 +679,7 @@ const check = (passed, name, detail = '') => {
     && await page.locator('#fin-view-panel').getAttribute('aria-labelledby') === 'fin-view-cal',
   'teclado seleciona a visão de lançamentos');
   await page.locator('.profile-menu-trigger:visible').first().click();
-  await page.locator('#profile-menu a[href="/config"]').click();
+  await page.locator('#profile-menu a[href="/ajustes"]').click();
   const settingsState = await page.locator('.settings-link[aria-current="page"]').evaluate((link) => ({
     background: getComputedStyle(link).backgroundColor,
     iconBackground: getComputedStyle(link.querySelector('.settings-link-icon')).backgroundColor,

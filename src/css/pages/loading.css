@@ -66,6 +66,14 @@ body:has(#app > .app-skeleton) { overflow: hidden; }
     var(--loading-canvas);
   color: var(--loading-ink);
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .account-loading,
+  :root:not([data-theme]) .app-skeleton {
+    --loading-canvas: var(--loading-canvas-dark);
+    background: var(--loading-canvas-dark);
+  }
+}
 .account-loading-content {
   display: grid;
   width: min(100%, 400px);

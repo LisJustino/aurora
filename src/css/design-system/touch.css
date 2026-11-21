@@ -27,7 +27,10 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   box-shadow: none;
 }
 @media (width < 700px) {
-  .home-quick-copy p { display: none; }
+  .home-quick-copy p {
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
   .home-quick-card { gap: var(--space-3); padding-block: 16px; }
 }
 

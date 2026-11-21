@@ -17,7 +17,7 @@ const check = (passed, name, detail = '') => {
   });
 
   await page.goto(`${BASE}/?preview#planejar`);
-  await page.locator('[data-action="weekly-open-review"]').click();
+  await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
   check(await page.locator('.weekly-review').count() === 1
     && await page.locator('.weekly-review-hero').getByText('Sua semana.').count() === 1
     && await page.locator('.weekly-review .review-stats .stat').count() === 4
@@ -36,7 +36,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('[data-action="plan-view"][data-v="lista"]').click();
   check(await page.locator('#task-results li.task').filter({ hasText: 'Mais pausas' }).count() === 0,
     'a reflexão não cria tarefa indevida');
-  await page.locator('[data-action="weekly-open-review"]').click();
+  await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
   check(await page.locator('.weekly-review').count() === 1
     && await page.locator('.weekly-reflection [aria-pressed="true"]').textContent() === 'Mais pausas',
   'resposta permanece visível ao reabrir Sua semana');

@@ -208,13 +208,13 @@ test('convite de feedback respeita os cinco dias e direciona para o formulário 
     || !isValidFeedbackPromptNextAt(nextAt)
     || !isValidFeedbackPromptNextAt(null)
     || isValidFeedbackPromptNextAt('data inválida')
-    || feedbackSuggestionHref() !== '/config?section=account') {
+    || feedbackSuggestionHref() !== '/ajustes/conta') {
     throw new Error('O agendamento, a validação ou o link de sugestão está incorreto.');
   }
   const prompt = renderFeedbackPrompt().s;
   if (!prompt.includes('Está gostando do Aurora?')
     || !prompt.includes('data-action="feedback-prompt-dismiss"')
-    || !prompt.includes('href="/config?section=account"')
+    || !prompt.includes('href="/ajustes/conta"')
     || !prompt.includes('Sugerir uma melhoria')) {
     throw new Error('O convite deve oferecer avaliação, adiamento e acesso ao formulário no app.');
   }
@@ -344,8 +344,9 @@ test('Planejar mantém Calendário acessível junto às outras visualizações',
     weeklyReviewView: () => '<section>Revisão semanal</section>',
     taskListHtml: () => '<ul></ul>',
   }).s;
-  const expectedViews = ['lista', 'calendario', 'semana', 'revisao', 'anual'];
+  const expectedViews = ['lista', 'calendario', 'revisao', 'anual'];
   if (!expectedViews.every((view) => html.includes(`id="plan-tab-${view}"`))
+    || html.includes('id="plan-tab-semana"')
     || !html.includes('aria-labelledby="plan-tab-revisao"')
     || !html.includes('Revisão semanal')
     || !html.includes('data-action="task-new"')
@@ -463,6 +464,23 @@ test('Início aplica visibilidade e ordem dos blocos sem duplicar a ação princ
   if (!cycleHtml.includes('href="/ciclo" aria-label="Ciclo, dia 12 do ciclo"')
     || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
     throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
+  }
+  const upcomingHtml = renderHomeView({
+    ...model,
+    financeUpcoming: { count: 2, cents: 35000, overdue: 1, days: 14, hidden: false },
+  }, renderers).s;
+  const hiddenUpcomingHtml = renderHomeView({
+    ...model,
+    financeUpcoming: { count: 1, cents: 12000, overdue: 0, days: 14, hidden: true },
+  }, renderers).s;
+  if (!upcomingHtml.includes('class="home-day-upcoming has-overdue" href="/financas"')
+    || !upcomingHtml.includes('2 compromissos')
+    || !upcomingHtml.includes('1 em atraso')
+    || html.includes('home-day-upcoming')
+    || !hiddenUpcomingHtml.includes('••••')
+    || !hiddenUpcomingHtml.includes('valor oculto')
+    || /R\$\s?120,00/.test(hiddenUpcomingHtml)) {
+    throw new Error('A Início deve resumir vencimentos de Finanças, destacar atrasos e respeitar a ocultação de valores.');
   }
   const noWaterHtml = renderHomeView({
     ...model,
@@ -718,6 +736,25 @@ test('cabeçalho de autenticação compartilha navegação e ação principal da
     || !/class="btn primary public-account-action[^"]*"\s+data-account-mode="signup"/.test(markup)
     || !markup.includes('data-public-control="theme-cycle"')) {
     throw new Error('O cabeçalho de autenticação deve manter navegação, CTA e controle de tema da landing.');
+  }
+});
+
+test('modal de cartão organiza identificação, pagamento e limite em seções claras', () => {
+  const mainJs = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const financeCss = readFileSync(new URL('../src/css/pages/finance.css', import.meta.url), 'utf8');
+  if (!mainJs.includes('Identificação')
+    || !mainJs.includes('Pagamento da fatura')
+    || !mainJs.includes('Limite e datas')
+    || !mainJs.includes('Dívida inicial')
+    || !mainJs.includes('data-dlg="bankOption"')
+    || !mainJs.includes('bank-custom-entry')
+    || !mainJs.includes('Outro / não listado')
+    || !mainJs.includes('isCardAccount')
+    || !mainJs.includes('card-account-dialog')
+    || !financeCss.includes('.dlg.card-account-dialog')
+    || !financeCss.includes('.bank-name-control > .ds-select')
+    || !financeCss.includes('.account-dialog-section')) {
+    throw new Error('O modal de cartão deve separar os dados e usar uma largura adequada.');
   }
 });
 
@@ -1278,17 +1315,26 @@ test('mantém aliases legados e direciona rotas removidas ou desconhecidas para 
 test('usa caminhos legíveis e converte hashes antigos sem perder query ou âncoras', () => {
   const routes = new Set(['inicio', 'planejar', 'financas', 'habitos', 'config']);
   equal(routePathFor('financas'), '/financas');
-  equal(routePathFor('perfil'), '/config');
-  equal(routePathFor('config?section=calendars'), '/config?section=calendars');
+  equal(routePathFor('perfil'), '/ajustes/perfil');
+  equal(routePathFor('config'), '/ajustes');
+  equal(routePathFor('config?section=calendars'), '/ajustes/agendas');
+  equal(routePathFor('config?weight'), '/ajustes/perfil?weight=');
   equal(routeFromLocation(new URL('https://aurora.local/financas'), routes).route, 'financas');
   equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).route, 'inicio');
   equal(routeFromLocation(new URL('https://aurora.local/pomodoro'), routes).replacePath, '/inicio');
+  equal(routeFromLocation(new URL('https://aurora.local/ajustes/dados'), routes).route, 'config');
+  equal(routeFromLocation(new URL('https://aurora.local/ajustes/dados'), routes).query, 'section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/ajustes/dados'), routes).replacePath, null);
+  equal(routeFromLocation(new URL('https://aurora.local/ajustes/dados?source=pwa&section=profile'), routes).replacePath, '/ajustes/dados?source=pwa');
   equal(routeFromLocation(new URL('https://aurora.local/pages/inicio.html#main'), routes).replacePath, '/inicio#main');
   equal(routeFromLocation(new URL('https://aurora.local/#agua'), routes).replacePath, '/habitos');
-  equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/config?section=data');
-  equal(routeFromLocation(new URL('https://aurora.local/?source=pwa#config?section=data'), routes).replacePath, '/config?source=pwa&section=data');
+  equal(routeFromLocation(new URL('https://aurora.local/#config?section=data'), routes).replacePath, '/ajustes/dados');
+  equal(routeFromLocation(new URL('https://aurora.local/?source=pwa#config?section=data'), routes).replacePath, '/ajustes/dados?source=pwa');
+  equal(routeFromLocation(new URL('https://aurora.local/config?section=data'), routes).replacePath, '/ajustes/dados');
+  equal(routeFromLocation(new URL('https://aurora.local/perfil'), routes).replacePath, '/ajustes/perfil');
   equal(routeFromLocation(new URL('https://aurora.local/agua'), routes).route, 'habitos');
   equal(canonicalPublicPath(new URL('https://aurora.local/#inicio')), '/inicio');
+  equal(canonicalPublicPath(new URL('https://aurora.local/#config?section=data')), '/ajustes/dados');
   equal(canonicalPublicPath(new URL('https://aurora.local/#criar-conta?etapa=acesso')), '/criar-conta?etapa=acesso');
 });
 
@@ -1353,8 +1399,9 @@ test('ao excluir a conta, navega para a landing pública', () => {
 test('ao sair de Ajustes, prepara o retorno na aba Seu perfil', () => {
   equal(
     settingsRootPath({ href: 'https://aurora.local/config?source=pwa&section=data' }),
-    '/config?source=pwa',
+    '/ajustes?source=pwa',
   );
+  equal(settingsRootPath({ href: 'https://aurora.local/ajustes/dados?source=pwa' }), '/ajustes?source=pwa');
   equal(settingsRootPath({ href: 'https://aurora.local/inicio' }), null);
   equal(settingsRootPath({ href: 'https://aurora.local/config' }), null);
 });
@@ -2154,12 +2201,16 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
   const root = {
     style: {},
     setAttribute(name, value) { attributes[name] = value; },
+    removeAttribute(name) { delete attributes[name]; },
   };
   const systemTheme = {
     matches: true,
     addEventListener(_name, listener) { this.listener = listener; },
   };
-  const browserWindow = { matchMedia: () => systemTheme };
+  const browserWindow = {
+    matchMedia: () => systemTheme,
+    addEventListener() {},
+  };
   let manifestHref = 'https://aurora.test/manifest.webmanifest';
   const manifest = {
     get href() { return manifestHref; },
@@ -2170,6 +2221,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
 
   runInNewContext(source, {
     URL,
+    setTimeout(callback) { callback(); },
     window: browserWindow,
     document: {
       documentElement: root,
@@ -2181,7 +2233,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
     },
   });
 
-  equal(attributes['data-theme'], 'dark');
+  equal(attributes['data-theme'], undefined);
   equal(root.style.colorScheme, 'dark');
   equal(root.style.backgroundColor, '#1c1b19');
   equal(manifestHref, 'https://aurora.test/manifest-dark.webmanifest');
@@ -2194,7 +2246,8 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
   browserWindow.auroraManifestTheme.setMode('auto');
   systemTheme.matches = false;
   systemTheme.listener();
-  equal(attributes['data-theme'], 'light');
+  equal(attributes['data-theme'], undefined);
+  equal(root.style.colorScheme, 'light');
 });
 
 test('a paleta Rosé acompanha as cores do gradiente da logo', () => {

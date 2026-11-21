@@ -5,13 +5,23 @@ const brandLogo = new URL('../../../../icons/favicon.svg', import.meta.url).href
 
 export function renderSuggestionForm() {
   return `<div class="footer-faq-content">
-    <p>A mensagem vai para análise. Não pedimos seu nome nem e-mail; por segurança, evite incluir dados pessoais, senhas ou informações de saúde.</p>
     <form class="footer-suggestion-form" data-footer-suggestion>
-      <label for="footer-suggestion-message">Sua sugestão</label>
-      <textarea id="footer-suggestion-message" name="message" rows="4" minlength="10" maxlength="2000" required></textarea>
+      <div class="suggestion-form-field">
+        <div class="suggestion-form-label-row">
+          <label for="footer-suggestion-message">Sua sugestão</label>
+          <span class="suggestion-form-count" data-suggestion-count aria-live="polite">0 / 2000</span>
+        </div>
+        <textarea id="footer-suggestion-message" name="message" rows="5" minlength="10" maxlength="2000" placeholder="Conte o que poderia ser mais simples, útil ou melhor…" aria-describedby="footer-suggestion-privacy" required></textarea>
+      </div>
+      <div class="suggestion-privacy" id="footer-suggestion-privacy">
+        <span aria-hidden="true">${iconSvg('shield', 16)}</span>
+        <p>Sua mensagem vai para análise. Não pedimos nome nem e-mail; evite dados pessoais, senhas ou informações de saúde.</p>
+      </div>
       <p class="notice warn full" data-suggestion-error role="alert" hidden></p>
-      <button class="btn ghost" type="submit">Enviar sugestão</button>
-      <p class="fine" data-suggestion-status role="status" aria-live="polite"></p>
+      <div class="suggestion-form-actions">
+        <p class="fine" data-suggestion-status role="status" aria-live="polite"></p>
+        <button class="btn primary" type="submit">Enviar sugestão</button>
+      </div>
     </form>
   </div>`;
 }
@@ -33,9 +43,9 @@ export function renderFooterContent({
       && window.matchMedia('(display-mode: standalone)').matches)
   );
   const accountLinks = preview
-    ? '<a class="footer-link" href="/config">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
+    ? '<a class="footer-link" href="/ajustes">Perfil e ajustes da prévia</a><span class="footer-link footer-preview-label">Modo de prévia local</span>'
     : authenticated
-    ? '<a class="footer-link" href="/config">Perfil e ajustes</a>'
+    ? '<a class="footer-link" href="/ajustes">Perfil e ajustes</a>'
     : accountError
       ? `<a class="footer-link" href="/">Voltar à página inicial</a>`
       : `<a class="footer-link" href="/entrar" data-public-action="login">Entrar</a><a class="footer-link" href="/criar-conta" data-public-action="signup">Criar conta</a>`;
@@ -83,8 +93,8 @@ export function renderFooterContent({
             <p>O Aurora avisa quando está sem conexão e bloqueia novas gravações. Alterações offline não são sincronizadas automaticamente.</p>
           </details>
           <details>
-            <summary>Posso exportar ou apagar meus dados?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
-            <p>Sim. Exporte seus dados em Ajustes → Dados e backup ou inicie a exclusão permanente da conta em Ajustes → Seu perfil. Backups baixados ficam sob seu controle.</p>
+            <summary>Como posso apagar meus dados?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>
+            <p>Inicie a exclusão permanente da conta em Ajustes → Seu perfil. Itens excluídos recentemente podem ser recuperados em Ajustes → Dados e recuperação.</p>
           </details>
           <details>
             <summary>Como envio uma sugestão?<span class="footer-faq-disclosure" aria-hidden="true">${iconSvg('chevDown', 16)}</span></summary>

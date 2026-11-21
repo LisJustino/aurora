@@ -28,7 +28,7 @@ const check = (passed, name, detail = '') => {
 
   const developmentUrl = new URL('/inicio?preview=1', DEV_BASE);
   await page.goto(developmentUrl.toString());
-  await page.getByText('Você está vendo dados de exemplo.', { exact: false }).waitFor({ state: 'visible' });
+  await page.getByText('Dados de exemplo', { exact: false }).waitFor({ state: 'visible' });
   check(await page.locator('.preview-shell').count() === 1, 'prévia local abre a área de demonstração');
 
   const routes = ['inicio', 'planejar', 'financas', 'ciclo', 'habitos', 'config'];
@@ -36,7 +36,7 @@ const check = (passed, name, detail = '') => {
     const direct = page.locator(`.nav a.nav-item[href="/${route}"]:visible`);
     if (route === 'config') {
       await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-      await page.locator('#profile-menu a[href="/config"]').click();
+      await page.locator('#profile-menu a[href="/ajustes"]').click();
     } else if (await direct.count()) {
       await direct.first().click();
     } else {
@@ -60,7 +60,7 @@ const check = (passed, name, detail = '') => {
   await page.goto(protectedUrl.toString());
   await page.getByRole('heading', { name: 'Acesso indisponível' }).waitFor({ state: 'visible' });
   check(
-    !(await page.getByText('Você está vendo dados de exemplo.', { exact: false }).count()),
+    !(await page.getByText('Dados de exemplo', { exact: false }).count()),
     'build de produção não ativa a prévia em rota protegida',
   );
   check(

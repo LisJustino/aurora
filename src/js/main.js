@@ -7,6 +7,9 @@ import {
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
+import {
+  buildBulkRecords, bulkRowInstallmentCents, findBulkAccount, parseBulkText, resolveBulkCategory,
+} from './features/finance/bulk-entry.js';
 import { emptyState } from './utils/empty-state.js';
 import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
@@ -24,7 +27,6 @@ import {
 import {
   accountBalance as balanceForAccount,
   accountBalanceOn,
-  netAccountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
   invoiceMonth,
@@ -38,6 +40,11 @@ import {
   projectedNetAccountBalance,
   signedAmount,
   expenseBudgetByCategory,
+  dailyBudgetRoom,
+  cardInvoice as calculateCardInvoice,
+  goalMonthlyPlan,
+  balanceSplit,
+  savingsRatePercent,
   installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
@@ -79,6 +86,14 @@ import {
 } from './features/release-notes.js';
 import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
 import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
+import {
+  BUDGET_ALERT_OPTIONS,
+  budgetHistory,
+  budgetReport,
+  budgetSettingsFor,
+  normalizeBudgetSettings,
+  suggestBudgetCents,
+} from './features/finance/budget-insights.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import {
@@ -511,7 +526,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -528,7 +543,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, profileImageBusy: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, profileImageBusy: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finInvoiceShift: {}, finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repAcc: '', repCat: '', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -537,7 +552,7 @@ const toastController = createToastController({
   getOverride: () => {
     if (Object.keys(ui.integrityIssues).length) {
       const slices = Object.keys(ui.integrityIssues).join(', ');
-      return `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
+      return `Dados inválidos em ${slices}. A gravação está bloqueada; revise Dados e recuperação em Ajustes.`;
     }
     if (ui.persistFailed.size) {
       return { message: 'Não foi possível salvar as alterações. Confira sua conexão e tente novamente.', details: ui.persistError };
@@ -779,6 +794,7 @@ function normalizeSettings(s) {
   o.prefs.areaColors = normalizeHomeAreaColors(prefs.areaColors);
   o.prefs.profileAppearance = normalizeProfileAppearance(prefs.profileAppearance);
   o.prefs.financeCategoryRules = normalizeCategoryRules(prefs.financeCategoryRules);
+  o.prefs.financeBudgetSettings = normalizeBudgetSettings(prefs.financeBudgetSettings);
   o.prefs.waterGoalMl = Number.isInteger(prefs.waterGoalMl) && prefs.waterGoalMl >= 500 && prefs.waterGoalMl <= 10000 ? prefs.waterGoalMl : d.prefs.waterGoalMl;
   o.prefs.habitWaterGoals = Object.fromEntries(
     Object.entries(isPlainObject(prefs.habitWaterGoals) ? prefs.habitWaterGoals : {})
@@ -1576,7 +1592,7 @@ function purgeExpiredTrash() {
 /* Ícones: src/js/utils/icons.js */
 const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
-const configLink = () => h`<a class="inline-link" href="/config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
+const configLink = () => h`<a class="inline-link" href="${routePathFor('config?weight')}" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
@@ -1663,6 +1679,7 @@ function shell(body) {
         ${S.finance.accounts.length > 1 ? h`<button type="button" data-action="quick-action-finance" data-kind="tr"><span class="ni">${icon('repeat', 18)}</span><span>Transferência</span></button>` : ''}
         <button type="button" data-action="quick-action-finance" data-kind="in"><span class="ni">${icon('plus', 18)}</span><span>Receita</span></button>
         <button type="button" data-action="quick-action-finance" data-kind="out"><span class="ni">${icon('arrowDown', 18)}</span><span>Despesa</span></button>
+        <button type="button" data-action="quick-action-bulk"><span class="ni">${icon('list', 18)}</span><span>Cadastrar vários</span></button>
         ${S.finance.accounts.some(isCredit) ? h`<button type="button" data-action="quick-action-finance" data-kind="card"><span class="ni">${icon('card', 18)}</span><span>Despesa cartão</span></button>` : ''}`
       : h`<button type="button" data-action="quick-action-transaction"><span class="ni">${icon('wallet', 18)}</span><span>Lançamento</span></button>`;
   const isFinanceRoute = ui.route === 'financas';
@@ -1698,18 +1715,18 @@ function shell(body) {
   </details>`;
   const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Perfil e navegação">
     ${hasOverflow ? h`<div class="nav-overflow-group" role="group" aria-label="Mais áreas">${overflowItems.map(({ id, label, icon: iconName }) => h`<a class="profile-menu-item nav-overflow-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}>${icon(iconName, 18)}<span>${label}</span></a>`)}</div>` : ''}
-    <a class="profile-menu-item profile-menu-account-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
+    <a class="profile-menu-item profile-menu-account-item" href="${routePathFor('config')}">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
     ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout profile-menu-account-item" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
   </div>`;
   const headerAccountMenu = h`<details class="header-account-control">
     <summary class="iconbtn header-account-trigger" aria-label="Perfil e conta" title="Perfil e conta">${profileAvatarMarkup(accountAppearance, 'profile-menu-avatar', 20)}</summary>
     <div class="header-account-panel" role="group" aria-label="Perfil e conta">
-      <a class="profile-menu-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
+      <a class="profile-menu-item" href="${routePathFor('config')}">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
     </div>
   </details>`;
   const navLinks = menuItems.map(navLink);
-  const navItems = h`${navLinks}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${navLinks}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="${routePathFor('config?section=areas-navigation')}" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <div class="pull-refresh-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="pull-refresh-icon" aria-hidden="true">${icon('refresh', 20)}</span><span class="pull-refresh-label"></span></div>
     <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerQuickActions}${modeBtn('iconbtn theme-trigger')}${headerProfileMenu}${headerAccountMenu}</div></header>
@@ -1731,7 +1748,7 @@ function persistenceNotice() {
   let action;
   if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
     message = 'Alguns dados precisam de revisão; alterações estão bloqueadas para evitar perda.';
-    action = h`<a class="btn sm" href="/config?section=data">Revisar dados</a>`;
+    action = h`<a class="btn sm" href="${routePathFor('config?section=data')}">Revisar dados</a>`;
   } else if (syncState.conflicts.size) {
     message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
     action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar dados da conta</button>`;
@@ -1739,8 +1756,8 @@ function persistenceNotice() {
     message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
     action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
   } else {
-    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e backup.';
-    action = h`<a class="btn sm" href="/config?section=data">Ver dados e backup</a>`;
+    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e recuperação.';
+    action = h`<a class="btn sm" href="${routePathFor('config?section=data')}">Ver dados e recuperação</a>`;
   }
   return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
@@ -2343,7 +2360,7 @@ function loadFinanceModules() {
       ui, S, catNames, topCategoryNames, categoryMatch, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
       accountOptionLabel, accById, isCredit, expenseTitle,
       categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
-      anticipationCandidates,
+      anticipationCandidates, money, accName,
     });
     financePrivacyNotice = view.financePrivacyNotice;
     renderFinanceView = view.renderFinanceView;
@@ -2429,7 +2446,7 @@ function onRoute() {
   const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
   if (resolved.route === 'ciclo' && !canAccessCycle(S.settings.profile, ui.preview)) {
     const hasProfileSex = Boolean(S.settings.profile.sex);
-    const destination = hasProfileSex ? '/inicio' : '/config?section=profile';
+    const destination = hasProfileSex ? '/inicio' : routePathFor('config?section=profile');
     history.replaceState(null, '', destination);
     resolved.route = hasProfileSex ? 'inicio' : 'config';
     resolved.query = hasProfileSex ? '' : 'section=profile';
@@ -2467,7 +2484,7 @@ function onRoute() {
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
   if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
     const destination = `${location.pathname}${location.search}${location.hash}`;
-    history.replaceState(history.state, '', `${routePathFor('config')}?section=${encodeURIComponent(ui.settingsTab)}`);
+    history.replaceState(history.state, '', routePathFor(`config?section=${encodeURIComponent(ui.settingsTab)}`));
     void savePendingProfileDraft().then((saved) => {
       if (!saved) return;
       history.replaceState(history.state, '', destination);
@@ -2486,7 +2503,7 @@ function onRoute() {
   }
   const routeChanged = wasBooted && previousRoute !== ui.route;
   if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
-  const targetFocus = query === 'weight' ? 'pk' : null;
+  const targetFocus = new URLSearchParams(query).has('weight') ? 'pk' : null;
   const requestedSettingsTab = settingsTabId(new URLSearchParams(query).get('section'));
   if (ui.route === 'config') {
     ui.settingsTab = SETTINGS_SECTIONS.some(([id]) => id === requestedSettingsTab)
@@ -2520,7 +2537,7 @@ function onRoute() {
 /* ========== Páginas: Início, Planejar, Foco ========== */
 const todayTasks = () => selectTodayTasks(S.tasks, today());
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
-const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
+const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Dados de exemplo — não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
 
 function homeInboxReminder(tasks) {
   if (!tasks.length) return '';
@@ -2541,7 +2558,7 @@ function homeUpcomingTasks() {
   const preview = upcoming.slice(0, 3);
   const remaining = upcoming.length - preview.length;
   return h`<section class="card home-upcoming-card" aria-labelledby="home-upcoming-title">
-    <div class="head"><div><p class="section-kicker">Depois de hoje</p><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
+    <div class="head"><div><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
     <ul class="list">${preview.map((task) => taskRow(task))}</ul>
     ${remaining ? h`<p class="home-upcoming-more">+ ${remaining} ${plural(remaining, 'tarefa', 'tarefas')} na lista completa.</p>` : ''}
   </section>`;
@@ -2627,7 +2644,7 @@ function homeFirstSteps() {
     {
       label: 'Escolher sua cor',
       actionLabel: 'Abrir preferências de aparência',
-      href: '/config?section=personalization',
+      href: routePathFor('config?section=personalization'),
       icon: 'sun',
     },
   ];
@@ -2723,6 +2740,16 @@ function viewInicio() {
       : null,
   });
   const weekProgress = weeklyReview(S.tasks, [], todayKey).tasks;
+  const upcomingDue = showFinanceSummary ? upcomingDueItems() : [];
+  const financeUpcoming = upcomingDue.length
+    ? {
+      count: upcomingDue.length,
+      cents: upcomingDue.reduce((sum, item) => sum + item.cents, 0),
+      overdue: upcomingDue.filter((item) => item.date < todayKey).length,
+      days: UPCOMING_WINDOW_DAYS,
+      hidden: Boolean(S.settings.prefs.financeValuesHidden),
+    }
+    : null;
   return renderHomeView({
     name,
     profileAppearance,
@@ -2744,6 +2771,7 @@ function viewInicio() {
     emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
+    financeUpcoming,
     showHomeBlock,
     homeBlockStyle,
   }, {
@@ -3283,7 +3311,7 @@ function waterSummary() {
   const habit = S.habits.find(isWaterHabit);
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
-  return h`<section class="water-tracker" style="--hc:var(--area-water)" aria-label="Acompanhamento de água">
+  return h`<section class="water-tracker water-tracker--quick" style="--hc:var(--area-water)" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
     <button type="button" class="btn sm" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
@@ -3326,7 +3354,7 @@ function habitRow(habit) {
     <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
       const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
       const editable = saved && status === 'active' && w.scheduled && w.day <= today();
-      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
+      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><span class="habit-dot-day" aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 3)}</span><i aria-hidden="true">${w.completed ? icon('check', 12) : w.skipped ? '–' : ''}</i></button>`;
     })}</div>
   </li>`;
 }
@@ -3372,7 +3400,7 @@ function areaTiles() {
   const defs = [['finances', 'wallet'], ...(canAccessCycle(S.settings.profile, ui.preview) ? [['cycle', 'heart']] : [])]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
-  return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
+  return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="${routePathFor('config')}">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
 }
 
 /* ---------- Ciclo ---------- */
@@ -3506,9 +3534,6 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de Hábitos do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos' : 'Ativar Hábitos'}</a>
-    </div>`) }
   </form>`;
 }
 function firstName(value) {
@@ -3549,7 +3574,7 @@ function profileSettings(s) {
       </div>
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
-      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo e uma cor para o seu perfil.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
       <div class="profile-appearance-controls">
         <div class="profile-appearance-option">
           <span class="appearance-settings-label">Foto de perfil</span>
@@ -3558,12 +3583,11 @@ function profileSettings(s) {
             ${appearance.avatarImage ? h`<button type="button" class="btn sm" data-action="profile-avatar-adjust" ${profileControlsDisabled ? raw('disabled') : ''}>Ajustar enquadramento</button><button type="button" class="btn sm" data-action="profile-avatar-remove" ${profileControlsDisabled ? raw('disabled') : ''}>Remover foto</button>` : ''}
             <input id="profile-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-file hidden>
           </div>
-          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB. Você escolhe o corte e a posição; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta), sincronizada entre dispositivos e incluída nos backups.</p>
+          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB. Você escolhe o corte e a posição; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta) e sincronizada entre dispositivos.</p>
           ${ui.profileImageBusy ? h`<p class="profile-avatar-upload-status" role="status" aria-live="polite">Preparando foto…</p>` : ''}
         </div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Cor</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
   </form>
@@ -3572,7 +3596,7 @@ function profileSettings(s) {
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
+      <div class="settings-section-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div></div>
     </section>
     ${!ui.preview ? h`<section class="card settings-section-card account-feedback-card" aria-labelledby="account-feedback-title">
       <div class="settings-section-heading"><h2 id="account-feedback-title">Ajude a melhorar o Aurora</h2><p>Conte uma ideia, melhoria ou algo que não funcionou como esperado.</p></div>
@@ -3644,7 +3668,7 @@ const SETTINGS_SECTIONS = [
   ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
   ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
-  ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
+  ['data', 'Dados e recuperação', 'archive', 'Gerenciar a lixeira e a recuperação de dados'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
   ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
@@ -3716,16 +3740,6 @@ function homeSettings(s) {
     ${homeLayoutSettings(s)}
   </form>`;
 }
-const LEGACY_IMPORT_LABELS = [
-  ['tasks', 'Tarefas'],
-  ['habits', 'Hábitos'],
-  ['habitLogs', 'Registros de hábitos'],
-  ['water', 'Registros antigos de hidratação'],
-  ['gym', 'Modelos e registros de treino'],
-  ['finance', 'Registros financeiros'],
-  ['cycle', 'Ciclo e diário'],
-  ['weight', 'Pesagens'],
-];
 function setLegacyImportError(message) {
   ui.legacyImport.error = message;
   ui.legacyImport.busy = false;
@@ -3991,104 +4005,16 @@ async function clearLegacyBrowserData() {
   }
   render();
 }
-function legacyImportPanel() {
-  const migration = ui.legacyImport;
-  const preview = migration.preview;
-  const snapshotCount = Object.keys(preview?.browserData?.snapshot || {}).length;
-  const foundBrowserPlain = Object.keys(migration.browserData?.plain || {}).length;
-  const foundBrowserEncrypted = Object.keys(migration.browserData?.encrypted || {}).length;
-  const foundVault = migration.discovery?.vaultRows?.length || 0;
-  const activeStep = ['start', 'unlock'].includes(migration.step)
-    ? 1
-    : ['review', 'empty'].includes(migration.step) ? 2 : 3;
-  const steps = [
-    ['Encontrar cópias', 'Só leitura; nada será alterado'],
-    ['Revisar e importar', 'Confira o resumo antes de gravar'],
-    ['Conferir e limpar', 'Apagar cópias locais é opcional'],
-  ];
-  const expanded = migration.step !== 'start' || migration.busy || Boolean(migration.error) || migration.completed;
-  return h`<details class="card settings-section-card settings-data-migration" ${expanded ? raw('open') : ''}>
-    <summary class="settings-data-migration-summary">
-      <span class="settings-data-action-icon" aria-hidden="true">${icon('archive', 19)}</span>
-      <span class="settings-data-migration-copy"><b>Importar dados de uma versão anterior</b><small>Para quem precisa recuperar cópias antigas do Aurora</small></span>
-      <span class="settings-data-migration-indicator" aria-hidden="true">${icon('chevDown', 18)}</span>
-    </summary>
-    <div class="settings-data-migration-content">
-    <div class="settings-section-heading"><p>Procure cópias deste navegador ou do cofre antigo. A busca não altera nada; você revisa antes de importar.</p></div>
-    <ol class="legacy-import-steps" aria-label="Etapas para trazer dados antigos">${steps.map(([title, detail], index) => {
-      const step = index + 1;
-      const state = step < activeStep ? 'is-complete' : step === activeStep ? 'is-current' : '';
-      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? icon('check', 16) : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
-    })}</ol>
-    <div class="notice warn" role="note"><span>Antes de continuar, confirme que entrou na conta correta. Os dados já existentes serão mantidos; itens com o mesmo ID não serão duplicados.</span></div>
-    ${migration.error ? h`<p class="err" role="alert">${migration.error}</p>` : ''}
-    ${migration.step === 'start' ? h`<div class="legacy-import-stage">
-      <p>Vamos procurar dados antigos neste navegador e no cofre associado à sua conta. A busca não grava nem apaga nada.</p>
-      <button type="button" class="btn primary" data-action="legacy-import-discover" ${migration.busy ? raw('disabled aria-busy="true"') : ''}>${migration.busy ? 'Procurando cópias…' : 'Começar busca'}</button>
-    </div>` : ''}
-    ${migration.step === 'unlock' ? h`<div class="legacy-import-stage">
-      <div class="notice data-location" role="status"><span>Encontramos ${foundBrowserPlain} ${plural(foundBrowserPlain, 'área antiga', 'áreas antigas')} neste navegador e ${foundBrowserEncrypted} ${plural(foundBrowserEncrypted, 'cópia protegida', 'cópias protegidas')} nele. O cofre antigo da sua conta contém ${foundVault} ${plural(foundVault, 'área protegida', 'áreas protegidas')}.</span></div>
-      <p>Para montar o resumo completo, precisamos ler as cópias protegidas. Use a senha que criou o cofre antigo — não a senha de login, a menos que sejam iguais. A busca não importou nem apagou nada.</p>
-      <label class="f" for="legacy-vault-password"><span class="f-label">Senha original do cofre</span><input id="legacy-vault-password" class="field" type="password" maxlength="72" autocomplete="off" spellcheck="false" aria-describedby="legacy-vault-help"></label>
-      <p class="small muted" id="legacy-vault-help">A senha é usada somente para ler essas cópias e não é salva. Redefinir a senha da conta não altera a senha antiga do cofre.</p>
-      <div class="row"><button type="button" class="btn primary" data-action="legacy-import-unlock" ${migration.busy ? raw('disabled aria-busy="true"') : ''}>${migration.busy ? 'Desbloqueando…' : 'Desbloquear e ver resumo'}</button><button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Recomeçar busca</button></div>
-    </div>` : ''}
-    ${migration.step === 'review' && preview ? h`<div class="legacy-import-stage legacy-import-summary">
-      <h3>Confira o resumo</h3>
-      <p class="small muted">Cópias consideradas: ${preview.sourceCounts.browser} área(s) antigas neste navegador, ${preview.sourceCounts.encryptedBrowser} protegida(s) nele e ${preview.sourceCounts.vault} no cofre antigo da conta.</p>
-      <ul class="backup-preview legacy-import-preview">${LEGACY_IMPORT_LABELS.map(([key, label]) => h`<li><b>${label}</b><span>Encontrados na cópia: ${preview.plan.found[key]} · Novos na conta: ${preview.plan.added[key]}</span></li>`)}</ul>
-      ${preview.plan.hasSettings ? h`<p class="small">Também serão mescladas configurações, aparência, listas e preferências. Valores personalizados que já existem na conta serão mantidos.</p>` : ''}
-      ${preview.plan.slices.some((slice) => slice === 'timer' || slice === 'pomodoro') ? h`<p class="small">Também encontramos dados de cronômetros.</p>` : ''}
-      ${preview.browserData.markerKeys.length || preview.browserData.unknownUserKeys.length ? h`<p class="small muted">${preview.browserData.markerKeys.length} marcador(es) antigo(s) e ${preview.browserData.unknownUserKeys.length} chave(s) não reconhecida(s) não serão alterados.</p>` : ''}
-      <div class="notice warn" role="note"><span>Importar não apaga as cópias antigas. A gravação será conferida lendo novamente os dados da conta. Se algo não puder ser conferido, manteremos as cópias para uma nova tentativa.</span></div>
-      <div class="row"><button type="button" class="btn primary" data-action="legacy-import-apply" ${migration.busy ? raw('disabled') : ''}>${migration.busy ? 'Importando e conferindo…' : 'Importar e conferir'}</button><button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Cancelar e recomeçar</button></div>
-    </div>` : ''}
-    ${migration.step === 'empty' ? h`<div class="legacy-import-stage">
-      <p role="status">Não encontramos cópias antigas importáveis nesta conta ou neste navegador. Nenhum dado foi alterado.</p>
-      <button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Buscar novamente</button>
-    </div>` : ''}
-    ${migration.step === 'verified' && migration.completed ? h`<div class="legacy-import-stage">
-      <div class="notice data-location" role="status"><span>Importação concluída: os dados foram gravados e lidos novamente da conta. Confira as áreas no Aurora antes de decidir sobre as cópias antigas.</span></div>
-      ${snapshotCount ? h`<div class="legacy-import-cleanup">
-        <h3>Opcional: apagar cópias deste navegador</h3>
-        <p>Isso remove somente as ${snapshotCount} cópia(s) antiga(s) reconhecida(s) e lida(s) neste navegador. Não apaga os dados da sua conta nem o cofre antigo. Você também pode deixar essas cópias intactas.</p>
-        <label class="legacy-import-confirm"><input id="legacy-import-reviewed" type="checkbox" data-change="legacy-import-cleanup-confirm" ${migration.cleanupConfirmed ? raw('checked') : ''}><span>Conferi os dados na conta e quero apagar exatamente estas cópias locais.</span></label>
-        <button id="legacy-import-clear" type="button" class="btn danger" data-action="legacy-import-clear" ${migration.busy || !migration.cleanupConfirmed ? raw('disabled') : ''}>${migration.busy ? 'Apagando cópias…' : `Apagar ${snapshotCount} cópia(s) deste navegador`}</button>
-      </div>` : h`<p class="small muted">Não há cópias reconhecidas neste navegador para apagar. O cofre antigo da sua conta continua preservado.</p>`}
-    </div>` : ''}
-    ${migration.completed && preview?.cleanup ? h`<p class="small ${preview.cleanup.failed || preview.cleanup.changed ? 'err' : 'muted'}" role="${preview.cleanup.failed || preview.cleanup.changed ? 'alert' : 'status'}">${preview.cleanup.message}</p>` : ''}
-    </div>
-  </details>`;
-}
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
-  return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Dados e backup</h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
-    ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
+  return h`<section class="card settings-section-card settings-data-overview" aria-labelledby="settings-data-overview-title">
+    <div class="settings-section-heading"><h2 id="settings-data-overview-title">Gerenciar seus dados</h2><p>Recupere itens excluídos ou confira o estado dos dados da conta.</p></div>
+    ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados com formato inválido em ${integritySlices.join(', ')}. Os dados originais foram preservados e não serão sobrescritos. Baixe uma cópia de recuperação antes de buscar ajuda.</span><button type="button" class="btn sm" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button></div>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
-    <div class="settings-data-actions">
-      <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
-        <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
-        <h3 id="settings-export-title">Guardar uma cópia</h3>
-        <p>Baixe uma cópia dos seus dados para guardar em segurança. No celular, salve o arquivo fora dos dados do navegador.</p>
-        <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
-        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button></div>
-      </section>
-      <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
-        <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
-        <h3 id="settings-restore-title">Usar uma cópia salva</h3>
-        <p>A restauração substitui todos os dados atuais da conta; ela não mescla registros. Exporte uma cópia atual antes de continuar.</p>
-        <p class="small muted">Escolha um arquivo de backup exportado pelo Aurora.</p>
-        <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
-        <p class="err" id="imperr" role="alert"></p>
-      </section>
-    </div>
   </section>
-    ${legacyImportPanel()}
-    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
@@ -4097,15 +4023,25 @@ function dataSettings(p) {
         : areaEmpty('A lixeira está vazia.', 'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.', h`<a class="btn primary" href="/inicio">Ir para o início</a>`, 'trash', 'h3', 'settings-trash-empty')}
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
-      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas</h2><p>Remova os dados relacionais desta conta.</p></div>
+      <div class="settings-section-heading"><h2 id="settings-care-title">Limpar dados da conta</h2><p>Apaga seus registros e preferências no Aurora, mas mantém sua conta e seu acesso.</p></div>
       <div class="settings-data-care-actions">
         <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
-          <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
-          <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
-          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados relacionais</button>
+          <h3 id="settings-delete-title">${icon('trash', 18)}O que será apagado</h3>
+          ${relationalDataWipeScope()}
+          <p class="small muted">Cópias antigas ainda não importadas serão preservadas.</p>
+          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados e manter a conta</button>
         </section>
       </div>
     </section>`;
+}
+function relationalDataWipeScope() {
+  return h`<ul class="settings-data-scope" aria-label="Dados que serão apagados">
+    <li>Tarefas, listas, etiquetas, registros diários e revisões semanais.</li>
+    <li>Hábitos, registros de água, treinos, cronômetros e sessões de Pomodoro.</li>
+    <li>Finanças: contas, lançamentos, orçamentos, metas e recorrências.</li>
+    <li>Registros do Ciclo, pesagens e itens da lixeira.</li>
+    <li>Perfil, preferências e configuração de notificações.</li>
+  </ul>`;
 }
 function viewConfig() {
   return renderSettingsView({
@@ -4458,15 +4394,17 @@ function dlgSearch() {
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgWipe() {
-  return dlgWrap(h`<div class="head destructive-heading"><span class="destructive-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="destructive-eyebrow">Ação permanente</p><h2 id="dt">Apagar dados relacionais?</h2></div>${closeBtn}</div>
-    <div class="destructive-summary"><p class="destructive-copy">Isso apaga permanentemente os dados relacionais desta conta. Dados antigos de outras áreas ainda não importados serão preservados para a migração.</p>
-    <aside class="destructive-note" role="alert">${icon('alert', 18)}<span><b>Faça um backup antes</b><small>Exporte uma cópia agora se quiser guardar seus dados.</small></span></aside></div>`,
-    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar e manter dados</button><button type="button" class="btn danger" data-action="wipe">Apagar permanentemente</button>`,
+  return dlgWrap(h`<div class="head destructive-heading"><span class="destructive-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="destructive-eyebrow">Ação permanente</p><h2 id="dt">Apagar os dados salvos?</h2></div>${closeBtn}</div>
+    <div class="destructive-summary"><p class="destructive-copy">Serão apagados estes dados:</p>
+    ${relationalDataWipeScope()}
+    <p class="small muted">Sua conta e seu acesso continuam ativos. Cópias antigas ainda não importadas serão preservadas.</p>
+    <aside class="destructive-note" role="alert">${icon('alert', 18)}<span><b>Ação irreversível</b><small>Não será possível recuperar os dados apagados.</small></span></aside></div>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar e manter os dados</button><button type="button" class="btn danger" data-action="wipe">Apagar permanentemente</button>`,
     'destructive-dialog');
 }
 function dlgWipeComplete() {
   const warning = ui.dlg.d.warning;
-  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados relacionais foram apagados</h2><p>${warning || 'Os registros legados ainda não importados foram preservados. Você permanece conectado à sua conta e pode começar novamente.'}</p></div></div>`,
+  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados foram apagados</h2><p>${warning || 'As cópias antigas ainda não importadas foram preservadas. Sua conta continua ativa e você pode começar novamente.'}</p></div></div>`,
     h`<button type="button" class="btn primary" data-action="wipe-home">Ir para o Início</button>`,
     'wipe-complete-dialog');
 }
@@ -4663,6 +4601,17 @@ function replaceCategoryReferences(oldPath, newPath) {
       configurable: true,
     });
     delete S.finance.budgets[oldPath];
+    changed = true;
+  }
+  const budgetSettings = S.settings.prefs.financeBudgetSettings;
+  if (Object.hasOwn(budgetSettings, oldPath)) {
+    Object.defineProperty(budgetSettings, newPath, {
+      value: budgetSettings[oldPath],
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    delete budgetSettings[oldPath];
     changed = true;
   }
   return changed;
@@ -4946,7 +4895,8 @@ function renderDialog() {
   el.dataset.route = ui.route;
   fitDlg();
   el.setAttribute('aria-labelledby', 'dt');
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  const isCardAccount = ui.dlg.type === 'account' && ui.dlg.d?.type === 'credit';
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}${isCardAccount ? ' card-account-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
   if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
@@ -5328,6 +5278,7 @@ const ACTIONS = {
   'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
   'quick-action-expense': () => { openFinanceQuickAction(() => newTxDlg('out')); },
   'quick-action-transaction': () => { openFinanceQuickAction(() => newTxDlg('out')); },
+  'quick-action-bulk': () => { openFinanceQuickAction(() => ACTIONS['tx-bulk']()); },
   'quick-action-finance': (el) => {
     const kind = el.dataset.kind;
     openFinanceQuickAction(() => newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card'));
@@ -5472,6 +5423,11 @@ const ACTIONS = {
     render();
     document.getElementById(`finance-week-day-${day}`)?.focus({ preventScroll: true });
   },
+  'finance-trend-range': (el) => {
+    ui.financeTrendRange = el.dataset.v === 'month' ? 'month' : '7d';
+    render();
+    document.querySelector(`[data-action="finance-trend-range"][data-v="${ui.financeTrendRange}"]`)?.focus({ preventScroll: true });
+  },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-clear': () => {
     if (ui.dlg?.type !== 'search') return;
@@ -5531,7 +5487,7 @@ const ACTIONS = {
     nav('financas');
   },
   'plan-view': (el) => {
-    if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
+    if (!['lista', 'calendario', 'revisao', 'anual'].includes(el.dataset.v)) return;
     const focusTab = el.getAttribute('role') === 'tab';
     ui.planView = el.dataset.v;
     ui.annualEditingGoalId = '';
@@ -5802,7 +5758,7 @@ const ACTIONS = {
     const undoSkip = skipped.has(day);
     if (undoSkip) skipped.delete(day);
     else {
-      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.', 'warning');
+      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite de 10.000 registros.', 'warning');
       skipped.add(day);
     }
     const snapshot = snapshotSlices(['habits']);
@@ -5955,12 +5911,14 @@ const ACTIONS = {
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
     event.preventDefault();
     ui.settingsTab = tab;
-    const url = new URL(location.href);
-    url.pathname = '/config';
+    const url = new URL(routePathFor(`config?section=${encodeURIComponent(tab)}`), location.origin);
+    new URL(location.href).searchParams.forEach((value, key) => {
+      if (key !== 'section' && key !== 'weight') url.searchParams.append(key, value);
+    });
     url.hash = '';
-    url.searchParams.set('section', tab);
     history.pushState(null, '', `${url.pathname}${url.search}`);
-    activeRouteLocationKey = `config?${url.search.slice(1)}`;
+    const resolved = routeFromLocation(url, new Set(Object.keys(ROUTES)));
+    activeRouteLocationKey = `${resolved.route}?${resolved.query}`;
     render();
     const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
     selectedTab?.focus({ preventScroll: true });
@@ -6449,18 +6407,26 @@ const ACTIONS = {
   'wipe-ask': () => dlgOpen('wipe'),
   'wipe': async (button) => {
     button.disabled = true;
-    const synchronized = await Persist.flush();
-    if (!synchronized) {
-      button.disabled = false;
-      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.', 'warning');
-      return;
-    }
+    button.setAttribute('aria-busy', 'true');
+    toast('Verificando e apagando os dados…', 'info');
     try {
+      const synchronized = await Persist.flush();
+      if (!synchronized) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        toast(ui.persistError
+          ? `Não foi possível confirmar os dados salvos. ${ui.persistError} Nada foi apagado.`
+          : 'Não foi possível confirmar que seus dados estão salvos. Nada foi apagado; tente novamente.', 'warning');
+        return;
+      }
       await Persist.clear();
     } catch (error) {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       console.error('Aurora: a exclusão dos dados relacionais falhou.', error);
-      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.', 'info');
+      toast(error instanceof Error
+        ? error.message
+        : 'Não foi possível confirmar a exclusão dos dados. Recarregue a página para conferir o estado da conta antes de tentar novamente.', 'error');
       return;
     }
 
@@ -6603,6 +6569,7 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'dlg-txbulk': () => reviewBulkEntry(),
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
     const kind = ui.dlg?.d?.ruleKind === 'in' ? 'in' : 'out';
@@ -7348,6 +7315,24 @@ document.addEventListener('input', (e) => {
         ui.dlg.d.saved = moneyIn(previousProgress);
       }
     }
+    if (ui.dlg.type === 'account' && el.dataset.dlg === 'bankOption') {
+      const bankInput = $('#dlg [data-dlg="bank"]');
+      ui.dlg.d.bank = el.value === OTHER_BANK ? OTHER_BANK : el.value;
+      if (bankInput instanceof HTMLInputElement) {
+        bankInput.closest('.bank-custom-entry').hidden = el.value !== OTHER_BANK;
+        bankInput.required = el.value === OTHER_BANK;
+        if (el.value !== OTHER_BANK) bankInput.value = '';
+      }
+      const bank = findBankByName(el.value);
+      const logo = $('#dlg [data-bank-preview-logo]');
+      const fallback = $('#dlg [data-bank-preview-fallback]');
+      if (logo && fallback) {
+        if (bank) logo.querySelector('img').src = bank[1].logo;
+        logo.hidden = !bank;
+        fallback.hidden = Boolean(bank);
+      }
+      return;
+    }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
     if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
       const bank = findBankByName(el.value, true);
@@ -7617,7 +7602,7 @@ function financeInstallmentPlans() {
 function finInstallments() {
   const plans = financeInstallmentPlans();
   return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
-    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento</h2>
+    <div class="head"><div><h2 id="finance-installments-title">Parcelamentos em andamento</h2>
       <p class="small muted">${plans.length
         ? 'Veja quantas parcelas faltam, o valor restante e quando cada série termina.'
         : 'Registre uma despesa parcelada para acompanhar aqui o que falta e quando termina.'}</p></div></div>
@@ -7650,7 +7635,11 @@ function expenseTrendChart(ym, cur) {
   }
   const [year, month] = ym.split('-').map(Number);
   const lastDay = cur ? today() : `${ym}-${pad(new Date(year, month, 0).getDate())}`;
-  const days = Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const monthRange = ui.financeTrendRange === 'month';
+  const days = monthRange
+    ? Array.from({ length: Number(lastDay.slice(8)) }, (_, index) => `${ym}-${pad(index + 1)}`)
+    : Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const rangeLabel = monthRange ? 'Despesas do mês' : 'Despesas nos últimos 7 dias';
   const totals = days.map((day) => S.finance.tx
     .filter((transaction) => transaction.type === 'out' && transaction.date === day)
     .reduce((sum, transaction) => sum + transaction.cents, 0));
@@ -7666,20 +7655,21 @@ function expenseTrendChart(ym, cur) {
   };
   const summary = days.map((day, index) => `${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}`).join('; ');
   const selectedIndex = days.indexOf(selectedDay);
-  return h`<div class="finance-week-chart" role="group" aria-label="Despesas nos últimos 7 dias">
-    <div class="finance-week-chart-grid">${days.map((day, index) => {
+  const showDayLabel = (index) => !monthRange || index === 0 || (index + 1) % 5 === 0 || index === days.length - 1;
+  return h`<div class="finance-week-chart" role="group" aria-label="${rangeLabel}">
+    <div class="finance-week-chart-grid${monthRange ? ' is-month' : ''}" style="--week-cols:${days.length}">${days.map((day, index) => {
       const selected = day === selectedDay;
       const percentage = totals[index] ? Math.max(4, Math.round(totals[index] / max * 100)) : 0;
       return h`<div class="finance-week-chart-column">
-        <span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>
+        ${monthRange ? '' : h`<span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>`}
         <button type="button" class="finance-week-chart-bar${day === today() ? ' is-today' : ''}${selected ? ' is-selected' : ''}${totals[index] ? ' has-value' : ''}" id="finance-week-day-${day}" data-action="finance-week-day" data-day="${day}" aria-pressed="${String(selected)}" aria-label="${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}">
           <span class="finance-week-chart-track" aria-hidden="true"><span style="--week-fill:${percentage}%"></span></span>
         </button>
-        <span class="finance-week-chart-day" aria-hidden="true">${shortDate(day)}</span>
+        <span class="finance-week-chart-day" aria-hidden="true">${showDayLabel(index) ? (monthRange ? String(Number(day.slice(8))) : shortDate(day)) : ''}</span>
       </div>`;
     })}</div>
     ${selectedDay ? h`<p class="finance-week-chart-selected" aria-live="polite"><b>${longDate(selectedDay)}:</b> ${money(totals[selectedIndex])}</p>` : ''}
-    <span class="sr">Despesas nos últimos 7 dias: ${summary}</span>
+    <span class="sr">${rangeLabel}: ${summary}</span>
   </div>`;
 }
 
@@ -7694,25 +7684,74 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas</h2><p class="small muted">${ui.financeTrendRange === 'month' ? 'Mês inteiro' : `Últimos 7 dias${cur ? '' : ' do período selecionado'}`}</p></div>
+      <div class="scroll-x finance-trend-range" role="group" aria-label="Período do gráfico"><button type="button" class="chip" aria-pressed="${ui.financeTrendRange !== 'month'}" data-action="finance-trend-range" data-v="7d">7 dias</button><button type="button" class="chip" aria-pressed="${ui.financeTrendRange === 'month'}" data-action="finance-trend-range" data-v="month">Mês</button></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
 }
-function balanceSparkline() {
-  const days = Array.from({ length: 7 }, (_, index) => addDays(today(), index - 6));
-  const values = days.map((day) => netAccountBalanceOn(S.finance.accounts, S.finance.tx, day));
-  const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
-  const points = values.map((value, index) => `${index * (100 / (values.length - 1))},${42 - ((value - min) / range * 34)}`).join(' ');
-  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${ui.financeValuesHidden ? 'valor oculto' : esc(brl(value))}</title></circle>`).join('');
-  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
-}
+const CATEGORY_BAR_LIMIT = 5;
 function categoryBars(items, total) {
-  return h`<ul class="category-bars">${items.slice(0, 5).map(([name, value]) => {
+  const rest = items.slice(CATEGORY_BAR_LIMIT);
+  const restValue = rest.reduce((sum, [, value]) => sum + value, 0);
+  const rows = items.slice(0, CATEGORY_BAR_LIMIT).map(([name, value]) => {
     const meta = catMeta({ type: 'out', category: name });
     const percent = total ? Math.round(value / total * 100) : 0;
     return h`<li><span class="category-bar-icon" style="--category-tone:${meta.c}">${icon(meta.i, 15)}</span><span class="category-bar-copy"><span class="expense-name">${expenseTitle(name)}</span><span class="category-bar-track"><i style="width:${percent}%;--category-tone:${meta.c}"></i></span></span><b>${money(value)}</b><small>${percent}%</small></li>`;
-  })}</ul>`;
+  });
+  if (rest.length) {
+    const percent = total ? Math.round(restValue / total * 100) : 0;
+    rows.push(h`<li class="category-bar-others"><span class="category-bar-icon" style="--category-tone:var(--muted)">${icon('pie', 15)}</span><span class="category-bar-copy"><span class="expense-name">Outras categorias (${rest.length})</span><span class="category-bar-track"><i style="width:${percent}%;--category-tone:var(--muted)"></i></span></span><b>${money(restValue)}</b><small>${percent}%</small></li>`);
+  }
+  return h`<ul class="category-bars">${rows}</ul>`;
+}
+const UPCOMING_WINDOW_DAYS = 14;
+function upcomingDueItems() {
+  const F = S.finance, now = today(), limit = addDays(now, UPCOMING_WINDOW_DAYS);
+  const bills = F.tx
+    .filter((t) => t.type === 'out' && !isPaid(t) && t.date <= limit && !isCredit(accById(t.accountId)))
+    .map((t) => ({ key: `tx-${t.id}`, date: t.date, label: t.desc || t.category || 'Despesa', cents: t.cents, kind: 'bill' }));
+  const invoices = F.accounts.filter(isCredit).flatMap((card) => {
+    const info = cardInfo(card);
+    const pending = Math.max(0, -accountBalanceOn(card, F.tx, now) - scheduledInvoicePrincipal(card.id));
+    return info.due && info.due <= limit && pending > 0
+      ? [{ key: `card-${card.id}`, date: info.due, label: `Fatura ${accountDisplayName(card)}`, cents: pending, kind: 'invoice' }]
+      : [];
+  });
+  return [...bills, ...invoices].sort((a, b) => a.date.localeCompare(b.date) || b.cents - a.cents);
+}
+function finProximos() {
+  const items = upcomingDueItems();
+  if (!items.length) {
+    return h`<section class="surface-open finance-upcoming"><div class="head"><div><h2>A vencer em ${UPCOMING_WINDOW_DAYS} dias</h2></div></div><p class="small muted">Nada pendente para os próximos ${UPCOMING_WINDOW_DAYS} dias.</p></section>`;
+  }
+  const shown = items.slice(0, 4), total = items.reduce((sum, item) => sum + item.cents, 0);
+  return h`<section class="surface-open finance-upcoming"><div class="head"><div><h2>A vencer em ${UPCOMING_WINDOW_DAYS} dias</h2><p class="small muted">${items.length} ${plural(items.length, 'compromisso', 'compromissos')} · ${money(total)}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Ver pendentes</button></div>
+    <ul class="list finance-upcoming-list">${shown.map((item) => {
+      const days = dayDiff(item.date, today());
+      const when = days < 0 ? h`<span class="badge bad">Atrasado</span>` : days === 0 ? h`<span class="badge warn">Hoje</span>` : h`<span class="small muted">${shortDate(item.date)}</span>`;
+      return h`<li class="finance-upcoming-item"><span class="grow"><span class="ttl expense-name">${item.label}</span></span>${when}<b>${money(item.cents)}</b></li>`;
+    })}</ul>
+    ${items.length > shown.length ? h`<p class="small muted">+ ${items.length - shown.length} ${plural(items.length - shown.length, 'outro', 'outros')} nos próximos ${UPCOMING_WINDOW_DAYS} dias.</p>` : ''}</section>`;
+}
+function finLimitesAtencao(ym) {
+  const F = S.finance, totals = Object.fromEntries(expenseBudgetByCategory(F.tx, ym, today()).total);
+  const alerts = Object.entries(F.budgets || {})
+    .map(([name, budget]) => ({
+      name,
+      limit: budget.cents || 0,
+      spent: totals[name] || 0,
+      ...budgetSettingsFor(S.settings.prefs.financeBudgetSettings, name),
+    }))
+    .filter((row) => row.limit > 0 && (row.pinned || row.spent / row.limit * 100 >= row.alertPct))
+    .sort((a, b) => b.spent / b.limit - a.spent / a.limit)
+    .slice(0, 3);
+  if (!alerts.length) return '';
+  return h`<section class="surface-open finance-limit-alerts"><div class="head"><div><h2>Limites em atenção</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver limites</button></div>
+    <ul class="list finance-limit-alert-list">${alerts.map((row) => {
+      const over = row.spent > row.limit, meta = outMeta(row.name);
+      return h`<li><span class="finance-limit-alert-row">${catChip(meta)}<span class="grow"><span class="ttl expense-name">${expenseTitle(row.name)}</span><span class="meta2">${over ? h`<span class="m-bad">acima em ${money(row.spent - row.limit)}</span>` : h`restam ${money(row.limit - row.spent)}`} · ${money(row.spent)} de ${money(row.limit)}</span>${budBar(row.spent, row.limit)}</span></span></li>`;
+    })}</ul></section>`;
 }
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
@@ -7724,8 +7763,18 @@ function finResumo() {
   }));
   const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
+  const balanceParts = balanceSplit(F.accounts, F.tx);
+  const savingsRate = savingsRatePercent(st.inAll, st.outAll);
+  const prevStats = monthStats(shiftMonth(ym, -1));
+  const resultDiff = result - (prevStats.inAll - prevStats.outAll);
+  const resultDelta = prevStats.inAll || prevStats.outAll
+    ? h`<span class="finance-result-delta ${resultDiff < 0 ? 'is-negative' : ''}">${resultDiff === 0 ? 'Igual ao mês anterior' : h`${resultDiff > 0 ? '+' : '−'}${money(Math.abs(resultDiff))} vs. mês anterior`}</span>`
+    : '';
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
-  const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
+  const attentionLimits = finLimitesAtencao(ym);
+  const attentionCards = finCartoesAtencao();
+  const goalFocus = finObjetivoFoco();
+  const recentDescription = cur ? 'Mês atual · até hoje.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
     .filter((transaction) => !cur || transaction.date <= today())
@@ -7733,28 +7782,75 @@ function finResumo() {
     .slice(0, 5);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
-      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Se os compromissos forem pagos. É uma estimativa, não o saldo atual; compras futuras no cartão não entram.</p>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">${balanceParts.hasSaved ? h`Disponível ${money(balanceParts.availableCents)} · guardado ${money(balanceParts.savedCents)}. Sem compras no cartão.` : 'Saldo real disponível, sem incluir compras no cartão.'}</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button><button class="btn sm" data-action="tx-bulk">${icon('list', 16)}Vários</button></div></div>
+      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
+      ${cur ? finGastoDiario(ym) : ''}
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
-      <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
+      <div class="finance-month-heading"><div><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
         <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
-        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>${savingsRate === null ? 'Receitas menos despesas' : savingsRate >= 0 ? `Você guardou ${savingsRate}% da receita` : `Despesas ${Math.abs(savingsRate)}% acima da receita`}${resultDelta}</small></button>
       </div>
     </section>
+    ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
     <div class="fin-overview-grid">
-      <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
+      <section class="surface-open finance-category-breakdown"><div class="head"><div><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
-      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
+      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
     `;
+}
+function finGastoDiario(ym) {
+  const room = dailyBudgetRoom(S.finance.budgets, S.finance.tx, ym, today());
+  if (!room.hasLimits) {
+    return h`<div class="finance-daily-room is-empty"><p class="section-kicker">Pode gastar por dia</p><p>Defina limites por categoria para ver quanto ainda cabe em cada dia.</p><button type="button" class="btn ghost sm" data-action="fin-go" data-t="planejamento">Definir limites</button></div>`;
+  }
+  if (!room.perDayCents) {
+    return h`<div class="finance-daily-room is-over"><p class="section-kicker">Pode gastar por dia</p><b>${money(0)}</b><p>${room.overCents ? `Os limites já passaram ${money(room.overCents)}.` : 'Os limites do mês já foram usados.'}</p></div>`;
+  }
+  return h`<div class="finance-daily-room"><p class="section-kicker">Pode gastar por dia</p><b>${money(room.perDayCents)}</b><p>Restam ${money(room.remainingCents)} nos limites, para ${room.daysLeft} ${plural(room.daysLeft, 'dia', 'dias')}.</p></div>`;
+}
+function finCartoesAtencao() {
+  const F = S.finance;
+  const alerts = F.accounts.filter((card) => isCredit(card) && card.limitCents > 0)
+    .map((card) => ({ card, info: cardInfo(card) }))
+    .filter(({ card, info }) => info.used / card.limitCents >= 0.8)
+    .sort((a, b) => b.info.used / b.card.limitCents - a.info.used / a.card.limitCents)
+    .slice(0, 3);
+  if (!alerts.length) return '';
+  return h`<section class="surface-open finance-card-alerts"><div class="head"><div><h2>Limite do cartão</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div>
+    <ul class="list finance-limit-alert-list">${alerts.map(({ card, info }) => h`<li><span class="finance-limit-alert-row">${accountChip(card)}<span class="grow"><span class="ttl">${accountDisplayName(card)}</span><span class="meta2">${info.used >= card.limitCents ? h`<span class="m-bad">limite atingido</span>` : h`disponível ${money(info.avail ?? 0)}`} · ${money(info.used)} de ${money(card.limitCents)}</span>${budBar(info.used, card.limitCents)}</span></span></li>`)}</ul></section>`;
+}
+function goalPlanLine(goal, savedCents) {
+  const plan = goalMonthlyPlan(goal, savedCents, today());
+  if (plan.complete) return '';
+  if (plan.overdue) return h`<span class="small goal-plan is-late">Prazo vencido · faltam ${money(plan.remainingCents)}.</span>`;
+  if (!plan.perMonthCents) return h`<span class="small muted goal-plan">Faltam ${money(plan.remainingCents)}. Defina um prazo para ver quanto guardar por mês.</span>`;
+  return h`<span class="small goal-plan">Faltam ${money(plan.remainingCents)} · guarde cerca de <b>${money(plan.perMonthCents)}</b> por mês, durante ${plan.months} ${plural(plan.months, 'mês', 'meses')}.</span>`;
+}
+function finObjetivoFoco() {
+  const F = S.finance;
+  const open = (F.goals || [])
+    .map((goal) => ({ goal, saved: linkedGoalProgressCents(goal, F.accounts, F.tx) }))
+    .filter(({ goal, saved }) => goal.targetCents > 0 && saved < goal.targetCents);
+  if (!open.length) return '';
+  open.sort((a, b) => (a.goal.deadline ? 0 : 1) - (b.goal.deadline ? 0 : 1)
+    || (a.goal.deadline || '').localeCompare(b.goal.deadline || '')
+    || b.saved / b.goal.targetCents - a.saved / a.goal.targetCents);
+  const { goal, saved } = open[0];
+  const percent = Math.min(100, Math.round(saved / goal.targetCents * 100));
+  return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
+    <div class="row budget-total-row"><b>${percent}%</b><span class="small muted">${money(saved)} de ${money(goal.targetCents)}</span></div>
+    <div class="bar goal-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${goal.name}"><span style="width:${percent}%"></span></div>
+    ${goalPlanLine(goal, saved)}
+    <p class="small muted">${goal.deadline ? `Prazo: ${shortDate(goal.deadline)}.` : 'Sem prazo definido.'}${open.length > 1 ? ` Mais ${open.length - 1} ${plural(open.length - 1, 'objetivo', 'objetivos')} em andamento.` : ''}</p></section>`;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
+  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><h2 id="fin-fixas-title">Lançamentos fixos</h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -7825,6 +7921,21 @@ function finLancList() {
 }
 
 /* ---- Contas e cartões ---- */
+function finInvoiceDetails(card) {
+  const shift = ui.finInvoiceShift?.[card.id] || 0;
+  const month = shiftMonth(cardInfo(card).ym, shift);
+  const invoice = calculateCardInvoice(S.finance, card, month, { shiftMonth, parseDate: pk });
+  const dates = [invoice.closingDate ? `fecha ${shortDate(invoice.closingDate)}` : '', invoice.dueDate ? `vence ${shortDate(invoice.dueDate)}` : ''].filter(Boolean).join(' · ');
+  const name = accountDisplayName(card);
+  return h`<details class="cc-invoice" id="d-invoice-${card.id}" ${ui.openDetails[`invoice-${card.id}`] ? raw('open') : ''}>
+    <summary>Ver faturas por mês</summary>
+    <div class="cc-invoice-nav"><button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="-1" aria-label="Fatura anterior do cartão ${name}">${icon('chevLeft', 18)}</button>
+      <span class="cc-invoice-title"><b>Fatura de ${ymLabel(month)}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
+      <button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="1" aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button></div>
+    <p class="cc-invoice-total"><span class="small muted">${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')}${invoice.installmentCount ? ` · ${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')}` : ''}</span><b>${money(invoice.total)}</b></p>
+    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : h`<p class="small muted">Nenhuma compra nesta fatura.</p>`}
+  </details>`;
+}
 function creditCardCard(card, paymentAccounts) {
   const info = cardInfo(card), percent = card.limitCents ? Math.min(100, Math.round(info.used / card.limitCents * 100)) : 0;
   const scheduledInstallments = S.finance.tx.filter((transaction) => transaction.invoiceInstallment
@@ -7835,6 +7946,7 @@ function creditCardCard(card, paymentAccounts) {
   const name = accountDisplayName(card);
   return h`<li class="cc"><div class="cc-top">${card.bank ? accountChip(card) : catChip({ c: '#7c8fd4', i: 'card' })}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${bankName ? h`<span class="user-value">${bankName}</span> · ` : ''}${card.closingDay ? 'Fecha dia ' + card.closingDay : ''}${card.dueDay ? ' · vence dia ' + card.dueDay : ''}</span>${cardDueLabel(info.due)}</span><button class="ibtn" data-action="acct-edit" data-id="${card.id}" aria-label="Editar cartão ${name}${bankName ? ', ' + bankName : ''}">${icon('pencil', 18)}</button></div>
     <div class="cc-inv"><span class="small muted">Compras no ciclo ${MESES_L[Number(info.ym.slice(5)) - 1]}${info.due ? ' · vence ' + shortDate(info.due) : ''}</span><b class="cc-v">${money(info.total)}</b></div>
+    ${finInvoiceDetails(card)}
     ${card.limitCents ? h`<div class="bar ${percent >= 100 ? 'over' : percent >= 80 ? 'near' : ''}" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado do cartão ${name}"><span style="width:${percent}%"></span></div><p class="small muted">Usado ${money(info.used)} de ${money(card.limitCents)} · disponível ${money(info.avail)}</p>` : ''}
     ${paymentAccount ? h`<p class="small muted">Conta preferencial para pagamento: <span class="user-value">${accountOptionLabel(paymentAccount)}</span></p>` : ''}
     ${scheduledInstallments.length ? h`<p class="small muted">${scheduledInstallments.length} ${plural(scheduledInstallments.length, 'parcela de fatura programada', 'parcelas de fatura programadas')} · ${money(scheduledTotal)} pendentes. Não descontadas do saldo da conta.</p>` : ''}
@@ -7842,7 +7954,7 @@ function creditCardCard(card, paymentAccounts) {
 }
 function finContas() {
   const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
-  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div>${balanceSparkline()}</section>
+  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div></section>
     <div class="head"><h2>Contas</h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${areaEmpty('Nenhuma conta ainda.', 'Você pode cadastrar uma conta e acompanhar os movimentos por aqui.', h`<button type="button" class="btn primary" data-action="acct-new">Criar primeira conta</button>`, 'wallet', 'h3')}</div>`}
     <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
@@ -7884,14 +7996,14 @@ function finPlanejamento() {
   const daysLeft = currentMonth ? budgetDays - Number(asOfDate.slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
-    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
-    <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
+    <section class="card"><div class="head"><h2>Limites do mês</h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
       ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p><p class="small muted">Do total, ${money(totalRealized)} têm data até hoje e ${money(totalUpcoming)} têm data futura. O limite soma ambos; a situação de pagamento é independente da data.</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => {
         const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
-        const nearLimit = r.lim > 0 && !over && r.sp / r.lim >= .8;
-        const label = `Definir limite de ${r.n}${nearLimit ? '. Atenção: atingiu pelo menos 80% do limite mensal.' : ''}`;
-        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos 80% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
+        const alertPct = budgetSettingsFor(S.settings.prefs.financeBudgetSettings, r.n).alertPct;
+        const nearLimit = r.lim > 0 && !over && r.sp / r.lim * 100 >= alertPct;
+        const label = `Definir limite de ${r.n}${nearLimit ? `. Atenção: atingiu pelo menos ${alertPct}% do limite mensal.` : ''}`;
+        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}" aria-label="${label}">${catChip(m)}<span class="grow"><span class="ttl expense-name">${expenseTitle(r.n)}</span>${r.lim ? h`<span class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${over ? h` · <span class="m-bad">acima em ${money(r.sp - r.lim)}</span>` : h` · restam ${money(r.lim - r.sp)}`}</span>${nearLimit ? h`<small class="budget-threshold-alert">Atenção: atingiu pelo menos ${alertPct}% do limite mensal.</small>` : ''}${budBar(r.sp, r.lim)}` : h`<span class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`}</span>${icon('chevRight', 16)}</button></li>`;
       })}</ul></section>
     <section class="card"><div class="head"><h2>Objetivos</h2>${F.goals.length ? h`<button class="btn sm" data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>` : ''}</div>
       ${F.goals.length ? h`<ul class="goal-list">${F.goals.map((g) => {
@@ -7899,7 +8011,7 @@ function finPlanejamento() {
         const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
         const pc = g.targetCents ? Math.min(100, Math.round(savedCents / g.targetCents * 100)) : 0;
         const complete = savedCents >= g.targetCents;
-        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
+        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span>${goalPlanLine(g, savedCents)}<div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
       })}</ul>` : areaEmpty('Nenhum objetivo ainda.', 'Escolha algo que gostaria de construir e acompanhe cada passo no seu ritmo.', h`<button type="button" class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target', 'h3')}</section>
     ${finInstallments()}${finFixas()}`;
 }
@@ -7925,24 +8037,70 @@ function finMonthClose(ym) {
     </div>
   </details>`;
 }
+function finRelatorioMensal(ym) {
+  const F = S.finance, cur = ym === today().slice(0, 7);
+  const items = budgetReport({
+    transactions: F.tx,
+    budgets: F.budgets,
+    settings: S.settings.prefs.financeBudgetSettings,
+    month: ym,
+    previousMonth: shiftMonth(ym, -1),
+    throughDay: cur ? Number(today().slice(8)) : null,
+    accountForId: accById,
+    formatMoney: money,
+    shiftMonth,
+  });
+  if (!items.length) return '';
+  return h`<section class="card finance-month-report" aria-labelledby="finance-month-report-title"><div class="head"><div><p class="section-kicker">${cur ? 'Até hoje' : ymLabel(ym)}</p><h2 id="finance-month-report-title">Relatório do mês</h2></div></div>
+    <ul class="finance-report-list">${items.map((item) => h`<li class="finance-report-item is-${item.tone}">${item.text}</li>`)}</ul></section>`;
+}
+function finTopExpenses(st) {
+  const top = st.tx.filter((t) => t.type === 'out').sort((a, b) => b.cents - a.cents).slice(0, 5);
+  if (!top.length) return '';
+  return h`<section class="card finance-top-expenses"><h2>Maiores despesas do mês</h2><ul class="list">${top.map((t) => finRow(t, { showDate: true }))}</ul></section>`;
+}
+function finCategoryTrend(txs, ym) {
+  const span = Array.from({ length: 6 }, (_, i) => shiftMonth(ym, i - 5));
+  const perMonth = span.map((m) => ({ m, totals: new Map(byCategory(reportMonthStats(txs, m, accById, ui.repBasis).tx, 'out')) }));
+  const overall = new Map();
+  perMonth.forEach(({ totals }) => totals.forEach((value, name) => overall.set(name, (overall.get(name) || 0) + value)));
+  const names = [...overall.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  if (!names.length) return '';
+  const category = names.includes(ui.repCat) ? ui.repCat : names[0];
+  const values = perMonth.map(({ m, totals }) => ({ m, cents: totals.get(category) || 0 }));
+  const max = Math.max(1, ...values.map((item) => item.cents));
+  const average = Math.round(values.reduce((sum, item) => sum + item.cents, 0) / values.length);
+  const meta = outMeta(category);
+  return h`<section class="card finance-category-trend"><div class="head"><h2>Categoria mês a mês</h2></div>
+    <label class="finance-report-account"><span class="sr">Escolher categoria</span><select data-change="rep-cat">${names.map((name) => h`<option class="expense-name" value="${name}" ${name === category ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select></label>
+    <ul class="category-bars">${values.map((item) => h`<li><span class="category-bar-copy"><span>${MESES[Number(item.m.slice(5)) - 1]}</span><span class="category-bar-track"><i style="width:${Math.round(item.cents / max * 100)}%;--category-tone:${meta.c}"></i></span></span><b>${money(item.cents)}</b></li>`)}</ul>
+    <p class="small muted">Média de ${money(average)} por mês nos últimos 6 meses.</p></section>`;
+}
 function finRel() {
   const ym = ui.finMonth, kind = ui.repKind;
-  const st = reportMonthStats(S.finance.tx, ym, accById, ui.repBasis);
+  const reportTx = ui.repAcc && accById(ui.repAcc)
+    ? S.finance.tx.filter((t) => t.accountId === ui.repAcc || t.toAccountId === ui.repAcc)
+    : S.finance.tx;
+  const st = reportMonthStats(reportTx, ym, accById, ui.repBasis);
   const list = byCategory(st.tx, kind), total = list.reduce((s, [, v]) => s + v, 0);
   const col = (n) => kind === 'out' ? outMeta(n).c : catMeta({ type: 'in', category: n }).c;
-  const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(S.finance.tx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
+  const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(reportTx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
   const avgOut = Math.round(months.reduce((s, m) => s + m.o, 0) / 6);
   const monthTransactions = monthStats(ym);
   return h`${monthNav()}
     ${finRitmo(ym, monthTransactions, ym === today().slice(0, 7))}
+    ${finRelatorioMensal(ym)}
     ${finMonthClose(ym)}
     <section class="card"><div class="seg" role="group" aria-label="Período do relatório"><button type="button" aria-pressed="${ui.repBasis === 'competence'}" data-action="rep-basis" data-b="competence">Competência</button><button type="button" aria-pressed="${ui.repBasis === 'cash'}" data-action="rep-basis" data-b="cash">Caixa</button></div>
       <p class="fine">${ui.repBasis === 'cash'
         ? 'Por data de pagamento ou recebimento. Pagamentos de fatura entram como saída no dia em que foram registrados; lançamentos antigos sem data de liquidação usam a data do lançamento.'
         : 'Por data em que a receita ou despesa aconteceu. Compras no cartão aparecem neste mês, independentemente do pagamento da fatura.'}</p>
       <div class="seg" role="group" aria-label="Tipo"><button type="button" aria-pressed="${kind === 'out'}" data-action="rep-kind" data-k="out">Despesas</button><button type="button" aria-pressed="${kind === 'in'}" data-action="rep-kind" data-k="in">Receitas</button></div>
+      <label class="finance-report-account"><span class="sr">Filtrar relatório por conta</span><select data-change="rep-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.repAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label>
       ${list.length ? h`<div class="donut-row"><div class="donut-w">${donut(list.map(([n, v]) => ({ v, c: col(n) })), total, (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria')}<div class="dc"><b>${money(total)}</b><span>${kind === 'out' ? 'gastos' : 'recebidos'}</span></div></div></div>
         <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : areaEmpty(kind === 'out' ? 'Nenhuma despesa neste mês.' : 'Nenhuma receita neste mês.', 'Quando houver lançamentos, este relatório mostrará a divisão por categoria.', h`<button type="button" class="btn primary" data-action="${kind === 'out' ? 'tx-new' : 'tx-new-in'}">${icon('plus', 16)}${kind === 'out' ? 'Criar despesa' : 'Criar receita'}</button>`, kind === 'out' ? 'pie' : 'wallet', 'h3')}</section>
+    ${finTopExpenses(st)}
+    ${finCategoryTrend(reportTx, ym)}
     ${finCompare()}
     <section class="card"><h2>Últimos 6 meses</h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
 }
@@ -7980,6 +8138,70 @@ function anticipationCandidates(groupId, fromDate = today()) {
       && !transaction.anticipatedDate
       && (credit || !isPaid(transaction)))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+function reviewBulkEntry() {
+  const d = ui.dlg.d, accounts = S.finance.accounts, defaultAccount = accById(d.accountId);
+  if (!defaultAccount) return toast('Escolha uma conta.', 'info');
+  const parsed = parseBulkText(d.text, { today: today() });
+  if (!parsed.length) return fieldError('Escreva ao menos um lançamento.', '[data-dlg="text"]');
+  const categories = { out: categoryEntries('out'), in: categoryEntries('in') };
+  const seen = new Set();
+  d.rows = parsed.map((row) => {
+    if (row.error) return row;
+    const account = row.accountText ? findBulkAccount(accounts, row.accountText, accountDisplayName) : defaultAccount;
+    const fail = (error) => ({ line: row.line, source: row.source, error });
+    if (!account) return fail(`Não encontrei a conta "${row.accountText}".`);
+    if (row.kind === 'in' && isCredit(account)) return fail('Uma receita não pode ir para um cartão de crédito.');
+    const resolved = resolveBulkCategory(row, { categories, leafName: categoryLeafName, fallback: (item) => guessCategory(item.name, item.kind) });
+    if (resolved.error) return fail(resolved.error);
+    const nameKey = norm(row.name), installment = bulkRowInstallmentCents(row);
+    const key = `${row.kind}|${row.repeat}|${nameKey}|${installment}|${row.date}|${account.id}`;
+    const dup = seen.has(key) || (row.repeat === 'fixed'
+      ? recList().some((item) => item.type === row.kind && item.cents === row.amountCents && norm(item.desc || '') === nameKey && item.day === Number(row.date.slice(8, 10)))
+      : S.finance.tx.some((item) => item.type === row.kind && item.cents === installment && item.date === row.date && norm(String(item.desc || '').replace(/\s*\(\d+\/\d+\)$/, '')) === nameKey));
+    seen.add(key);
+    return {
+      ...row, accountId: account.id, categoryPath: resolved.path, parent: resolved.parent, child: resolved.child,
+      createParent: resolved.createParent, createChild: resolved.createChild, dup, on: !dup,
+    };
+  });
+  d.step = 'review';
+  render();
+}
+function applyBulkEntry() {
+  const d = ui.dlg?.type === 'txbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos um lançamento.', 'info');
+  const recIds = new Set(), txIds = new Set(), now = Date.now();
+  let categoriesChanged = false;
+  chosen.forEach((row, index) => {
+    const account = accById(row.accountId);
+    if (!account) return;
+    let category = row.categoryPath;
+    if (row.createParent || row.createChild) {
+      const parentPath = addItem(row.kind, row.parent);
+      category = row.child ? addItem(row.kind, row.child, parentPath) : parentPath;
+      categoriesChanged = true;
+    }
+    category ||= catNames(row.kind)[0] || 'Outros';
+    const { transactions, recurring } = buildBulkRecords(row, {
+      newId, addMonths, account, isCredit, today: today(), category, now: now + index * 1000,
+    });
+    transactions.forEach((transaction) => { S.finance.tx.push(transaction); txIds.add(transaction.id); });
+    if (recurring) { recList().push(recurring); recIds.add(recurring.id); }
+  });
+  genRecurring();
+  const total = txIds.size + S.finance.tx.filter((transaction) => recIds.has(transaction.recId)).length;
+  ui.finMonth = chosen.map((row) => row.date).sort()[0].slice(0, 7);
+  ui.dlg = null;
+  commit(...(categoriesChanged ? ['finance', 'settings'] : ['finance']));
+  toast(total === chosen.length
+    ? `${chosen.length} ${plural(chosen.length, 'lançamento cadastrado', 'lançamentos cadastrados')}.`
+    : `${chosen.length} ${plural(chosen.length, 'lançamento cadastrado', 'lançamentos cadastrados')}, ${total} contando parcelas e meses das fixas.`, 'action', () => {
+    S.finance.tx = S.finance.tx.filter((transaction) => !txIds.has(transaction.id) && !recIds.has(transaction.recId));
+    S.finance.recurring = recList().filter((item) => !recIds.has(item.id));
+    commit('finance');
+  });
 }
 function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
   const accs = S.finance.accounts;
@@ -8052,6 +8274,7 @@ function recentTransactionDefaults(kind, preferCredit = false) {
   };
 }
 function dlgTx() { return financeDialogViews.transaction(); }
+function dlgTxBulk() { return financeDialogViews.bulk(); }
 function dlgCategoryManager() {
   const renderCategoryNode = (kind, category) => {
     const subcategories = Array.isArray(category.subcategories) ? category.subcategories : [];
@@ -8119,15 +8342,29 @@ function dlgAccount() {
   };
   const bankValue = bankFieldValue(d.bank);
   const initialBank = findBankByName(bankValue, true);
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}</h2>${closeBtn}</div>
+  const selectedBank = findBankByName(bankValue);
+  const showCustomBank = !selectedBank && Boolean(bankValue) && d.bank !== OTHER_BANK;
+  return dlgWrap(h`<div class="head head-nowrap"><div><p class="dialog-eyebrow">${card ? 'Cartão de crédito' : 'Conta'}</p><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}</h2></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
-      ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
+      ${card ? h`<section class="account-dialog-section full" aria-labelledby="account-card-identity-title">
+        <h3 id="account-card-identity-title">Identificação</h3>
+        ${dlgField('Nome do cartão', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="Ex.: Nubank Platinum" autocomplete="off">`, 'full')}
+        ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><select data-dlg="bankOption" aria-label="Banco ou instituição"><option value="" ${!bankValue ? raw('selected') : ''}>Selecione uma instituição</option>${Object.entries(BANKS).map(([key, bank]) => h`<option value="${key}" ${selectedBank?.[0] === key ? raw('selected') : ''}>${bank.name}</option>`)}<option value="${OTHER_BANK}" ${!selectedBank && bankValue ? raw('selected') : ''}>Outro / não listado</option></select><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><span class="bank-custom-entry" ${showCustomBank ? '' : raw('hidden')}><input type="text" data-dlg="bank" value="${showCustomBank ? bankValue : ''}" maxlength="40" placeholder="Digite o nome do banco" autocomplete="off" ${showCustomBank ? raw('required') : ''}></span>`, 'full bank-name-field')}
+      </section>` : dlgField('Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="Ex.: Nubank 1" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
-      ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field')}
-      <p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>
-      ${card ? h`${dlgField('Conta para pagar a fatura (opcional)', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select>`, 'full')}<p class="small muted full">Essa conta será pré-selecionada no pagamento. Você ainda poderá escolher outra antes de confirmar.</p>` : ''}
-      ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
-      ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
+      ${!card ? dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field') : ''}
+      ${!card ? h`<p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>` : ''}
+      ${card ? h`<section class="account-dialog-section full" aria-labelledby="account-card-payment-title">
+        <h3 id="account-card-payment-title">Pagamento da fatura</h3>
+        ${dlgField('Conta usada para pagar', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select><span class="small muted">Você poderá confirmar outra conta antes de pagar.</span>`, 'full')}
+      </section>` : ''}
+      ${d.type === 'credit' ? h`<section class="account-dialog-section account-card-values full" aria-labelledby="account-card-values-title">
+        <h3 id="account-card-values-title">Limite e datas</h3>
+        ${dlgField(edit ? h`Dívida atual (<span class="money">R$</span>)` : h`Dívida inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="0,00"><span class="small muted">Informe o total já usado no cartão, se houver.</span>`)}
+        ${dlgField(h`Limite total (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="0,00">`, '')}
+        ${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric" placeholder="Ex.: 20">`)}
+        ${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric" placeholder="Ex.: 27">`)}
+      </section>` : dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="0,00">`)}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
@@ -8153,10 +8390,20 @@ function dlgPermanentlyDeleteAccount() {
 }
 function dlgBudget() {
   const d = ui.dlg.d;
+  const history = budgetHistory(S.finance.tx, d.cat, ui.finMonth, 3, shiftMonth);
+  const suggestion = suggestBudgetCents(history);
+  const historyLine = history.some((entry) => entry.cents > 0)
+    ? h`<p class="small muted budget-history">Últimos 3 meses: ${history.map((entry) => `${MESES[Number(entry.month.slice(5)) - 1]} ${money(entry.cents)}`).join(' · ')}</p>`
+    : '';
+  const suggestionLine = suggestion
+    ? h`<p class="small budget-suggestion">Pela sua média, um limite de ${money(suggestion.cents)} seria realista. <button type="button" class="btn ghost sm" data-action="budget-use-suggestion" data-cents="${suggestion.cents}">Usar sugestão</button></p>`
+    : '';
+  const alertField = dlgField('Avisar ao chegar em', h`<select data-dlg="alertPct">${BUDGET_ALERT_OPTIONS.map((pct) => h`<option value="${pct}" ${String(pct) === String(d.alertPct) ? raw('selected') : ''}>${pct}% do limite</option>`)}</select>`);
+  const pinnedField = h`<label class="row full form-choice-row"><input type="checkbox" data-dlg="pinned" ${d.pinned ? raw('checked') : ''}><span class="small"><b>Mostrar na Visão geral</b><br><span class="muted">Fixa este limite lá, mesmo longe do alerta.</span></span></label>`;
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Limite de <span class="expense-name">${expenseTitle(d.cat)}</span></h2>${closeBtn}</div>
     <p class="small muted">Quanto você quer gastar por mês nesta categoria? O Aurora avisa quando chegar perto.</p>
     ${d.confirmClear ? h`<p class="notice warn" role="alert">O orçamento irá para a lixeira por 30 dias. Confirme para continuar.</p>` : ''}
-    <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}</form>`,
+    <form id="dlgform" class="form" data-form="dlg-budget">${dlgField(h`Limite mensal (<span class="money">R$</span>)`, h`<input id="f0" class="amt-in money-input" type="text" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${alertField}${pinnedField}</form>${historyLine}${suggestionLine}`,
     h`${d.confirmClear ? h`<button type="button" class="btn back" data-action="budget-clear-cancel">Cancelar remoção</button><button type="button" class="btn danger" data-action="budget-clear">Confirmar remoção</button>` : h`${d.limit ? h`<button type="button" class="btn back" data-action="budget-clear">Remover limite</button>` : h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button>`}<button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
 function dlgGoal() {
@@ -8294,7 +8541,7 @@ function dlgTxAnticipate() {
     </form>` : h`<p class="fine">Não há parcelas futuras disponíveis para antecipar.</p>`}`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button>${installments.length ? h`<button class="btn primary" type="submit" form="dlgform">Confirmar antecipação</button>` : ''}`);
 }
-Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
+Object.assign(DLG, { txbulk: dlgTxBulk, txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
 const F_ = () => S.finance;
@@ -8318,6 +8565,15 @@ Object.assign(ACTIONS, {
       const selected = $(`.finance-account-option[data-t="${ui.finAccountTab}"]`);
       selected?.focus({ preventScroll: true });
     });
+  },
+  'invoice-shift': (el) => {
+    const id = el.dataset.id, step = Number(el.dataset.d) === 1 ? 1 : -1;
+    if (!S.finance.accounts.some((account) => account.id === id && isCredit(account))) return;
+    const current = ui.finInvoiceShift[id] || 0;
+    ui.finInvoiceShift = { ...ui.finInvoiceShift, [id]: Math.max(-24, Math.min(12, current + step)) };
+    ui.openDetails[`invoice-${id}`] = true;
+    render();
+    requestAnimationFrame(() => $(`[data-action="invoice-shift"][data-id="${id}"][data-d="${step}"]`)?.focus({ preventScroll: true }));
   },
   'fin-go': (el) => {
     const target = el.dataset.t;
@@ -8354,6 +8610,14 @@ Object.assign(ACTIONS, {
   'tx-new': () => newTxDlg('out'),
   'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
   'tx-new-in': () => newTxDlg('in'),
+  'tx-bulk': () => {
+    const accounts = S.finance.accounts;
+    if (!accounts.length) return toast('Cadastre uma conta antes de lançar despesas.', 'info');
+    const preferred = accById(recentTransactionDefaults('out').accountId) || accounts.find((account) => !isCredit(account)) || accounts[0];
+    dlgOpen('txbulk', { step: 'edit', text: '', accountId: preferred.id, rows: [] });
+  },
+  'txbulk-back': () => { if (ui.dlg?.type === 'txbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'txbulk-apply': () => applyBulkEntry(),
   'tx-save-and-another': () => {
     const dialog = ui.dlg;
     if (dialog?.type === 'tx' && !dialog.d.id && ['out', 'in', 'tr'].includes(dialog.d.kind)) {
@@ -8508,7 +8772,14 @@ Object.assign(ACTIONS, {
     });
     if (entry) toast('Conta e dados associados movidos para a lixeira.', 'action', () => restoreTrashEntry(entry.id));
   },
-  'budget-edit': (el) => { const c = el.dataset.c, b = S.finance.budgets[c]; dlgOpen('budget', { cat: c, limit: b ? moneyIn(b.cents) : '' }); },
+  'budget-edit': (el) => {
+    const c = el.dataset.c, b = S.finance.budgets[c], options = budgetSettingsFor(S.settings.prefs.financeBudgetSettings, c);
+    dlgOpen('budget', { cat: c, limit: b ? moneyIn(b.cents) : '', alertPct: String(options.alertPct), pinned: options.pinned });
+  },
+  'budget-use-suggestion': (el) => {
+    ui.dlg.d.limit = moneyIn(Number(el.dataset.cents) || 0);
+    render();
+  },
   'budget-clear': () => {
     const d = ui.dlg.d;
     if (!d.confirmClear) { d.confirmClear = true; render(); return; }
@@ -8772,7 +9043,12 @@ Object.assign(FORMS, {
     ui.dlg = null;
     commit('finance');
   },
-  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.', 'error'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true }); ui.dlg = null; commit('finance'); },
+  'dlg-budget': () => { const d = ui.dlg.d, c = parseMoney(d.limit); if (!(c > 0)) return toast('Informe um limite maior que zero.', 'error'); Object.defineProperty(S.finance.budgets, d.cat, { value: { cents: c }, enumerable: true, writable: true, configurable: true });
+    S.settings.prefs.financeBudgetSettings = normalizeBudgetSettings({
+      ...S.settings.prefs.financeBudgetSettings,
+      [d.cat]: { alertPct: Number(d.alertPct), pinned: d.pinned === true },
+    });
+    ui.dlg = null; commit('finance', 'settings'); },
   'dlg-category': () => {
     const d = ui.dlg.d, name = String(d.name || '').trim().slice(0, 30), parentName = String(d.parent || '').trim();
     if (d.kind !== 'out' && d.kind !== 'in') return toast('Escolha um tipo de categoria válido.', 'info');
@@ -8932,7 +9208,7 @@ Object.assign(FORMS, {
     ui.dlg = null; commit('finance'); toast('Pagamento registrado.', 'success');
   },
 });
-Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); } });
+Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); }, 'rep-acc': (el) => { ui.repAcc = el.value; render(); }, 'rep-cat': (el) => { ui.repCat = el.value; render(); } });
 
 /* ---- exportar CSV ---- */
 const csvCell = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -8985,7 +9261,7 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
   return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
-    <div class="row fin-tools-actions"><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+    <div class="row fin-tools-actions"><button type="button" class="btn sm" data-action="tx-bulk">${icon('list', 16)}Cadastrar vários</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
   const ym = ui.finMonth, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
@@ -9267,7 +9543,7 @@ async function continueAuthenticatedAurora(root, user) {
   }
 
   purgeExpiredTrash();
-  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.', 'error');
+  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; revise os dados em Ajustes antes de continuar.', 'error');
   const recurringReconciled = reconcileRecurringTransactions();
   const recurringGenerated = genRecurring();
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
@@ -9569,6 +9845,26 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+function updateSuggestionCount(form) {
+  const textarea = form?.elements?.message;
+  const counter = form?.querySelector('[data-suggestion-count]');
+  if (textarea instanceof HTMLTextAreaElement && counter) {
+    counter.textContent = `${textarea.value.length} / 2000`;
+  }
+}
+
+document.addEventListener('input', (event) => {
+  if (!(event.target instanceof HTMLTextAreaElement) || event.target.name !== 'message') return;
+  if (event.target.closest('[data-footer-suggestion]')) {
+    updateSuggestionCount(event.target.closest('[data-footer-suggestion]'));
+  }
+});
+
+document.addEventListener('reset', (event) => {
+  if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
+  queueMicrotask(() => updateSuggestionCount(event.target));
+});
+
 document.addEventListener('submit', async (event) => {
   if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
   event.preventDefault();

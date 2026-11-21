@@ -18,6 +18,7 @@ const LANDING_TUTORIALS = [
     description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas, hábitos e os atalhos que escolheu deixar por perto.',
     steps: ['Tarefas atrasadas e do dia em destaque', 'Anote algo novo sem sair da tela', 'Escolha quais blocos aparecem'],
     image: '/src/assets/tutorials/landing/hoje.webp',
+    imageMobile: '/assets/landing-areas/hoje-mobile.webp',
     alt: 'Tela inicial do Aurora com tarefas e atalhos para o dia.',
   },
   {
@@ -29,6 +30,7 @@ const LANDING_TUTORIALS = [
     description: 'Anote o que precisa fazer, com prazo e prioridade se quiser, e veja tudo em lista, calendário ou semana.',
     steps: ['Prazo e prioridade em segundos', 'Lista, calendário ou visão da semana', 'Busca e filtros para achar qualquer coisa'],
     image: '/src/assets/tutorials/landing/tarefas.webp',
+    imageMobile: '/assets/landing-areas/tarefas-mobile.webp',
     alt: 'Tela de tarefas do Aurora com opções de lista, calendário e semana.',
   },
   {
@@ -40,6 +42,7 @@ const LANDING_TUTORIALS = [
     description: 'Escolha o que quer repetir e em quais dias. Quando a rotina mudar, é só ajustar.',
     steps: ['Dias da semana para cada hábito', 'Marque o que fez ou pule um dia', 'Sequência e meta de água'],
     image: '/src/assets/tutorials/landing/habitos.webp',
+    imageMobile: '/assets/landing-areas/habitos-mobile.webp',
     alt: 'Tela de hábitos do Aurora com acompanhamento semanal.',
   },
   {
@@ -51,6 +54,7 @@ const LANDING_TUTORIALS = [
     description: 'Anote contas, receitas e despesas para acompanhar o que entra e o que sai. O Aurora não acessa seu banco.',
     steps: ['Contas e saldos num só lugar', 'Receitas, despesas e transferências', 'Relatórios para entender o mês'],
     image: '/src/assets/tutorials/landing/financas.webp',
+    imageMobile: '/assets/landing-areas/financas-mobile.webp',
     alt: 'Tela de finanças do Aurora com contas e lançamentos.',
   },
   {
@@ -62,6 +66,7 @@ const LANDING_TUTORIALS = [
     description: 'Anote períodos e sintomas e consulte datas e médias. É um acompanhamento informativo e as estimativas podem variar.',
     steps: ['Início e fim de cada período', 'Sintomas e observações do dia', 'Calendário e médias do ciclo'],
     image: '/src/assets/tutorials/landing/ciclo.webp',
+    imageMobile: '/assets/landing-areas/ciclo-mobile.webp',
     alt: 'Tela de Ciclo do Aurora com calendário e registros informativos.',
   },
 ];
@@ -215,8 +220,14 @@ export function landingMarkup() {
                 </div>
                 <div class="landing-area-preview">
                   <div class="landing-preview-chrome" aria-hidden="true"><i></i><i></i><i></i></div>
-                  <img class="landing-screen-light" src="${area.image}" alt="${area.alt}" loading="lazy" width="1280" height="720">
-                  <img class="landing-screen-dark" src="${area.image.replace('.webp', '-dark.webp')}" alt="${area.alt}" loading="lazy" width="1280" height="720">
+                  <picture class="landing-screen-light">
+                    <source media="(max-width: 700px)" srcset="${area.imageMobile} 2x" type="image/webp">
+                    <img src="${area.image}" alt="${area.alt}" loading="lazy" width="1280" height="720">
+                  </picture>
+                  <picture class="landing-screen-dark">
+                    <source media="(max-width: 700px)" srcset="${area.imageMobile.replace('-mobile.webp', '-mobile-dark.webp')} 2x" type="image/webp">
+                    <img src="${area.image.replace('.webp', '-dark.webp')}" alt="${area.alt}" loading="lazy" width="1280" height="720">
+                  </picture>
                 </div>
               </section>`;
             }).join('')}
