@@ -58,7 +58,7 @@ runInNewContext(source, {
     const pathname = new URL(requestUrl).pathname;
     if (pathname === '/offline.html') return offlineResponse;
     if (pathname === '/loading-appearance.js' && appearanceOffline) throw new Error('offline');
-    if (pathname === '/pages/inicio.html' || pathname === '/config') {
+    if (pathname === '/pages/inicio.html' || pathname === '/config' || pathname === '/ajustes/dados') {
       throw new Error('offline');
     }
     return pathname.endsWith('.html')
@@ -152,10 +152,11 @@ assert.equal(indexFallback, htmlResponse, 'the HTML shell should be available as
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), htmlResponse, 'offline routes should fall back to the HTML shell');
 assert.equal(await dispatchFetch(request('/config?section=data', 'navigate')), htmlResponse, 'offline path routes with query state should fall back to the HTML shell');
 assert.equal(stored.has('https://aurora.test/config?section=data'), false, 'query-specific route state must not be cached');
+assert.equal(await dispatchFetch(request('/ajustes/dados', 'navigate')), htmlResponse, 'nested settings routes should fall back to the HTML shell offline');
 stored.delete('https://aurora.test/index.html');
 assert.equal(await dispatchFetch(request('/pages/inicio.html', 'navigate')), offlineResponse, 'uncached offline routes should show the branded offline page');
 
-assert.match(source, /aurora-static-v14/);
+assert.match(source, /aurora-static-v15/);
 assert.match(source, /APP_SHELL_ASSET/);
 assert.match(source, /APP_ROUTE/);
 assert.match(source, /APP_DOCUMENT/);

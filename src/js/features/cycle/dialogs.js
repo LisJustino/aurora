@@ -87,7 +87,7 @@ function log() {
               <button type="button" class="chip cycle-intimacy-choice" aria-pressed="${orgasmOccurred === false}" data-action="cyc-orgasm" data-v="no">Não houve</button>
             </div>
           </section>
-          <p class="cycle-intimacy-privacy">Os registros ficam na sua conta e podem ser incluídos no backup, que não tem proteção própria por senha.</p>
+          <p class="cycle-intimacy-privacy">Os registros ficam na sua conta. Cópias do Aurora que você já baixou podem conter esses dados e não têm proteção própria por senha.</p>
         </div>
       </details>
     </div>

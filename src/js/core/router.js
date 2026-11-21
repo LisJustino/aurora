@@ -2,6 +2,26 @@ const APP_ROUTES = new Set([
   'inicio', 'planejar', 'financas', 'habitos', 'ciclo', 'config',
 ]);
 const ACCOUNT_ROUTES = new Set(['entrar', 'criar-conta', 'esqueci-senha', 'nova-senha']);
+const SETTINGS_SECTION_PATHS = Object.freeze({
+  profile: 'perfil',
+  personalization: 'aparencia',
+  home: 'inicio',
+  'areas-navigation': 'areas',
+  data: 'dados',
+  calendars: 'agendas',
+  'mental-health': 'apoio',
+  account: 'conta',
+});
+const SETTINGS_PATH_SECTIONS = Object.freeze(
+  Object.fromEntries(Object.entries(SETTINGS_SECTION_PATHS).map(([section, path]) => [path, section])),
+);
+const LEGACY_SETTINGS_SECTIONS = Object.freeze({
+  appearance: 'personalization',
+  preferences: 'personalization',
+  calendar: 'personalization',
+  areas: 'areas-navigation',
+  navigation: 'areas-navigation',
+});
 
 function routeParts(value) {
   const [route = '', query = ''] = String(value || '').split('?');
@@ -23,6 +43,16 @@ function locationPathRoute(locationLike) {
   return last.replace(/\.html$/i, '');
 }
 
+function settingsPathForLocation(url) {
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (parts[0] !== 'ajustes') return null;
+  if (parts.length === 1) return { route: 'config', section: '' };
+  if (parts.length !== 2 || !SETTINGS_PATH_SECTIONS[parts[1]]) {
+    return { route: parts[parts.length - 1], section: '' };
+  }
+  return { route: 'config', section: SETTINGS_PATH_SECTIONS[parts[1]] };
+}
+
 function locationHashRoute(locationLike) {
   const { route, query } = routeParts(String(locationLike.hash || '').replace(/^#/, ''));
   if (!route) return null;
@@ -37,15 +67,28 @@ function locationHashRoute(locationLike) {
 }
 
 export function routePathFor(value) {
-  const { route, query } = routeParts(value);
-  const path = route ? `/${canonicalRoute(route)}` : '/';
+  const { route: routeValue, query } = routeParts(value);
+  const route = canonicalRoute(routeValue);
+  if (route === 'config') {
+    const params = new URLSearchParams(query);
+    if (routeValue === 'perfil') params.set('section', 'profile');
+    const requestedSection = params.get('section') || (params.has('weight') ? 'profile' : '');
+    const section = LEGACY_SETTINGS_SECTIONS[requestedSection] || requestedSection;
+    const sectionPath = SETTINGS_SECTION_PATHS[section];
+    if (sectionPath) params.delete('section');
+    const search = params.toString();
+    const path = sectionPath ? `/ajustes/${sectionPath}` : '/ajustes';
+    return `${path}${search ? `?${search}` : ''}`;
+  }
+  const path = route ? `/${route}` : '/';
   return `${path}${query ? `?${query}` : ''}`;
 }
 
 export function routeFromLocation(locationLike, availableRoutes, fallbackRoute = 'inicio') {
   const url = new URL(locationLike.href);
   const hashRoute = locationHashRoute(url);
-  let routeValue = hashRoute?.route || locationPathRoute(url) || fallbackRoute;
+  const settingsPath = hashRoute ? null : settingsPathForLocation(url);
+  let routeValue = hashRoute?.route || settingsPath?.route || locationPathRoute(url) || fallbackRoute;
   let query = url.search.slice(1);
 
   if (hashRoute) {
@@ -53,11 +96,16 @@ export function routeFromLocation(locationLike, availableRoutes, fallbackRoute =
     new URLSearchParams(hashRoute.query).forEach((value, key) => params.set(key, value));
     query = params.toString();
   }
+  if (settingsPath?.section || routeValue === 'perfil') {
+    const params = new URLSearchParams(query);
+    params.set('section', settingsPath?.section || 'profile');
+    query = params.toString();
+  }
 
   const resolved = resolveRoute(routeValue, availableRoutes);
   const canonicalPath = routePathFor(`${resolved.route}${query ? `?${query}` : ''}`);
   const needsCanonicalPath = Boolean(hashRoute)
-    || url.pathname !== canonicalPath.split('?')[0]
+    || `${url.pathname}${url.search}` !== canonicalPath
     || (!hashRoute && resolved.replaceHash);
 
   return {
@@ -84,7 +132,7 @@ export function canonicalPublicPath(locationLike) {
   const params = new URLSearchParams(url.search);
   new URLSearchParams(hashRoute.query).forEach((value, key) => params.set(key, value));
   const query = params.toString();
-  return `${routePathFor(hashRoute.route)}${query ? `?${query}` : ''}`;
+  return routePathFor(`${hashRoute.route}${query ? `?${query}` : ''}`);
 }
 
 export function isDemoLocation(locationLike) {
@@ -186,9 +234,11 @@ export function postSignOutPath(locationLike) {
 
 export function settingsRootPath(locationLike) {
   const url = new URL(locationLike.href);
+  const settingsPath = settingsPathForLocation(url);
   if (canonicalRoute(locationPathRoute(url)) !== 'config'
-    || (!url.searchParams.has('section') && !url.searchParams.has('weight'))) return null;
-  url.pathname = '/config';
+    && !settingsPath) return null;
+  if (!settingsPath?.section && !url.searchParams.has('section') && !url.searchParams.has('weight')) return null;
+  url.pathname = '/ajustes';
   url.searchParams.delete('section');
   url.searchParams.delete('weight');
   url.hash = '';

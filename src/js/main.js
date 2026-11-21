@@ -545,7 +545,7 @@ const toastController = createToastController({
   getOverride: () => {
     if (Object.keys(ui.integrityIssues).length) {
       const slices = Object.keys(ui.integrityIssues).join(', ');
-      return `Dados inválidos em ${slices}. A gravação está bloqueada; abra Ajustes para baixar uma cópia ou importar um backup.`;
+      return `Dados inválidos em ${slices}. A gravação está bloqueada; revise Dados e recuperação em Ajustes.`;
     }
     if (ui.persistFailed.size) {
       return { message: 'Não foi possível salvar as alterações. Confira sua conexão e tente novamente.', details: ui.persistError };
@@ -1585,7 +1585,7 @@ function purgeExpiredTrash() {
 /* Ícones: src/js/utils/icons.js */
 const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
-const configLink = () => h`<a class="inline-link" href="/config?weight" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
+const configLink = () => h`<a class="inline-link" href="${routePathFor('config?weight')}" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
@@ -1707,18 +1707,18 @@ function shell(body) {
   </details>`;
   const profileMenuPanel = h`<div class="profile-menu-panel" id="profile-menu" role="group" aria-label="Perfil e navegação">
     ${hasOverflow ? h`<div class="nav-overflow-group" role="group" aria-label="Mais áreas">${overflowItems.map(({ id, label, icon: iconName }) => h`<a class="profile-menu-item nav-overflow-item" href="/${id}" data-route="${id}" ${isCurrent(id) ? raw('aria-current="page"') : ''}>${icon(iconName, 18)}<span>${label}</span></a>`)}</div>` : ''}
-    <a class="profile-menu-item profile-menu-account-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
+    <a class="profile-menu-item profile-menu-account-item" href="${routePathFor('config')}">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
     ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout profile-menu-account-item" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
   </div>`;
   const headerAccountMenu = h`<details class="header-account-control">
     <summary class="iconbtn header-account-trigger" aria-label="Perfil e conta" title="Perfil e conta">${profileAvatarMarkup(accountAppearance, 'profile-menu-avatar', 20)}</summary>
     <div class="header-account-panel" role="group" aria-label="Perfil e conta">
-      <a class="profile-menu-item" href="/config">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
+      <a class="profile-menu-item" href="${routePathFor('config')}">${profileAvatarMarkup(accountAppearance, 'profile-menu-item-avatar', 18)}<span>Perfil e ajustes</span></a>
       ${accountSession?.user && !ui.preview ? h`<button class="profile-menu-item profile-menu-signout" type="button" data-account-signout><span>Sair da conta</span></button>` : ''}
     </div>
   </details>`;
   const navLinks = menuItems.map(navLink);
-  const navItems = h`${navLinks}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="/config?section=areas-navigation" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
+  const navItems = h`${navLinks}${profileMenu}${!hasActiveArea ? h`<a class="nav-enable-areas" href="${routePathFor('config?section=areas-navigation')}" data-action="areas-nav-open"><span class="ni">${icon('plus', 22)}</span><span>Ativar áreas</span></a>` : ''}`;
   return h`${GRAD}<a class="skip" href="#main" data-action="skip">Pular para o conteúdo principal</a><div class="app${ui.preview ? ' preview-shell' : ''}">
     <div class="pull-refresh-indicator" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="pull-refresh-icon" aria-hidden="true">${icon('refresh', 20)}</span><span class="pull-refresh-label"></span></div>
     <header class="topbar">${brandLink}<nav class="nav" id="primary-navigation" aria-label="Principal">${navItems}</nav>${profileMenuPanel}<div class="header-actions">${headerQuickActions}${modeBtn('iconbtn theme-trigger')}${headerProfileMenu}${headerAccountMenu}</div></header>
@@ -1740,7 +1740,7 @@ function persistenceNotice() {
   let action;
   if (ui.persistBlocked.size || Object.keys(ui.integrityIssues).length) {
     message = 'Alguns dados precisam de revisão; alterações estão bloqueadas para evitar perda.';
-    action = h`<a class="btn sm" href="/config?section=data">Revisar dados</a>`;
+    action = h`<a class="btn sm" href="${routePathFor('config?section=data')}">Revisar dados</a>`;
   } else if (syncState.conflicts.size) {
     message = 'Sua conta foi alterada em outro dispositivo. Recarregue os dados para continuar.';
     action = h`<button type="button" class="btn sm" data-action="reload-app">Recarregar dados da conta</button>`;
@@ -1748,8 +1748,8 @@ function persistenceNotice() {
     message = 'Suas alterações ainda não foram salvas. Confira sua conexão e tente novamente.';
     action = h`<button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button>`;
   } else {
-    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e backup.';
-    action = h`<a class="btn sm" href="/config?section=data">Ver dados e backup</a>`;
+    message = 'Alguns dados não puderam ser carregados ou salvos. Confira Dados e recuperação.';
+    action = h`<a class="btn sm" href="${routePathFor('config?section=data')}">Ver dados e recuperação</a>`;
   }
   return h`<div class="notice warn save-problem-banner" role="alert">${icon('alert', 18)}<span class="save-problem-copy">${message}</span>${action}</div>`;
 }
@@ -2438,7 +2438,7 @@ function onRoute() {
   const resolved = routeFromLocation(location, new Set(Object.keys(ROUTES)), fallbackRoute);
   if (resolved.route === 'ciclo' && !canAccessCycle(S.settings.profile, ui.preview)) {
     const hasProfileSex = Boolean(S.settings.profile.sex);
-    const destination = hasProfileSex ? '/inicio' : '/config?section=profile';
+    const destination = hasProfileSex ? '/inicio' : routePathFor('config?section=profile');
     history.replaceState(null, '', destination);
     resolved.route = hasProfileSex ? 'inicio' : 'config';
     resolved.query = hasProfileSex ? '' : 'section=profile';
@@ -2476,7 +2476,7 @@ function onRoute() {
   if (resolved.replacePath) history.replaceState(null, '', resolved.replacePath);
   if (wasBooted && previousRoute === 'config' && resolved.route !== 'config' && hasUnsavedSettingsChanges()) {
     const destination = `${location.pathname}${location.search}${location.hash}`;
-    history.replaceState(history.state, '', `${routePathFor('config')}?section=${encodeURIComponent(ui.settingsTab)}`);
+    history.replaceState(history.state, '', routePathFor(`config?section=${encodeURIComponent(ui.settingsTab)}`));
     void savePendingProfileDraft().then((saved) => {
       if (!saved) return;
       history.replaceState(history.state, '', destination);
@@ -2495,7 +2495,7 @@ function onRoute() {
   }
   const routeChanged = wasBooted && previousRoute !== ui.route;
   if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
-  const targetFocus = query === 'weight' ? 'pk' : null;
+  const targetFocus = new URLSearchParams(query).has('weight') ? 'pk' : null;
   const requestedSettingsTab = settingsTabId(new URLSearchParams(query).get('section'));
   if (ui.route === 'config') {
     ui.settingsTab = SETTINGS_SECTIONS.some(([id]) => id === requestedSettingsTab)
@@ -2636,7 +2636,7 @@ function homeFirstSteps() {
     {
       label: 'Escolher sua cor',
       actionLabel: 'Abrir preferências de aparência',
-      href: '/config?section=personalization',
+      href: routePathFor('config?section=personalization'),
       icon: 'sun',
     },
   ];
@@ -3303,7 +3303,7 @@ function waterSummary() {
   const habit = S.habits.find(isWaterHabit);
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
-  return h`<section class="water-tracker" style="--hc:var(--area-water)" aria-label="Acompanhamento de água">
+  return h`<section class="water-tracker water-tracker--quick" style="--hc:var(--area-water)" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
     <button type="button" class="btn sm" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
@@ -3346,7 +3346,7 @@ function habitRow(habit) {
     <div class="habit-week" role="group" aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map((w) => {
       const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
       const editable = saved && status === 'active' && w.scheduled && w.day <= today();
-      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><i aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 1)}</i></button>`;
+      return h`<button type="button" class="habit-dot${w.completed ? ' is-done' : ''}${w.skipped ? ' is-skipped' : ''}${!w.scheduled ? ' is-off' : ''}${w.day === today() ? ' is-today' : ''}" data-action="habit-day" data-id="${habit.id}" data-d="${w.day}" aria-pressed="${w.completed}" aria-label="${stateLabel}" ${editable ? '' : raw('disabled')}><span class="habit-dot-day" aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 3)}</span><i aria-hidden="true">${w.completed ? icon('check', 12) : w.skipped ? '–' : ''}</i></button>`;
     })}</div>
   </li>`;
 }
@@ -3392,7 +3392,7 @@ function areaTiles() {
   const defs = [['finances', 'wallet'], ...(canAccessCycle(S.settings.profile, ui.preview) ? [['cycle', 'heart']] : [])]
     .filter(([a]) => !areaOn(a));
   if (!defs.length) return '';
-  return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="/config">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
+  return h`<div class="head"><h2 id="ar">Áreas opcionais</h2><a class="btn ghost sm" href="${routePathFor('config')}">Gerenciar</a></div><div class="tiles">${defs.map(([a, ic]) => h`<button class="tile off" data-action="enable-area" data-area="${a}"><span class="mk" data-area="${a}">${icon(ic, 22)}</span><h3>${AREAS[a][0]}</h3><span class="v">Ativar</span><span class="s">${AREAS[a][1]}</span></button>`)}</div>`;
 }
 
 /* ---------- Ciclo ---------- */
@@ -3526,9 +3526,6 @@ function aparencia(s) {
       ${accessibilityOption('settings-accessibility-motion', 'accessibility-motion', 'Reduzir movimento', 'Reduz animações e rolagens suaves.', L.reduceMotion)}
     </div>`)}
     ${group('appearance-calendar-title', 'Calendário', 'Escolha o dia em que a semana começa nas visualizações do Aurora.', h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span class="appearance-settings-label">A semana começa na</span>${settingsSegment(s.look, 'weekStart', 'Primeiro dia da semana', [[1, 'Segunda'], [0, 'Domingo']], 'preferences-week-start')}</div></div>`) }
-    ${group('appearance-routine-title', 'Rotina', 'Encontre rapidamente os ajustes de Hábitos do Aurora.', h`<div class="routine-settings-links">
-      <a class="btn" href="${areaOn('habits') ? '/habitos' : '/config?section=areas-navigation'}">${icon('check', 17)}${areaOn('habits') ? 'Hábitos' : 'Ativar Hábitos'}</a>
-    </div>`) }
   </form>`;
 }
 function firstName(value) {
@@ -3578,12 +3575,12 @@ function profileSettings(s) {
             ${appearance.avatarImage ? h`<button type="button" class="btn sm" data-action="profile-avatar-adjust" ${profileControlsDisabled ? raw('disabled') : ''}>Ajustar enquadramento</button><button type="button" class="btn sm" data-action="profile-avatar-remove" ${profileControlsDisabled ? raw('disabled') : ''}>Remover foto</button>` : ''}
             <input id="profile-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" data-profile-avatar-file hidden>
           </div>
-          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB. Você escolhe o corte e a posição; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta), sincronizada entre dispositivos e incluída nos backups.</p>
+          <p class="profile-avatar-upload-help">JPG, PNG ou WebP até 8 MB. Você escolhe o corte e a posição; a imagem será reduzida para até 240 KB. A foto é salva nas preferências da conta, protegida pelas regras de acesso (sem criptografia ponta a ponta) e sincronizada entre dispositivos.</p>
           ${ui.profileImageBusy ? h`<p class="profile-avatar-upload-status" role="status" aria-live="polite">Preparando foto…</p>` : ''}
         </div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Cor</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`)}</div></div>
-        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
+        <div class="profile-appearance-option profile-appearance-option--greeting"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
   </form>
@@ -3592,7 +3589,7 @@ function profileSettings(s) {
 function accountSettings(s) {
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
-      <div class="settings-section-heading account-session-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div>${accountSession?.user && !ui.preview ? h`<button type="button" class="btn back" data-account-signout>Sair da conta</button>` : ''}</div>
+      <div class="settings-section-heading"><div><h2 id="account-session-title">Conta e ajuda</h2>${accountSession?.user?.email ? h`<p class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>` : ''}</div></div>
     </section>
     ${!ui.preview ? h`<section class="card settings-section-card account-feedback-card" aria-labelledby="account-feedback-title">
       <div class="settings-section-heading"><h2 id="account-feedback-title">Ajude a melhorar o Aurora</h2><p>Conte uma ideia, melhoria ou algo que não funcionou como esperado.</p></div>
@@ -3664,7 +3661,7 @@ const SETTINGS_SECTIONS = [
   ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
   ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
-  ['data', 'Dados e backup', 'archive', 'Importar e exportar'],
+  ['data', 'Dados e recuperação', 'archive', 'Gerenciar a lixeira e a recuperação de dados'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
   ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
@@ -3736,16 +3733,6 @@ function homeSettings(s) {
     ${homeLayoutSettings(s)}
   </form>`;
 }
-const LEGACY_IMPORT_LABELS = [
-  ['tasks', 'Tarefas'],
-  ['habits', 'Hábitos'],
-  ['habitLogs', 'Registros de hábitos'],
-  ['water', 'Registros antigos de hidratação'],
-  ['gym', 'Modelos e registros de treino'],
-  ['finance', 'Registros financeiros'],
-  ['cycle', 'Ciclo e diário'],
-  ['weight', 'Pesagens'],
-];
 function setLegacyImportError(message) {
   ui.legacyImport.error = message;
   ui.legacyImport.busy = false;
@@ -4011,104 +3998,16 @@ async function clearLegacyBrowserData() {
   }
   render();
 }
-function legacyImportPanel() {
-  const migration = ui.legacyImport;
-  const preview = migration.preview;
-  const snapshotCount = Object.keys(preview?.browserData?.snapshot || {}).length;
-  const foundBrowserPlain = Object.keys(migration.browserData?.plain || {}).length;
-  const foundBrowserEncrypted = Object.keys(migration.browserData?.encrypted || {}).length;
-  const foundVault = migration.discovery?.vaultRows?.length || 0;
-  const activeStep = ['start', 'unlock'].includes(migration.step)
-    ? 1
-    : ['review', 'empty'].includes(migration.step) ? 2 : 3;
-  const steps = [
-    ['Encontrar cópias', 'Só leitura; nada será alterado'],
-    ['Revisar e importar', 'Confira o resumo antes de gravar'],
-    ['Conferir e limpar', 'Apagar cópias locais é opcional'],
-  ];
-  const expanded = migration.step !== 'start' || migration.busy || Boolean(migration.error) || migration.completed;
-  return h`<details class="card settings-section-card settings-data-migration" ${expanded ? raw('open') : ''}>
-    <summary class="settings-data-migration-summary">
-      <span class="settings-data-action-icon" aria-hidden="true">${icon('archive', 19)}</span>
-      <span class="settings-data-migration-copy"><b>Importar dados de uma versão anterior</b><small>Para quem precisa recuperar cópias antigas do Aurora</small></span>
-      <span class="settings-data-migration-indicator" aria-hidden="true">${icon('chevDown', 18)}</span>
-    </summary>
-    <div class="settings-data-migration-content">
-    <div class="settings-section-heading"><p>Procure cópias deste navegador ou do cofre antigo. A busca não altera nada; você revisa antes de importar.</p></div>
-    <ol class="legacy-import-steps" aria-label="Etapas para trazer dados antigos">${steps.map(([title, detail], index) => {
-      const step = index + 1;
-      const state = step < activeStep ? 'is-complete' : step === activeStep ? 'is-current' : '';
-      return h`<li class="legacy-import-step ${state}" ${step === activeStep ? raw('aria-current="step"') : ''}><span class="legacy-import-step-number">${step < activeStep ? icon('check', 16) : step}</span><span><b>${title}</b><small>${detail}</small></span></li>`;
-    })}</ol>
-    <div class="notice warn" role="note"><span>Antes de continuar, confirme que entrou na conta correta. Os dados já existentes serão mantidos; itens com o mesmo ID não serão duplicados.</span></div>
-    ${migration.error ? h`<p class="err" role="alert">${migration.error}</p>` : ''}
-    ${migration.step === 'start' ? h`<div class="legacy-import-stage">
-      <p>Vamos procurar dados antigos neste navegador e no cofre associado à sua conta. A busca não grava nem apaga nada.</p>
-      <button type="button" class="btn primary" data-action="legacy-import-discover" ${migration.busy ? raw('disabled aria-busy="true"') : ''}>${migration.busy ? 'Procurando cópias…' : 'Começar busca'}</button>
-    </div>` : ''}
-    ${migration.step === 'unlock' ? h`<div class="legacy-import-stage">
-      <div class="notice data-location" role="status"><span>Encontramos ${foundBrowserPlain} ${plural(foundBrowserPlain, 'área antiga', 'áreas antigas')} neste navegador e ${foundBrowserEncrypted} ${plural(foundBrowserEncrypted, 'cópia protegida', 'cópias protegidas')} nele. O cofre antigo da sua conta contém ${foundVault} ${plural(foundVault, 'área protegida', 'áreas protegidas')}.</span></div>
-      <p>Para montar o resumo completo, precisamos ler as cópias protegidas. Use a senha que criou o cofre antigo — não a senha de login, a menos que sejam iguais. A busca não importou nem apagou nada.</p>
-      <label class="f" for="legacy-vault-password"><span class="f-label">Senha original do cofre</span><input id="legacy-vault-password" class="field" type="password" maxlength="72" autocomplete="off" spellcheck="false" aria-describedby="legacy-vault-help"></label>
-      <p class="small muted" id="legacy-vault-help">A senha é usada somente para ler essas cópias e não é salva. Redefinir a senha da conta não altera a senha antiga do cofre.</p>
-      <div class="row"><button type="button" class="btn primary" data-action="legacy-import-unlock" ${migration.busy ? raw('disabled aria-busy="true"') : ''}>${migration.busy ? 'Desbloqueando…' : 'Desbloquear e ver resumo'}</button><button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Recomeçar busca</button></div>
-    </div>` : ''}
-    ${migration.step === 'review' && preview ? h`<div class="legacy-import-stage legacy-import-summary">
-      <h3>Confira o resumo</h3>
-      <p class="small muted">Cópias consideradas: ${preview.sourceCounts.browser} área(s) antigas neste navegador, ${preview.sourceCounts.encryptedBrowser} protegida(s) nele e ${preview.sourceCounts.vault} no cofre antigo da conta.</p>
-      <ul class="backup-preview legacy-import-preview">${LEGACY_IMPORT_LABELS.map(([key, label]) => h`<li><b>${label}</b><span>Encontrados na cópia: ${preview.plan.found[key]} · Novos na conta: ${preview.plan.added[key]}</span></li>`)}</ul>
-      ${preview.plan.hasSettings ? h`<p class="small">Também serão mescladas configurações, aparência, listas e preferências. Valores personalizados que já existem na conta serão mantidos.</p>` : ''}
-      ${preview.plan.slices.some((slice) => slice === 'timer' || slice === 'pomodoro') ? h`<p class="small">Também encontramos dados de cronômetros.</p>` : ''}
-      ${preview.browserData.markerKeys.length || preview.browserData.unknownUserKeys.length ? h`<p class="small muted">${preview.browserData.markerKeys.length} marcador(es) antigo(s) e ${preview.browserData.unknownUserKeys.length} chave(s) não reconhecida(s) não serão alterados.</p>` : ''}
-      <div class="notice warn" role="note"><span>Importar não apaga as cópias antigas. A gravação será conferida lendo novamente os dados da conta. Se algo não puder ser conferido, manteremos as cópias para uma nova tentativa.</span></div>
-      <div class="row"><button type="button" class="btn primary" data-action="legacy-import-apply" ${migration.busy ? raw('disabled') : ''}>${migration.busy ? 'Importando e conferindo…' : 'Importar e conferir'}</button><button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Cancelar e recomeçar</button></div>
-    </div>` : ''}
-    ${migration.step === 'empty' ? h`<div class="legacy-import-stage">
-      <p role="status">Não encontramos cópias antigas importáveis nesta conta ou neste navegador. Nenhum dado foi alterado.</p>
-      <button type="button" class="btn" data-action="legacy-import-discover" ${migration.busy ? raw('disabled') : ''}>Buscar novamente</button>
-    </div>` : ''}
-    ${migration.step === 'verified' && migration.completed ? h`<div class="legacy-import-stage">
-      <div class="notice data-location" role="status"><span>Importação concluída: os dados foram gravados e lidos novamente da conta. Confira as áreas no Aurora antes de decidir sobre as cópias antigas.</span></div>
-      ${snapshotCount ? h`<div class="legacy-import-cleanup">
-        <h3>Opcional: apagar cópias deste navegador</h3>
-        <p>Isso remove somente as ${snapshotCount} cópia(s) antiga(s) reconhecida(s) e lida(s) neste navegador. Não apaga os dados da sua conta nem o cofre antigo. Você também pode deixar essas cópias intactas.</p>
-        <label class="legacy-import-confirm"><input id="legacy-import-reviewed" type="checkbox" data-change="legacy-import-cleanup-confirm" ${migration.cleanupConfirmed ? raw('checked') : ''}><span>Conferi os dados na conta e quero apagar exatamente estas cópias locais.</span></label>
-        <button id="legacy-import-clear" type="button" class="btn danger" data-action="legacy-import-clear" ${migration.busy || !migration.cleanupConfirmed ? raw('disabled') : ''}>${migration.busy ? 'Apagando cópias…' : `Apagar ${snapshotCount} cópia(s) deste navegador`}</button>
-      </div>` : h`<p class="small muted">Não há cópias reconhecidas neste navegador para apagar. O cofre antigo da sua conta continua preservado.</p>`}
-    </div>` : ''}
-    ${migration.completed && preview?.cleanup ? h`<p class="small ${preview.cleanup.failed || preview.cleanup.changed ? 'err' : 'muted'}" role="${preview.cleanup.failed || preview.cleanup.changed ? 'alert' : 'status'}">${preview.cleanup.message}</p>` : ''}
-    </div>
-  </details>`;
-}
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const failedSlices = [...ui.persistFailed];
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
-  return h`<section class="card settings-section-card settings-backup-card">
-    <div class="settings-section-heading"><h2>Dados e backup</h2><p>Seus dados são sincronizados com sua conta. O backup é uma cópia independente para guardar em segurança; escolha uma cópia para revisar antes de restaurar.</p></div>
-    <div class="notice warn data-location settings-data-safety" role="note">${icon('cloud', 18)}<span>O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado.</span></div>
-    ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados bloqueados em ${integritySlices.join(', ')}. As cópias originais continuam preservadas e não serão sobrescritas. Importe um backup confiável para recuperar os dados; também baixe uma cópia bruta antes de substituir.</span></div><button class="btn" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button>` : ''}
+  return h`<section class="card settings-section-card settings-data-overview" aria-labelledby="settings-data-overview-title">
+    <div class="settings-section-heading"><h2 id="settings-data-overview-title">Gerenciar seus dados</h2><p>Recupere itens excluídos ou confira o estado dos dados da conta.</p></div>
+    ${integritySlices.length ? h`<div class="notice warn" role="alert"><span>Há dados com formato inválido em ${integritySlices.join(', ')}. Os dados originais foram preservados e não serão sobrescritos. Baixe uma cópia de recuperação antes de buscar ajuda.</span><button type="button" class="btn sm" data-action="recovery-export">${icon('download', 18)}Baixar cópia de recuperação</button></div>` : ''}
     ${failedSlices.length && !integritySlices.length ? h`<div class="notice warn" role="alert"><span>Não foi possível salvar. Suas alterações ainda não foram salvas; tente novamente antes de sair.</span><button type="button" class="btn sm" data-action="persist-retry" ${navigator.onLine ? '' : raw('disabled')}>Tentar novamente</button></div>` : ''}
-    <div class="settings-data-actions">
-      <section class="settings-data-action settings-data-export" aria-labelledby="settings-export-title">
-        <span class="settings-data-action-icon" aria-hidden="true">${icon('download', 19)}</span>
-        <h3 id="settings-export-title">Guardar uma cópia</h3>
-        <p>Baixe uma cópia dos seus dados para guardar em segurança. No celular, salve o arquivo fora dos dados do navegador.</p>
-        <p class="small muted">${p.lastBackup ? 'Último backup exportado nesta conta: ' + shortDate(isoDay(p.lastBackup)) + '.' : 'Você ainda não exportou um backup nesta conta.'}</p>
-        <div class="row"><button type="button" class="btn primary" data-action="export">${icon('download', 18)}Exportar backup</button></div>
-      </section>
-      <section class="settings-data-action settings-data-restore" aria-labelledby="settings-restore-title">
-        <span class="settings-data-action-icon" aria-hidden="true">${icon('upload', 19)}</span>
-        <h3 id="settings-restore-title">Usar uma cópia salva</h3>
-        <p>A restauração substitui todos os dados atuais da conta; ela não mescla registros. Exporte uma cópia atual antes de continuar.</p>
-        <p class="small muted">Escolha um arquivo de backup exportado pelo Aurora.</p>
-        <label class="btn backup-file-label">${icon('upload', 18)}Escolher arquivo<input type="file" accept="application/json,.json" data-change="import" class="sr"></label>
-        <p class="err" id="imperr" role="alert"></p>
-      </section>
-    </div>
   </section>
-    ${legacyImportPanel()}
-    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo; a lixeira também acompanha os backups.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo.</p></div>
       ${trashEntries.length
         ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
           const days = trashDaysRemaining(entry);
@@ -4117,15 +4016,25 @@ function dataSettings(p) {
         : areaEmpty('A lixeira está vazia.', 'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.', h`<a class="btn primary" href="/inicio">Ir para o início</a>`, 'trash', 'h3', 'settings-trash-empty')}
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
-      <div class="settings-section-heading"><h2 id="settings-care-title">Ações avançadas</h2><p>Remova os dados relacionais desta conta.</p></div>
+      <div class="settings-section-heading"><h2 id="settings-care-title">Limpar dados da conta</h2><p>Apaga seus registros e preferências no Aurora, mas mantém sua conta e seu acesso.</p></div>
       <div class="settings-data-care-actions">
         <section class="settings-data-action settings-data-danger" aria-labelledby="settings-delete-title">
-          <h3 id="settings-delete-title">${icon('trash', 18)}Apagar dados relacionais</h3>
-          <p>Esta ação remove permanentemente os dados relacionais da conta. Só continue se tiver certeza e uma cópia do que deseja guardar.</p>
-          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados relacionais</button>
+          <h3 id="settings-delete-title">${icon('trash', 18)}O que será apagado</h3>
+          ${relationalDataWipeScope()}
+          <p class="small muted">Cópias antigas ainda não importadas serão preservadas.</p>
+          <button type="button" class="btn danger" data-action="wipe-ask">Apagar dados e manter a conta</button>
         </section>
       </div>
     </section>`;
+}
+function relationalDataWipeScope() {
+  return h`<ul class="settings-data-scope" aria-label="Dados que serão apagados">
+    <li>Tarefas, listas, etiquetas, registros diários e revisões semanais.</li>
+    <li>Hábitos, registros de água, treinos, cronômetros e sessões de Pomodoro.</li>
+    <li>Finanças: contas, lançamentos, orçamentos, metas e recorrências.</li>
+    <li>Registros do Ciclo, pesagens e itens da lixeira.</li>
+    <li>Perfil, preferências e configuração de notificações.</li>
+  </ul>`;
 }
 function viewConfig() {
   return renderSettingsView({
@@ -4478,15 +4387,17 @@ function dlgSearch() {
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back" data-action="dlg-close">Fechar</button>`);
 }
 function dlgWipe() {
-  return dlgWrap(h`<div class="head destructive-heading"><span class="destructive-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="destructive-eyebrow">Ação permanente</p><h2 id="dt">Apagar dados relacionais?</h2></div>${closeBtn}</div>
-    <div class="destructive-summary"><p class="destructive-copy">Isso apaga permanentemente os dados relacionais desta conta. Dados antigos de outras áreas ainda não importados serão preservados para a migração.</p>
-    <aside class="destructive-note" role="alert">${icon('alert', 18)}<span><b>Faça um backup antes</b><small>Exporte uma cópia agora se quiser guardar seus dados.</small></span></aside></div>`,
-    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar e manter dados</button><button type="button" class="btn danger" data-action="wipe">Apagar permanentemente</button>`,
+  return dlgWrap(h`<div class="head destructive-heading"><span class="destructive-mark" aria-hidden="true">${icon('alert', 22)}</span><div><p class="destructive-eyebrow">Ação permanente</p><h2 id="dt">Apagar os dados salvos?</h2></div>${closeBtn}</div>
+    <div class="destructive-summary"><p class="destructive-copy">Serão apagados estes dados:</p>
+    ${relationalDataWipeScope()}
+    <p class="small muted">Sua conta e seu acesso continuam ativos. Cópias antigas ainda não importadas serão preservadas.</p>
+    <aside class="destructive-note" role="alert">${icon('alert', 18)}<span><b>Ação irreversível</b><small>Não será possível recuperar os dados apagados.</small></span></aside></div>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar e manter os dados</button><button type="button" class="btn danger" data-action="wipe">Apagar permanentemente</button>`,
     'destructive-dialog');
 }
 function dlgWipeComplete() {
   const warning = ui.dlg.d.warning;
-  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados relacionais foram apagados</h2><p>${warning || 'Os registros legados ainda não importados foram preservados. Você permanece conectado à sua conta e pode começar novamente.'}</p></div></div>`,
+  return dlgWrap(h`<div class="wipe-complete"><span class="wipe-complete-mark" aria-hidden="true">${icon(warning ? 'alert' : 'check', 24)}</span><div class="wiz-h"><span class="eyebrow">${warning ? 'Ação parcial' : 'Tudo pronto'}</span><h2 id="dt">Seus dados foram apagados</h2><p>${warning || 'As cópias antigas ainda não importadas foram preservadas. Sua conta continua ativa e você pode começar novamente.'}</p></div></div>`,
     h`<button type="button" class="btn primary" data-action="wipe-home">Ir para o Início</button>`,
     'wipe-complete-dialog');
 }
@@ -4977,7 +4888,8 @@ function renderDialog() {
   el.dataset.route = ui.route;
   fitDlg();
   el.setAttribute('aria-labelledby', 'dt');
-  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  const isCardAccount = ui.dlg.type === 'account' && ui.dlg.d?.type === 'credit';
+  el.innerHTML = `<div class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}${isCardAccount ? ' card-account-dialog' : ''}" tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
   if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;
@@ -5567,7 +5479,7 @@ const ACTIONS = {
     nav('financas');
   },
   'plan-view': (el) => {
-    if (!['lista', 'calendario', 'semana', 'revisao', 'anual'].includes(el.dataset.v)) return;
+    if (!['lista', 'calendario', 'revisao', 'anual'].includes(el.dataset.v)) return;
     const focusTab = el.getAttribute('role') === 'tab';
     ui.planView = el.dataset.v;
     ui.annualEditingGoalId = '';
@@ -5838,7 +5750,7 @@ const ACTIONS = {
     const undoSkip = skipped.has(day);
     if (undoSkip) skipped.delete(day);
     else {
-      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite. Exporte um backup antes de continuar.', 'warning');
+      if (skipped.size >= 10000) return toast('O histórico de dias pulados chegou ao limite de 10.000 registros.', 'warning');
       skipped.add(day);
     }
     const snapshot = snapshotSlices(['habits']);
@@ -5991,12 +5903,14 @@ const ACTIONS = {
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
     event.preventDefault();
     ui.settingsTab = tab;
-    const url = new URL(location.href);
-    url.pathname = '/config';
+    const url = new URL(routePathFor(`config?section=${encodeURIComponent(tab)}`), location.origin);
+    new URL(location.href).searchParams.forEach((value, key) => {
+      if (key !== 'section' && key !== 'weight') url.searchParams.append(key, value);
+    });
     url.hash = '';
-    url.searchParams.set('section', tab);
     history.pushState(null, '', `${url.pathname}${url.search}`);
-    activeRouteLocationKey = `config?${url.search.slice(1)}`;
+    const resolved = routeFromLocation(url, new Set(Object.keys(ROUTES)));
+    activeRouteLocationKey = `${resolved.route}?${resolved.query}`;
     render();
     const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
     selectedTab?.focus({ preventScroll: true });
@@ -7384,6 +7298,24 @@ document.addEventListener('input', (e) => {
         ui.dlg.d.saved = moneyIn(previousProgress);
       }
     }
+    if (ui.dlg.type === 'account' && el.dataset.dlg === 'bankOption') {
+      const bankInput = $('#dlg [data-dlg="bank"]');
+      ui.dlg.d.bank = el.value === OTHER_BANK ? OTHER_BANK : el.value;
+      if (bankInput instanceof HTMLInputElement) {
+        bankInput.closest('.bank-custom-entry').hidden = el.value !== OTHER_BANK;
+        bankInput.required = el.value === OTHER_BANK;
+        if (el.value !== OTHER_BANK) bankInput.value = '';
+      }
+      const bank = findBankByName(el.value);
+      const logo = $('#dlg [data-bank-preview-logo]');
+      const fallback = $('#dlg [data-bank-preview-fallback]');
+      if (logo && fallback) {
+        if (bank) logo.querySelector('img').src = bank[1].logo;
+        logo.hidden = !bank;
+        fallback.hidden = Boolean(bank);
+      }
+      return;
+    }
     setPath(ui.dlg.d, el.dataset.dlg, el.type === 'checkbox' ? el.checked : el.value);
     if (ui.dlg.type === 'account' && el.dataset.dlg === 'bank') {
       const bank = findBankByName(el.value, true);
@@ -7844,7 +7776,7 @@ function finResumo() {
     .slice(0, 5);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p>${balanceSparkline()}</div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
@@ -8277,15 +8209,29 @@ function dlgAccount() {
   };
   const bankValue = bankFieldValue(d.bank);
   const initialBank = findBankByName(bankValue, true);
-  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}</h2>${closeBtn}</div>
+  const selectedBank = findBankByName(bankValue);
+  const showCustomBank = !selectedBank && Boolean(bankValue) && d.bank !== OTHER_BANK;
+  return dlgWrap(h`<div class="head head-nowrap"><div><p class="dialog-eyebrow">${card ? 'Cartão de crédito' : 'Conta'}</p><h2 id="dt">${edit ? card ? 'Editar cartão' : 'Editar conta' : card ? 'Novo cartão' : 'Nova conta'}</h2></div>${closeBtn}</div>
     <form id="dlgform" class="form" data-form="dlg-account">
-      ${dlgField(card ? 'Nome do cartão' : 'Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="${card ? 'Ex.: Nubank Platinum' : 'Ex.: Nubank 1'}" autocomplete="off">`, 'full')}
+      ${card ? h`<section class="account-dialog-section full" aria-labelledby="account-card-identity-title">
+        <h3 id="account-card-identity-title">Identificação</h3>
+        ${dlgField('Nome do cartão', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="Ex.: Nubank Platinum" autocomplete="off">`, 'full')}
+        ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><select data-dlg="bankOption" aria-label="Banco ou instituição"><option value="" ${!bankValue ? raw('selected') : ''}>Selecione uma instituição</option>${Object.entries(BANKS).map(([key, bank]) => h`<option value="${key}" ${selectedBank?.[0] === key ? raw('selected') : ''}>${bank.name}</option>`)}<option value="${OTHER_BANK}" ${!selectedBank && bankValue ? raw('selected') : ''}>Outro / não listado</option></select><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><span class="bank-custom-entry" ${showCustomBank ? '' : raw('hidden')}><input type="text" data-dlg="bank" value="${showCustomBank ? bankValue : ''}" maxlength="40" placeholder="Digite o nome do banco" autocomplete="off" ${showCustomBank ? raw('required') : ''}></span>`, 'full bank-name-field')}
+      </section>` : dlgField('Nome da conta', h`<input id="f0" type="text" data-dlg="name" value="${d.name}" maxlength="40" required placeholder="Ex.: Nubank 1" autocomplete="off">`, 'full')}
       ${!card ? h`<fieldset class="f full account-type-field"><legend class="f-label">Tipo da conta</legend><p class="account-type-help">Contas correntes, poupanças e investimentos fazem parte do saldo total. Cartões são cadastrados separadamente.</p><div class="account-type-picker" role="radiogroup" aria-label="Tipo da conta">${types.map(([key, label]) => h`<label class="account-type-choice"><input type="radio" name="account-type" data-dlg="type" value="${key}" ${key === d.type ? raw('checked') : ''}><span class="account-type-choice-icon">${catChip({ c: '#5fa68a', i: ACC_ICON[key] || 'bank' })}</span><span class="account-type-choice-copy"><b>${label}</b><small>${typeDetails[key]}</small></span><span class="account-type-choice-check" aria-hidden="true">${icon('check', 14)}</span></label>`)}</div></fieldset>` : ''}
-      ${dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field')}
-      <p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>
-      ${card ? h`${dlgField('Conta para pagar a fatura (opcional)', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select>`, 'full')}<p class="small muted full">Essa conta será pré-selecionada no pagamento. Você ainda poderá escolher outra antes de confirmar.</p>` : ''}
-      ${dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : d.type === 'credit' ? 'Saldo inicial (dívida em aberto: negativo)' : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="00,00">`)}
-      ${d.type === 'credit' ? h`${dlgField(h`Limite (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="00,00">`, 'full')}${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric">`)}${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric">`)}` : ''}
+      ${!card ? dlgField('Banco ou instituição', h`<span class="bank-name-control"><input type="text" data-dlg="bank" value="${bankValue}" maxlength="40" list="finance-bank-options" placeholder="Ex.: Nubank" autocomplete="off"><span class="bank-name-preview" data-bank-preview aria-hidden="true"><span class="bank-logo bank-preview-logo" data-bank-preview-logo ${initialBank ? '' : raw('hidden')}><img src="${initialBank ? initialBank[1].logo : ''}" alt=""></span><span data-bank-preview-fallback ${initialBank ? raw('hidden') : ''}>${catChip({ c: '#5fa68a', i: 'bank' })}</span></span></span><datalist id="finance-bank-options">${Object.values(BANKS).map((bank) => h`<option value="${bank.name}"></option>`)}</datalist><span class="small muted">O ícone aparece ao reconhecer o nome. Você também pode informar outra instituição.</span>`, 'full bank-name-field') : ''}
+      ${!card ? h`<p class="small muted full">O Aurora não se conecta a bancos; as informações são registradas manualmente.</p>` : ''}
+      ${card ? h`<section class="account-dialog-section full" aria-labelledby="account-card-payment-title">
+        <h3 id="account-card-payment-title">Pagamento da fatura</h3>
+        ${dlgField('Conta usada para pagar', h`<select data-dlg="linkedAccountId"><option value="" ${d.linkedAccountId ? '' : raw('selected')}>Escolher ao pagar</option>${paymentAccounts.map((account) => h`<option class="user-value" value="${account.id}" ${account.id === d.linkedAccountId ? raw('selected') : ''}>${accountOptionLabel(account)}</option>`)}</select><span class="small muted">Você poderá confirmar outra conta antes de pagar.</span>`, 'full')}
+      </section>` : ''}
+      ${d.type === 'credit' ? h`<section class="account-dialog-section account-card-values full" aria-labelledby="account-card-values-title">
+        <h3 id="account-card-values-title">Limite e datas</h3>
+        ${dlgField(edit ? h`Dívida atual (<span class="money">R$</span>)` : h`Dívida inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="0,00"><span class="small muted">Informe o total já usado no cartão, se houver.</span>`)}
+        ${dlgField(h`Limite total (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="limit" value="${formatMoneyInput(d.limit)}" placeholder="0,00">`, '')}
+        ${dlgField('Dia de fechamento', h`<input type="number" min="1" max="31" data-dlg="closing" value="${d.closing}" inputmode="numeric" placeholder="Ex.: 20">`)}
+        ${dlgField('Dia de vencimento', h`<input type="number" min="1" max="31" data-dlg="due" value="${d.due}" inputmode="numeric" placeholder="Ex.: 27">`)}
+      </section>` : dlgField(edit ? h`Saldo atual (<span class="money">R$</span>)` : h`Saldo inicial (<span class="money">R$</span>)`, h`<input type="text" class="money-input" inputmode="decimal" data-dlg="balance" value="${formatMoneyInput(d.balance)}" placeholder="0,00">`)}
     </form>`,
     h`${edit ? h`<button class="btn danger back" data-action="acct-del" aria-label="Excluir conta">${icon('trash', 18)}</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>` : h`<button class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`}`);
 }
@@ -9447,7 +9393,7 @@ async function continueAuthenticatedAurora(root, user) {
   }
 
   purgeExpiredTrash();
-  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; faça um backup antes de continuar.', 'error');
+  if (ui.persistFailed.size) toast('Alguns dados protegidos não puderam ser carregados ou salvos. As cópias originais foram preservadas; revise os dados em Ajustes antes de continuar.', 'error');
   const recurringReconciled = reconcileRecurringTransactions();
   const recurringGenerated = genRecurring();
   if (recurringReconciled || recurringGenerated) saveSlices('finance');
@@ -9749,6 +9695,26 @@ document.addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+function updateSuggestionCount(form) {
+  const textarea = form?.elements?.message;
+  const counter = form?.querySelector('[data-suggestion-count]');
+  if (textarea instanceof HTMLTextAreaElement && counter) {
+    counter.textContent = `${textarea.value.length} / 2000`;
+  }
+}
+
+document.addEventListener('input', (event) => {
+  if (!(event.target instanceof HTMLTextAreaElement) || event.target.name !== 'message') return;
+  if (event.target.closest('[data-footer-suggestion]')) {
+    updateSuggestionCount(event.target.closest('[data-footer-suggestion]'));
+  }
+});
+
+document.addEventListener('reset', (event) => {
+  if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
+  queueMicrotask(() => updateSuggestionCount(event.target));
+});
+
 document.addEventListener('submit', async (event) => {
   if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
   event.preventDefault();

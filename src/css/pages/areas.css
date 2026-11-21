@@ -125,6 +125,41 @@
 .cycle-calendar-card .head { align-items: center; }
 .cycle-calendar-card .head > div { text-align: center; }
 .cycle-calendar-card .head .section-kicker { margin-bottom: 2px; color: var(--area-cycle); }
+.cycle-calendar-card {
+  padding: var(--card-padding);
+  border: 1px solid color-mix(in srgb, var(--area-cycle) 25%, var(--line));
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--card-shadow);
+}
+.cycle-calendar-card .cal {
+  width: min(100%, 760px);
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.cycle-calendar-card .cal b {
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+}
+.cycle-calendar-card .cal > span,
+.cycle-calendar-card .cal button { min-height: 64px; }
+.cycle-calendar-card .cal button {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+.cycle-calendar-card .cal button:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--area-cycle) 48%, var(--line));
+  background: color-mix(in srgb, var(--area-cycle) 8%, var(--surface));
+}
+.cycle-calendar-card .cal button.s { border-color: var(--area-cycle); }
+.cycle-calendar-card .cal button:focus-visible { z-index: 1; outline-offset: 2px; }
 .cycle-calendar-help { max-width: 38ch; margin: 4px 0 0; color: var(--muted); font-size: var(--text-meta); line-height: 1.45; }
 .cycle-calendar-legend { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .cycle-calendar-legend > span { display: inline-flex; min-height: var(--control-sm); align-items: center; padding: 4px 9px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-soft); color: var(--muted); font-size: var(--text-xs); line-height: 1.4; }
@@ -141,8 +176,11 @@
 .main[data-route="ciclo"] .cycle-calendar-card .cal button[disabled].phase-ovulation { opacity: .92; }
 .cycle-day-entry {
   gap: var(--space-4);
-  border-color: color-mix(in srgb, var(--area-cycle) 25%, var(--line));
+  padding: var(--card-padding);
+  border: 1px solid color-mix(in srgb, var(--area-cycle) 25%, var(--line));
+  border-radius: var(--r-card);
   background: var(--surface-strong);
+  box-shadow: var(--card-shadow);
 }
 .cycle-start-empty .empty-state { grid-template-columns: 48px minmax(0, 1fr); }
 .cycle-start-empty .empty-state .empty-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
@@ -151,6 +189,7 @@
 .cycle-empty-actions > .btn { min-width: 0; }
 .cycle-day-entry > .head { align-items: flex-start; }
 .cycle-day-entry > .head > div > p { margin-top: 4px; }
+.cycle-day-entry > .scroll-x { margin-inline: 0; padding-inline: 2px; }
 .cycle-day-summary { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.55; }
 .cycle-edit-button { align-self: flex-start; }
 .cycle-health-card { gap: var(--space-4); }

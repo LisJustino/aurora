@@ -16,6 +16,7 @@ const versionId = (table, row) => (
     ? row.user_id
     : row.id
 );
+let snapshotFallbackWarned = false;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const uuidLike = (value) => typeof value === 'string' && UUID.test(value);
@@ -111,6 +112,47 @@ function databaseId(idMap, table, appId) {
 function queryError(table, error) {
   console.error(`Aurora: a leitura relacional de ${table} falhou.`, error);
   throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+}
+
+async function legacyLoad(client, includeCycle) {
+  const result = await Promise.all(TABLES.map(async (table) => {
+    if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
+    return [table, await selectAll(client, table, { excludeCycleTrash: !includeCycle })];
+  }));
+  return Object.fromEntries(result);
+}
+
+async function loadTables(client, includeCycle) {
+  if (typeof client.rpc !== 'function') return legacyLoad(client, includeCycle);
+
+  const { data, error } = await client.rpc('load_relational_account', {
+    p_include_cycle: includeCycle,
+  });
+  if (error) {
+    if (error.code !== 'PGRST202') {
+      console.error('Aurora: a leitura relacional agrupada falhou.', error);
+      throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+    }
+    if (!snapshotFallbackWarned) {
+      snapshotFallbackWarned = true;
+      console.warn('Aurora: a leitura agrupada ainda não está disponível; usando consultas compatíveis.', error);
+    }
+    return legacyLoad(client, includeCycle);
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    console.error('Aurora: a leitura relacional agrupada retornou um formato inválido.');
+    throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+  }
+  const tables = {};
+  for (const table of TABLES) {
+    if (!Array.isArray(data[table])) {
+      console.error(`Aurora: a leitura relacional agrupada não retornou a tabela ${table}.`);
+      throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+    }
+    tables[table] = data[table];
+  }
+  return tables;
 }
 
 async function selectAll(client, table, { excludeCycleTrash = false } = {}) {
@@ -978,11 +1020,7 @@ export class RelationalAccountStore {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. Os dados da conta não foram carregados.');
     }
-    const result = await Promise.all(TABLES.map(async (table) => {
-      if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
-      return [table, await selectAll(this.client, table, { excludeCycleTrash: !includeCycle })];
-    }));
-    const tables = Object.fromEntries(result);
+    const tables = await loadTables(this.client, includeCycle);
     this.rawTables = tables;
     for (const table of TABLES) {
       this.rowVersions.get(table).clear();
@@ -1077,7 +1115,7 @@ export class RelationalAccountStore {
     const { error } = await this.client.rpc('clear_relational_data');
     if (error) {
       console.error('Aurora: não foi possível apagar os dados relacionais da conta.', error);
-      throw new Error('Não foi possível apagar os dados relacionais; os dados restantes foram preservados.');
+      throw new Error('Não foi possível apagar os dados da conta; os dados restantes foram preservados.');
     }
     this.rawTables = null;
     this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));

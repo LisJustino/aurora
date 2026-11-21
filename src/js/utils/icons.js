@@ -78,6 +78,7 @@ export const IC = Object.freeze({
   blood: '<path d="M12 3s-6 6.2-6 10.5a6 6 0 0 0 12 0C18 9.2 12 3 12 3Z"/>',
   spot: '<path d="M12 5s-4 4.2-4 7.2a4 4 0 0 0 8 0C16 9.2 12 5 12 5Z" fill="currentColor" stroke="none"/>',
   candy: '<path d="m7 9-4-3v12l4-3M17 9l4-3v12l-4-3"/><rect x="7" y="8" width="10" height="8" rx="3"/><path d="M10 8v8"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18h3"/>',
   phoneOff: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M10.5 18h3"/><path d="m4 4 16 16"/>',
   pie: '<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>',

@@ -1,4 +1,5 @@
 import { h, raw } from '../../utils/dom.js';
+import { routePathFor } from '../../core/router.js';
 import { icon } from '../../utils/icons.js';
 
 export function renderSettingsSegment(look, key, label, options, action = 'look') {
@@ -9,7 +10,7 @@ function renderSettingsStorageNotice(selectedTab, { integrityIssues, persistFail
   if (selectedTab === 'data') return '';
   const integritySlices = Object.keys(integrityIssues);
   if (integritySlices.length) {
-    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Há dados inválidos em ${integritySlices.join(', ')}. A gravação está bloqueada para evitar perda; revise Dados e backup antes de continuar.</span><button type="button" class="btn sm" data-action="settings-section" data-settings-tab="data">Revisar dados</button></div>`;
+    return h`<div class="notice warn settings-storage-notice" role="alert"><span>Há dados inválidos em ${integritySlices.join(', ')}. A gravação está bloqueada para evitar perda; revise Dados e recuperação antes de continuar.</span><button type="button" class="btn sm" data-action="settings-section" data-settings-tab="data">Revisar dados</button></div>`;
   }
   const failedSlices = [...persistFailed];
   if (failedSlices.length) {
@@ -25,17 +26,45 @@ function renderSettingsSectionContent(s, p, selectedTab, renderers) {
     case 'areas-navigation': return renderers.areasNavigation(s);
     case 'data': return renderers.data(p);
     case 'calendars': return renderers.calendars();
-    case 'mental-health': return h`<section class="surface-open" aria-labelledby="mental-health-title">
-      <div class="head"><div><h2 id="mental-health-title">${icon('heart', 20)} Apoio psicológico</h2><p>Você não precisa enfrentar momentos difíceis sem apoio. Estes recursos são voltados a pessoas no Brasil.</p></div></div>
-      <h3>Onde buscar cuidado</h3>
-      <p>Uma Unidade Básica de Saúde (UBS) pode acolher e orientar sobre atendimento psicológico pelo SUS. Os Centros de Atenção Psicossocial (CAPS) também oferecem cuidado em saúde mental.</p>
-      <p><a class="inline-link" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps" target="_blank" rel="noopener noreferrer">Conheça a rede de atenção psicossocial do SUS</a></p>
-      <h3>Acolhimento emocional</h3>
-      <p>O CVV oferece escuta gratuita e sigilosa pelo telefone <a class="inline-link" href="tel:188">188</a>, 24 horas por dia, além de atendimento online.</p>
-      <p><a class="inline-link" href="https://cvv.org.br/" target="_blank" rel="noopener noreferrer">Acessar o CVV</a></p>
-      <h3>Em uma emergência</h3>
-      <p>Se houver risco imediato, procure um serviço de emergência ou ligue para o SAMU pelo <a class="inline-link" href="tel:192">192</a>.</p>
-      <p class="small muted">O Aurora não oferece atendimento psicológico e estas informações não substituem o acompanhamento profissional.</p>
+    case 'mental-health': return h`<section class="surface-open mental-health-support" aria-labelledby="mental-health-title">
+      <div class="mental-health-hero">
+        <span class="mental-health-mark" aria-hidden="true">${icon('heart', 24)}</span>
+        <div>
+          <p class="section-kicker">Um espaço de cuidado</p>
+          <h2 id="mental-health-title">Você não precisa passar por isso sozinho.</h2>
+          <p>Pedir apoio também é um jeito de cuidar de si. Quando estiver difícil, escolher o próximo passo pode começar em pequenos gestos.</p>
+        </div>
+      </div>
+      <div class="mental-health-resource-grid">
+        <article class="mental-health-resource mental-health-resource-primary">
+          <span class="mental-health-resource-mark" aria-hidden="true">${icon('heart', 20)}</span>
+          <div>
+            <h3>Falar com alguém agora</h3>
+            <p>O CVV oferece escuta gratuita e sigilosa por telefone ou online, todos os dias, a qualquer hora.</p>
+          </div>
+          <div class="mental-health-actions">
+            <a class="btn primary sm" href="tel:188">${icon('phone', 16)} Ligar 188</a>
+            <a class="btn ghost sm" href="https://cvv.org.br/" target="_blank" rel="noopener noreferrer">Conversar pelo site</a>
+          </div>
+        </article>
+        <article class="mental-health-resource">
+          <span class="mental-health-resource-mark" aria-hidden="true">${icon('activity', 20)}</span>
+          <div>
+            <h3>Buscar cuidado na saúde pública</h3>
+            <p>Uma UBS pode acolher e orientar sobre atendimento pelo SUS. Os CAPS oferecem cuidado especializado em saúde mental.</p>
+          </div>
+          <a class="btn ghost sm" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps" target="_blank" rel="noopener noreferrer">Conhecer a rede do SUS</a>
+        </article>
+      </div>
+      <article class="mental-health-emergency">
+        <span class="mental-health-resource-mark" aria-hidden="true">${icon('alert', 20)}</span>
+        <div>
+          <h3>Se houver risco imediato</h3>
+          <p>Procure uma emergência ou peça ajuda de alguém próximo. Se houver risco à vida, ligue para o SAMU pelo 192.</p>
+        </div>
+        <a class="btn sm" href="tel:192">${icon('phone', 16)} Ligar 192</a>
+      </article>
+      <p class="mental-health-disclaimer">O Aurora não oferece atendimento psicológico. Estas informações são um caminho de apoio e não substituem acompanhamento profissional.</p>
     </section>`;
     case 'account': return renderers.account(s);
     default: return renderers.profile(s);
@@ -63,7 +92,7 @@ export function renderSettingsView({
     const section = sections.find(([item]) => item === id);
     if (!section) return '';
     const [key, label, ic, description] = section;
-    return h`<a class="settings-link" href="/config?section=${encodeURIComponent(key)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
+    return h`<a class="settings-link" href="${routePathFor(`config?section=${encodeURIComponent(key)}`)}" data-action="settings-section" data-settings-tab="${key}" aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span class="settings-link-icon">${icon(ic, 19)}</span><span class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
   })}</div>`);
   return h`${pageTitle('Ajustes')}${storageNotice(selected)}
     <div class="settings-layout">
