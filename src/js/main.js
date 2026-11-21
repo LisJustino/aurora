@@ -2532,7 +2532,7 @@ function onRoute() {
 /* ========== Páginas: Início, Planejar, Foco ========== */
 const todayTasks = () => selectTodayTasks(S.tasks, today());
 const habitCompletedFor = (habit, day) => habitIsComplete(habit, day);
-const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Você está vendo dados de exemplo. Eles ajudam a conhecer o app, mas não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
+const sampleBanner = () => S.settings.prefs.sample ? h`<div class="notice warn sample-banner" role="note">${icon('info', 18)}<div class="grow">Dados de exemplo — não são seus.</div><button class="btn sm" data-action="clear-sample">Limpar exemplos</button></div>` : '';
 
 function homeInboxReminder(tasks) {
   if (!tasks.length) return '';
@@ -3569,7 +3569,7 @@ function profileSettings(s) {
       </div>
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
-      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo, uma cor e a forma de saudação que aparece no Início.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
+      <div class="profile-appearance-heading"><div><h3 id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo e uma cor para o seu perfil.</p></div><button type="button" class="btn sm" data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
       <div class="profile-appearance-controls">
         <div class="profile-appearance-option">
           <span class="appearance-settings-label">Foto de perfil</span>
@@ -3583,7 +3583,6 @@ function profileSettings(s) {
         </div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Símbolo</span><div class="profile-avatar-options" role="group" aria-label="Símbolo do perfil">${PROFILE_AVATARS.map(([id, label]) => h`<button type="button" class="profile-avatar-option" data-action="profile-appearance" data-k="avatar" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatar === id)}">${icon(id, 20)}</button>`)}</div></div>
         <div class="profile-appearance-option"><span class="appearance-settings-label">Cor</span><div class="profile-avatar-colors" role="group" aria-label="Cor do símbolo">${PROFILE_AVATAR_COLORS.map(([id, label]) => h`<button type="button" class="profile-avatar-color" data-action="profile-appearance" data-k="avatarColor" data-v="${id}" aria-label="${label}" title="${label}" aria-pressed="${String(appearance.avatarColor === id)}"><span style="--profile-avatar-color:${PALETTES[id][1]}" aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`)}</div></div>
-        <div class="profile-appearance-option profile-appearance-option--greeting"><span class="appearance-settings-label">Saudação</span>${settingsSegment(appearance, 'greeting', 'Saudação no Início', PROFILE_GREETING_STYLES.map(([id, label]) => [id, label]), 'profile-appearance')}</div>
       </div>
     </section>
   </form>

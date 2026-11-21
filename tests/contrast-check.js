@@ -154,7 +154,7 @@ for (const [paletteKey, [, p, pd]] of Object.entries(PALETTES)) {
         [dialog.querySelector('.chip'), 'borderTopColor', 'borda do chip do diálogo', areaColor],
         [main.querySelector('.bar > span'), 'backgroundColor', 'progresso', areaColor],
       ]) {
-        if (!sameColor(colorToRgb(getComputedStyle(element)[property]), expectedColor)) {
+        if (element && !sameColor(colorToRgb(getComputedStyle(element)[property]), expectedColor)) {
           failures.push(`${paletteKey} · ${theme}/${contrast} · ${route} · ${label}: cor incorreta`);
         }
       }

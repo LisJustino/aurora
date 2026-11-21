@@ -471,7 +471,7 @@
   .home-areas .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (width <= 700px) {
-  .main[data-route="inicio"] .home-primary > .home-quick-card { order: -1 !important; }
+  .main[data-route="inicio"] .home-primary > .home-quick-card { order: 3 !important; }
   .home-first-steps-list { grid-template-columns: minmax(0, 1fr); }
   .home-dashboard { gap: var(--space-4); }
   .home-primary { gap: var(--space-3); }
@@ -721,12 +721,15 @@
 
 @media (width <= 480px) {
   .main[data-route="inicio"] > .sample-banner {
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
   }
   .main[data-route="inicio"] > .sample-banner > .btn {
-    grid-column: 2;
-    justify-self: start;
+    flex: none;
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
   }
 }
 
@@ -1679,6 +1682,28 @@
   .demo-app .home-dashboard .strip { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
 
+.main[data-route="inicio"] .home-day-next-task {
+  min-height: 56px;
+  padding-inline: var(--space-3);
+  border-left-width: 3px;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.main[data-route="inicio"] .home-day-next-task:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .main[data-route="inicio"] .home-day-next-task { transition: none; }
+}
+
+@media (width <= 380px) {
+  .main[data-route="inicio"] > .home-head h1 {
+    font-size: var(--text-title);
+    line-height: var(--leading-tight);
+  }
+  .main[data-route="inicio"] > .home-head .date { margin-bottom: var(--space-1); }
+}
+
 /* Foto e saudação lado a lado, centralizadas entre si, mesmo quando o nome quebra em duas linhas. */
 .home-greeting {
   display: flex;
@@ -1698,4 +1723,9 @@
 .home-greeting > h1 { min-width: 0; margin: 0; }
 @media (width < 700px) {
   .home-greeting { gap: var(--space-3); }
+}
+
+@media (width <= 380px) {
+  .main[data-route="inicio"] .home-greeting { gap: var(--space-2); }
+  .main[data-route="inicio"] > .home-head { padding-block: var(--space-4); }
 }

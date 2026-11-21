@@ -133,7 +133,6 @@
 
 @media (width <= 700px) {
   .settings-overview { margin-top: -12px; padding: 0 4px; }
-  .settings-menu-heading { display: none; }
   .main[data-route="config"] .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
   .main[data-route="config"] .settings-menu {
     display: flex;
@@ -171,7 +170,6 @@
     text-align: center;
   }
   .main[data-route="config"] .settings-link-copy { width: 100%; align-items: center; }
-  .main[data-route="config"] .settings-link-copy small { display: none; }
   .main[data-route="config"] .settings-link-copy b {
     width: 100%;
     font-size: var(--text-xs);

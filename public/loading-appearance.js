@@ -8,7 +8,11 @@
   function applyInitialTheme(mode) {
     var isDark = mode === 'dark'
       || (mode === 'auto' && Boolean(systemTheme && systemTheme.matches));
-    root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    if (mode === 'auto') {
+      root.removeAttribute('data-theme');
+    } else {
+      root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    }
     root.style.colorScheme = isDark ? 'dark' : 'light';
     root.style.backgroundColor = isDark ? '#1c1b19' : '#f5f3ed';
     var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -33,12 +37,18 @@
   };
   applyInitialTheme(appearanceMode);
   syncManifest(appearanceMode);
-  if (systemTheme && typeof systemTheme.addEventListener === 'function') {
-    systemTheme.addEventListener('change', function () {
-      if (appearanceMode === 'auto') {
-        applyInitialTheme(appearanceMode);
-        syncManifest(appearanceMode);
-      }
-    });
+  function syncSystemTheme() {
+    if (appearanceMode !== 'auto') return;
+    applyInitialTheme(appearanceMode);
+    syncManifest(appearanceMode);
   }
+  if (systemTheme) {
+    if (typeof systemTheme.addEventListener === 'function') {
+      systemTheme.addEventListener('change', syncSystemTheme);
+    } else if (typeof systemTheme.addListener === 'function') {
+      systemTheme.addListener(syncSystemTheme);
+    }
+  }
+  window.addEventListener('pageshow', syncSystemTheme);
+  setTimeout(syncSystemTheme, 0);
 })();

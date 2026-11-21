@@ -48,7 +48,7 @@ export function renderHomeView(model, renderers) {
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         ${showHomeBlock('summary') ? h`<section class="home-day-summary card" ${raw(homeBlockStyle('summary'))} aria-labelledby="home-day-summary-title">
-          <h2 id="home-day-summary-title">Hoje</h2>
+          <h2 id="home-day-summary-title">Resumo do dia</h2>
           ${daySummary.tasks.next
             ? h`<a class="home-day-next-task" href="/planejar" aria-label="Próxima tarefa: ${daySummary.tasks.next.title}">${icon('calendarCheck', 18)}<span><small>PRÓXIMA TAREFA</small><b>${daySummary.tasks.next.title}</b></span>${icon('chevRight', 16)}</a>`
             : h`<p class="home-day-next-task is-empty">Nenhuma tarefa atrasada ou para hoje.</p>`}

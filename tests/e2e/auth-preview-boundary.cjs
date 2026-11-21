@@ -28,7 +28,7 @@ const check = (passed, name, detail = '') => {
 
   const developmentUrl = new URL('/inicio?preview=1', DEV_BASE);
   await page.goto(developmentUrl.toString());
-  await page.getByText('Você está vendo dados de exemplo.', { exact: false }).waitFor({ state: 'visible' });
+  await page.getByText('Dados de exemplo', { exact: false }).waitFor({ state: 'visible' });
   check(await page.locator('.preview-shell').count() === 1, 'prévia local abre a área de demonstração');
 
   const routes = ['inicio', 'planejar', 'financas', 'ciclo', 'habitos', 'config'];
@@ -60,7 +60,7 @@ const check = (passed, name, detail = '') => {
   await page.goto(protectedUrl.toString());
   await page.getByRole('heading', { name: 'Acesso indisponível' }).waitFor({ state: 'visible' });
   check(
-    !(await page.getByText('Você está vendo dados de exemplo.', { exact: false }).count()),
+    !(await page.getByText('Dados de exemplo', { exact: false }).count()),
     'build de produção não ativa a prévia em rota protegida',
   );
   check(

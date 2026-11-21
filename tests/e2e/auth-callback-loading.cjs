@@ -66,6 +66,7 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
     assert.deepEqual(startupRequests, [], 'Os scripts iniciais não devem gerar requisições adicionais.');
     const installedPage = await browser.newPage();
     await installedPage.addInitScript(() => {
+      localStorage.setItem('sb-xeneztudcqdumfhwotry-auth-token', '{"access_token":"e2e"}');
       const matchMedia = window.matchMedia.bind(window);
       window.matchMedia = (query) => query === '(display-mode: standalone)'
         ? { matches: true }

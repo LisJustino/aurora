@@ -66,6 +66,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
         await page.waitForTimeout(100);
         assert.ok(await spinner.evaluate((element) => element.getAnimations()[0].currentTime) > start);
         await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+        await page.waitForTimeout(50);
         assert.equal(await spinner.evaluate((element) => getComputedStyle(element).animationName), 'none');
         assert.equal(await loader.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgb(28, 27, 25)');
         assert.deepEqual(await page.evaluate(() => window.loadingStorageCalls), []);

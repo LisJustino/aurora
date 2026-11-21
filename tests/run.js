@@ -2201,12 +2201,16 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
   const root = {
     style: {},
     setAttribute(name, value) { attributes[name] = value; },
+    removeAttribute(name) { delete attributes[name]; },
   };
   const systemTheme = {
     matches: true,
     addEventListener(_name, listener) { this.listener = listener; },
   };
-  const browserWindow = { matchMedia: () => systemTheme };
+  const browserWindow = {
+    matchMedia: () => systemTheme,
+    addEventListener() {},
+  };
   let manifestHref = 'https://aurora.test/manifest.webmanifest';
   const manifest = {
     get href() { return manifestHref; },
@@ -2217,6 +2221,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
 
   runInNewContext(source, {
     URL,
+    setTimeout(callback) { callback(); },
     window: browserWindow,
     document: {
       documentElement: root,
@@ -2228,7 +2233,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
     },
   });
 
-  equal(attributes['data-theme'], 'dark');
+  equal(attributes['data-theme'], undefined);
   equal(root.style.colorScheme, 'dark');
   equal(root.style.backgroundColor, '#1c1b19');
   equal(manifestHref, 'https://aurora.test/manifest-dark.webmanifest');
@@ -2241,7 +2246,8 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
   browserWindow.auroraManifestTheme.setMode('auto');
   systemTheme.matches = false;
   systemTheme.listener();
-  equal(attributes['data-theme'], 'light');
+  equal(attributes['data-theme'], undefined);
+  equal(root.style.colorScheme, 'light');
 });
 
 test('a paleta Rosé acompanha as cores do gradiente da logo', () => {

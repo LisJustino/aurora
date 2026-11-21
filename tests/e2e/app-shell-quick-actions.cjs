@@ -82,7 +82,7 @@ const check = (passed, name, detail = '') => {
   await shortcutPage.locator('.nav-quick-trigger:visible').first().click();
   await shortcutPage.locator('#quick-actions-menu').waitFor({ state: 'visible' });
   await shortcutPage.locator('#quick-actions-menu [data-action="quick-action-expense"], #quick-actions-menu [data-action="quick-action-transaction"]').first().click();
-  await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento.' }).waitFor();
+  await shortcutPage.locator('#dlg').getByRole('heading', { name: 'Novo lançamento' }).waitFor();
   check(shortcutErrors.length === 0, 'atalho financeiro do Início carrega o formulário sem abrir Finanças', shortcutErrors.join(' | '));
   await shortcutPage.keyboard.press('Escape');
   check(await shortcutPage.locator('.home-day-complete').count() === 0, 'dia não aparece concluído com tarefas pendentes');

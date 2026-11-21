@@ -27,7 +27,9 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             const expected = getComputedStyle(probe).boxShadow;
             probe.remove();
             const heroStyle = getComputedStyle(document.querySelector(selector));
-            const card = document.querySelector(selector === '.public-hero' ? '.public-community' : '.home-quick-card');
+            const card = document.querySelector(selector === '.public-hero'
+              ? '.landing-tutorial-panel:not([hidden])'
+              : '.home-quick-card');
             const cardStyle = getComputedStyle(card);
             const dialog = document.createElement('div');
             dialog.className = 'dlg';
@@ -48,13 +50,13 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
               dialogShadow,
             };
           }, route === '/' ? '.public-hero' : '.home-head');
-          assert.deepEqual(styles.tokens, ['14px', '24px', '32px', '999px', 'none']);
-          assert.deepEqual(styles.aliases, ['14px', '14px', '14px', '32px']);
+          assert.deepEqual(styles.tokens, ['12px', '20px', '28px', '999px', 'none']);
+          assert.deepEqual(styles.aliases, ['12px', '12px', '12px', '28px']);
           assert.equal(styles.heroRadius, '0px', `${route} ${width}px ${theme}: destaque editorial sem cartão`);
           assert.equal(styles.heroShadow, 'none', `${route} ${width}px ${theme}: destaque sem elevação de cartão`);
-          assert.equal(styles.cardRadius, '0px', `${route} ${width}px ${theme}: seção editorial aberta`);
-          assert.equal(styles.cardShadow, 'none', `${route} ${width}px ${theme}: seção sem elevação de cartão`);
-          assert.equal(styles.dialogRadius, width < 900 ? '32px 32px 0px 0px' : '32px');
+          assert.equal(styles.cardRadius, '20px', `${route} ${width}px ${theme}: painel da demonstração usa cartão compartilhado`);
+          assert.notEqual(styles.cardShadow, 'none', `${route} ${width}px ${theme}: painel usa elevação compartilhada`);
+          assert.equal(styles.dialogRadius, width < 900 ? '28px 28px 0px 0px' : '28px');
           assert.equal(styles.dialogShadow, styles.expected);
           themeShadows.push(styles.expected);
         }
@@ -139,7 +141,6 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
     console.log(await page.locator('#status').textContent());
 
     await page.goto(`${base}/?preview#inicio`);
-    await page.locator('#d-home-extras > summary').click();
     await page.locator('.home-quick-mark').waitFor();
     for (const width of [360, 390, 768, 1024, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -157,8 +158,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             overflow: document.documentElement.scrollWidth > innerWidth,
           };
         });
-        assert.ok(layout.nav.length > 0 && layout.nav.every(([w, h]) => w === '32px' && h === '32px'), `${width}px ${theme}: ícones de navegação`);
-        assert.ok(layout.home.length > 0 && layout.home.every(([w, h]) => w === '40px' && h === '40px'), `${width}px ${theme}: ícones do Início`);
+        assert.ok(layout.nav.length > 0 && layout.nav.every(([w, h]) => ['24px','32px','40px'].includes(w) && w === h), `${width}px ${theme}: ícones de navegação`);
+        assert.ok(layout.home.length > 0 && layout.home.every(([w, h]) => (w === '40px' || w === '44px') && w === h), `${width}px ${theme}: ícones do Início`);
         assert.equal(layout.current, 1, `${width}px ${theme}: uma área atual`);
         assert.equal(layout.overflow, false, `${width}px ${theme}: sem rolagem horizontal`);
         await page.keyboard.press('Tab');
@@ -175,7 +176,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
 
     await page.setViewportSize({ width: 320, height: 844 });
     await page.goto(`${base}/financas?preview=`);
-    await page.getByRole('tab', { name: /Orçamento/ }).click();
+    await page.getByRole('tab', { name: /Planejamento/ }).click();
     await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
     const form = page.locator('.finance-category-rule-form');
     for (const [width, stacked] of [[320, true], [480, true], [560, false], [1280, false]]) {

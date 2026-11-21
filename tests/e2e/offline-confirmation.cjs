@@ -154,7 +154,7 @@ const check = (passed, name, detail = '') => {
       if (width <= 760 && section === 'profile') {
         if (width === 390) {
           check(
-            (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil.',
+            (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil',
             'título do perfil sem pontuação duplicada',
           );
         }

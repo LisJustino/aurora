@@ -84,6 +84,5 @@
 
   .main > .page-title .page-title-copy { max-width: 100%; }
   .main > .page-title:has(.area-page-actions) .page-title-copy { max-width: 100%; }
-  .main > .page-title p { display: none; }
   .area-page-actions { width: 100%; justify-content: flex-start; }
 }

@@ -50,6 +50,31 @@ const blockSelectors = [
       console.log(`${mode}: visibilidade e ordem OK`);
     }
 
+    const responsiveCopy = {};
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 844 });
+      const copy = {};
+      await page.goto(`${base}/?preview#inicio`);
+      const homeHint = page.locator('.home-quick-copy p');
+      await homeHint.waitFor({ state: 'visible' });
+      copy.inicio = await homeHint.innerText();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}px Início sem overflow horizontal`);
+
+      for (const route of ['planejar', 'habitos', 'ciclo', 'financas', 'ajustes']) {
+        await page.goto(`${base}/?preview#${route}`);
+        const description = page.locator('.main > .page-title p');
+        await description.waitFor({ state: 'visible' });
+        copy[route] = { description: await description.innerText() };
+        if (route === 'ajustes') {
+          copy[route].menu = await page.locator('.settings-menu').innerText();
+        }
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}px ${route} sem overflow horizontal`);
+      }
+      responsiveCopy[width] = copy;
+    }
+    assert.deepEqual(responsiveCopy[320], responsiveCopy[1440], 'texto visível consistente em 320px e desktop');
+    assert.deepEqual(responsiveCopy[390], responsiveCopy[1440], 'texto visível consistente no mobile e desktop');
+
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

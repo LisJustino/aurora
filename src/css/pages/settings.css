@@ -158,10 +158,6 @@
   align-items: center;
   gap: var(--space-3);
 }
-.main[data-route="config"] .profile-appearance-option--greeting {
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-}
 .main[data-route="config"] .profile-appearance-option:first-child {
   align-items: start;
 }
@@ -486,12 +482,26 @@
     display: contents;
   }
 
-  .main[data-route="config"] .settings-menu-heading { display: none; }
+  .main[data-route="config"] .settings-menu-heading {
+    display: flex;
+    flex: 0 0 76px;
+    align-items: center;
+    max-width: 76px;
+    margin: 0;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-inline-start: 1px solid var(--line);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: 1.25;
+  }
   .main[data-route="config"] .settings-menu-group + .settings-menu-group { margin: 0; padding: 0; border: 0; }
   .main[data-route="config"] .settings-link {
     display: grid;
-    width: auto;
-    min-width: max-content;
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+    flex: 0 0 180px;
     min-height: var(--control-field);
     grid-template-columns: 24px minmax(0, 1fr);
     justify-items: start;
@@ -510,7 +520,6 @@
     background: var(--surface);
   }
 
-
   .main[data-route="config"] .settings-link-arrow { display: none; }
   .main[data-route="config"] .settings-link-icon {
     width: 24px;
@@ -521,7 +530,6 @@
   }
   .main[data-route="config"] .settings-link-copy { width: auto; align-items: flex-start; }
   .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); }
-  .main[data-route="config"] .settings-link-copy small { display: none; }
 }
 
 @media (width <= 480px) {
