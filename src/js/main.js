@@ -2550,7 +2550,7 @@ function homeUpcomingTasks() {
   const preview = upcoming.slice(0, 3);
   const remaining = upcoming.length - preview.length;
   return h`<section class="card home-upcoming-card" aria-labelledby="home-upcoming-title">
-    <div class="head"><div><p class="section-kicker">Depois de hoje</p><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
+    <div class="head"><div><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm" href="/planejar">Ver planejamento</a></div>
     <ul class="list">${preview.map((task) => taskRow(task))}</ul>
     ${remaining ? h`<p class="home-upcoming-more">+ ${remaining} ${plural(remaining, 'tarefa', 'tarefas')} na lista completa.</p>` : ''}
   </section>`;
@@ -7653,7 +7653,7 @@ function financeInstallmentPlans() {
 function finInstallments() {
   const plans = financeInstallmentPlans();
   return h`<section class="card finance-installments" aria-labelledby="finance-installments-title">
-    <div class="head"><div><p class="section-kicker">Compras e contas parceladas</p><h2 id="finance-installments-title">Parcelamentos em andamento</h2>
+    <div class="head"><div><h2 id="finance-installments-title">Parcelamentos em andamento</h2>
       <p class="small muted">${plans.length
         ? 'Veja quantas parcelas faltam, o valor restante e quando cada série termina.'
         : 'Registre uma despesa parcelada para acompanhar aqui o que falta e quando termina.'}</p></div></div>
@@ -7735,7 +7735,7 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">${ui.financeTrendRange === 'month' ? 'Mês inteiro' : `Últimos 7 dias${cur ? '' : ' do período selecionado'}`}</p></div>
+  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas</h2><p class="small muted">${ui.financeTrendRange === 'month' ? 'Mês inteiro' : `Últimos 7 dias${cur ? '' : ' do período selecionado'}`}</p></div>
       <div class="scroll-x finance-trend-range" role="group" aria-label="Período do gráfico"><button type="button" class="chip" aria-pressed="${ui.financeTrendRange !== 'month'}" data-action="finance-trend-range" data-v="7d">7 dias</button><button type="button" class="chip" aria-pressed="${ui.financeTrendRange === 'month'}" data-action="finance-trend-range" data-v="month">Mês</button></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
@@ -7782,10 +7782,10 @@ function upcomingDueItems() {
 function finProximos() {
   const items = upcomingDueItems();
   if (!items.length) {
-    return h`<section class="surface-open finance-upcoming"><div class="head"><div><p class="section-kicker">Próximos ${UPCOMING_WINDOW_DAYS} dias</p><h2>A vencer<i>.</i></h2></div></div><p class="small muted">Nada pendente para os próximos ${UPCOMING_WINDOW_DAYS} dias.</p></section>`;
+    return h`<section class="surface-open finance-upcoming"><div class="head"><div><h2>A vencer em ${UPCOMING_WINDOW_DAYS} dias</h2></div></div><p class="small muted">Nada pendente para os próximos ${UPCOMING_WINDOW_DAYS} dias.</p></section>`;
   }
   const shown = items.slice(0, 4), total = items.reduce((sum, item) => sum + item.cents, 0);
-  return h`<section class="surface-open finance-upcoming"><div class="head"><div><p class="section-kicker">Próximos ${UPCOMING_WINDOW_DAYS} dias</p><h2>A vencer<i>.</i></h2><p class="small muted">${items.length} ${plural(items.length, 'compromisso', 'compromissos')} · ${money(total)}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Ver pendentes</button></div>
+  return h`<section class="surface-open finance-upcoming"><div class="head"><div><h2>A vencer em ${UPCOMING_WINDOW_DAYS} dias</h2><p class="small muted">${items.length} ${plural(items.length, 'compromisso', 'compromissos')} · ${money(total)}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Ver pendentes</button></div>
     <ul class="list finance-upcoming-list">${shown.map((item) => {
       const days = dayDiff(item.date, today());
       const when = days < 0 ? h`<span class="badge bad">Atrasado</span>` : days === 0 ? h`<span class="badge warn">Hoje</span>` : h`<span class="small muted">${shortDate(item.date)}</span>`;
@@ -7806,7 +7806,7 @@ function finLimitesAtencao(ym) {
     .sort((a, b) => b.spent / b.limit - a.spent / a.limit)
     .slice(0, 3);
   if (!alerts.length) return '';
-  return h`<section class="surface-open finance-limit-alerts"><div class="head"><div><p class="section-kicker">Orçamento</p><h2>Limites em atenção<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver limites</button></div>
+  return h`<section class="surface-open finance-limit-alerts"><div class="head"><div><h2>Limites em atenção</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver limites</button></div>
     <ul class="list finance-limit-alert-list">${alerts.map((row) => {
       const over = row.spent > row.limit, meta = outMeta(row.name);
       return h`<li><span class="finance-limit-alert-row">${catChip(meta)}<span class="grow"><span class="ttl expense-name">${expenseTitle(row.name)}</span><span class="meta2">${over ? h`<span class="m-bad">acima em ${money(row.spent - row.limit)}</span>` : h`restam ${money(row.limit - row.spent)}`} · ${money(row.spent)} de ${money(row.limit)}</span>${budBar(row.spent, row.limit)}</span></span></li>`;
@@ -7848,7 +7848,7 @@ function finResumo() {
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
-      <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
+      <div class="finance-month-heading"><div><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
         <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
@@ -7857,11 +7857,11 @@ function finResumo() {
     </section>
     ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
     <div class="fin-overview-grid">
-      <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
+      <section class="surface-open finance-category-breakdown"><div class="head"><div><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
-      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
+      <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
-    ${scheduled.length ? h`<section class="surface-open finance-scheduled" aria-labelledby="finance-scheduled-title"><div class="head"><div><p class="section-kicker">Ainda neste mês</p><h2 id="finance-scheduled-title">Agendados<i>.</i></h2><p class="small muted">Lançamentos com data depois de hoje.</p></div></div><ul class="list">${scheduled.map((t) => finRow(t, { showDate: true }))}</ul></section>` : ''}
+    ${scheduled.length ? h`<section class="surface-open finance-scheduled" aria-labelledby="finance-scheduled-title"><div class="head"><div><h2 id="finance-scheduled-title">Agendados</h2><p class="small muted">Lançamentos com data depois de hoje.</p></div></div><ul class="list">${scheduled.map((t) => finRow(t, { showDate: true }))}</ul></section>` : ''}
     `;
 }
 function finCartoesAtencao() {
@@ -7872,7 +7872,7 @@ function finCartoesAtencao() {
     .sort((a, b) => b.info.used / b.card.limitCents - a.info.used / a.card.limitCents)
     .slice(0, 3);
   if (!alerts.length) return '';
-  return h`<section class="surface-open finance-card-alerts"><div class="head"><div><p class="section-kicker">Cartões</p><h2>Limite do cartão<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div>
+  return h`<section class="surface-open finance-card-alerts"><div class="head"><div><h2>Limite do cartão</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div>
     <ul class="list finance-limit-alert-list">${alerts.map(({ card, info }) => h`<li><span class="finance-limit-alert-row">${accountChip(card)}<span class="grow"><span class="ttl">${accountDisplayName(card)}</span><span class="meta2">${info.used >= card.limitCents ? h`<span class="m-bad">limite atingido</span>` : h`disponível ${money(info.avail ?? 0)}`} · ${money(info.used)} de ${money(card.limitCents)}</span>${budBar(info.used, card.limitCents)}</span></span></li>`)}</ul></section>`;
 }
 function finObjetivoFoco() {
@@ -7886,7 +7886,7 @@ function finObjetivoFoco() {
     || b.saved / b.goal.targetCents - a.saved / a.goal.targetCents);
   const { goal, saved } = open[0];
   const percent = Math.min(100, Math.round(saved / goal.targetCents * 100));
-  return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
+  return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
     <div class="row budget-total-row"><b>${percent}%</b><span class="small muted">${money(saved)} de ${money(goal.targetCents)}</span></div>
     <div class="bar goal-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${goal.name}"><span style="width:${percent}%"></span></div>
     <p class="small muted">${goal.deadline ? `Prazo: ${shortDate(goal.deadline)}.` : 'Sem prazo definido.'}${open.length > 1 ? ` Mais ${open.length - 1} ${plural(open.length - 1, 'objetivo', 'objetivos')} em andamento.` : ''}</p></section>`;
@@ -7894,7 +7894,7 @@ function finObjetivoFoco() {
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);
   const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0), inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><p class="section-kicker">Organização mensal</p><h2 id="fin-fixas-title">Lançamentos fixos<i>.</i></h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
+  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><h2 id="fin-fixas-title">Lançamentos fixos</h2><p class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button class="btn ghost sm" data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${rs.length ? '' : areaEmpty('Nenhum lançamento fixo cadastrado.', 'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.', h`<button type="button" class="btn primary" data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`, 'repeat', 'h3')}</section>`;
 }
 const budBar = (spent, lim) => { const pc = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0, cls = spent > lim ? 'over' : pc >= 80 ? 'near' : ''; return h`<div class="bar ${cls}" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pc}%"></span></div>`; };
 
@@ -8024,8 +8024,7 @@ function finPlanejamento() {
   const daysLeft = currentMonth ? budgetDays - Number(asOfDate.slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
   return h`${monthNav()}
-    <section class="finance-section-intro"><p class="section-kicker">Planejamento</p><h2>Organize gastos, metas e compromissos<i>.</i></h2><p>Defina limites, acompanhe objetivos e veja o que se repete ou está parcelado.</p></section>
-    <section class="card"><div class="head"><h2>Limites do mês<i>.</i></h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
+    <section class="card"><div class="head"><h2>Limites do mês</h2><button class="btn ghost sm" data-action="category-manager">Gerenciar categorias</button></div>
       ${limited.length ? h`<div><div class="row budget-total-row"><b>${money(ts)}</b><span class="small muted">de ${money(tl)}</span></div>${budBar(ts, tl)}<p class="small budget-summary-note ${ts > tl ? 'err' : 'muted'}">${ts > tl ? h`Passou ${money(ts - tl)} do limite total.` : h`Restam ${money(tl - ts)} nas categorias com limite.`}</p><p class="small muted">Do total, ${money(totalRealized)} têm data até hoje e ${money(totalUpcoming)} têm data futura. O limite soma ambos; a situação de pagamento é independente da data.</p>${currentMonth ? h`<p class="small budget-daily-room">${dailyRoom ? h`Você ainda pode gastar cerca de ${money(dailyRoom)} por dia nos próximos ${daysLeft} dias.` : ts >= tl ? 'Os limites mensais já foram atingidos.' : `Sem valor restante nos limites para os próximos ${daysLeft} dias.`}</p>` : ''}</div>` : h`<p class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`}
       <ul class="list budget-list">${rows.map((r) => {
         const m = outMeta(r.n), over = r.lim > 0 && r.sp > r.lim;
@@ -8080,7 +8079,7 @@ function finRelatorioMensal(ym) {
     shiftMonth,
   });
   if (!items.length) return '';
-  return h`<section class="card finance-month-report" aria-labelledby="finance-month-report-title"><div class="head"><div><p class="section-kicker">${cur ? 'Até hoje' : ymLabel(ym)}</p><h2 id="finance-month-report-title">Relatório do mês<i>.</i></h2></div></div>
+  return h`<section class="card finance-month-report" aria-labelledby="finance-month-report-title"><div class="head"><div><p class="section-kicker">${cur ? 'Até hoje' : ymLabel(ym)}</p><h2 id="finance-month-report-title">Relatório do mês</h2></div></div>
     <ul class="finance-report-list">${items.map((item) => h`<li class="finance-report-item is-${item.tone}">${item.text}</li>`)}</ul></section>`;
 }
 function finRel() {
