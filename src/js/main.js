@@ -1674,6 +1674,7 @@ function shell(body) {
         ${S.finance.accounts.length > 1 ? h`<button type="button" data-action="quick-action-finance" data-kind="tr"><span class="ni">${icon('repeat', 18)}</span><span>Transferência</span></button>` : ''}
         <button type="button" data-action="quick-action-finance" data-kind="in"><span class="ni">${icon('plus', 18)}</span><span>Receita</span></button>
         <button type="button" data-action="quick-action-finance" data-kind="out"><span class="ni">${icon('arrowDown', 18)}</span><span>Despesa</span></button>
+        <button type="button" data-action="quick-action-bulk"><span class="ni">${icon('list', 18)}</span><span>Cadastrar vários</span></button>
         ${S.finance.accounts.some(isCredit) ? h`<button type="button" data-action="quick-action-finance" data-kind="card"><span class="ni">${icon('card', 18)}</span><span>Despesa cartão</span></button>` : ''}`
       : h`<button type="button" data-action="quick-action-transaction"><span class="ni">${icon('wallet', 18)}</span><span>Lançamento</span></button>`;
   const isFinanceRoute = ui.route === 'financas';
@@ -5273,6 +5274,7 @@ const ACTIONS = {
   'quick-action-habit': () => { ui.quickActionsOpen = false; ACTIONS['habit-new'](); },
   'quick-action-expense': () => { openFinanceQuickAction(() => newTxDlg('out')); },
   'quick-action-transaction': () => { openFinanceQuickAction(() => newTxDlg('out')); },
+  'quick-action-bulk': () => { openFinanceQuickAction(() => ACTIONS['tx-bulk']()); },
   'quick-action-finance': (el) => {
     const kind = el.dataset.kind;
     openFinanceQuickAction(() => newTxDlg(kind === 'card' ? 'out' : kind, kind === 'card'));
@@ -6401,18 +6403,26 @@ const ACTIONS = {
   'wipe-ask': () => dlgOpen('wipe'),
   'wipe': async (button) => {
     button.disabled = true;
-    const synchronized = await Persist.flush();
-    if (!synchronized) {
-      button.disabled = false;
-      toast('Há alterações ainda não confirmadas. Tente salvar ou sair sem apagá-las antes de continuar.', 'warning');
-      return;
-    }
+    button.setAttribute('aria-busy', 'true');
+    toast('Verificando e apagando os dados…', 'info');
     try {
+      const synchronized = await Persist.flush();
+      if (!synchronized) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        toast(ui.persistError
+          ? `Não foi possível confirmar os dados salvos. ${ui.persistError} Nada foi apagado.`
+          : 'Não foi possível confirmar que seus dados estão salvos. Nada foi apagado; tente novamente.', 'warning');
+        return;
+      }
       await Persist.clear();
     } catch (error) {
       button.disabled = false;
+      button.removeAttribute('aria-busy');
       console.error('Aurora: a exclusão dos dados relacionais falhou.', error);
-      toast(error instanceof Error ? error.message : 'Não foi possível apagar os dados da conta. Tente novamente quando a conexão estiver estável.', 'info');
+      toast(error instanceof Error
+        ? error.message
+        : 'Não foi possível confirmar a exclusão dos dados. Recarregue a página para conferir o estado da conta antes de tentar novamente.', 'error');
       return;
     }
 
