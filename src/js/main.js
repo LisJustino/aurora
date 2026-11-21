@@ -5472,6 +5472,11 @@ const ACTIONS = {
     render();
     document.getElementById(`finance-week-day-${day}`)?.focus({ preventScroll: true });
   },
+  'finance-trend-range': (el) => {
+    ui.financeTrendRange = el.dataset.v === 'month' ? 'month' : '7d';
+    render();
+    document.querySelector(`[data-action="finance-trend-range"][data-v="${ui.financeTrendRange}"]`)?.focus({ preventScroll: true });
+  },
   'search-open': () => dlgOpen('search', { query: '' }),
   'search-clear': () => {
     if (ui.dlg?.type !== 'search') return;
@@ -7650,7 +7655,11 @@ function expenseTrendChart(ym, cur) {
   }
   const [year, month] = ym.split('-').map(Number);
   const lastDay = cur ? today() : `${ym}-${pad(new Date(year, month, 0).getDate())}`;
-  const days = Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const monthRange = ui.financeTrendRange === 'month';
+  const days = monthRange
+    ? Array.from({ length: Number(lastDay.slice(8)) }, (_, index) => `${ym}-${pad(index + 1)}`)
+    : Array.from({ length: 7 }, (_, index) => addDays(lastDay, index - 6));
+  const rangeLabel = monthRange ? 'Despesas do mês' : 'Despesas nos últimos 7 dias';
   const totals = days.map((day) => S.finance.tx
     .filter((transaction) => transaction.type === 'out' && transaction.date === day)
     .reduce((sum, transaction) => sum + transaction.cents, 0));
@@ -7666,20 +7675,21 @@ function expenseTrendChart(ym, cur) {
   };
   const summary = days.map((day, index) => `${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}`).join('; ');
   const selectedIndex = days.indexOf(selectedDay);
-  return h`<div class="finance-week-chart" role="group" aria-label="Despesas nos últimos 7 dias">
-    <div class="finance-week-chart-grid">${days.map((day, index) => {
+  const showDayLabel = (index) => !monthRange || index === 0 || (index + 1) % 5 === 0 || index === days.length - 1;
+  return h`<div class="finance-week-chart" role="group" aria-label="${rangeLabel}">
+    <div class="finance-week-chart-grid${monthRange ? ' is-month' : ''}" style="--week-cols:${days.length}">${days.map((day, index) => {
       const selected = day === selectedDay;
       const percentage = totals[index] ? Math.max(4, Math.round(totals[index] / max * 100)) : 0;
       return h`<div class="finance-week-chart-column">
-        <span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>
+        ${monthRange ? '' : h`<span class="finance-week-chart-value" aria-hidden="true">${compactAmount(totals[index])}</span>`}
         <button type="button" class="finance-week-chart-bar${day === today() ? ' is-today' : ''}${selected ? ' is-selected' : ''}${totals[index] ? ' has-value' : ''}" id="finance-week-day-${day}" data-action="finance-week-day" data-day="${day}" aria-pressed="${String(selected)}" aria-label="${longDate(day)}: ${ui.financeValuesHidden ? 'valor oculto' : formatBRL(totals[index])}">
           <span class="finance-week-chart-track" aria-hidden="true"><span style="--week-fill:${percentage}%"></span></span>
         </button>
-        <span class="finance-week-chart-day" aria-hidden="true">${shortDate(day)}</span>
+        <span class="finance-week-chart-day" aria-hidden="true">${showDayLabel(index) ? (monthRange ? String(Number(day.slice(8))) : shortDate(day)) : ''}</span>
       </div>`;
     })}</div>
     ${selectedDay ? h`<p class="finance-week-chart-selected" aria-live="polite"><b>${longDate(selectedDay)}:</b> ${money(totals[selectedIndex])}</p>` : ''}
-    <span class="sr">Despesas nos últimos 7 dias: ${summary}</span>
+    <span class="sr">${rangeLabel}: ${summary}</span>
   </div>`;
 }
 
@@ -7694,7 +7704,8 @@ function finRitmo(ym, st, cur) {
   const avg = Math.round(out / day), proj = cur ? Math.round(out / day * dim) : null;
   const delta = prevOut ? Math.round((out - prevOut) / prevOut * 100) : null, rate = income > 0 ? Math.round((income - out) / income * 100) : null;
   const top = byCategory(seen, 'out')[0];
-  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">Últimos 7 dias${cur ? '' : ' do período selecionado'}</p></div></div>
+  return h`<section class="surface-open finance-rhythm"><div class="head"><div><h2>Evolução das despesas<i>.</i></h2><p class="small muted">${ui.financeTrendRange === 'month' ? 'Mês inteiro' : `Últimos 7 dias${cur ? '' : ' do período selecionado'}`}</p></div>
+      <div class="scroll-x finance-trend-range" role="group" aria-label="Período do gráfico"><button type="button" class="chip" aria-pressed="${ui.financeTrendRange !== 'month'}" data-action="finance-trend-range" data-v="7d">7 dias</button><button type="button" class="chip" aria-pressed="${ui.financeTrendRange === 'month'}" data-action="finance-trend-range" data-v="month">Mês</button></div></div>
     ${expenseTrendChart(ym, cur)}
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
@@ -7707,12 +7718,63 @@ function balanceSparkline() {
   const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${ui.financeValuesHidden ? 'valor oculto' : esc(brl(value))}</title></circle>`).join('');
   return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
 }
+const CATEGORY_BAR_LIMIT = 5;
 function categoryBars(items, total) {
-  return h`<ul class="category-bars">${items.slice(0, 5).map(([name, value]) => {
+  const rest = items.slice(CATEGORY_BAR_LIMIT);
+  const restValue = rest.reduce((sum, [, value]) => sum + value, 0);
+  const rows = items.slice(0, CATEGORY_BAR_LIMIT).map(([name, value]) => {
     const meta = catMeta({ type: 'out', category: name });
     const percent = total ? Math.round(value / total * 100) : 0;
     return h`<li><span class="category-bar-icon" style="--category-tone:${meta.c}">${icon(meta.i, 15)}</span><span class="category-bar-copy"><span class="expense-name">${expenseTitle(name)}</span><span class="category-bar-track"><i style="width:${percent}%;--category-tone:${meta.c}"></i></span></span><b>${money(value)}</b><small>${percent}%</small></li>`;
-  })}</ul>`;
+  });
+  if (rest.length) {
+    const percent = total ? Math.round(restValue / total * 100) : 0;
+    rows.push(h`<li class="category-bar-others"><span class="category-bar-icon" style="--category-tone:var(--muted)">${icon('pie', 15)}</span><span class="category-bar-copy"><span class="expense-name">Outras categorias (${rest.length})</span><span class="category-bar-track"><i style="width:${percent}%;--category-tone:var(--muted)"></i></span></span><b>${money(restValue)}</b><small>${percent}%</small></li>`);
+  }
+  return h`<ul class="category-bars">${rows}</ul>`;
+}
+const UPCOMING_WINDOW_DAYS = 14;
+function upcomingDueItems() {
+  const F = S.finance, now = today(), limit = addDays(now, UPCOMING_WINDOW_DAYS);
+  const bills = F.tx
+    .filter((t) => t.type === 'out' && !isPaid(t) && t.date <= limit && !isCredit(accById(t.accountId)))
+    .map((t) => ({ key: `tx-${t.id}`, date: t.date, label: t.desc || t.category || 'Despesa', cents: t.cents, kind: 'bill' }));
+  const invoices = F.accounts.filter(isCredit).flatMap((card) => {
+    const info = cardInfo(card);
+    const pending = Math.max(0, -accountBalanceOn(card, F.tx, now) - scheduledInvoicePrincipal(card.id));
+    return info.due && info.due <= limit && pending > 0
+      ? [{ key: `card-${card.id}`, date: info.due, label: `Fatura ${accountDisplayName(card)}`, cents: pending, kind: 'invoice' }]
+      : [];
+  });
+  return [...bills, ...invoices].sort((a, b) => a.date.localeCompare(b.date) || b.cents - a.cents);
+}
+function finProximos() {
+  const items = upcomingDueItems();
+  if (!items.length) {
+    return h`<section class="surface-open finance-upcoming"><div class="head"><div><p class="section-kicker">Próximos ${UPCOMING_WINDOW_DAYS} dias</p><h2>A vencer<i>.</i></h2></div></div><p class="small muted">Nada pendente para os próximos ${UPCOMING_WINDOW_DAYS} dias.</p></section>`;
+  }
+  const shown = items.slice(0, 4), total = items.reduce((sum, item) => sum + item.cents, 0);
+  return h`<section class="surface-open finance-upcoming"><div class="head"><div><p class="section-kicker">Próximos ${UPCOMING_WINDOW_DAYS} dias</p><h2>A vencer<i>.</i></h2><p class="small muted">${items.length} ${plural(items.length, 'compromisso', 'compromissos')} · ${money(total)}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Ver pendentes</button></div>
+    <ul class="list finance-upcoming-list">${shown.map((item) => {
+      const days = dayDiff(item.date, today());
+      const when = days < 0 ? h`<span class="badge bad">Atrasado</span>` : days === 0 ? h`<span class="badge warn">Hoje</span>` : h`<span class="small muted">${shortDate(item.date)}</span>`;
+      return h`<li class="finance-upcoming-item"><span class="grow"><span class="ttl expense-name">${item.label}</span></span>${when}<b>${money(item.cents)}</b></li>`;
+    })}</ul>
+    ${items.length > shown.length ? h`<p class="small muted">+ ${items.length - shown.length} ${plural(items.length - shown.length, 'outro', 'outros')} nos próximos ${UPCOMING_WINDOW_DAYS} dias.</p>` : ''}</section>`;
+}
+function finLimitesAtencao(ym) {
+  const F = S.finance, totals = Object.fromEntries(expenseBudgetByCategory(F.tx, ym, today()).total);
+  const alerts = Object.entries(F.budgets || {})
+    .map(([name, budget]) => ({ name, limit: budget.cents || 0, spent: totals[name] || 0 }))
+    .filter((row) => row.limit > 0 && row.spent / row.limit >= 0.8)
+    .sort((a, b) => b.spent / b.limit - a.spent / a.limit)
+    .slice(0, 3);
+  if (!alerts.length) return '';
+  return h`<section class="surface-open finance-limit-alerts"><div class="head"><div><p class="section-kicker">Orçamento</p><h2>Limites em atenção<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver limites</button></div>
+    <ul class="list finance-limit-alert-list">${alerts.map((row) => {
+      const over = row.spent > row.limit, meta = outMeta(row.name);
+      return h`<li><span class="finance-limit-alert-row">${catChip(meta)}<span class="grow"><span class="ttl expense-name">${expenseTitle(row.name)}</span><span class="meta2">${over ? h`<span class="m-bad">acima em ${money(row.spent - row.limit)}</span>` : h`restam ${money(row.limit - row.spent)}`} · ${money(row.spent)} de ${money(row.limit)}</span>${budBar(row.spent, row.limit)}</span></span></li>`;
+    })}</ul></section>`;
 }
 function finResumo() {
   const F = S.finance, ym = ui.finMonth, st = monthStats(ym), cur = ym === today().slice(0, 7), bal = netBalance();
@@ -7724,7 +7786,13 @@ function finResumo() {
   }));
   const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
+  const prevStats = monthStats(shiftMonth(ym, -1));
+  const resultDiff = result - (prevStats.inAll - prevStats.outAll);
+  const resultDelta = prevStats.inAll || prevStats.outAll
+    ? h`<span class="finance-result-delta ${resultDiff < 0 ? 'is-negative' : ''}">${resultDiff === 0 ? 'Igual ao mês anterior' : h`${resultDiff > 0 ? '+' : '−'}${money(Math.abs(resultDiff))} vs. mês anterior`}</span>`
+    : '';
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
+  const attentionLimits = finLimitesAtencao(ym);
   const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
@@ -7734,16 +7802,17 @@ function finResumo() {
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
       <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
-      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Se os compromissos forem pagos. É uma estimativa, não o saldo atual; compras futuras no cartão não entram.</p>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
+      <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><p class="section-kicker">Seu panorama</p><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
         <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
-        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas${resultDelta}</small></button>
       </div>
     </section>
+    ${cur || attentionLimits ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}</div>` : ''}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
