@@ -5,10 +5,10 @@ import { shortDate } from '../../utils/dates.js';
 import { bulkRowCount, bulkRowInstallmentCents, MAX_BULK_LINES } from './bulk-entry.js';
 
 const BULK_EXAMPLE = [
-  'Icloud - fixa mensal - 50,00 - dia 04/12 - categoria assinaturas - subcategoria icloud',
-  'Casas Bahia - parcelado - 87,76 - parcela 2/90 - dia 07/12 - categoria compras - valor da parcela',
-  'Mercado - 230,50 - dia 15/12 - categoria alimentação',
-].join('\n');
+  { label: 'Despesa única', text: 'Mercado - 230,50 - dia 15/12 - categoria alimentação' },
+  { label: 'Despesa fixa mensal', text: 'iCloud - 50,00 - fixa mensal - dia 04/12 - categoria assinaturas - subcategoria nuvem' },
+  { label: 'Compra parcelada', text: 'Casas Bahia - 87,76 - parcelado - parcela 2/90 - dia 07/12 - categoria compras - valor da parcela' },
+];
 
 function bulkRowSummary(row) {
   if (row.repeat === 'fixed') return `Fixa mensal · todo dia ${Number(row.date.slice(8, 10))}, a partir de ${shortDate(row.date)}`;
@@ -91,21 +91,29 @@ function bulk() {
       h`<button type="button" class="btn back" data-action="txbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="txbulk-apply" ${chosen.length ? '' : raw('disabled')}>Cadastrar ${chosen.length ? `(${created})` : ''}</button>`);
   }
   return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Cadastrar vários de uma vez</h2>${closeBtn}</div>
-    <p class="small muted">Escreva um lançamento por linha. Você confere tudo antes de salvar.</p>
+    <p class="small muted">Escreva um lançamento por linha. Depois, confira as informações antes de salvar.</p>
     <form id="dlgform" class="form" data-form="dlg-txbulk" novalidate>
       ${dlgField('Conta', h`<select data-dlg="accountId">${accs.map((a) => h`<option class="user-value" value="${a.id}" ${a.id === d.accountId ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select>`, 'full')}
-      ${dlgField('Lançamentos', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="false" autocomplete="off" autocapitalize="sentences" placeholder="${BULK_EXAMPLE}">${d.text || ''}</textarea>`, 'full')}
+      ${dlgField('Lançamentos', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="false" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
     </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos — copie o modelo que precisar e ajuste os dados:</b></p>
+      ${BULK_EXAMPLE.map((example) => h`<div class="bulk-entry-example"><span class="fine muted">${example.label}</span><code class="bulk-entry-example-text user-value">${example.text}</code></div>`)}
+    </section>
     <details class="bulk-entry-help">
-      <summary>Como escrever</summary>
-      <p class="fine">Separe os campos com " - ". Depois do nome, a ordem é livre:</p>
+      <summary>Como montar cada linha</summary>
+      <p class="fine">Comece pelo nome e separe os campos com " - ":</p>
       <ul class="fine">
-        <li><b>Tipo:</b> fixa mensal, parcelado, ou nada para um lançamento só. Também aceita receita.</li>
-        <li><b>Valor</b> (129,90) e <b>data</b> (dia 10/12 ou só dia 10).</li>
-        <li><b>Parcelas:</b> parcela 2/90, ou 12x. Escreva "valor da parcela" ou "valor total" para dizer o que o valor representa.</li>
-        <li><b>Categoria</b> e <b>subcategoria</b>. Se não existirem, são criadas. Sem categoria, o Aurora tenta adivinhar.</li>
-        <li><b>Conta</b> (conta nubank) para uma linha usar outra conta. Até ${MAX_BULK_LINES} linhas por vez.</li>
+        <li><b>Nome:</b> descreva o lançamento, por exemplo "Mercado".</li>
+        <li><b>Valor:</b> use vírgula nos centavos, por exemplo 230,50.</li>
+        <li><b>Data:</b> use dia 15/12 ou dia 15. Sem mês, usa o mês atual.</li>
+        <li><b>Tipo:</b> escreva "fixa mensal" ou "parcelado" só quando necessário.</li>
+        <li><b>Parcelas:</b> use "parcela 2/90" ou "12x". Informe "valor da parcela" ou "valor total".</li>
+        <li><b>Categoria:</b> use "categoria alimentação" e, se quiser, "subcategoria mercado". Categorias novas serão criadas.</li>
+        <li><b>Conta:</b> use "conta nubank" em uma linha que deve usar outra conta.</li>
+        <li><b>Receita:</b> acrescente "receita" quando o lançamento for uma entrada.</li>
       </ul>
+      <p class="fine muted">Você pode usar até ${MAX_BULK_LINES} linhas por vez.</p>
     </details>`,
     h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
 }

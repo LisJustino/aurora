@@ -53,6 +53,15 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
   await deletionDialog.getByRole('button', { name: 'Cancelar e manter os dados' }).click();
   await deletionDialog.waitFor({ state: 'detached' });
 
+  await page.getByRole('button', { name: 'Apagar dados e manter a conta' }).click();
+  await page.locator('#dlg').getByRole('button', { name: 'Apagar permanentemente' }).click();
+  await page.getByRole('status').filter({ hasText: 'Não foi possível confirmar que seus dados estão salvos. Nada foi apagado' }).waitFor();
+  if (await page.locator('#dlg').getByRole('button', { name: 'Apagar permanentemente' }).isDisabled()) {
+    throw new Error('A confirmação de exclusão ficou bloqueada depois de uma falha de sincronização.');
+  }
+  await page.locator('#dlg').getByRole('button', { name: 'Cancelar e manter os dados' }).click();
+  await page.locator('#dlg').waitFor({ state: 'detached' });
+
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) {
