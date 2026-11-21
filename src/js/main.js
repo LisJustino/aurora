@@ -7,6 +7,9 @@ import {
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
+import {
+  buildBulkRecords, bulkRowInstallmentCents, findBulkAccount, parseBulkText, resolveBulkCategory,
+} from './features/finance/bulk-entry.js';
 import { emptyState } from './utils/empty-state.js';
 import { getPageScrollPosition, lockPageScroll } from './utils/scroll-lock.js';
 import { filterValidRecords, isPlainObject } from './core/data-integrity.js';
@@ -2352,7 +2355,7 @@ function loadFinanceModules() {
       ui, S, catNames, topCategoryNames, categoryMatch, CAT_ICONS, CATEGORY_ICON_LABELS, LIST_COLORS,
       accountOptionLabel, accById, isCredit, expenseTitle,
       categoryInfo: catInfo, recById: (...args) => recById(...args), today, dlgWrap, dlgField, closeBtn,
-      anticipationCandidates,
+      anticipationCandidates, money, accName,
     });
     financePrivacyNotice = view.financePrivacyNotice;
     renderFinanceView = view.renderFinanceView;
@@ -6553,6 +6556,7 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'dlg-txbulk': () => reviewBulkEntry(),
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
     const kind = ui.dlg?.d?.ruleKind === 'in' ? 'in' : 'out';
@@ -7776,7 +7780,7 @@ function finResumo() {
     .slice(0, 5);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button><button class="btn sm" data-action="tx-bulk">${icon('list', 16)}Vários</button></div></div>
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
@@ -8071,6 +8075,70 @@ function anticipationCandidates(groupId, fromDate = today()) {
       && (credit || !isPaid(transaction)))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
+function reviewBulkEntry() {
+  const d = ui.dlg.d, accounts = S.finance.accounts, defaultAccount = accById(d.accountId);
+  if (!defaultAccount) return toast('Escolha uma conta.', 'info');
+  const parsed = parseBulkText(d.text, { today: today() });
+  if (!parsed.length) return fieldError('Escreva ao menos um lançamento.', '[data-dlg="text"]');
+  const categories = { out: categoryEntries('out'), in: categoryEntries('in') };
+  const seen = new Set();
+  d.rows = parsed.map((row) => {
+    if (row.error) return row;
+    const account = row.accountText ? findBulkAccount(accounts, row.accountText, accountDisplayName) : defaultAccount;
+    const fail = (error) => ({ line: row.line, source: row.source, error });
+    if (!account) return fail(`Não encontrei a conta "${row.accountText}".`);
+    if (row.kind === 'in' && isCredit(account)) return fail('Uma receita não pode ir para um cartão de crédito.');
+    const resolved = resolveBulkCategory(row, { categories, leafName: categoryLeafName, fallback: (item) => guessCategory(item.name, item.kind) });
+    if (resolved.error) return fail(resolved.error);
+    const nameKey = norm(row.name), installment = bulkRowInstallmentCents(row);
+    const key = `${row.kind}|${row.repeat}|${nameKey}|${installment}|${row.date}|${account.id}`;
+    const dup = seen.has(key) || (row.repeat === 'fixed'
+      ? recList().some((item) => item.type === row.kind && item.cents === row.amountCents && norm(item.desc || '') === nameKey && item.day === Number(row.date.slice(8, 10)))
+      : S.finance.tx.some((item) => item.type === row.kind && item.cents === installment && item.date === row.date && norm(String(item.desc || '').replace(/\s*\(\d+\/\d+\)$/, '')) === nameKey));
+    seen.add(key);
+    return {
+      ...row, accountId: account.id, categoryPath: resolved.path, parent: resolved.parent, child: resolved.child,
+      createParent: resolved.createParent, createChild: resolved.createChild, dup, on: !dup,
+    };
+  });
+  d.step = 'review';
+  render();
+}
+function applyBulkEntry() {
+  const d = ui.dlg?.type === 'txbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos um lançamento.', 'info');
+  const recIds = new Set(), txIds = new Set(), now = Date.now();
+  let categoriesChanged = false;
+  chosen.forEach((row, index) => {
+    const account = accById(row.accountId);
+    if (!account) return;
+    let category = row.categoryPath;
+    if (row.createParent || row.createChild) {
+      const parentPath = addItem(row.kind, row.parent);
+      category = row.child ? addItem(row.kind, row.child, parentPath) : parentPath;
+      categoriesChanged = true;
+    }
+    category ||= catNames(row.kind)[0] || 'Outros';
+    const { transactions, recurring } = buildBulkRecords(row, {
+      newId, addMonths, account, isCredit, today: today(), category, now: now + index * 1000,
+    });
+    transactions.forEach((transaction) => { S.finance.tx.push(transaction); txIds.add(transaction.id); });
+    if (recurring) { recList().push(recurring); recIds.add(recurring.id); }
+  });
+  genRecurring();
+  const total = txIds.size + S.finance.tx.filter((transaction) => recIds.has(transaction.recId)).length;
+  ui.finMonth = chosen.map((row) => row.date).sort()[0].slice(0, 7);
+  ui.dlg = null;
+  commit(...(categoriesChanged ? ['finance', 'settings'] : ['finance']));
+  toast(total === chosen.length
+    ? `${chosen.length} ${plural(chosen.length, 'lançamento cadastrado', 'lançamentos cadastrados')}.`
+    : `${chosen.length} ${plural(chosen.length, 'lançamento cadastrado', 'lançamentos cadastrados')}, ${total} contando parcelas e meses das fixas.`, 'action', () => {
+    S.finance.tx = S.finance.tx.filter((transaction) => !txIds.has(transaction.id) && !recIds.has(transaction.recId));
+    S.finance.recurring = recList().filter((item) => !recIds.has(item.id));
+    commit('finance');
+  });
+}
 function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
   const accs = S.finance.accounts;
   const defaults = recentTransactionDefaults(kind, preferCredit);
@@ -8142,6 +8210,7 @@ function recentTransactionDefaults(kind, preferCredit = false) {
   };
 }
 function dlgTx() { return financeDialogViews.transaction(); }
+function dlgTxBulk() { return financeDialogViews.bulk(); }
 function dlgCategoryManager() {
   const renderCategoryNode = (kind, category) => {
     const subcategories = Array.isArray(category.subcategories) ? category.subcategories : [];
@@ -8408,7 +8477,7 @@ function dlgTxAnticipate() {
     </form>` : h`<p class="fine">Não há parcelas futuras disponíveis para antecipar.</p>`}`,
     h`<button class="btn back" data-action="dlg-close">Cancelar</button>${installments.length ? h`<button class="btn primary" type="submit" form="dlgform">Confirmar antecipação</button>` : ''}`);
 }
-Object.assign(DLG, { txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
+Object.assign(DLG, { txbulk: dlgTxBulk, txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
 const F_ = () => S.finance;
@@ -8468,6 +8537,14 @@ Object.assign(ACTIONS, {
   'tx-new': () => newTxDlg('out'),
   'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
   'tx-new-in': () => newTxDlg('in'),
+  'tx-bulk': () => {
+    const accounts = S.finance.accounts;
+    if (!accounts.length) return toast('Cadastre uma conta antes de lançar despesas.', 'info');
+    const preferred = accById(recentTransactionDefaults('out').accountId) || accounts.find((account) => !isCredit(account)) || accounts[0];
+    dlgOpen('txbulk', { step: 'edit', text: '', accountId: preferred.id, rows: [] });
+  },
+  'txbulk-back': () => { if (ui.dlg?.type === 'txbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'txbulk-apply': () => applyBulkEntry(),
   'tx-save-and-another': () => {
     const dialog = ui.dlg;
     if (dialog?.type === 'tx' && !dialog.d.id && ['out', 'in', 'tr'].includes(dialog.d.kind)) {
@@ -9111,7 +9188,7 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 /* ---- ferramentas da aba Lançamentos ---- */
 function finTools() {
   return h`<div class="fin-tools"><div class="tabs" role="tablist" aria-label="Modo"><button type="button" class="tab" role="tab" id="fin-view-lista" aria-controls="fin-view-panel" tabindex="${ui.finView !== 'cal' ? '0' : '-1'}" aria-selected="${ui.finView !== 'cal'}" data-action="fin-view" data-v="lista">${icon('list', 16)}Lista</button><button type="button" class="tab" role="tab" id="fin-view-cal" aria-controls="fin-view-panel" tabindex="${ui.finView === 'cal' ? '0' : '-1'}" aria-selected="${ui.finView === 'cal'}" data-action="fin-view" data-v="cal">${icon('calendar', 16)}Calendário</button></div>
-    <div class="row fin-tools-actions"><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+    <div class="row fin-tools-actions"><button type="button" class="btn sm" data-action="tx-bulk">${icon('list', 16)}Cadastrar vários</button><label class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr" accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import" aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
 }
 function finCal() {
   const ym = ui.finMonth, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
