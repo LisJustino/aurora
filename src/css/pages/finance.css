@@ -1029,6 +1029,20 @@
 }
 .fin-hero .fh-v { font-size: var(--text-metric); }
 .fin-hero-actions { flex: none; }
+.finance-daily-room {
+  display: flex;
+  grid-column: 1 / -1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.finance-daily-room .section-kicker { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.finance-daily-room > b { color: var(--ink); font-size: var(--text-xl); font-variant-numeric: tabular-nums; }
+.finance-daily-room > p:not(.section-kicker) { margin: 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
+.finance-daily-room.is-over > b { color: var(--bad); }
 .fin-hero-trend { display: grid; min-width: 0; justify-items: end; gap: var(--space-2); }
 .fin-hero .fh-s { max-width: 34ch; font-size: var(--text-xs); text-align: right; }
 .finance-month-snapshot { display: grid; gap: var(--space-3); }
@@ -1124,3 +1138,18 @@
   }
   .main[data-route="financas"] .fin-section-menu > .tab { width: 100%; min-width: 0; }
 }
+
+.cc-invoice { display: grid; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.cc-invoice > summary { width: fit-content; color: var(--muted); font-size: var(--text-xs); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.cc-invoice > summary:focus-visible { outline: 2px solid var(--area-finances); outline-offset: 2px; }
+.cc-invoice-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.cc-invoice-title { display: grid; min-width: 0; justify-items: center; text-align: center; }
+.cc-invoice-title small { color: var(--muted); font-size: var(--text-xs); }
+.cc-invoice-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin: 0; }
+.cc-invoice-total b { font-variant-numeric: tabular-nums; }
+.cc-invoice-list { margin: 0; }
+.goal-plan { display: block; color: var(--ink); line-height: 1.45; }
+.goal-plan.is-late { color: var(--bad); }
+.finance-report-account { display: block; margin-top: var(--space-3); }
+.finance-category-trend .category-bars { margin-top: var(--space-3); }
+.finance-category-trend .category-bars li { grid-template-columns: minmax(0, 1fr) auto; }

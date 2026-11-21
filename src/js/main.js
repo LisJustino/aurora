@@ -40,6 +40,11 @@ import {
   projectedNetAccountBalance,
   signedAmount,
   expenseBudgetByCategory,
+  dailyBudgetRoom,
+  cardInvoice as calculateCardInvoice,
+  goalMonthlyPlan,
+  balanceSplit,
+  savingsRatePercent,
   installmentSummary as summarizeInstallments,
 } from './features/finance/calculations.js';
 import {
@@ -538,7 +543,7 @@ const syncState = {
   failed: new Set(),
   conflicts: new Set(),
 };
-const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, profileImageBusy: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
+const ui = { preview: false, feedbackPromptVisible: false, feedbackPromptScheduleAttempted: false, dragId: null, quickActionsOpen: false, planView: 'lista', annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)), annualEditingGoalId: '', annualGoalFormOpen: false, annualGoalQuarter: '', annualGoalDraft: null, annualIdeaCategory: 'all', annualIdeaQuery: '', taskCal: dk().slice(0, 7), taskWeek: today(), taskDay: dk(), googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 }, habitMonth: today().slice(0, 7), habitSuggestions: null, habitIdeaCategory: 'all', habitIdeaTag: 'all', habitIdeasExpanded: false, profileDraft: null, profileSaving: false, profileImageBusy: false, settingsDraft: null, settingsDraftBase: null, settingsSaving: false, route: 'inicio', status: 'local', toast: null, dlg: null, dlgPending: null, confirmPrevious: null, confirmResolver: null, confirmedAction: null, returnDialog: null, focusActive: false, financeValuesHidden: false, financeWeekDay: '', settingsTab: 'profile', pwaUpdateAvailable: false, pwaUpdateDismissed: false, exploreNoticeDismissed: false, filters: { f: 'todas', q: '', sort: 'prazo' }, finMonth: dk().slice(0, 7), finTab: 'resumo', finInvoiceShift: {}, finFilter: 'todos', finAcc: '', finQ: '', finView: 'lista', finDay: '', finCat: '', repKind: 'out', repAcc: '', repCat: '', repBasis: 'competence', calMonth: dk().slice(0, 7), openDetails: {}, persistFailed: new Set(), persistError: '', persistBlocked: new Set(), integrityIssues: {}, legacyImport: { step: 'start', browserData: null, discovery: null, error: '', busy: false, completed: false, cleanup: null, cleanupConfirmed: false } };
 ui.habitCelebrationDay = '';
 const toastController = createToastController({
   readToast: () => ui.toast,
@@ -7758,6 +7763,8 @@ function finResumo() {
   }));
   const forecast = projectedNetAccountBalance(F.accounts, F.tx, forecastThrough, forecastInvoices);
   const result = st.inAll - st.outAll;
+  const balanceParts = balanceSplit(F.accounts, F.tx);
+  const savingsRate = savingsRatePercent(st.inAll, st.outAll);
   const prevStats = monthStats(shiftMonth(ym, -1));
   const resultDiff = result - (prevStats.inAll - prevStats.outAll);
   const resultDelta = prevStats.inAll || prevStats.outAll
@@ -7767,11 +7774,6 @@ function finResumo() {
   const attentionLimits = finLimitesAtencao(ym);
   const attentionCards = finCartoesAtencao();
   const goalFocus = finObjetivoFoco();
-  const scheduled = cur
-    ? st.tx.filter((transaction) => transaction.date > today())
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0))
-      .slice(0, 3)
-    : [];
   const recentDescription = cur ? 'Mês atual · até hoje.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
@@ -7780,15 +7782,16 @@ function finResumo() {
     .slice(0, 5);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button><button class="btn sm" data-action="tx-bulk">${icon('list', 16)}Vários</button></div></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">${balanceParts.hasSaved ? h`Disponível ${money(balanceParts.availableCents)} · guardado ${money(balanceParts.savedCents)}. Sem compras no cartão.` : 'Saldo real disponível, sem incluir compras no cartão.'}</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button><button class="btn sm" data-action="tx-bulk">${icon('list', 16)}Vários</button></div></div>
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
+      ${cur ? finGastoDiario(ym) : ''}
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><h2 id="finance-month-title">Resumo do mês</h2></div><p class="small muted">${cap(ymLabel(ym))}</p></div>
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos" data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('plus', 16)}</span><span>Receitas</span><b>${money(st.inAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.inAll / flowMax * 100)}%"></i></span><small>${money(st.inPaid)} recebidas</small></button>
         <button type="button" class="finance-summary-stat is-expense" data-action="fin-go" data-t="lancamentos" data-f="out" data-clear-fin-filters aria-label="Ver despesas lançadas no mês"><span class="finance-summary-icon" aria-hidden="true">${icon('arrowDown', 16)}</span><span>Despesas</span><b>${money(st.outAll)}</b><span class="finance-flow-track" aria-hidden="true"><i style="width:${Math.round(st.outAll / flowMax * 100)}%"></i></span><small>${money(st.outPaid)} pagas · ${money(st.outPending)} pendentes</small></button>
-        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas${resultDelta}</small></button>
+        <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>${savingsRate === null ? 'Receitas menos despesas' : savingsRate >= 0 ? `Você guardou ${savingsRate}% da receita` : `Despesas ${Math.abs(savingsRate)}% acima da receita`}${resultDelta}</small></button>
       </div>
     </section>
     ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
@@ -7797,8 +7800,17 @@ function finResumo() {
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
       <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
-    ${scheduled.length ? h`<section class="surface-open finance-scheduled" aria-labelledby="finance-scheduled-title"><div class="head"><div><h2 id="finance-scheduled-title">Agendados</h2><p class="small muted">Lançamentos com data depois de hoje.</p></div></div><ul class="list">${scheduled.map((t) => finRow(t, { showDate: true }))}</ul></section>` : ''}
     `;
+}
+function finGastoDiario(ym) {
+  const room = dailyBudgetRoom(S.finance.budgets, S.finance.tx, ym, today());
+  if (!room.hasLimits) {
+    return h`<div class="finance-daily-room is-empty"><p class="section-kicker">Pode gastar por dia</p><p>Defina limites por categoria para ver quanto ainda cabe em cada dia.</p><button type="button" class="btn ghost sm" data-action="fin-go" data-t="planejamento">Definir limites</button></div>`;
+  }
+  if (!room.perDayCents) {
+    return h`<div class="finance-daily-room is-over"><p class="section-kicker">Pode gastar por dia</p><b>${money(0)}</b><p>${room.overCents ? `Os limites já passaram ${money(room.overCents)}.` : 'Os limites do mês já foram usados.'}</p></div>`;
+  }
+  return h`<div class="finance-daily-room"><p class="section-kicker">Pode gastar por dia</p><b>${money(room.perDayCents)}</b><p>Restam ${money(room.remainingCents)} nos limites, para ${room.daysLeft} ${plural(room.daysLeft, 'dia', 'dias')}.</p></div>`;
 }
 function finCartoesAtencao() {
   const F = S.finance;
@@ -7810,6 +7822,13 @@ function finCartoesAtencao() {
   if (!alerts.length) return '';
   return h`<section class="surface-open finance-card-alerts"><div class="head"><div><h2>Limite do cartão</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div>
     <ul class="list finance-limit-alert-list">${alerts.map(({ card, info }) => h`<li><span class="finance-limit-alert-row">${accountChip(card)}<span class="grow"><span class="ttl">${accountDisplayName(card)}</span><span class="meta2">${info.used >= card.limitCents ? h`<span class="m-bad">limite atingido</span>` : h`disponível ${money(info.avail ?? 0)}`} · ${money(info.used)} de ${money(card.limitCents)}</span>${budBar(info.used, card.limitCents)}</span></span></li>`)}</ul></section>`;
+}
+function goalPlanLine(goal, savedCents) {
+  const plan = goalMonthlyPlan(goal, savedCents, today());
+  if (plan.complete) return '';
+  if (plan.overdue) return h`<span class="small goal-plan is-late">Prazo vencido · faltam ${money(plan.remainingCents)}.</span>`;
+  if (!plan.perMonthCents) return h`<span class="small muted goal-plan">Faltam ${money(plan.remainingCents)}. Defina um prazo para ver quanto guardar por mês.</span>`;
+  return h`<span class="small goal-plan">Faltam ${money(plan.remainingCents)} · guarde cerca de <b>${money(plan.perMonthCents)}</b> por mês, durante ${plan.months} ${plural(plan.months, 'mês', 'meses')}.</span>`;
 }
 function finObjetivoFoco() {
   const F = S.finance;
@@ -7825,6 +7844,7 @@ function finObjetivoFoco() {
   return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
     <div class="row budget-total-row"><b>${percent}%</b><span class="small muted">${money(saved)} de ${money(goal.targetCents)}</span></div>
     <div class="bar goal-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${goal.name}"><span style="width:${percent}%"></span></div>
+    ${goalPlanLine(goal, saved)}
     <p class="small muted">${goal.deadline ? `Prazo: ${shortDate(goal.deadline)}.` : 'Sem prazo definido.'}${open.length > 1 ? ` Mais ${open.length - 1} ${plural(open.length - 1, 'objetivo', 'objetivos')} em andamento.` : ''}</p></section>`;
 }
 function finFixas() {
@@ -7901,6 +7921,21 @@ function finLancList() {
 }
 
 /* ---- Contas e cartões ---- */
+function finInvoiceDetails(card) {
+  const shift = ui.finInvoiceShift?.[card.id] || 0;
+  const month = shiftMonth(cardInfo(card).ym, shift);
+  const invoice = calculateCardInvoice(S.finance, card, month, { shiftMonth, parseDate: pk });
+  const dates = [invoice.closingDate ? `fecha ${shortDate(invoice.closingDate)}` : '', invoice.dueDate ? `vence ${shortDate(invoice.dueDate)}` : ''].filter(Boolean).join(' · ');
+  const name = accountDisplayName(card);
+  return h`<details class="cc-invoice" id="d-invoice-${card.id}" ${ui.openDetails[`invoice-${card.id}`] ? raw('open') : ''}>
+    <summary>Ver faturas por mês</summary>
+    <div class="cc-invoice-nav"><button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="-1" aria-label="Fatura anterior do cartão ${name}">${icon('chevLeft', 18)}</button>
+      <span class="cc-invoice-title"><b>Fatura de ${ymLabel(month)}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
+      <button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="1" aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button></div>
+    <p class="cc-invoice-total"><span class="small muted">${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')}${invoice.installmentCount ? ` · ${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')}` : ''}</span><b>${money(invoice.total)}</b></p>
+    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : h`<p class="small muted">Nenhuma compra nesta fatura.</p>`}
+  </details>`;
+}
 function creditCardCard(card, paymentAccounts) {
   const info = cardInfo(card), percent = card.limitCents ? Math.min(100, Math.round(info.used / card.limitCents * 100)) : 0;
   const scheduledInstallments = S.finance.tx.filter((transaction) => transaction.invoiceInstallment
@@ -7911,6 +7946,7 @@ function creditCardCard(card, paymentAccounts) {
   const name = accountDisplayName(card);
   return h`<li class="cc"><div class="cc-top">${card.bank ? accountChip(card) : catChip({ c: '#7c8fd4', i: 'card' })}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${bankName ? h`<span class="user-value">${bankName}</span> · ` : ''}${card.closingDay ? 'Fecha dia ' + card.closingDay : ''}${card.dueDay ? ' · vence dia ' + card.dueDay : ''}</span>${cardDueLabel(info.due)}</span><button class="ibtn" data-action="acct-edit" data-id="${card.id}" aria-label="Editar cartão ${name}${bankName ? ', ' + bankName : ''}">${icon('pencil', 18)}</button></div>
     <div class="cc-inv"><span class="small muted">Compras no ciclo ${MESES_L[Number(info.ym.slice(5)) - 1]}${info.due ? ' · vence ' + shortDate(info.due) : ''}</span><b class="cc-v">${money(info.total)}</b></div>
+    ${finInvoiceDetails(card)}
     ${card.limitCents ? h`<div class="bar ${percent >= 100 ? 'over' : percent >= 80 ? 'near' : ''}" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado do cartão ${name}"><span style="width:${percent}%"></span></div><p class="small muted">Usado ${money(info.used)} de ${money(card.limitCents)} · disponível ${money(info.avail)}</p>` : ''}
     ${paymentAccount ? h`<p class="small muted">Conta preferencial para pagamento: <span class="user-value">${accountOptionLabel(paymentAccount)}</span></p>` : ''}
     ${scheduledInstallments.length ? h`<p class="small muted">${scheduledInstallments.length} ${plural(scheduledInstallments.length, 'parcela de fatura programada', 'parcelas de fatura programadas')} · ${money(scheduledTotal)} pendentes. Não descontadas do saldo da conta.</p>` : ''}
@@ -7975,7 +8011,7 @@ function finPlanejamento() {
         const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
         const pc = g.targetCents ? Math.min(100, Math.round(savedCents / g.targetCents * 100)) : 0;
         const complete = savedCents >= g.targetCents;
-        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span><div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
+        return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${complete ? h` <span class="badge ok">Concluído</span>` : ''}</span><b class="goal-percent">${pc}%</b></div><div class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span>${goalPlanLine(g, savedCents)}<div class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}" aria-label="Editar objetivo ${g.name}">Editar</button>${linkedAccount ? h`<span class="small muted">Saldo sincronizado com a conta</span>` : h`<button class="btn sm" data-action="goal-dep" data-id="${g.id}">Guardar</button>`}<button class="ibtn" data-action="goal-del" data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
       })}</ul>` : areaEmpty('Nenhum objetivo ainda.', 'Escolha algo que gostaria de construir e acompanhe cada passo no seu ritmo.', h`<button type="button" class="btn primary" data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`, 'target', 'h3')}</section>
     ${finInstallments()}${finFixas()}`;
 }
@@ -8018,12 +8054,37 @@ function finRelatorioMensal(ym) {
   return h`<section class="card finance-month-report" aria-labelledby="finance-month-report-title"><div class="head"><div><p class="section-kicker">${cur ? 'Até hoje' : ymLabel(ym)}</p><h2 id="finance-month-report-title">Relatório do mês</h2></div></div>
     <ul class="finance-report-list">${items.map((item) => h`<li class="finance-report-item is-${item.tone}">${item.text}</li>`)}</ul></section>`;
 }
+function finTopExpenses(st) {
+  const top = st.tx.filter((t) => t.type === 'out').sort((a, b) => b.cents - a.cents).slice(0, 5);
+  if (!top.length) return '';
+  return h`<section class="card finance-top-expenses"><h2>Maiores despesas do mês</h2><ul class="list">${top.map((t) => finRow(t, { showDate: true }))}</ul></section>`;
+}
+function finCategoryTrend(txs, ym) {
+  const span = Array.from({ length: 6 }, (_, i) => shiftMonth(ym, i - 5));
+  const perMonth = span.map((m) => ({ m, totals: new Map(byCategory(reportMonthStats(txs, m, accById, ui.repBasis).tx, 'out')) }));
+  const overall = new Map();
+  perMonth.forEach(({ totals }) => totals.forEach((value, name) => overall.set(name, (overall.get(name) || 0) + value)));
+  const names = [...overall.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  if (!names.length) return '';
+  const category = names.includes(ui.repCat) ? ui.repCat : names[0];
+  const values = perMonth.map(({ m, totals }) => ({ m, cents: totals.get(category) || 0 }));
+  const max = Math.max(1, ...values.map((item) => item.cents));
+  const average = Math.round(values.reduce((sum, item) => sum + item.cents, 0) / values.length);
+  const meta = outMeta(category);
+  return h`<section class="card finance-category-trend"><div class="head"><h2>Categoria mês a mês</h2></div>
+    <label class="finance-report-account"><span class="sr">Escolher categoria</span><select data-change="rep-cat">${names.map((name) => h`<option class="expense-name" value="${name}" ${name === category ? raw('selected') : ''}>${expenseTitle(name)}</option>`)}</select></label>
+    <ul class="category-bars">${values.map((item) => h`<li><span class="category-bar-copy"><span>${MESES[Number(item.m.slice(5)) - 1]}</span><span class="category-bar-track"><i style="width:${Math.round(item.cents / max * 100)}%;--category-tone:${meta.c}"></i></span></span><b>${money(item.cents)}</b></li>`)}</ul>
+    <p class="small muted">Média de ${money(average)} por mês nos últimos 6 meses.</p></section>`;
+}
 function finRel() {
   const ym = ui.finMonth, kind = ui.repKind;
-  const st = reportMonthStats(S.finance.tx, ym, accById, ui.repBasis);
+  const reportTx = ui.repAcc && accById(ui.repAcc)
+    ? S.finance.tx.filter((t) => t.accountId === ui.repAcc || t.toAccountId === ui.repAcc)
+    : S.finance.tx;
+  const st = reportMonthStats(reportTx, ym, accById, ui.repBasis);
   const list = byCategory(st.tx, kind), total = list.reduce((s, [, v]) => s + v, 0);
   const col = (n) => kind === 'out' ? outMeta(n).c : catMeta({ type: 'in', category: n }).c;
-  const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(S.finance.tx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
+  const months = Array.from({ length: 6 }, (_, i) => { const m = shiftMonth(ym, i - 5), s = reportMonthStats(reportTx, m, accById, ui.repBasis); return { l: MESES[Number(m.slice(5)) - 1], i: s.inAll, o: s.outAll }; });
   const avgOut = Math.round(months.reduce((s, m) => s + m.o, 0) / 6);
   const monthTransactions = monthStats(ym);
   return h`${monthNav()}
@@ -8035,8 +8096,11 @@ function finRel() {
         ? 'Por data de pagamento ou recebimento. Pagamentos de fatura entram como saída no dia em que foram registrados; lançamentos antigos sem data de liquidação usam a data do lançamento.'
         : 'Por data em que a receita ou despesa aconteceu. Compras no cartão aparecem neste mês, independentemente do pagamento da fatura.'}</p>
       <div class="seg" role="group" aria-label="Tipo"><button type="button" aria-pressed="${kind === 'out'}" data-action="rep-kind" data-k="out">Despesas</button><button type="button" aria-pressed="${kind === 'in'}" data-action="rep-kind" data-k="in">Receitas</button></div>
+      <label class="finance-report-account"><span class="sr">Filtrar relatório por conta</span><select data-change="rep-acc"><option value="">Todas as contas</option>${S.finance.accounts.map((a) => h`<option class="user-value" value="${a.id}" ${ui.repAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`)}</select></label>
       ${list.length ? h`<div class="donut-row"><div class="donut-w">${donut(list.map(([n, v]) => ({ v, c: col(n) })), total, (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria')}<div class="dc"><b>${money(total)}</b><span>${kind === 'out' ? 'gastos' : 'recebidos'}</span></div></div></div>
         <ul class="list">${list.map(([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span class="small muted">${Math.round(v / total * 100)}%</span><b>${money(v)}</b></li>`)}</ul>` : areaEmpty(kind === 'out' ? 'Nenhuma despesa neste mês.' : 'Nenhuma receita neste mês.', 'Quando houver lançamentos, este relatório mostrará a divisão por categoria.', h`<button type="button" class="btn primary" data-action="${kind === 'out' ? 'tx-new' : 'tx-new-in'}">${icon('plus', 16)}${kind === 'out' ? 'Criar despesa' : 'Criar receita'}</button>`, kind === 'out' ? 'pie' : 'wallet', 'h3')}</section>
+    ${finTopExpenses(st)}
+    ${finCategoryTrend(reportTx, ym)}
     ${finCompare()}
     <section class="card"><h2>Últimos 6 meses</h2>${flowChart(months)}<p class="fine"><span class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
 }
@@ -8501,6 +8565,15 @@ Object.assign(ACTIONS, {
       const selected = $(`.finance-account-option[data-t="${ui.finAccountTab}"]`);
       selected?.focus({ preventScroll: true });
     });
+  },
+  'invoice-shift': (el) => {
+    const id = el.dataset.id, step = Number(el.dataset.d) === 1 ? 1 : -1;
+    if (!S.finance.accounts.some((account) => account.id === id && isCredit(account))) return;
+    const current = ui.finInvoiceShift[id] || 0;
+    ui.finInvoiceShift = { ...ui.finInvoiceShift, [id]: Math.max(-24, Math.min(12, current + step)) };
+    ui.openDetails[`invoice-${id}`] = true;
+    render();
+    requestAnimationFrame(() => $(`[data-action="invoice-shift"][data-id="${id}"][data-d="${step}"]`)?.focus({ preventScroll: true }));
   },
   'fin-go': (el) => {
     const target = el.dataset.t;
@@ -9135,7 +9208,7 @@ Object.assign(FORMS, {
     ui.dlg = null; commit('finance'); toast('Pagamento registrado.', 'success');
   },
 });
-Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); } });
+Object.assign(CHANGES, { 'fin-cat': (el) => { ui.finCat = el.value; render(); }, 'fin-acc': (el) => { ui.finAcc = el.value; render(); }, 'rep-acc': (el) => { ui.repAcc = el.value; render(); }, 'rep-cat': (el) => { ui.repCat = el.value; render(); } });
 
 /* ---- exportar CSV ---- */
 const csvCell = (v) => { const s = String(v == null ? '' : v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
