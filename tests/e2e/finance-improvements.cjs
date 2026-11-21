@@ -123,6 +123,12 @@ const swipe = async (page, locator, direction) => {
   check(await page.locator('.finance-projection').textContent()
     .then((text) => text.includes('Estimativa até o fim do mês') && text.includes('não o saldo atual')),
   'visão geral identifica a projeção como estimativa separada do saldo real');
+  check(await page.locator('.finance-projection-note summary').count() === 1
+    && (await page.locator('.finance-projection-note').textContent()).includes('Compras futuras no cartão não entram'),
+  'detalhe do cálculo da estimativa fica em "Como é calculada"');
+  check(await page.locator('.fin-hero .balance-sparkline').count() === 1
+    && await page.locator('.finance-upcoming').count() === 1,
+  'visão geral mostra o gráfico de saldo no topo e o bloco de vencimentos do mês atual');
   await page.locator('.fin-section-option[data-t="relatorios"]').click();
   check(await page.locator('.finance-month-close').count() === 1
     && await page.locator('.finance-close-stats > div').count() === 6,
@@ -170,6 +176,15 @@ const swipe = async (page, locator, direction) => {
     && await weekBars.first().getAttribute('aria-pressed') === 'true',
   'mostrar valores restaura o valor completo e preserva a barra selecionada');
   if (initiallyHidden) await visibilityToggle.click();
+  await page.locator('[data-action="finance-trend-range"][data-v="month"]').click();
+  check(await page.locator('.finance-week-chart-bar').count() === new Date().getDate()
+    && await page.locator('.finance-week-chart-value').count() === 0
+    && await page.locator('[data-action="finance-trend-range"][data-v="month"]').getAttribute('aria-pressed') === 'true',
+  'gráfico alterna para o mês inteiro com uma barra por dia');
+  await page.locator('[data-action="finance-trend-range"][data-v="7d"]').click();
+  check(await page.locator('.finance-week-chart-bar').count() === 7
+    && await page.locator('.finance-week-chart-value').count() === 7,
+  'gráfico volta para os últimos 7 dias');
   await page.locator('.finance-month-close summary').click();
   await page.locator('.finance-month-close').getByRole('button', { name: 'Conferir pendências' }).click();
   check(await page.locator('.scroll-x button[data-action="fin-filter"][data-f="pendentes"]').getAttribute('aria-pressed') === 'true',

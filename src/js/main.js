@@ -2723,6 +2723,16 @@ function viewInicio() {
       : null,
   });
   const weekProgress = weeklyReview(S.tasks, [], todayKey).tasks;
+  const upcomingDue = showFinanceSummary ? upcomingDueItems() : [];
+  const financeUpcoming = upcomingDue.length
+    ? {
+      count: upcomingDue.length,
+      cents: upcomingDue.reduce((sum, item) => sum + item.cents, 0),
+      overdue: upcomingDue.filter((item) => item.date < todayKey).length,
+      days: UPCOMING_WINDOW_DAYS,
+      hidden: Boolean(S.settings.prefs.financeValuesHidden),
+    }
+    : null;
   return renderHomeView({
     name,
     profileAppearance,
@@ -2744,6 +2754,7 @@ function viewInicio() {
     emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
+    financeUpcoming,
     showHomeBlock,
     homeBlockStyle,
   }, {
@@ -7793,7 +7804,14 @@ function finResumo() {
     : '';
   const cats = byCategory(st.tx, 'out'), totOut = st.outAll;
   const attentionLimits = finLimitesAtencao(ym);
-  const recentDescription = cur ? 'Mês atual · sem lançamentos futuros.' : `Mês selecionado · ${ymLabel(ym)}.`;
+  const attentionCards = finCartoesAtencao();
+  const goalFocus = finObjetivoFoco();
+  const scheduled = cur
+    ? st.tx.filter((transaction) => transaction.date > today())
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0))
+      .slice(0, 3)
+    : [];
+  const recentDescription = cur ? 'Mês atual · até hoje.' : `Mês selecionado · ${ymLabel(ym)}.`;
   const flowMax = Math.max(st.inAll, st.outAll, 1);
   const recents = st.tx
     .filter((transaction) => !cur || transaction.date <= today())
@@ -7801,7 +7819,7 @@ function finResumo() {
     .slice(0, 5);
   return h`${monthNav()}
     <section class="fin-hero" aria-label="Saldo atual das contas">
-      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p></div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
+      <div class="fin-hero-main"><div><p class="fh-l">Saldo atual nas contas</p><p class="fh-v ${bal < 0 ? 'neg' : ''}">${money(bal)}</p><p class="fh-context">Saldo real disponível, sem incluir compras no cartão.</p>${balanceSparkline()}</div><div class="fin-hero-actions"><button class="btn sm" data-action="tx-new-in">${icon('plus', 16)}Receita</button><button class="btn sm primary" data-action="tx-new">${icon('plus', 16)}Despesa</button></div></div>
       <div class="finance-projection">${cur ? h`<p class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>` : h`<p class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`}</div>
     </section>
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
@@ -7812,13 +7830,41 @@ function finResumo() {
         <button type="button" class="finance-summary-stat is-result${result < 0 ? ' is-negative' : ''}" data-action="fin-go" data-t="lancamentos" data-f="todos" data-clear-fin-filters aria-label="Ver lançamentos do mês para conferir o resultado"><span class="finance-summary-icon" aria-hidden="true">${icon('pie', 16)}</span><span>Resultado do mês</span><b>${money(result)}</b><small>Receitas menos despesas${resultDelta}</small></button>
       </div>
     </section>
-    ${cur || attentionLimits ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}</div>` : ''}
+    ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div class="head"><div><p class="section-kicker">Composição do mês</p><h2>Despesas por categoria<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
         ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
       <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos<i>.</i></h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
+    ${scheduled.length ? h`<section class="surface-open finance-scheduled" aria-labelledby="finance-scheduled-title"><div class="head"><div><p class="section-kicker">Ainda neste mês</p><h2 id="finance-scheduled-title">Agendados<i>.</i></h2><p class="small muted">Lançamentos com data depois de hoje.</p></div></div><ul class="list">${scheduled.map((t) => finRow(t, { showDate: true }))}</ul></section>` : ''}
     `;
+}
+function finCartoesAtencao() {
+  const F = S.finance;
+  const alerts = F.accounts.filter((card) => isCredit(card) && card.limitCents > 0)
+    .map((card) => ({ card, info: cardInfo(card) }))
+    .filter(({ card, info }) => info.used / card.limitCents >= 0.8)
+    .sort((a, b) => b.info.used / b.card.limitCents - a.info.used / a.card.limitCents)
+    .slice(0, 3);
+  if (!alerts.length) return '';
+  return h`<section class="surface-open finance-card-alerts"><div class="head"><div><p class="section-kicker">Cartões</p><h2>Limite do cartão<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="contas">Ver cartões</button></div>
+    <ul class="list finance-limit-alert-list">${alerts.map(({ card, info }) => h`<li><span class="finance-limit-alert-row">${accountChip(card)}<span class="grow"><span class="ttl">${accountDisplayName(card)}</span><span class="meta2">${info.used >= card.limitCents ? h`<span class="m-bad">limite atingido</span>` : h`disponível ${money(info.avail ?? 0)}`} · ${money(info.used)} de ${money(card.limitCents)}</span>${budBar(info.used, card.limitCents)}</span></span></li>`)}</ul></section>`;
+}
+function finObjetivoFoco() {
+  const F = S.finance;
+  const open = (F.goals || [])
+    .map((goal) => ({ goal, saved: linkedGoalProgressCents(goal, F.accounts, F.tx) }))
+    .filter(({ goal, saved }) => goal.targetCents > 0 && saved < goal.targetCents);
+  if (!open.length) return '';
+  open.sort((a, b) => (a.goal.deadline ? 0 : 1) - (b.goal.deadline ? 0 : 1)
+    || (a.goal.deadline || '').localeCompare(b.goal.deadline || '')
+    || b.saved / b.goal.targetCents - a.saved / a.goal.targetCents);
+  const { goal, saved } = open[0];
+  const percent = Math.min(100, Math.round(saved / goal.targetCents * 100));
+  return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}<i>.</i></h2></div><button class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
+    <div class="row budget-total-row"><b>${percent}%</b><span class="small muted">${money(saved)} de ${money(goal.targetCents)}</span></div>
+    <div class="bar goal-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso de ${goal.name}"><span style="width:${percent}%"></span></div>
+    <p class="small muted">${goal.deadline ? `Prazo: ${shortDate(goal.deadline)}.` : 'Sem prazo definido.'}${open.length > 1 ? ` Mais ${open.length - 1} ${plural(open.length - 1, 'objetivo', 'objetivos')} em andamento.` : ''}</p></section>`;
 }
 function finFixas() {
   const rs = recList().filter((r) => !r.paused);

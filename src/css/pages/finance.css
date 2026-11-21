@@ -342,6 +342,14 @@
 .finance-limit-alert-row { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .finance-limit-alert-row .grow { display: grid; gap: var(--space-1); min-width: 0; }
 .finance-trend-range { flex: none; gap: var(--space-1); }
+.finance-card-alerts > .head,
+.finance-goal-focus > .head,
+.finance-scheduled > .head { align-items: flex-start; }
+.finance-card-alerts > .head h2,
+.finance-goal-focus > .head h2,
+.finance-scheduled > .head h2 { margin-bottom: 3px; }
+.finance-goal-focus { display: grid; gap: var(--space-2); }
+.finance-scheduled { margin-top: var(--space-4); }
 .finance-account-tabs {
   display: grid;
   width: min(100%, 360px);
