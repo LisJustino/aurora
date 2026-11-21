@@ -525,7 +525,7 @@ async function main() {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }
         await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-        await page.locator('#profile-menu a[href="/config"]').waitFor({ state: 'visible' });
+        await page.locator('#profile-menu a[href="/ajustes"]').waitFor({ state: 'visible' });
         const signout = page.locator('#profile-menu [data-account-signout]');
         await signout.waitFor({ state: 'visible' });
         const profileMenuAlignment = await page.locator('#profile-menu').evaluate((menu) => {
@@ -545,7 +545,7 @@ async function main() {
         assert.equal(await page.locator('.mobile-profile-menu').getAttribute('open'), null,
           'menu da conta fecha ao pressionar Escape');
         await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-        await page.locator('#profile-menu a[href="/config"]').click();
+        await page.locator('#profile-menu a[href="/ajustes"]').click();
         await page.locator('.settings-link[data-settings-tab="account"]').click();
         await page.locator('.account-session-card [data-account-signout]').waitFor({ state: 'visible' });
         await page.locator('.nav a[href="/inicio"]').click();
@@ -570,7 +570,7 @@ async function main() {
         const firstStepLabels = await firstSteps.locator('.home-first-steps-list li b').allTextContents();
         assert.deepEqual(firstStepLabels, ['Criar sua primeira tarefa', 'Marcar um hábito', 'Escolher sua cor']);
         assert.equal(await firstSteps.getByRole('progressbar').getAttribute('aria-valuemax'), '3');
-        assert.equal(await firstSteps.locator('a[href="/config?section=personalization"]').count(), 1);
+        assert.equal(await firstSteps.locator('a[href="/ajustes/aparencia"]').count(), 1);
         assert.equal(await firstSteps.locator('button[data-action="task-new"]').count(), 1);
         assert.equal(await firstSteps.locator('a[href="/habitos"]').count(), 1);
         await firstSteps.locator('button[data-action="task-new"]').evaluate((element) => element.click());

@@ -466,6 +466,21 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     }
   });
 
+  root.addEventListener('input', (event) => {
+    if (!(event.target instanceof HTMLTextAreaElement) || event.target.name !== 'message') return;
+    const form = event.target.closest('[data-footer-suggestion]');
+    const counter = form?.querySelector('[data-suggestion-count]');
+    if (counter) counter.textContent = `${event.target.value.length} / 2000`;
+  });
+
+  root.addEventListener('reset', (event) => {
+    if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
+    queueMicrotask(() => {
+      const counter = event.target.querySelector('[data-suggestion-count]');
+      if (counter) counter.textContent = '0 / 2000';
+    });
+  });
+
   root.addEventListener('submit', async (event) => {
     if (!(event.target instanceof HTMLFormElement) || !event.target.matches('[data-footer-suggestion]')) return;
     event.preventDefault();

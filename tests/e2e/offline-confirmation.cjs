@@ -71,19 +71,19 @@ const check = (passed, name, detail = '') => {
     .filter({ hasText: 'Alterações aplicadas nesta demonstração' })
     .waitFor({ state: 'visible' });
   await page.locator('.settings-link[data-settings-tab="personalization"]').click();
-  await page.waitForFunction(() => location.search === '?section=personalization');
+  await page.waitForFunction(() => location.pathname === '/ajustes/aparencia' && !location.search);
   await page.locator('#settings-content[role="region"][aria-label="Seção de ajustes: Aparência e leitura"]').waitFor();
   await page.goBack();
-  await page.waitForFunction(() => location.search === '?section=profile');
+  await page.waitForFunction(() => location.pathname === '/ajustes/perfil');
   check(await profileName.inputValue() === secondProfileName, 'perfil permanece salvo ao trocar de seção');
   await page.goForward();
-  await page.waitForFunction(() => location.search === '?section=personalization');
+  await page.waitForFunction(() => location.pathname === '/ajustes/aparencia');
 
   await page.evaluate(() => {
     history.replaceState(null, '', '/config?section=appearance');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
-  await page.waitForFunction(() => location.pathname === '/config' && location.search === '?section=appearance');
+  await page.waitForFunction(() => location.pathname === '/ajustes/aparencia' && !location.search);
   check(
     await page.locator('#appearance-area-colors-title').count() === 0,
     'personalização não exibe mais a seção de cores por área',
@@ -94,7 +94,7 @@ const check = (passed, name, detail = '') => {
   check(await page.locator('.appearance-settings .settings-save-actions').count() === 0,
     'aparência salva automaticamente sem barra de alterações pendentes');
   await page.goBack();
-  await page.waitForFunction(() => location.search === '?section=profile');
+  await page.waitForFunction(() => location.pathname === '/ajustes/perfil');
   const pendingProfileName = `${originalProfileName} antes de navegar`;
   await profileName.fill(pendingProfileName);
   await page.locator('.topbar a[href="/inicio"]').first().click();
@@ -112,15 +112,20 @@ const check = (passed, name, detail = '') => {
     history.pushState(null, '', '/config?section=data');
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
+  await page.waitForFunction(() => location.pathname === '/ajustes/dados');
   check(
-    (await page.locator('.settings-data-safety').innerText()).includes('de saúde e do ciclo'),
-    'aviso de backup destaca a sensibilidade dos dados do ciclo',
+    await page.locator('.settings-data-overview h2').innerText() === 'Gerenciar seus dados',
+    'Ajustes de dados mantém a seção de recuperação',
   );
-  await page.getByRole('button', { name: 'Exportar backup' }).click();
-  const backupConfirmation = page.locator('#dlg');
-  await backupConfirmation.getByText('O arquivo de backup não tem proteção própria por senha. Quem tiver acesso a ele poderá ver dados financeiros, de saúde e do ciclo. Guarde-o em um local privado. Deseja continuar?').waitFor();
-  await backupConfirmation.getByRole('button', { name: 'Cancelar' }).click();
-  check(await backupConfirmation.count() === 0, 'cancelar exportação fecha apenas a confirmação');
+  check(
+    await page.locator('[data-action="export"], input[data-change="import"]').count() === 0,
+    'Ajustes não oferece exportação ou restauração de backup',
+  );
+  check(
+    await page.locator('.settings-data-migration').count() === 0
+      && await page.locator('.settings-data-trash, .settings-data-care').count() === 2,
+    'Importação antiga removida; lixeira e ações de dados continuam disponíveis',
+  );
   const overflows = [];
   const inconsistentSpacing = [];
   const unlabeledSettingsSections = [];
@@ -129,7 +134,7 @@ const check = (passed, name, detail = '') => {
     personalization: 'Aparência e leitura',
     home: 'Tela inicial',
     'areas-navigation': 'Áreas e menu',
-    data: 'Dados e backup',
+    data: 'Dados e recuperação',
     calendars: 'Agendas',
     'mental-health': 'Apoio psicológico',
     account: 'Conta e ajuda',

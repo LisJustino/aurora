@@ -36,7 +36,7 @@ const check = (passed, name, detail = '') => {
     const direct = page.locator(`.nav a.nav-item[href="/${route}"]:visible`);
     if (route === 'config') {
       await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-      await page.locator('#profile-menu a[href="/config"]').click();
+      await page.locator('#profile-menu a[href="/ajustes"]').click();
     } else if (await direct.count()) {
       await direct.first().click();
     } else {

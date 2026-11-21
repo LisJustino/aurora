@@ -78,7 +78,7 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#inicio`);
   check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
   await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/config"]').click();
+  await page.locator('#profile-menu a[href="/ajustes"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
   check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
@@ -87,7 +87,7 @@ const check = (passed, name, detail = '') => {
   check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração');
 
   await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/config"]').click();
+  await page.locator('#profile-menu a[href="/ajustes"]').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
   for (const area of activeAreas) {
@@ -174,7 +174,7 @@ const check = (passed, name, detail = '') => {
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
   await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/config"]').click();
+  await page.locator('#profile-menu a[href="/ajustes"]').click();
   await page.locator('.settings-link[data-settings-tab="account"]').click();
   check(await page.locator('.account-session-card [data-account-signout]').count() === 0,
     'a prévia sem sessão autenticada não exibe botão de sair');

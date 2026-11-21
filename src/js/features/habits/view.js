@@ -140,7 +140,7 @@ export function renderHabitsView(dependencies) {
         <span class="sr">Hábitos: ${completeDays} de 7 dias com todos os hábitos programados concluídos.</span>
       </div>
       ${weekReview.length ? h`<details class="habit-review" id="d-habit-review" ${ui.openDetails['habit-review'] ? raw('open') : ''}>
-        <summary><span><b>Revisar cada hábito</b><small>Veja seu ritmo e ajuste o plano quando precisar.</small></span><span class="habit-count">${weekReview.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+        <summary><span><span class="habit-review-title"><b>Revisar cada hábito</b><span class="habit-count">${weekReview.length}</span></span><small>Veja seu ritmo e ajuste o plano quando precisar.</small></span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
         <ul aria-label="Resumo semanal por hábito">${weekReview.map(({ habit, completed, planned, weeklyTarget, goalMet }) => {
           const target = weeklyTarget ?? planned;
           const progress = target ? Math.min(completed, target) : 0;
@@ -159,14 +159,14 @@ export function renderHabitsView(dependencies) {
           </li>`;
         })}</ul>
       </details>` : ''}
-      ${overview.paused.length ? h`<details class="habit-resume-list"><summary>Hábitos que você pode retomar <span class="habit-count">${overview.paused.length}</span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon('play', 15)}Retomar</button></li>`)}</ul></details>` : ''}
+      ${overview.paused.length ? h`<details class="habit-resume-list"><summary><span class="habit-summary-title"><b>Hábitos que você pode retomar</b><span class="habit-count">${overview.paused.length}</span></span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map((habit) => h`<li><span class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause" data-id="${habit.id}">${icon('play', 15)}Retomar</button></li>`)}</ul></details>` : ''}
     </section>`.s : '',
     'other-habits': others.length
-      ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><b>Fora de hoje</b><span class="habit-count">${others.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
+      ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><span class="habit-summary-title"><b>Fora de hoje</b><span class="habit-count">${others.length}</span></span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
     'habit-ideas': suggestions.length
       ? h`<details class="card habit-ideas${firstUse ? ' is-first-use' : ''}" id="d-ideas" ${ideasOpen}>
-        <summary><span><b>${firstUse ? 'Escolha seus primeiros hábitos' : 'Ideias de hábitos'}</b><small>${firstUse ? 'Comece com uma pequena mudança; você pode personalizar depois.' : 'Encontre uma ideia e personalize antes de adicionar.'}</small></span><span class="habit-count">${suggestions.length}</span>${icon('chevDown', 18, 'chev')}</summary>
+        <summary><span class="habit-summary-copy"><span class="habit-summary-title"><b>${firstUse ? 'Escolha seus primeiros hábitos' : 'Ideias de hábitos'}</b><span class="habit-count">${suggestions.length}</span></span><small>${firstUse ? 'Comece com uma pequena mudança; você pode personalizar depois.' : 'Encontre uma ideia e personalize antes de adicionar.'}</small></span>${icon('chevDown', 18, 'chev')}</summary>
         <div class="habit-idea-tools" ${initialIdeaPreview ? raw('hidden') : ''}>
           <label class="search habit-idea-search"><span class="sr">Buscar ideias de hábitos</span>${icon('search', 18)}<input type="search" data-input="habit-ideas-search" value="${ui.habitIdeaQuery || ''}" placeholder="Buscar por nome ou descrição" autocomplete="off"></label>
           <div class="habit-idea-filter-grid">
@@ -196,7 +196,7 @@ export function renderHabitsView(dependencies) {
       </details>`.s
       : '',
     'archived-habits': archived.length
-      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><b>Arquivados</b><span class="habit-count">${archived.length}</span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><div class="habit-actions habit-actions--archived" role="group" aria-label="Ações de ${habit.name}"><button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">${icon('undo', 15)}Restaurar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></li>`)}</ul></details>`.s
+      ? h`<details class="card habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><span class="habit-summary-title"><b>Arquivados</b><span class="habit-count">${archived.length}</span></span>${icon('chevDown', 18, 'chev')}</summary><ul class="habit-list">${archived.map((habit) => h`<li class="habit-row is-off" style="--hc:${habitColor(habit)}"><span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span class="habit-title">${habit.name}</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div><div class="habit-actions habit-actions--archived" role="group" aria-label="Ações de ${habit.name}"><button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm" data-action="habit-restore" data-id="${habit.id}">${icon('undo', 15)}Restaurar</button><button type="button" class="btn sm danger" data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></li>`)}</ul></details>`.s
       : '',
   };
   return raw(renderHabitsTemplate(habitsTemplate, slots));

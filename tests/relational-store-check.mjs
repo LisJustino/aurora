@@ -30,6 +30,15 @@ assert.match(versionConflictMigration, /replace_missing/i);
 assert.match(versionConflictMigration, /greatest\(clock_timestamp\(\), old\.updated_at \+ interval '1 microsecond'\)/i);
 assert.doesNotMatch(versionConflictMigration, /study_subjects|study_sessions/i);
 assert.doesNotMatch(versionConflictMigration, /''raise exception/i);
+const accountSnapshotMigration = await readFile(
+  new URL('../supabase/migrations/20261121000000_relational_account_snapshot.sql', import.meta.url),
+  'utf8',
+);
+assert.match(accountSnapshotMigration, /load_relational_account\(p_include_cycle boolean default true\)/i);
+assert.match(accountSnapshotMigration, /security invoker/i);
+assert.match(accountSnapshotMigration, /auth\.uid\(\)/i);
+assert.match(accountSnapshotMigration, /grant execute on function public\.load_relational_account\(boolean\) to authenticated/i);
+assert.doesNotMatch(accountSnapshotMigration, /security definer/i);
 const settledDateMigration = await readFile(
   new URL('../supabase/migrations/20261029030000_finance_settled_date.sql', import.meta.url),
   'utf8',
@@ -623,6 +632,9 @@ const restrictedLoadClient = {
     return query;
   },
   async rpc(_name, args) {
+    if (_name === 'load_relational_account') {
+      return { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    }
     restrictedChanges = args.p_changes;
     return {
       data: args.p_changes.map(({ table, rows }) => ({
@@ -806,6 +818,36 @@ assert.equal(loaded.settings.onboardingComplete, true);
 assert.equal(loaded.settings.introSeen, true);
 assert.deepEqual(loaded.settings.areas, { finances: true });
 
+const snapshotTableNames = [
+  'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
+  'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs', 'gym_templates',
+  'gym_template_exercises', 'gym_logs', 'finance_accounts', 'finance_recurrences',
+  'finance_transactions', 'finance_budgets', 'finance_goals', 'cycle_periods',
+  'cycle_days', 'weight_logs', 'trash_records',
+];
+for (const table of snapshotTableNames) {
+  assert.ok(accountSnapshotMigration.includes(`'${table}'`), `o snapshot deve incluir ${table}`);
+}
+const snapshotData = Object.fromEntries(snapshotTableNames.map((table) => [table, accountRows[table] || []]));
+const snapshotCalls = [];
+const snapshotStore = new RelationalAccountStore({
+  async rpc(name, args) {
+    snapshotCalls.push({ name, args });
+    return { data: snapshotData, error: null };
+  },
+  from() {
+    throw new Error('A leitura agrupada não deve consultar tabelas individualmente.');
+  },
+}, userId);
+const snapshotState = await snapshotStore.load({ includeCycle: false });
+assert.deepEqual(snapshotCalls, [{ name: 'load_relational_account', args: { p_include_cycle: false } }]);
+assert.equal(snapshotState.tasks.length, 2);
+assert.equal(snapshotState.tasks[0].title, 'Tarefa válida');
+assert.equal(snapshotStore.rowVersions.get('tasks').get(snapshotState.tasks[0].id), versionStamp);
+assert.deepEqual(snapshotState.cycle, []);
+assert.deepEqual(snapshotState.cycleLog, {});
+
 const recoveryCalls = [];
 let recoveryAttempts = 0;
 const recoveryClient = {
@@ -816,6 +858,9 @@ const recoveryClient = {
     };
   },
   async rpc(name, args) {
+    if (name === 'load_relational_account') {
+      return { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    }
     recoveryCalls.push({ name, args });
     recoveryAttempts += 1;
     if (recoveryAttempts === 1) {
