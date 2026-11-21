@@ -26,7 +26,7 @@ function renderSettingsSectionContent(s, p, selectedTab, renderers) {
     case 'data': return renderers.data(p);
     case 'calendars': return renderers.calendars();
     case 'mental-health': return h`<section class="surface-open" aria-labelledby="mental-health-title">
-      <div class="head"><div><h2 id="mental-health-title">${icon('heart', 20)} Apoio psicológico<i>.</i></h2><p>Você não precisa enfrentar momentos difíceis sem apoio. Estes recursos são voltados a pessoas no Brasil.</p></div></div>
+      <div class="head"><div><h2 id="mental-health-title">${icon('heart', 20)} Apoio psicológico</h2><p>Você não precisa enfrentar momentos difíceis sem apoio. Estes recursos são voltados a pessoas no Brasil.</p></div></div>
       <h3>Onde buscar cuidado</h3>
       <p>Uma Unidade Básica de Saúde (UBS) pode acolher e orientar sobre atendimento psicológico pelo SUS. Os Centros de Atenção Psicossocial (CAPS) também oferecem cuidado em saúde mental.</p>
       <p><a class="inline-link" href="https://www.gov.br/saude/pt-br/composicao/saes/desmad/raps" target="_blank" rel="noopener noreferrer">Conheça a rede de atenção psicossocial do SUS</a></p>

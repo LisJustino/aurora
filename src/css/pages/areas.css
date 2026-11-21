@@ -15,7 +15,7 @@
   overflow: hidden;
   border-color: color-mix(in srgb, var(--water-accent) 22%, var(--line));
   border-inline-start: 4px solid var(--water-accent);
-  background: linear-gradient(135deg, var(--water-soft), var(--surface-strong) 72%);
+  background: var(--surface-strong);
 }
 .water-summary-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
 .water-eyebrow {
@@ -97,7 +97,7 @@
 .cycle-consent-management > summary { cursor: pointer; font-weight: var(--weight-semibold); }
 .cycle-consent-management-content { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .cycle-consent-management-content > span { flex: 1; }
-.cycle-overview { display: grid; gap: var(--space-4); padding: clamp(20px, 3vw, 30px); border: 1px solid color-mix(in srgb, var(--area-cycle) 30%, var(--line)); border-radius: var(--r-control); background: radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--area-cycle) 15%, transparent), transparent 16rem), linear-gradient(145deg, color-mix(in srgb, var(--area-cycle) 8%, var(--surface-strong)), var(--surface-strong) 62%); box-shadow: var(--card-shadow); }
+.cycle-overview { display: grid; gap: var(--space-4); padding: clamp(20px, 3vw, 30px); border: 1px solid color-mix(in srgb, var(--area-cycle) 30%, var(--line)); border-radius: var(--r-control); background: var(--surface-strong); box-shadow: var(--card-shadow); }
 .cycle-overview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
 .cycle-overview-head > div { min-width: 0; }
 .cycle-overview-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
@@ -142,7 +142,7 @@
 .cycle-day-entry {
   gap: var(--space-4);
   border-color: color-mix(in srgb, var(--area-cycle) 25%, var(--line));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--area-cycle) 7%, var(--surface-strong)), var(--surface-strong) 62%);
+  background: var(--surface-strong);
 }
 .cycle-start-empty .empty-state { grid-template-columns: 48px minmax(0, 1fr); }
 .cycle-start-empty .empty-state .empty-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
@@ -238,7 +238,7 @@
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--area-cycle) 28%, var(--line));
   border-radius: var(--r-group);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--area-cycle) 11%, var(--surface)), color-mix(in srgb, var(--area-cycle) 4%, var(--surface-strong)));
+  background: color-mix(in srgb, var(--area-cycle) 5%, var(--surface));
 }
 .cycle-flow-group .chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin-top: 12px; }
 .cycle-flow-group .chip { justify-content: center; padding-inline: 8px; border-color: color-mix(in srgb, var(--cycle-choice-accent) 28%, var(--line)); text-align: center; }

@@ -257,9 +257,7 @@
   padding: 22px 24px;
   border: 0;
   border-radius: var(--r-card);
-  background:
-    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--p) 17%, transparent), transparent 48%),
-    var(--surface);
+  background: var(--surface);
   box-shadow: var(--card-shadow);
 }
 .main[data-route="planejar"] > .focus-entry h2 { font-size: var(--text-title); }
@@ -268,9 +266,7 @@
   padding: clamp(20px, 3vw, 32px);
   border: 0;
   border-radius: var(--r-card);
-  background:
-    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--p) 11%, transparent), transparent 36%),
-    var(--surface);
+  background: var(--surface);
 }
 .main[data-route="planejar"] > .qa-card .head h2.sr {
   position: static;
@@ -366,9 +362,7 @@
   align-items: center;
   gap: clamp(var(--space-5), 4vw, var(--space-7));
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
-  background:
-    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--p) 12%, transparent), transparent 42%),
-    var(--surface);
+  background: var(--surface);
 }
 .planning-overview-copy { display: grid; justify-items: start; gap: var(--space-2); }
 .planning-overview-copy .section-kicker {
