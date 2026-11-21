@@ -909,6 +909,14 @@ const swipe = async (page, locator, direction) => {
     && (await budgetAlert.first().textContent()).includes('pelo menos 80%')
     && (await page.locator('.budget-list [data-c="Alimentação personalizada"]').getAttribute('aria-label')).includes('80%'),
   'orçamento mostra aviso acessível ao atingir 80% sem ultrapassar o limite');
+  await page.locator('.budget-list [data-c="Alimentação personalizada"]').click();
+  check(await page.locator('#dlg [data-dlg="alertPct"]').inputValue() === '80'
+    && await page.locator('#dlg [data-dlg="pinned"]').count() === 1,
+  'diálogo do limite oferece percentual de alerta (padrão 80%) e opção de fixar na Visão geral');
+  await page.locator('#dlg [data-dlg="alertPct"]').selectOption('100');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  check(await page.locator('.budget-list .budget-threshold-alert').count() === 0,
+  'alerta do limite respeita o percentual escolhido para a categoria');
 
   await page.locator('.fin-section-option[data-t="contas"]').click();
   await page.locator('.finance-account-option[data-t="contas"]').click();

@@ -350,6 +350,14 @@
 .finance-scheduled > .head h2 { margin-bottom: 3px; }
 .finance-goal-focus { display: grid; gap: var(--space-2); }
 .finance-scheduled { margin-top: var(--space-4); }
+.finance-month-report > .head { align-items: flex-start; }
+.finance-report-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.finance-report-item { padding-left: var(--space-3); border-left: 2px solid var(--line); font-size: var(--text-sm); line-height: 1.45; overflow-wrap: anywhere; }
+.finance-report-item.is-warn { border-left-color: var(--bad); }
+.finance-report-item.is-ok { border-left-color: var(--area-finances); }
+.budget-history,
+.budget-suggestion { margin: var(--space-2) 0 0; }
+.budget-suggestion { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .finance-account-tabs {
   display: grid;
   width: min(100%, 360px);
