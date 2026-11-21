@@ -464,6 +464,23 @@ test('Início aplica visibilidade e ordem dos blocos sem duplicar a ação princ
     || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
     throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
   }
+  const upcomingHtml = renderHomeView({
+    ...model,
+    financeUpcoming: { count: 2, cents: 35000, overdue: 1, days: 14, hidden: false },
+  }, renderers).s;
+  const hiddenUpcomingHtml = renderHomeView({
+    ...model,
+    financeUpcoming: { count: 1, cents: 12000, overdue: 0, days: 14, hidden: true },
+  }, renderers).s;
+  if (!upcomingHtml.includes('class="home-day-upcoming has-overdue" href="/financas"')
+    || !upcomingHtml.includes('2 compromissos')
+    || !upcomingHtml.includes('1 em atraso')
+    || html.includes('home-day-upcoming')
+    || !hiddenUpcomingHtml.includes('••••')
+    || !hiddenUpcomingHtml.includes('valor oculto')
+    || /R\$\s?120,00/.test(hiddenUpcomingHtml)) {
+    throw new Error('A Início deve resumir vencimentos de Finanças, destacar atrasos e respeitar a ocultação de valores.');
+  }
   const noWaterHtml = renderHomeView({
     ...model,
     daySummary: { ...model.daySummary, water: null },

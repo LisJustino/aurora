@@ -25,6 +25,7 @@ export function renderHomeView(model, renderers) {
     homeShortcuts,
     showHomeBlock,
     homeBlockStyle,
+    financeUpcoming = null,
   } = model;
   const {
     areaGuideButton,
@@ -68,6 +69,9 @@ export function renderHomeView(model, renderers) {
               <span class="home-day-chip-count" aria-hidden="true">${daySummary.balance.hidden ? '••••' : brl(daySummary.balance.cents)}</span><span class="home-day-chip-copy">Saldo</span>
             </a>` : ''}
           </div>
+          ${financeUpcoming ? h`<a class="home-day-upcoming${financeUpcoming.overdue ? ' has-overdue' : ''}" href="/financas" aria-label="${financeUpcoming.hidden ? `A vencer em ${financeUpcoming.days} dias: ${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso, valor oculto' : 'compromissos, valor oculto'}` : `A vencer em ${financeUpcoming.days} dias: ${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso' : 'compromissos'}, ${brl(financeUpcoming.cents)}`}${financeUpcoming.overdue ? `, ${financeUpcoming.overdue} em atraso` : ''}">
+            ${icon('wallet', 16)}<span><small>A VENCER EM ${financeUpcoming.days} DIAS</small><b>${financeUpcoming.count} ${financeUpcoming.count === 1 ? 'compromisso' : 'compromissos'} · ${financeUpcoming.hidden ? '••••' : brl(financeUpcoming.cents)}${financeUpcoming.overdue ? ` · ${financeUpcoming.overdue} em atraso` : ''}</b></span>${icon('chevRight', 16)}
+          </a>` : ''}
         </section>` : ''}
         ${showHomeBlock('quick') ? h`<section class="card surface-open home-quick-card" ${raw(homeBlockStyle('quick'))} aria-labelledby="home-quick-title">
           <div class="home-quick-copy"><span class="home-quick-mark" aria-hidden="true">${icon('plus', 18)}</span><div><h2 id="home-quick-title" class="type-editorial-title">Qual é o próximo passo<i>?</i></h2><p id="home-quick-help">Use “amanhã 14h” ou um dia da semana. Compromissos precisam de dia e hora.</p></div></div>
