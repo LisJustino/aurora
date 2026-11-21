@@ -27,7 +27,6 @@ import {
 import {
   accountBalance as balanceForAccount,
   accountBalanceOn,
-  netAccountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
   invoiceMonth,
@@ -7677,14 +7676,6 @@ function finRitmo(ym, st, cur) {
     <div class="stats3"><div><b>${money(avg)}</b><span>Gasto médio por dia até ${day}</span></div>${proj !== null ? h`<div><b>${money(proj)}</b><span>Projeção com base nos dias decorridos</span></div>` : h`<div><b>${money(out)}</b><span>Despesas até o fim do mês</span></div>`}<div><b class="${delta !== null && delta > 0 ? 'err' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + '%'}</b><span>vs. mesmo período anterior</span></div></div>
     <p class="small muted">${rate !== null ? (rate >= 0 ? `Você está guardando ${rate}% da receita deste mês.` : `As despesas superaram a receita em ${Math.abs(rate)}%.`) : 'Sem receitas registradas neste mês.'}${top ? h` Maior gasto: <span class="expense-name">${expenseTitle(top[0])}</span> (${money(top[1])}).` : ''}</p></section>`;
 }
-function balanceSparkline() {
-  const days = Array.from({ length: 7 }, (_, index) => addDays(today(), index - 6));
-  const values = days.map((day) => netAccountBalanceOn(S.finance.accounts, S.finance.tx, day));
-  const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
-  const points = values.map((value, index) => `${index * (100 / (values.length - 1))},${42 - ((value - min) / range * 34)}`).join(' ');
-  const pointsWithDetails = values.map((value, index) => `<circle class="finance-sparkline-point" cx="${index * (100 / (values.length - 1))}" cy="${42 - ((value - min) / range * 34)}" r="2.5" tabindex="0"><title>${esc(shortDate(days[index]))}: ${ui.financeValuesHidden ? 'valor oculto' : esc(brl(value))}</title></circle>`).join('');
-  return raw(`<svg class="balance-sparkline" viewBox="0 0 100 48" preserveAspectRatio="none" role="img" aria-label="Variação do saldo nos últimos sete dias"><polyline points="${points}"/>${pointsWithDetails}</svg>`);
-}
 const CATEGORY_BAR_LIMIT = 5;
 function categoryBars(items, total) {
   const rest = items.slice(CATEGORY_BAR_LIMIT);
@@ -7918,7 +7909,7 @@ function creditCardCard(card, paymentAccounts) {
 }
 function finContas() {
   const F = S.finance, accs = F.accounts.filter((a) => !isCredit(a));
-  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div>${balanceSparkline()}</section>
+  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p class="small muted">Cartões de crédito não entram neste saldo.</p></div></section>
     <div class="head"><h2>Contas</h2><button class="btn sm" data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${accs.length ? h`<ul class="cards">${accs.map((a) => { const balance = accBalance(a), bankName = a.bank === OTHER_BANK ? 'outro banco / não listado' : Object.hasOwn(BANKS, a.bank) ? BANKS[a.bank].name : a.bank, name = accountDisplayName(a); return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}" aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span class="grow"><span class="ttl">${name}</span><span class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${bankName ? h` · <span class="user-value">${bankName}</span>` : ''}</span></span><b class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`; })}</ul>` : h`<div class="card">${areaEmpty('Nenhuma conta ainda.', 'Você pode cadastrar uma conta e acompanhar os movimentos por aqui.', h`<button type="button" class="btn primary" data-action="acct-new">Criar primeira conta</button>`, 'wallet', 'h3')}</div>`}
     <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
