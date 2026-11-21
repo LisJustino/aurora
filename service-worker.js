@@ -1,7 +1,8 @@
-const CACHE_NAME = 'aurora-static-v14';
+const CACHE_NAME = 'aurora-static-v15';
 const API_PATH = /\/(?:api|auth|functions|rest|rpc|storage)(?:\/|$)/i;
-const APP_ROUTE = /^\/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?$/i;
-const APP_DOCUMENT = /^\/(?:index\.html|pages\/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar)\.html|terms\.html|privacy\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|ajustes|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)\/?)$/i;
+const SETTINGS_ROUTE = 'ajustes(?:/(?:perfil|aparencia|inicio|areas|dados|agendas|apoio|conta))?';
+const APP_ROUTE = new RegExp(`^/(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|${SETTINGS_ROUTE}|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)/?$`, 'i');
+const APP_DOCUMENT = new RegExp(`^/(?:index\\.html|pages/(?:agua|ajustes|ciclo|financas|habitos|inicio|perfil|planejar)\\.html|terms\\.html|privacy\\.html|(?:inicio|planejar|pomodoro|financas|habitos|agua|ciclo|config|${SETTINGS_ROUTE}|perfil|pessoal|academia|entrar|criar-conta|esqueci-senha|nova-senha|demonstracao)/?)$`, 'i');
 const APP_SHELL_ASSET = /^\/(?:(?:assets\/.+\.(?:css|m?js|woff2?|ttf|otf))|(?:icons\/.+\.(?:svg|png|jpe?g|webp|ico))|(?:screenshots\/.+\.(?:png|webp))|favicon\.svg)$/i;
 
 self.addEventListener('message', (event) => {

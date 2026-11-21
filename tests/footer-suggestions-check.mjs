@@ -24,10 +24,36 @@ assert.ok(footerWithSuggestions.includes(`href="mailto:${CONTACT_EMAIL}">${CONTA
 assert.match(publicFooter, /href="\/demonstracao" data-public-action="demo">Ver demonstração/);
 assert.match(publicFooter, /data-suggestion-status role="status"/);
 assert.doesNotMatch(renderFooterContent(), /data-action="copy-contact-email"/);
-assert.match(authenticatedFooter, /href="\/config">Perfil e ajustes<\/a>/);
+assert.match(authenticatedFooter, /href="\/ajustes">Perfil e ajustes<\/a>/);
 assert.doesNotMatch(authenticatedFooter, /data-account-signout|Sair da conta/);
 assert.match(publicFooter, /class="btn sm back footer-back-to-top" type="button" data-action="footer-scroll-top">Voltar ao topo/);
-assert.match(publicFooter, /A mensagem vai para análise/);
+assert.match(sharedSuggestionForm, /Sua sugestão/);
+assert.match(sharedSuggestionForm, /data-suggestion-count/);
+assert.match(sharedSuggestionForm, /Sua mensagem vai para análise/);
+assert.match(sharedSuggestionForm, /placeholder="Conte o que poderia ser mais simples, útil ou melhor…"/);
+
+const mainJs = readFileSync(
+  new URL('../src/js/main.js', import.meta.url),
+  'utf8',
+);
+const accountSettingsBlock = mainJs.match(/function accountSettings\(s\) \{([\s\S]*?)\n\}\nfunction profileDraftHasChanges/)?.[1] ?? '';
+assert.doesNotMatch(accountSettingsBlock, /data-account-signout|Sair da conta/);
+
+const settingsCss = readFileSync(
+  new URL('../src/css/pages/settings.css', import.meta.url),
+  'utf8',
+);
+assert.match(settingsCss, /\.main\[data-route="config"\] \.settings-account-list \{ gap: var\(--space-5\); \}/);
+
+const settingsView = readFileSync(
+  new URL('../src/js/features/settings/view.js', import.meta.url),
+  'utf8',
+);
+assert.match(settingsView, /Você não precisa passar por isso sozinho/);
+assert.match(settingsView, /Falar com alguém agora/);
+assert.match(settingsView, /Se houver risco imediato/);
+assert.match(settingsView, /tel:188/);
+assert.match(settingsView, /tel:192/);
 
 const landingCss = readFileSync(
   new URL('../src/css/pages/landing.css', import.meta.url),

@@ -303,7 +303,7 @@
 
 /* O calendário fica centrado no cartão e usa melhor a largura em desktop. */
 .main[data-route="planejar"] .tcal-wrap {
-  width: min(100%, 560px);
+  width: min(100%, 760px);
   align-self: center;
 }
 

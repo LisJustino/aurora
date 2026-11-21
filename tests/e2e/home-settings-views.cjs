@@ -28,7 +28,7 @@ const blockSelectors = [
       ['overview', ['today', 'habits', 'summary', 'quick'], ['today', 'summary', 'quick']],
     ]) {
       await page.locator('.header-account-trigger:visible').click();
-      await page.locator('.header-account-panel a[href="/config"]').click();
+      await page.locator('.header-account-panel a[href="/ajustes"]').click();
       await page.locator('.settings-menu [data-settings-tab="home"]').click();
       await page.locator(`[data-action="home-mode"][data-home-mode="${mode}"]`).click();
       await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });

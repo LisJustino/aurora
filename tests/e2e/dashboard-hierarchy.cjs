@@ -82,7 +82,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
       assert.equal(layout.overflow, false);
     }
     await page.locator('.profile-menu-trigger:visible').click();
-    assert.equal(await page.locator('#profile-menu a[href="/config"]').isVisible(), true);
+    assert.equal(await page.locator('#profile-menu a[href="/ajustes"]').isVisible(), true);
     const profileMenuBounds = await page.locator('#profile-menu').evaluate((menu) => {
       const { left, right } = menu.getBoundingClientRect();
       return { left, right, viewport: innerWidth };

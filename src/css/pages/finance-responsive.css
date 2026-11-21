@@ -131,9 +131,6 @@
     gap: var(--space-1);
     padding: 16px;
   }
-  .main[data-route="financas"] .balance-sparkline {
-    height: 38px;
-  }
   .main[data-route="financas"] .fh-row {
     gap: var(--space-3) var(--space-3);
     margin-top: 8px;

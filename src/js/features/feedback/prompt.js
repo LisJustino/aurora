@@ -22,7 +22,7 @@ export function isValidFeedbackPromptNextAt(value) {
 }
 
 export function feedbackSuggestionHref() {
-  return '/config?section=account';
+  return '/ajustes/conta';
 }
 
 export function renderFeedbackPrompt() {
