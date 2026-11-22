@@ -3,6 +3,8 @@ import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
 import { DIAS, longDate, MESES_L, pad, pk, shortDate } from '../../utils/dates.js';
 import { tasksForWeek, weekDays } from './week.js';
+import { agendaLabel, agendaMarker } from './agenda.js';
+import { DEFAULT_HABIT_TARGET, HABIT_TARGETS, MAX_COUNT_TARGET, yearBalance } from './goal-progress.js';
 import { routePathFor } from '../../core/router.js';
 import {
   ANNUAL_PLAN_IDEA_CATEGORIES,
@@ -29,7 +31,7 @@ export function renderPlanningView({
   const views = [['lista', 'Tarefas', 'list'], ['calendario', 'Calendário', 'calendar'], ['revisao', 'Revisão', 'chart'], ['anual', 'Plano anual', 'target']];
   const planView = ui.planView === 'semana' ? 'calendario' : ui.planView;
   const activeView = views.find(([value]) => value === planView) || views[0];
-  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
+  return h`${areaPageTitle('planejar', 'Planejar', h`<button type="button" class="btn sm" data-action="task-bulk">${icon('list', 16)}Várias</button><button type="button" class="btn sm primary" data-action="task-new">${icon('plus', 16)}Nova tarefa</button>`)}
     <section class="surface-open plain" aria-labelledby="mt"><h2 id="mt" class="sr">${activeView[1]}</h2>
       <div class="tabs plan-view-segments" role="tablist" aria-label="Visualizações do Planejar">${views.map(([value, label, ic]) => h`<button type="button" class="tab" role="tab" id="plan-tab-${value}" aria-controls="plan-panel" tabindex="${planView === value ? '0' : '-1'}" data-action="plan-view" data-v="${value}" aria-selected="${String(planView === value)}">${icon(ic, 18)}<span>${label}</span></button>`)}</div>
       <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${activeView[0]}">${planView === 'anual' ? annualPlanView() : planView === 'calendario' ? taskCalendar() : planView === 'revisao' ? weeklyReviewView() : h`<div class="scroll-x" role="group" aria-label="Filtrar tarefas">${filterOptions.map(([key, label]) => h`<button class="chip" aria-pressed="${filters.f === key}" data-action="set-filter" data-f="${key}">${label}</button>`) }${allTags().map((tag) => h`<button class="chip" aria-pressed="${filters.f === 'etq:' + tag}" data-action="set-filter" data-f="${'etq:' + tag}">#${tag}</button>`)}</div>
@@ -47,7 +49,9 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
   const year = ui.annualYear;
   const plan = plans[year] || { intention: '', goals: [] };
   const goals = plan.goals || [];
-  const completed = goals.filter((goal) => goal.done).length;
+  const balance = yearBalance(goals, { today: today(), year, habits: S.habits });
+  const progressOf = new Map(balance.items.map(({ goal, progress }) => [goal.id, progress]));
+  const completed = balance.kept;
   const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
   const quarterData = [
     { id: 'q1', title: '1º trimestre', months: 'jan — mar' },
@@ -56,11 +60,17 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
     { id: 'q4', title: '4º trimestre', months: 'out — dez' },
     { id: '', title: 'Ao longo do ano', months: 'sem data definida' },
   ];
+  const STATUS_LABEL = { done: 'Cumprida', 'on-track': 'No ritmo', behind: 'Atrasada', missed: 'Não cumprida', open: 'Em aberto' };
   const goalCard = (goal) => {
     const linkedTask = S.tasks.find((task) => task.id === goal.taskId);
-    return h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
-      <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
+    const progress = progressOf.get(goal.id);
+    const isDone = progress.status === 'done';
+    return h`<li class="annual-goal${isDone ? ' is-done' : ''}">
+      <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${isDone ? icon('check', 16) : ''}</button>
       <div class="annual-goal-content"><h4>${goal.title}</h4>
+        <p class="annual-goal-status is-${progress.status}"><b>${STATUS_LABEL[progress.status]}</b>${progress.detail ? ` · ${progress.detail}` : ''}</p>
+        ${progress.pct !== null ? h`<progress class="annual-goal-bar is-${progress.status}" value="${progress.pct}" max="100" aria-label="Andamento de ${goal.title}"></progress>` : ''}
+        ${goal.track?.kind === 'count' ? h`<div class="annual-goal-counter" role="group" aria-label="Contar: ${goal.title}"><button type="button" class="btn sm" data-action="annual-goal-count" data-id="${goal.id}" data-n="-1" aria-label="Diminuir um">−1</button><button type="button" class="btn sm primary" data-action="annual-goal-count" data-id="${goal.id}" data-n="1" aria-label="Somar um">+1</button></div>` : ''}
         ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}
         <button type="button" class="btn ghost sm" data-action="annual-goal-task" data-id="${goal.id}">${linkedTask ? 'Abrir tarefa relacionada' : goal.action ? 'Criar tarefa do primeiro passo' : 'Criar tarefa para esta conquista'}</button>
       </div>
@@ -73,6 +83,9 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
   const goalForm = (quarter) => h`<form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
     <label class="annual-goal-title-field"><span>Conquista</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ui.annualGoalDraft?.title || ''}"></label>
     <label class="annual-goal-action-field"><span>Primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ui.annualGoalDraft?.action || ''}"></label>
+    <label class="annual-goal-track-field"><span>Acompanhar um hábito <small>(opcional)</small></span><select name="habitId"><option value="">Não, vou marcar sozinha</option>${S.habits.filter((habit) => (habit.status || 'active') !== 'archived').map((habit) => h`<option value="${habit.id}" ${editing?.track?.kind === 'habit' && editing.track.habitId === habit.id ? raw('selected') : ''}>${habit.name}</option>`)}</select></label>
+    <label class="annual-goal-track-field"><span>Meta do hábito</span><select name="targetPct">${HABIT_TARGETS.map((value) => h`<option value="${value}" ${(editing?.track?.kind === 'habit' ? editing.track.targetPct : DEFAULT_HABIT_TARGET) === value ? raw('selected') : ''}>${value === 100 ? 'Todos os dias programados' : `${value}% dos dias programados`}</option>`)}</select></label>
+    <label class="annual-goal-track-field"><span>Ou contar até <small>(ex.: 12 livros)</small></span><input name="countTarget" type="number" inputmode="numeric" min="1" max="${MAX_COUNT_TARGET}" step="1" placeholder="Sem contagem" value="${editing?.track?.kind === 'count' ? editing.track.target : ''}"></label>
     <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${quarterData.slice(0, 4).map(({ id, title }) => h`<option value="${id}" ${quarter === id ? raw('selected') : ''}>${title}</option>`)}</select></label>
     <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button><button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button></div>
   </form>`;
@@ -84,9 +97,16 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
       </div>
       <div class="annual-plan-progress-card" aria-label="Resumo das conquistas do ano">
         <span class="annual-plan-progress-ring" style="--annual-progress:${goals.length ? Math.round(completed / goals.length * 100) : 0}%"><b>${goals.length ? `${Math.round(completed / goals.length * 100)}%` : '—'}</b></span>
-        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${completed} concluída(s) · ${goals.length - completed} em andamento</small></span>
+        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${balance.ended ? `Você cumpriu ${completed} de ${goals.length}` : `${completed} cumprida(s) · ${balance.counts['on-track']} no ritmo · ${balance.counts.behind} atrasada(s)`}</small></span>
       </div>
     </header>
+    ${goals.length ? h`<section class="annual-balance${balance.ended ? ' is-final' : ''}" aria-labelledby="annual-balance-title">
+      <p class="section-kicker">${balance.ended ? `Balanço de ${year}` : `Como ${year} está indo`}</p>
+      <h3 id="annual-balance-title">${balance.ended
+        ? (completed === goals.length ? 'Você cumpriu tudo o que prometeu.' : `Você cumpriu ${completed} de ${goals.length} ${plural(goals.length, 'promessa', 'promessas')}.`)
+        : (balance.counts.behind || balance.counts.missed ? `${balance.counts.behind} ${plural(balance.counts.behind, 'conquista pede', 'conquistas pedem')} atenção.` : 'Tudo no ritmo até agora.')}</h3>
+      <ul class="annual-balance-list">${balance.items.filter(({ progress }) => balance.ended || progress.status === 'behind' || progress.status === 'missed').map(({ goal, progress }) => h`<li class="is-${progress.status}"><b>${goal.title}</b><span>${STATUS_LABEL[progress.status]}${progress.detail ? ` · ${progress.detail}` : ''}</span></li>`)}</ul>
+    </section>` : ''}
     <form class="annual-intention-form" data-form="annual-intention">
       <label for="annual-intention"><span class="annual-intention-label">Sua intenção para ${year}</span><span class="annual-intention-hint">O que você quer sentir, mudar ou priorizar neste ano?</span></label>
       <textarea id="annual-intention" name="intention" rows="2" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: ter mais tempo para mim e para quem amo.">${plan.intention}</textarea>
@@ -152,6 +172,7 @@ export function renderTaskCalendar({
   taskRow,
   googleCalendarPlanPanel,
   calendarEventTaskKey,
+  agendaForMonth = () => ({}),
 }) {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
   const eventsByDay = new Map();
@@ -177,6 +198,7 @@ export function renderTaskCalendar({
       (by[task.dueDate] = by[task.dueDate] || []).push(task);
     }
   });
+  const agenda = agendaForMonth(ym);
   const cells = [];
   for (let index = 0; index < (first.getDay() + 7 - ws) % 7; index++) cells.push('<span></span>');
   for (let dayNumber = 1; dayNumber <= n; dayNumber++) {
@@ -187,10 +209,12 @@ export function renderTaskCalendar({
     const labels = [
       `${pending.length} ${pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
       ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} das agendas conectadas`] : []),
+      ...agendaLabel(agenda[key] || []),
     ];
     const markers = [
       pending.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pending.length, 3)) : tasks.length ? '<u class="dn"></u>' : '',
       dayEvents.length ? '<u class="google-event-dot"></u>' : '',
+      agendaMarker(agenda[key] || []),
     ].join('');
     cells.push(`<button type="button" class="tc ${key === tdy ? 't' : ''} ${key === ui.taskDay ? 's' : ''} ${pending.some((task) => key < task.dueDate) ? 'od' : ''}" data-action="tcal-day" data-d="${key}" aria-label="${dayNumber} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${dayNumber}</b><i>${markers}</i></button>`);
   }
@@ -206,7 +230,7 @@ export function renderTaskCalendar({
       : event.calendarName || event.accountLabel || 'Google Calendar');
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
     ${googleCalendarPlanPanel()}
-    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
+    <div class="tcal" role="group" aria-label="Calendário de tarefas, contas, ciclo e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
     ${connectedAccounts.length ? h`<section class="surface-open google-calendar-day" aria-labelledby="google-calendar-day-title">
       <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Ações locais</span></div>
       ${selectedEvents.length
@@ -224,6 +248,10 @@ export function renderTaskCalendar({
           headingLevel: 'h4',
           className: 'google-calendar-day-empty',
         })}
+    </section>` : ''}
+    ${(agenda[ui.taskDay] || []).length ? h`<section class="surface-open agenda-day" aria-labelledby="agenda-day-title">
+      <div class="head"><h3 id="agenda-day-title">Contas e ciclo · ${cap(longDate(ui.taskDay))}</h3></div>
+      <ul class="agenda-day-list">${agenda[ui.taskDay].map((item) => h`<li class="agenda-${item.kind}"><span class="agenda-day-icon">${icon(item.kind === 'cycle' ? 'heart' : 'wallet', 16)}</span><span class="grow">${item.label}</span>${item.amount ? h`<b>${item.amount}</b>` : ''}</li>`)}</ul>
     </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((task) => !task.done).length} pendente(s)</span></div>
       ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul><button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>` : emptyState({

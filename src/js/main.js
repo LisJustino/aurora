@@ -77,7 +77,10 @@ import {
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { habitStartedOnOrBefore } from './features/habits/dates.js';
-import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
+import { MAX_BULK_HABITS, parseBulkHabits } from './features/habits/bulk-habits.js';
+import { HABIT_TARGETS, MAX_COUNT_TARGET } from './features/planning/goal-progress.js';
+import { cycleDayNumber, cycleStats, nextPeriodRange, topSymptoms } from './features/cycle/calculations.js';
+import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from './features/cycle/report.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   getReleaseNotes,
@@ -261,7 +264,11 @@ import {
   orderMenuItems,
 } from './features/navigation/menu.js';
 import { weekDays, weeklyReview } from './features/planning/week.js';
+import { weekSpending } from './features/planning/week-finance.js';
+import { agendaForMonth as buildAgendaForMonth } from './features/planning/agenda.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
+import { MAX_BULK_TASKS, parseBulkTasks } from './features/planning/bulk-tasks.js';
+import { backupReminder, backupSnoozeUntil } from './features/backup/reminder.js';
 import { renderTaskRow } from './features/planning/task-row.js';
 import { renderHomeView } from './features/home/view.js';
 import { createHomeDaySummary, homeBadgeCount } from './features/home/day-summary.js';
@@ -526,7 +533,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, backupReminderSnoozedUntil: null, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -803,6 +810,8 @@ function normalizeSettings(s) {
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
   o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
+  o.prefs.cycleDiscreet = prefs.cycleDiscreet === true;
+  o.prefs.backupReminderSnoozedUntil = typeof prefs.backupReminderSnoozedUntil === 'string' && Number.isFinite(Date.parse(prefs.backupReminderSnoozedUntil)) ? prefs.backupReminderSnoozedUntil : null;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
@@ -1002,6 +1011,9 @@ function settingsIssueCount(value) {
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'cycleDiscreet') && typeof prefs.cycleDiscreet !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'backupReminderSnoozedUntil') && prefs.backupReminderSnoozedUntil !== null
+      && (!isText(prefs.backupReminderSnoozedUntil) || !Number.isFinite(Date.parse(prefs.backupReminderSnoozedUntil)))) issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
@@ -1773,6 +1785,13 @@ function weeklyReviewView() {
     (day) => waterGoalReached(waterMlForDay(S.water, day), waterGoal),
   );
   const week = weekDays(today(), weekStartDay());
+  const weekMoney = areaOn('finances') && S.finance.accounts.length
+    ? {
+      hidden: S.settings.prefs.financeValuesHidden === true,
+      spending: weekSpending(S.finance.tx, week[0], today()),
+      dues: upcomingDueItems().filter((item) => item.date >= review.nextWeek.start && item.date <= review.nextWeek.end),
+    }
+    : null;
   const savedReflection = S.settings.prefs.weeklyReflection;
   const currentReflection = savedReflection?.weekOf === week[0] ? savedReflection.text : '';
   const formatDay = (day) => {
@@ -1789,6 +1808,11 @@ function weeklyReviewView() {
         <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
       </div>
     </section>
+    ${weekMoney ? h`<section class="card weekly-review-money" aria-labelledby="weekly-money-title">
+      <div class="head"><h3 id="weekly-money-title">Dinheiro da semana</h3></div>
+      <p>${weekMoney.hidden ? 'Valores ocultos.' : h`Você gastou <b>${brl(weekMoney.spending.current)}</b> até hoje.`}${!weekMoney.hidden && weekMoney.spending.hasPrevious ? h` Na semana passada, no mesmo trecho, foram ${brl(weekMoney.spending.previous)}.` : ''}</p>
+      ${weekMoney.dues.length ? h`<p class="small muted">Vencem na próxima semana: ${weekMoney.dues.slice(0, 3).map((item) => `${item.label}${weekMoney.hidden ? '' : ` (${brl(item.cents)})`}`).join(', ')}${weekMoney.dues.length > 3 ? ` e mais ${weekMoney.dues.length - 3}` : ''}.</p>` : h`<p class="small muted">Nenhuma conta vence na próxima semana.</p>`}
+    </section>` : ''}
     <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
       <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
       ${review.tasks.overdueTasks.length
@@ -1801,13 +1825,18 @@ function weeklyReviewView() {
         ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
         : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
     </section>
-    <section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
+    ${currentReflection && !ui.reflectionEditing
+      ? h`<section class="card weekly-reflection is-answered" aria-labelledby="weekly-reflection-title">
+      <div class="head"><div><p class="section-kicker">Para a próxima semana</p><h2 id="weekly-reflection-title">${currentReflection}</h2></div><button type="button" class="btn sm" data-action="weekly-reflection-edit">Mudar</button></div>
+      <p class="small muted" role="status">Sua resposta está salva na revisão desta semana.</p>
+    </section>`
+      : h`<section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
       <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      ${currentReflection ? h`<p class="small muted" role="status">Reflexão salva para esta semana: ${currentReflection}.</p>` : h`<p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>`}
+      <p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>
       <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
         ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
       </div>
-    </section>
+    </section>`}
   </div>`;
 }
 
@@ -2736,7 +2765,7 @@ function viewInicio() {
       }
       : null,
     cycle: showCycleSummary
-      ? { day: cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
+      ? { day: S.settings.prefs.cycleDiscreet ? null : cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
       : null,
   });
   const weekProgress = weeklyReview(S.tasks, [], todayKey).tasks;
@@ -2749,6 +2778,13 @@ function viewInicio() {
       days: UPCOMING_WINDOW_DAYS,
       hidden: Boolean(S.settings.prefs.financeValuesHidden),
     }
+    : null;
+  const backupNotice = !ui.preview && !S.settings.prefs.sample
+    ? backupReminder({
+      lastBackup: S.settings.prefs.lastBackup,
+      snoozedUntil: S.settings.prefs.backupReminderSnoozedUntil,
+      recordCount: S.tasks.length + S.finance.tx.length + S.habits.length + Object.keys(S.cycleLog).length,
+    })
     : null;
   return renderHomeView({
     name,
@@ -2772,6 +2808,7 @@ function viewInicio() {
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
     financeUpcoming,
+    backupNotice,
     showHomeBlock,
     homeBlockStyle,
   }, {
@@ -3162,6 +3199,7 @@ function viewPlanejar() {
       ymLabel,
       taskRow,
       googleCalendarPlanPanel: () => renderGoogleCalendarPlanPanel(connectedGoogleCalendarAccounts()),
+      agendaForMonth: calendarAgenda,
       calendarEventTaskKey: (event) => {
         if (!event?.accountIdentity || !event?.calendarId || !event?.id) return '';
         return `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`;
@@ -4242,6 +4280,139 @@ function dlgReleaseNotes() {
     <ul class="release-notes-list">${notes.items.map((item) => h`<li><strong>${item.title}</strong>${item.description ? h`<p>${item.description}</p>` : ''}</li>`)}</ul>`,
   h`<button type="button" class="btn primary" data-action="dlg-close">Entendi</button>`, 'release-notes-dialog');
 }
+const TASK_BULK_EXAMPLES = [
+  'Pagar condomínio 28/11',
+  'Ligar para o dentista amanhã 14h30 #saúde',
+  'Comprar presente #família',
+];
+function dlgTaskBulk() {
+  const d = ui.dlg.d;
+  if (d.step === 'review') {
+    const valid = d.rows.filter((row) => !row.error), invalid = d.rows.length - valid.length;
+    const chosen = valid.filter((row) => row.on);
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Confira antes de criar</h2>${closeBtn}</div>
+      <p class="small muted" role="status" aria-live="polite">${valid.length} ${plural(valid.length, 'tarefa entendida', 'tarefas entendidas')}${invalid ? h` · <b>${invalid} ${plural(invalid, 'precisa', 'precisam')} de ajuste</b>` : ''}. Marcadas: ${chosen.length}.</p>
+      <ul class="list imp bulk-entry-list">${d.rows.map((row, index) => row.error
+        ? h`<li class="bulk-entry-error"><span class="grow"><b class="ellip user-value">${row.source}</b><span class="small bulk-entry-error-text">${icon('alert', 14)} Linha ${row.line}: ${row.error}</span></span></li>`
+        : h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${index}.on" ${row.on ? raw('checked') : ''} aria-label="Criar ${row.title}"><span class="grow"><b class="ellip user-value">${row.title}</b><span class="small muted">${row.dueDate ? `${shortDate(row.dueDate)}${row.time ? ` · ${row.time}` : ''}` : 'Sem prazo'}${row.tags.length ? ` · ${row.tags.map((tag) => `#${tag}`).join(' ')}` : ''}${row.duplicate ? ' · já existe (desmarcada)' : ''}</span></span></label></li>`)}</ul>`,
+      h`<button type="button" class="btn back" data-action="taskbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="taskbulk-apply" ${chosen.length ? '' : raw('disabled')}>Criar ${chosen.length ? `(${chosen.length})` : ''}</button>`);
+  }
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Criar várias tarefas</h2>${closeBtn}</div>
+    <p class="small muted">Escreva uma tarefa por linha. Depois, confira antes de criar.</p>
+    <form id="dlgform" class="form" data-form="dlg-taskbulk" novalidate>
+      ${dlgField('Tarefas', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="true" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
+    </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos:</b></p>
+      ${TASK_BULK_EXAMPLES.map((example) => h`<div class="bulk-entry-example"><code class="bulk-entry-example-text user-value">${example}</code></div>`)}
+    </section>
+    <details class="bulk-entry-help">
+      <summary>Como montar cada linha</summary>
+      <ul class="fine">
+        <li><b>Prazo:</b> escreva hoje, amanhã, um dia da semana ou uma data como 20/11. Sem prazo, a tarefa vai para a caixa de entrada.</li>
+        <li><b>Horário:</b> acrescente 14h ou 14h30 junto com o prazo.</li>
+        <li><b>Etiquetas:</b> use #saúde, #casa e assim por diante.</li>
+        <li><b>Marcadores:</b> pode colar listas com "-", "•" ou números; eles são ignorados.</li>
+      </ul>
+      <p class="fine muted">Você pode criar até ${MAX_BULK_TASKS} tarefas por vez. Tarefas iguais a uma já aberta vêm desmarcadas.</p>
+    </details>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
+}
+function reviewBulkTasks() {
+  const d = ui.dlg.d;
+  const rows = parseBulkTasks(d.text, today(), S.tasks);
+  if (!rows.length) return fieldError('Escreva ao menos uma tarefa.', '[data-dlg="text"]');
+  d.rows = rows;
+  d.step = 'review';
+  render();
+}
+function applyBulkTasks() {
+  const d = ui.dlg?.type === 'taskbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos uma tarefa.', 'info');
+  const slices = homeFirstTaskSlices();
+  const base = Date.now();
+  const created = chosen.map((row, index) => mkTask({
+    title: row.title,
+    dueDate: row.dueDate,
+    createdAt: base + index,
+    ...(row.time ? { time: row.time } : {}),
+    ...(row.tags.length ? { tags: [...row.tags] } : {}),
+  }));
+  S.tasks.push(...created);
+  ui.dlg = null;
+  const saved = saveSlices(...slices);
+  render();
+  if (!saved) return;
+  const ids = new Set(created.map((task) => task.id));
+  toast(`${created.length} ${plural(created.length, 'tarefa criada', 'tarefas criadas')}.`, 'action', () => {
+    S.tasks = S.tasks.filter((task) => !ids.has(task.id));
+    commit('tasks');
+  });
+}
+const HABIT_BULK_EXAMPLES = ['Ler 10 páginas - seg a sex', 'Treinar - seg, qua, sex', 'Correr - 3x por semana', 'Alongar'];
+function dlgHabitBulk() {
+  const d = ui.dlg.d;
+  if (d.step === 'review') {
+    const valid = d.rows.filter((row) => !row.error), invalid = d.rows.length - valid.length;
+    const chosen = valid.filter((row) => row.on);
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Confira antes de criar</h2>${closeBtn}</div>
+      <p class="small muted" role="status" aria-live="polite">${valid.length} ${plural(valid.length, 'hábito entendido', 'hábitos entendidos')}${invalid ? h` · <b>${invalid} ${plural(invalid, 'precisa', 'precisam')} de ajuste</b>` : ''}. Marcados: ${chosen.length}.</p>
+      <ul class="list imp bulk-entry-list">${d.rows.map((row, index) => row.error
+        ? h`<li class="bulk-entry-error"><span class="grow"><b class="ellip user-value">${row.source}</b><span class="small bulk-entry-error-text">${icon('alert', 14)} Linha ${row.line}: ${row.error}</span></span></li>`
+        : h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${index}.on" ${row.on ? raw('checked') : ''} aria-label="Criar ${row.name}"><span class="grow"><b class="ellip user-value">${row.name}</b><span class="small muted">${row.days.length === 7 ? 'Todos os dias' : row.days.map((day) => DIAS[day]).join(', ')}${row.weeklyGoal ? ` · meta ${row.weeklyGoal}x por semana` : ''}${row.duplicate ? ' · já existe (desmarcado)' : ''}</span></span></label></li>`)}</ul>`,
+      h`<button type="button" class="btn back" data-action="habitbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="habitbulk-apply" ${chosen.length ? '' : raw('disabled')}>Criar ${chosen.length ? `(${chosen.length})` : ''}</button>`);
+  }
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Criar vários hábitos</h2>${closeBtn}</div>
+    <p class="small muted">Escreva um hábito por linha. Depois, confira antes de criar.</p>
+    <form id="dlgform" class="form" data-form="dlg-habitbulk" novalidate>
+      ${dlgField('Hábitos', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="true" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
+    </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos:</b></p>
+      ${HABIT_BULK_EXAMPLES.map((example) => h`<div class="bulk-entry-example"><code class="bulk-entry-example-text user-value">${example}</code></div>`)}
+    </section>
+    <details class="bulk-entry-help">
+      <summary>Como montar cada linha</summary>
+      <ul class="fine">
+        <li><b>Nome e dias:</b> escreva o nome, um hífen e os dias. Sem dias, o hábito vale para todos.</li>
+        <li><b>Dias:</b> seg, ter, qua…, "seg a sex", "dias úteis", "fim de semana" ou "todos os dias".</li>
+        <li><b>Meta semanal:</b> acrescente 3x por semana (ou 3x) para definir uma meta.</li>
+        <li><b>Marcadores:</b> pode colar listas com "-", "•" ou números; eles são ignorados.</li>
+      </ul>
+      <p class="fine muted">Você pode criar até ${MAX_BULK_HABITS} hábitos por vez. Nomes que você já usa vêm desmarcados. Ícone e cor podem ser ajustados depois.</p>
+    </details>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
+}
+function reviewBulkHabits() {
+  const d = ui.dlg.d;
+  const rows = parseBulkHabits(d.text, S.habits);
+  if (!rows.length) return fieldError('Escreva ao menos um hábito.', '[data-dlg="text"]');
+  d.rows = rows;
+  d.step = 'review';
+  render();
+}
+function applyBulkHabits() {
+  const d = ui.dlg?.type === 'habitbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos um hábito.', 'info');
+  const base = Date.now(), start = S.habits.length;
+  const created = chosen.map((row, index) => ({
+    id: newId(), name: row.name.slice(0, 60), days: [...row.days], completions: [], createdAt: base + index, status: 'active',
+    color: HABIT_COLORS[(start + index) % HABIT_COLORS.length],
+    ...(row.weeklyGoal ? { weeklyGoal: row.weeklyGoal } : {}),
+  }));
+  S.habits.push(...created);
+  ui.dlg = null;
+  const saved = saveSlices('habits');
+  render();
+  if (!saved) return;
+  const ids = new Set(created.map((habit) => habit.id));
+  toast(`${created.length} ${plural(created.length, 'hábito criado', 'hábitos criados')}.`, 'action', () => {
+    S.habits = S.habits.filter((habit) => !ids.has(habit.id));
+    commit('habits');
+  });
+}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}</h2></div>${closeBtn}</div>
@@ -4266,8 +4437,22 @@ function dlgTask() {
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
     'task-dialog');
 }
+function saveCycleLogDay(day, log) {
+  if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Não foi possível salvar este registro.', 'info'), false;
+  const snapshot = snapshotSlices(['cycleLog']);
+  if (hasAnyLog(log)) S.cycleLog[day] = log;
+  else delete S.cycleLog[day];
+  if (!saveSlicesWithRollback(['cycleLog'], snapshot, false, 'registro do ciclo')) return false;
+  ui.cycDay = day;
+  render();
+  return true;
+}
 function dlgCycleLog() { return cycleDialogViews.log(); }
 function dlgCyclePeriod() { return cycleDialogViews.period(); }
+function dlgCycleReport() {
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Resumo para consulta</h2>${closeBtn}</div>${raw(ui.dlg.d.html)}`,
+    h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="cyc-report-print">${icon('list', 16)}Imprimir ou salvar PDF</button>`, 'cycle-report-body');
+}
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || d.tracking === 'water' || isWaterHabit(habit));
@@ -4624,7 +4809,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, taskbulk: dlgTaskBulk, habitbulk: dlgHabitBulk, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?</h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -5315,6 +5500,16 @@ const ACTIONS = {
     toast('Foto removida. A alteração será salva automaticamente.', 'info');
   },
   'focus-quick-task': () => openTaskDialog(today()),
+  'backup-snooze': () => {
+    S.settings.prefs.backupReminderSnoozedUntil = backupSnoozeUntil();
+    commit('settings');
+  },
+  'task-bulk': () => dlgOpen('taskbulk', { step: 'edit', text: '', rows: [] }),
+  'taskbulk-back': () => { if (ui.dlg?.type === 'taskbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'taskbulk-apply': () => applyBulkTasks(),
+  'habit-bulk': () => dlgOpen('habitbulk', { step: 'edit', text: '', rows: [] }),
+  'habitbulk-back': () => { if (ui.dlg?.type === 'habitbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'habitbulk-apply': () => applyBulkHabits(),
   'focus-task-title': () => openTaskDialog(),
   'first-steps-dismiss': async () => {
     if (!await confirmInDialog('Dispensar o cartão “Comece em 3 passos”? Ele não aparecerá novamente.')) return;
@@ -5411,6 +5606,59 @@ const ACTIONS = {
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
+  'cycle-discreet-toggle': () => {
+    S.settings.prefs.cycleDiscreet = !S.settings.prefs.cycleDiscreet;
+    commit('settings');
+  },
+  'cyc-quick': (el) => {
+    const category = el.dataset.c, value = el.dataset.v;
+    const group = CYC.find(({ id }) => id === category);
+    if (!group || group.single || !['pain', 'mood', 'digestion', 'skin'].includes(category)
+      || !group.opts.some(([optionValue]) => optionValue === value)) return;
+    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
+    const log = structuredClone(dayLog(day));
+    const current = Array.isArray(log[category]) ? log[category] : [];
+    log[category] = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+    if (!log[category].length) delete log[category];
+    saveCycleLogDay(day, log);
+  },
+  'cyc-med-quick': (el) => {
+    if (!['yes', 'no'].includes(el.dataset.v)) return;
+    const day = today();
+    const log = structuredClone(dayLog(day));
+    if (typeof log.medicationTaken === 'boolean') return;
+    log.medicationTaken = el.dataset.v === 'yes';
+    if (saveCycleLogDay(day, log)) toast('Medicação de hoje registrada.', 'success');
+  },
+  'cyc-report-open': () => {
+    const todayKey = today();
+    const report = buildCycleReport({
+      cycleLog: S.cycleLog,
+      stats: cycleStats(S.cycleLog, S.cycle, todayKey),
+      asOfDate: todayKey,
+      getLabel: cycLabel,
+    });
+    dlgOpen('cycle-report', { html: cycleReportHtml(report, { esc, longDate, shortDate, plural }) });
+  },
+  'cyc-report-print': () => {
+    const html = ui.dlg?.type === 'cycle-report' ? ui.dlg.d.html : '';
+    if (!html) return;
+    const frame = document.createElement('iframe');
+    frame.title = 'Resumo do ciclo para impressão';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    frame.srcdoc = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Resumo do ciclo</title><style>${CYCLE_REPORT_PRINT_CSS}</style></head><body>${html}</body></html>`;
+    frame.onload = () => {
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch {
+        toast('Não foi possível abrir a impressão neste aparelho.', 'info');
+      }
+      setTimeout(() => frame.remove(), 60000);
+    };
+    document.body.appendChild(frame);
+  },
   'finance-values-toggle': () => {
     S.settings.prefs.financeValuesHidden = !S.settings.prefs.financeValuesHidden;
     ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
@@ -5563,6 +5811,15 @@ const ACTIONS = {
     goal.done = !goal.done;
     saveSlicesWithRollback(['settings'], snapshot);
   },
+  'annual-goal-count': (el) => {
+    const goal = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals.find((item) => item.id === el.dataset.id);
+    if (goal?.track?.kind !== 'count') return;
+    const next = Math.max(0, goal.track.current + (Number(el.dataset.n) < 0 ? -1 : 1));
+    if (next === goal.track.current || next > MAX_COUNT_TARGET * 10) return;
+    const snapshot = snapshotSlices(['settings']);
+    goal.track.current = next;
+    if (saveSlicesWithRollback(['settings'], snapshot) && next === goal.track.target) toast('Meta alcançada. Parabéns!', 'success');
+  },
   'annual-goal-task': (el) => {
     const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
     const goal = plan?.goals.find((item) => item.id === el.dataset.id);
@@ -5625,9 +5882,11 @@ const ACTIONS = {
     const weekStart = weekDays(today(), weekStartDay())[0];
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.weeklyReflection = { weekOf: weekStart, text: choice };
+    ui.reflectionEditing = false;
     if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a reflexão semanal')) return;
     toast('Reflexão semanal salva.', 'success');
   },
+  'weekly-reflection-edit': () => { ui.reflectionEditing = true; render(); },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
     if (!task || task.done || !isDay(task.dueDate)) return;
@@ -6569,6 +6828,8 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'dlg-taskbulk': () => reviewBulkTasks(),
+  'dlg-habitbulk': () => reviewBulkHabits(),
   'dlg-txbulk': () => reviewBulkEntry(),
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
@@ -7706,6 +7967,28 @@ function categoryBars(items, total) {
   return h`<ul class="category-bars">${rows}</ul>`;
 }
 const UPCOMING_WINDOW_DAYS = 14;
+function calendarAgenda(ym) {
+  const F = S.finance, now = today();
+  const hidden = S.settings.prefs.financeValuesHidden;
+  const amount = (cents) => (hidden ? '' : brl(cents));
+  let bills = [], invoices = [];
+  if (areaOn('finances') && F.accounts.length) {
+    bills = F.tx
+      .filter((t) => t.type === 'out' && !isPaid(t) && t.date.startsWith(`${ym}-`) && !isCredit(accById(t.accountId)))
+      .map((t) => ({ date: t.date, label: t.desc || t.category || 'Despesa', amount: amount(t.cents) }));
+    invoices = F.accounts.filter(isCredit).flatMap((card) => {
+      const info = cardInfo(card);
+      const pending = Math.max(0, -accountBalanceOn(card, F.tx, now) - scheduledInvoicePrincipal(card.id));
+      return info.due && info.due.startsWith(`${ym}-`) && pending > 0
+        ? [{ date: info.due, label: `Fatura ${accountDisplayName(card)}`, amount: amount(pending) }]
+        : [];
+    });
+  }
+  const showCycle = !ui.preview && !S.settings.prefs.sample && !S.settings.prefs.cycleDiscreet
+    && areaOn('cycle') && hasCurrentCycleDataConsent(accountSession?.user);
+  const cycleRange = showCycle ? nextPeriodRange(cycleStats(S.cycleLog, S.cycle, now)) : null;
+  return buildAgendaForMonth(ym, { bills, invoices, cycleRange });
+}
 function upcomingDueItems() {
   const F = S.finance, now = today(), limit = addDays(now, UPCOMING_WINDOW_DAYS);
   const bills = F.tx
@@ -8862,6 +9145,16 @@ Object.assign(FORMS, {
     if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) {
       return fieldError('Escolha um período válido.', '[name="quarter"]');
     }
+    const habitId = String(data.get('habitId') || '');
+    const countTarget = String(data.get('countTarget') || '').trim();
+    if (habitId && countTarget) return fieldError('Escolha só uma forma de acompanhar: um hábito ou uma contagem.', '[name="countTarget"]');
+    if (habitId && !S.habits.some((habit) => habit.id === habitId)) return fieldError('Escolha um hábito válido.', '[name="habitId"]');
+    const targetPct = Number(data.get('targetPct') || 80);
+    if (habitId && !HABIT_TARGETS.includes(targetPct)) return fieldError('Escolha uma meta válida para o hábito.', '[name="targetPct"]');
+    const countValue = countTarget ? Number(countTarget) : 0;
+    if (countTarget && (!Number.isInteger(countValue) || countValue < 1 || countValue > MAX_COUNT_TARGET)) {
+      return fieldError('Informe uma contagem inteira entre 1 e 100.000.', '[name="countTarget"]');
+    }
     const snapshot = snapshotSlices(['settings']);
     const plans = S.settings.prefs.annualPlans;
     const plan = plans[ui.annualYear] || { intention: '', goals: [] };
@@ -8872,8 +9165,15 @@ Object.assign(FORMS, {
     if (!goal && plan.goals.length >= ANNUAL_PLAN_LIMITS.goals) {
       return toast('Este ano já tem o limite de conquistas. Remova uma antes de adicionar outra.', 'warning');
     }
-    if (goal) Object.assign(goal, { title, action, quarter });
-    else plan.goals.push({ id: newId(), title, action, quarter, done: false });
+    const previousCount = goal?.track?.kind === 'count' ? goal.track.current : 0;
+    const track = habitId
+      ? { kind: 'habit', habitId, targetPct }
+      : countTarget ? { kind: 'count', target: countValue, current: previousCount } : null;
+    if (goal) {
+      Object.assign(goal, { title, action, quarter });
+      if (track) goal.track = track;
+      else delete goal.track;
+    } else plan.goals.push({ id: newId(), title, action, quarter, done: false, ...(track ? { track } : {}) });
     plans[ui.annualYear] = plan;
     if (saveSlicesWithRollback(['settings'], snapshot)) {
       ui.annualEditingGoalId = '';

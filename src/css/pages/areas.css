@@ -492,3 +492,35 @@
     .main[data-route="agua"] > .lead,
   .main[data-route="ciclo"] > .lead { margin-top: -12px; padding-inline: 4px; font-size: var(--text-md); }
 }
+
+/* Ciclo: modo discreto, avisos, registro rápido, histórico e resumo */
+.cycle-content { display: flex; flex-direction: column; gap: clamp(var(--space-6), 3vw, var(--space-7)); min-width: 0; }
+.cycle-content.is-discreet { filter: blur(10px); opacity: .55; user-select: none; pointer-events: none; }
+.cycle-discreet-note,
+.cycle-delay-note,
+.cycle-soon-note { display: flex; align-items: flex-start; gap: var(--space-2); }
+.cycle-discreet-note > .ic,
+.cycle-delay-note > .ic,
+.cycle-soon-note > .ic { flex: none; margin-top: 2px; color: var(--area-cycle); }
+.cycle-med-reminder,
+.cycle-quick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.cycle-quick > .small { flex-basis: 100%; }
+.cycle-history-list,
+.cycle-patterns .list { display: grid; gap: var(--space-2); margin: var(--space-3) 0; padding: 0; list-style: none; }
+.cycle-history-list li { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
+.cycle-history-list li > small { grid-column: 2 / -1; color: var(--muted); font-size: var(--text-xs); }
+.cycle-history-date { color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.cycle-history-bar { display: block; height: 8px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.cycle-history-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--area-cycle); }
+.cycle-patterns .list li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.cycle-patterns .list li > b { text-align: right; font-size: var(--text-xs); font-weight: 600; }
+.cycle-report-body .cycle-report { display: grid; gap: var(--space-2); }
+.cycle-report-body .cycle-report h2 { margin: 0; }
+.cycle-report-body .cycle-report h3 { margin: var(--space-3) 0 0; font-size: var(--text-sm); }
+.cycle-report-body .cycle-report ul { margin: 0; padding-left: 1.2rem; }
+.cycle-report-body .cycle-report table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.cycle-report-body .cycle-report :is(th, td) { padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--line); text-align: left; }
+.cycle-report-body .cycle-report-note { color: var(--muted); font-size: var(--text-xs); }
+.cycle-report-body .cycle-report-facts { display: grid; gap: var(--space-1); margin: 0; }
+.cycle-report-body .cycle-report-facts > div { display: flex; justify-content: space-between; gap: var(--space-3); }
+.cycle-report-body .cycle-report-facts dd { margin: 0; font-weight: 600; text-align: right; }

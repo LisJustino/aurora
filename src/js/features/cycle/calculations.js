@@ -75,3 +75,94 @@ export function topSymptoms(cycleLog, asOfDate, getLabel) {
     return { category, value, label: getLabel(category, value), count };
   });
 }
+
+export function cycleHistory(starts, periodSet, limit = 12) {
+  const sorted = [...(Array.isArray(starts) ? starts : [])].sort();
+  const set = periodSet instanceof Set ? periodSet : new Set();
+  return sorted.map((start, index) => {
+    let periodLength = 0;
+    while (set.has(addDays(start, periodLength))) periodLength += 1;
+    const nextStart = sorted[index + 1] || null;
+    return {
+      start,
+      periodLength,
+      length: nextStart ? dayDiff(nextStart, start) : null,
+      ongoing: !nextStart,
+    };
+  }).reverse().slice(0, limit);
+}
+
+export function nextPeriodRange(stats) {
+  const last = stats?.starts?.[stats.starts.length - 1];
+  if (!last || !stats.next || !stats.min || !stats.max) return null;
+  return {
+    from: addDays(last, stats.min),
+    to: addDays(last, stats.max),
+    single: stats.min === stats.max,
+  };
+}
+
+const DELAY_LOOKBACK_DAYS = 90;
+
+export function periodDelay(stats, asOfDate) {
+  const last = stats?.starts?.[stats.starts.length - 1];
+  if (!last || !stats.next || asOfDate <= stats.next) return null;
+  if (stats.set.has(asOfDate) || dayDiff(asOfDate, last) > DELAY_LOOKBACK_DAYS) return null;
+  const range = nextPeriodRange(stats);
+  return {
+    days: dayDiff(asOfDate, stats.next),
+    insideRange: Boolean(range && asOfDate <= range.to),
+  };
+}
+
+const PATTERN_ARRAYS = ['pain', 'mood', 'digestion', 'skin'];
+const PATTERN_SINGLES = { energy: ['exhausted', 'low'], sleep: ['restless', 'insomnia'] };
+const BEFORE_PERIOD_DAYS = 5;
+const PATTERN_MIN_COUNT = 3;
+const PATTERN_MIN_SHARE = 0.6;
+
+export function symptomPhasePatterns(cycleLog, stats, asOfDate, getLabel) {
+  const from = addDays(asOfDate, -365);
+  const starts = stats?.starts || [];
+  const bucketOf = (day) => {
+    if (stats.set.has(day)) return 'period';
+    const next = starts.find((start) => start > day);
+    if (!next) return null;
+    return dayDiff(next, day) <= BEFORE_PERIOD_DAYS ? 'before' : 'other';
+  };
+  const counts = new Map();
+  const add = (day, category, value, bucket) => {
+    const key = `${category}:${value}`;
+    const entry = counts.get(key) || { category, value, total: 0, period: 0, before: 0, other: 0 };
+    entry.total += 1;
+    entry[bucket] += 1;
+    counts.set(key, entry);
+  };
+  Object.entries(cycleLog || {}).forEach(([day, log]) => {
+    if (day < from || day > asOfDate || !log) return;
+    const bucket = bucketOf(day);
+    if (!bucket) return;
+    PATTERN_ARRAYS.forEach((category) => (log[category] || []).forEach((value) => add(day, category, value, bucket)));
+    Object.entries(PATTERN_SINGLES).forEach(([category, values]) => {
+      if (values.includes(log[category])) add(day, category, log[category], bucket);
+    });
+  });
+  return [...counts.values()]
+    .filter((entry) => entry.total >= PATTERN_MIN_COUNT)
+    .map((entry) => {
+      const bucket = entry.period >= entry.before ? 'period' : 'before';
+      return { ...entry, bucket, inBucket: entry[bucket], share: entry[bucket] / entry.total };
+    })
+    .filter((entry) => entry.share >= PATTERN_MIN_SHARE)
+    .sort((a, b) => b.total - a.total || a.value.localeCompare(b.value))
+    .slice(0, 4)
+    .map((entry) => ({
+      category: entry.category,
+      value: entry.value,
+      label: getLabel(entry.category, entry.value),
+      bucket: entry.bucket,
+      count: entry.total,
+      inBucket: entry.inBucket,
+      percent: Math.round(entry.share * 100),
+    }));
+}
