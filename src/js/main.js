@@ -263,6 +263,8 @@ import {
 } from './features/navigation/menu.js';
 import { weekDays, weeklyReview } from './features/planning/week.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
+import { MAX_BULK_TASKS, parseBulkTasks } from './features/planning/bulk-tasks.js';
+import { backupReminder, backupSnoozeUntil } from './features/backup/reminder.js';
 import { renderTaskRow } from './features/planning/task-row.js';
 import { renderHomeView } from './features/home/view.js';
 import { createHomeDaySummary, homeBadgeCount } from './features/home/day-summary.js';
@@ -527,7 +529,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, backupReminderSnoozedUntil: null, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -805,6 +807,7 @@ function normalizeSettings(s) {
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
   o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
   o.prefs.cycleDiscreet = prefs.cycleDiscreet === true;
+  o.prefs.backupReminderSnoozedUntil = typeof prefs.backupReminderSnoozedUntil === 'string' && Number.isFinite(Date.parse(prefs.backupReminderSnoozedUntil)) ? prefs.backupReminderSnoozedUntil : null;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
@@ -1005,6 +1008,8 @@ function settingsIssueCount(value) {
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'cycleDiscreet') && typeof prefs.cycleDiscreet !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'backupReminderSnoozedUntil') && prefs.backupReminderSnoozedUntil !== null
+      && (!isText(prefs.backupReminderSnoozedUntil) || !Number.isFinite(Date.parse(prefs.backupReminderSnoozedUntil)))) issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
@@ -2753,6 +2758,13 @@ function viewInicio() {
       hidden: Boolean(S.settings.prefs.financeValuesHidden),
     }
     : null;
+  const backupNotice = !ui.preview && !S.settings.prefs.sample
+    ? backupReminder({
+      lastBackup: S.settings.prefs.lastBackup,
+      snoozedUntil: S.settings.prefs.backupReminderSnoozedUntil,
+      recordCount: S.tasks.length + S.finance.tx.length + S.habits.length + Object.keys(S.cycleLog).length,
+    })
+    : null;
   return renderHomeView({
     name,
     profileAppearance,
@@ -2775,6 +2787,7 @@ function viewInicio() {
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
     financeUpcoming,
+    backupNotice,
     showHomeBlock,
     homeBlockStyle,
   }, {
@@ -4245,6 +4258,76 @@ function dlgReleaseNotes() {
     <ul class="release-notes-list">${notes.items.map((item) => h`<li><strong>${item.title}</strong>${item.description ? h`<p>${item.description}</p>` : ''}</li>`)}</ul>`,
   h`<button type="button" class="btn primary" data-action="dlg-close">Entendi</button>`, 'release-notes-dialog');
 }
+const TASK_BULK_EXAMPLES = [
+  'Pagar condomínio 28/11',
+  'Ligar para o dentista amanhã 14h30 #saúde',
+  'Comprar presente #família',
+];
+function dlgTaskBulk() {
+  const d = ui.dlg.d;
+  if (d.step === 'review') {
+    const valid = d.rows.filter((row) => !row.error), invalid = d.rows.length - valid.length;
+    const chosen = valid.filter((row) => row.on);
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Confira antes de criar</h2>${closeBtn}</div>
+      <p class="small muted" role="status" aria-live="polite">${valid.length} ${plural(valid.length, 'tarefa entendida', 'tarefas entendidas')}${invalid ? h` · <b>${invalid} ${plural(invalid, 'precisa', 'precisam')} de ajuste</b>` : ''}. Marcadas: ${chosen.length}.</p>
+      <ul class="list imp bulk-entry-list">${d.rows.map((row, index) => row.error
+        ? h`<li class="bulk-entry-error"><span class="grow"><b class="ellip user-value">${row.source}</b><span class="small bulk-entry-error-text">${icon('alert', 14)} Linha ${row.line}: ${row.error}</span></span></li>`
+        : h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${index}.on" ${row.on ? raw('checked') : ''} aria-label="Criar ${row.title}"><span class="grow"><b class="ellip user-value">${row.title}</b><span class="small muted">${row.dueDate ? `${shortDate(row.dueDate)}${row.time ? ` · ${row.time}` : ''}` : 'Sem prazo'}${row.tags.length ? ` · ${row.tags.map((tag) => `#${tag}`).join(' ')}` : ''}${row.duplicate ? ' · já existe (desmarcada)' : ''}</span></span></label></li>`)}</ul>`,
+      h`<button type="button" class="btn back" data-action="taskbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="taskbulk-apply" ${chosen.length ? '' : raw('disabled')}>Criar ${chosen.length ? `(${chosen.length})` : ''}</button>`);
+  }
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Criar várias tarefas</h2>${closeBtn}</div>
+    <p class="small muted">Escreva uma tarefa por linha. Depois, confira antes de criar.</p>
+    <form id="dlgform" class="form" data-form="dlg-taskbulk" novalidate>
+      ${dlgField('Tarefas', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="true" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
+    </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos:</b></p>
+      ${TASK_BULK_EXAMPLES.map((example) => h`<div class="bulk-entry-example"><code class="bulk-entry-example-text user-value">${example}</code></div>`)}
+    </section>
+    <details class="bulk-entry-help">
+      <summary>Como montar cada linha</summary>
+      <ul class="fine">
+        <li><b>Prazo:</b> escreva hoje, amanhã, um dia da semana ou uma data como 20/11. Sem prazo, a tarefa vai para a caixa de entrada.</li>
+        <li><b>Horário:</b> acrescente 14h ou 14h30 junto com o prazo.</li>
+        <li><b>Etiquetas:</b> use #saúde, #casa e assim por diante.</li>
+        <li><b>Marcadores:</b> pode colar listas com "-", "•" ou números; eles são ignorados.</li>
+      </ul>
+      <p class="fine muted">Você pode criar até ${MAX_BULK_TASKS} tarefas por vez. Tarefas iguais a uma já aberta vêm desmarcadas.</p>
+    </details>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
+}
+function reviewBulkTasks() {
+  const d = ui.dlg.d;
+  const rows = parseBulkTasks(d.text, today(), S.tasks);
+  if (!rows.length) return fieldError('Escreva ao menos uma tarefa.', '[data-dlg="text"]');
+  d.rows = rows;
+  d.step = 'review';
+  render();
+}
+function applyBulkTasks() {
+  const d = ui.dlg?.type === 'taskbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos uma tarefa.', 'info');
+  const slices = homeFirstTaskSlices();
+  const base = Date.now();
+  const created = chosen.map((row, index) => mkTask({
+    title: row.title,
+    dueDate: row.dueDate,
+    createdAt: base + index,
+    ...(row.time ? { time: row.time } : {}),
+    ...(row.tags.length ? { tags: [...row.tags] } : {}),
+  }));
+  S.tasks.push(...created);
+  ui.dlg = null;
+  const saved = saveSlices(...slices);
+  render();
+  if (!saved) return;
+  const ids = new Set(created.map((task) => task.id));
+  toast(`${created.length} ${plural(created.length, 'tarefa criada', 'tarefas criadas')}.`, 'action', () => {
+    S.tasks = S.tasks.filter((task) => !ids.has(task.id));
+    commit('tasks');
+  });
+}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}</h2></div>${closeBtn}</div>
@@ -4641,7 +4724,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, taskbulk: dlgTaskBulk, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?</h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -5332,6 +5415,13 @@ const ACTIONS = {
     toast('Foto removida. A alteração será salva automaticamente.', 'info');
   },
   'focus-quick-task': () => openTaskDialog(today()),
+  'backup-snooze': () => {
+    S.settings.prefs.backupReminderSnoozedUntil = backupSnoozeUntil();
+    commit('settings');
+  },
+  'task-bulk': () => dlgOpen('taskbulk', { step: 'edit', text: '', rows: [] }),
+  'taskbulk-back': () => { if (ui.dlg?.type === 'taskbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'taskbulk-apply': () => applyBulkTasks(),
   'focus-task-title': () => openTaskDialog(),
   'first-steps-dismiss': async () => {
     if (!await confirmInDialog('Dispensar o cartão “Comece em 3 passos”? Ele não aparecerá novamente.')) return;
@@ -6639,6 +6729,7 @@ async function deleteAccountFromSettings(form) {
   }
 }
 const FORMS = {
+  'dlg-taskbulk': () => reviewBulkTasks(),
   'dlg-txbulk': () => reviewBulkEntry(),
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '').trim().slice(0, 80);

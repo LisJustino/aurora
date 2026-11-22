@@ -26,6 +26,7 @@ export function renderHomeView(model, renderers) {
     showHomeBlock,
     homeBlockStyle,
     financeUpcoming = null,
+    backupNotice = null,
   } = model;
   const {
     areaGuideButton,
@@ -45,6 +46,7 @@ export function renderHomeView(model, renderers) {
     <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><div class="home-greeting">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}<h1 id="hi" class="type-editorial-display">${greeting}${name ? h`, <span class="proper-name">${name}</span>` : ''}<i>.</i></h1></div>${homeMessage ? h`<p class="home-personal-message">${homeMessage}</p>` : ''}${lead ? h`<p class="lead">${lead}</p>` : ''}<div class="home-head-actions"><a class="home-action" href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
     ${homeFirstSteps()}
     ${sampleBanner()}
+    ${backupNotice ? h`<aside class="notice home-backup-reminder" role="status">${icon('alert', 18)}<span>${backupNotice.never ? 'Você ainda não fez um backup dos seus dados.' : `Faz ${backupNotice.days} dias desde o seu último backup.`} Uma cópia extra protege contra perdas.</span><span class="home-backup-actions"><button type="button" class="btn sm primary" data-action="export">Fazer backup</button><button type="button" class="btn sm ghost" data-action="backup-snooze">Lembrar em 7 dias</button></span></aside>` : ''}
     <div class="home-dashboard no-optional-areas">
       <div class="home-primary">
         ${showHomeBlock('summary') ? h`<section class="home-day-summary card" ${raw(homeBlockStyle('summary'))} aria-labelledby="home-day-summary-title">

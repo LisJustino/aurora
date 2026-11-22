@@ -1729,3 +1729,8 @@
   .main[data-route="inicio"] .home-greeting { gap: var(--space-2); }
   .main[data-route="inicio"] > .home-head { padding-block: var(--space-4); }
 }
+
+.home-backup-reminder { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.home-backup-reminder > .ic { flex: none; color: var(--accent); }
+.home-backup-reminder > span:not(.home-backup-actions) { flex: 1 1 14rem; min-width: 0; }
+.home-backup-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
