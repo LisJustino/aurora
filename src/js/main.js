@@ -78,7 +78,7 @@ import {
 import { canAccessCycle } from './features/cycle/access.js';
 import { habitStartedOnOrBefore } from './features/habits/dates.js';
 import { MAX_BULK_HABITS, parseBulkHabits } from './features/habits/bulk-habits.js';
-import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
+import { cycleDayNumber, cycleStats, nextPeriodRange, topSymptoms } from './features/cycle/calculations.js';
 import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from './features/cycle/report.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
@@ -263,6 +263,8 @@ import {
   orderMenuItems,
 } from './features/navigation/menu.js';
 import { weekDays, weeklyReview } from './features/planning/week.js';
+import { weekSpending } from './features/planning/week-finance.js';
+import { agendaForMonth as buildAgendaForMonth } from './features/planning/agenda.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
 import { MAX_BULK_TASKS, parseBulkTasks } from './features/planning/bulk-tasks.js';
 import { backupReminder, backupSnoozeUntil } from './features/backup/reminder.js';
@@ -1782,6 +1784,13 @@ function weeklyReviewView() {
     (day) => waterGoalReached(waterMlForDay(S.water, day), waterGoal),
   );
   const week = weekDays(today(), weekStartDay());
+  const weekMoney = areaOn('finances') && S.finance.accounts.length
+    ? {
+      hidden: S.settings.prefs.financeValuesHidden === true,
+      spending: weekSpending(S.finance.tx, week[0], today()),
+      dues: upcomingDueItems().filter((item) => item.date >= review.nextWeek.start && item.date <= review.nextWeek.end),
+    }
+    : null;
   const savedReflection = S.settings.prefs.weeklyReflection;
   const currentReflection = savedReflection?.weekOf === week[0] ? savedReflection.text : '';
   const formatDay = (day) => {
@@ -1798,6 +1807,11 @@ function weeklyReviewView() {
         <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
       </div>
     </section>
+    ${weekMoney ? h`<section class="card weekly-review-money" aria-labelledby="weekly-money-title">
+      <div class="head"><h3 id="weekly-money-title">Dinheiro da semana</h3></div>
+      <p>${weekMoney.hidden ? 'Valores ocultos.' : h`Você gastou <b>${brl(weekMoney.spending.current)}</b> até hoje.`}${!weekMoney.hidden && weekMoney.spending.hasPrevious ? h` Na semana passada, no mesmo trecho, foram ${brl(weekMoney.spending.previous)}.` : ''}</p>
+      ${weekMoney.dues.length ? h`<p class="small muted">Vencem na próxima semana: ${weekMoney.dues.slice(0, 3).map((item) => `${item.label}${weekMoney.hidden ? '' : ` (${brl(item.cents)})`}`).join(', ')}${weekMoney.dues.length > 3 ? ` e mais ${weekMoney.dues.length - 3}` : ''}.</p>` : h`<p class="small muted">Nenhuma conta vence na próxima semana.</p>`}
+    </section>` : ''}
     <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
       <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
       ${review.tasks.overdueTasks.length
@@ -1810,13 +1824,18 @@ function weeklyReviewView() {
         ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
         : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
     </section>
-    <section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
+    ${currentReflection && !ui.reflectionEditing
+      ? h`<section class="card weekly-reflection is-answered" aria-labelledby="weekly-reflection-title">
+      <div class="head"><div><p class="section-kicker">Para a próxima semana</p><h2 id="weekly-reflection-title">${currentReflection}</h2></div><button type="button" class="btn sm" data-action="weekly-reflection-edit">Mudar</button></div>
+      <p class="small muted" role="status">Sua resposta está salva na revisão desta semana.</p>
+    </section>`
+      : h`<section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
       <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      ${currentReflection ? h`<p class="small muted" role="status">Reflexão salva para esta semana: ${currentReflection}.</p>` : h`<p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>`}
+      <p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>
       <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
         ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
       </div>
-    </section>
+    </section>`}
   </div>`;
 }
 
@@ -3179,6 +3198,7 @@ function viewPlanejar() {
       ymLabel,
       taskRow,
       googleCalendarPlanPanel: () => renderGoogleCalendarPlanPanel(connectedGoogleCalendarAccounts()),
+      agendaForMonth: calendarAgenda,
       calendarEventTaskKey: (event) => {
         if (!event?.accountIdentity || !event?.calendarId || !event?.id) return '';
         return `google-calendar:${event.accountIdentity}:${event.calendarId}:${event.id}`;
@@ -5852,9 +5872,11 @@ const ACTIONS = {
     const weekStart = weekDays(today(), weekStartDay())[0];
     const snapshot = snapshotSlices(['settings']);
     S.settings.prefs.weeklyReflection = { weekOf: weekStart, text: choice };
+    ui.reflectionEditing = false;
     if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a reflexão semanal')) return;
     toast('Reflexão semanal salva.', 'success');
   },
+  'weekly-reflection-edit': () => { ui.reflectionEditing = true; render(); },
   'weekly-defer-task': (el) => {
     const task = findTask(el.dataset.id);
     if (!task || task.done || !isDay(task.dueDate)) return;
@@ -7935,6 +7957,28 @@ function categoryBars(items, total) {
   return h`<ul class="category-bars">${rows}</ul>`;
 }
 const UPCOMING_WINDOW_DAYS = 14;
+function calendarAgenda(ym) {
+  const F = S.finance, now = today();
+  const hidden = S.settings.prefs.financeValuesHidden;
+  const amount = (cents) => (hidden ? '' : brl(cents));
+  let bills = [], invoices = [];
+  if (areaOn('finances') && F.accounts.length) {
+    bills = F.tx
+      .filter((t) => t.type === 'out' && !isPaid(t) && t.date.startsWith(`${ym}-`) && !isCredit(accById(t.accountId)))
+      .map((t) => ({ date: t.date, label: t.desc || t.category || 'Despesa', amount: amount(t.cents) }));
+    invoices = F.accounts.filter(isCredit).flatMap((card) => {
+      const info = cardInfo(card);
+      const pending = Math.max(0, -accountBalanceOn(card, F.tx, now) - scheduledInvoicePrincipal(card.id));
+      return info.due && info.due.startsWith(`${ym}-`) && pending > 0
+        ? [{ date: info.due, label: `Fatura ${accountDisplayName(card)}`, amount: amount(pending) }]
+        : [];
+    });
+  }
+  const showCycle = !ui.preview && !S.settings.prefs.sample && !S.settings.prefs.cycleDiscreet
+    && areaOn('cycle') && hasCurrentCycleDataConsent(accountSession?.user);
+  const cycleRange = showCycle ? nextPeriodRange(cycleStats(S.cycleLog, S.cycle, now)) : null;
+  return buildAgendaForMonth(ym, { bills, invoices, cycleRange });
+}
 function upcomingDueItems() {
   const F = S.finance, now = today(), limit = addDays(now, UPCOMING_WINDOW_DAYS);
   const bills = F.tx

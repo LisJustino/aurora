@@ -3,6 +3,7 @@ import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
 import { DIAS, longDate, MESES_L, pad, pk, shortDate } from '../../utils/dates.js';
 import { tasksForWeek, weekDays } from './week.js';
+import { agendaLabel, agendaMarker } from './agenda.js';
 import { routePathFor } from '../../core/router.js';
 import {
   ANNUAL_PLAN_IDEA_CATEGORIES,
@@ -152,6 +153,7 @@ export function renderTaskCalendar({
   taskRow,
   googleCalendarPlanPanel,
   calendarEventTaskKey,
+  agendaForMonth = () => ({}),
 }) {
   const ym = ui.taskCal, [y, m] = ym.split('-').map(Number), ws = weekStartDay(), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate(), tdy = today();
   const eventsByDay = new Map();
@@ -177,6 +179,7 @@ export function renderTaskCalendar({
       (by[task.dueDate] = by[task.dueDate] || []).push(task);
     }
   });
+  const agenda = agendaForMonth(ym);
   const cells = [];
   for (let index = 0; index < (first.getDay() + 7 - ws) % 7; index++) cells.push('<span></span>');
   for (let dayNumber = 1; dayNumber <= n; dayNumber++) {
@@ -187,10 +190,12 @@ export function renderTaskCalendar({
     const labels = [
       `${pending.length} ${pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}`,
       ...(dayEvents.length ? [`${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'} das agendas conectadas`] : []),
+      ...agendaLabel(agenda[key] || []),
     ];
     const markers = [
       pending.length ? '<u class="has-tasks"></u>'.repeat(Math.min(pending.length, 3)) : tasks.length ? '<u class="dn"></u>' : '',
       dayEvents.length ? '<u class="google-event-dot"></u>' : '',
+      agendaMarker(agenda[key] || []),
     ].join('');
     cells.push(`<button type="button" class="tc ${key === tdy ? 't' : ''} ${key === ui.taskDay ? 's' : ''} ${pending.some((task) => key < task.dueDate) ? 'od' : ''}" data-action="tcal-day" data-d="${key}" aria-label="${dayNumber} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${dayNumber}</b><i>${markers}</i></button>`);
   }
@@ -206,7 +211,7 @@ export function renderTaskCalendar({
       : event.calendarName || event.accountLabel || 'Google Calendar');
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn" data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
     ${googleCalendarPlanPanel()}
-    <div class="tcal" role="group" aria-label="Calendário de tarefas e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
+    <div class="tcal" role="group" aria-label="Calendário de tarefas, contas, ciclo e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
     ${connectedAccounts.length ? h`<section class="surface-open google-calendar-day" aria-labelledby="google-calendar-day-title">
       <div class="head"><h3 id="google-calendar-day-title">Eventos · ${cap(longDate(ui.taskDay))}</h3><span class="badge">Ações locais</span></div>
       ${selectedEvents.length
@@ -224,6 +229,10 @@ export function renderTaskCalendar({
           headingLevel: 'h4',
           className: 'google-calendar-day-empty',
         })}
+    </section>` : ''}
+    ${(agenda[ui.taskDay] || []).length ? h`<section class="surface-open agenda-day" aria-labelledby="agenda-day-title">
+      <div class="head"><h3 id="agenda-day-title">Contas e ciclo · ${cap(longDate(ui.taskDay))}</h3></div>
+      <ul class="agenda-day-list">${agenda[ui.taskDay].map((item) => h`<li class="agenda-${item.kind}"><span class="agenda-day-icon">${icon(item.kind === 'cycle' ? 'heart' : 'wallet', 16)}</span><span class="grow">${item.label}</span>${item.amount ? h`<b>${item.amount}</b>` : ''}</li>`)}</ul>
     </section>` : ''}
     <section class="card"><div class="head"><h3>${ui.taskDay === tdy ? 'Hoje' : cap(longDate(ui.taskDay))}</h3><span class="small muted">${day.filter((task) => !task.done).length} pendente(s)</span></div>
       ${day.length ? h`<ul class="list">${day.map(taskRow)}</ul><button type="button" class="btn sm" data-action="task-new" data-due="${ui.taskDay}">${icon('plus', 16)}Adicionar tarefa neste dia</button>` : emptyState({
