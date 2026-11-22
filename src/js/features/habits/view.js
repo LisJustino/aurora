@@ -1,4 +1,5 @@
 import { DIAS, longDate, pk, today } from '../../utils/dates.js';
+import { habitInsights } from './insights.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
@@ -92,12 +93,30 @@ export function renderHabitsView(dependencies) {
     ui.habitIdeaTag,
     ui.habitIdeaQuery,
   ).map((suggestion) => suggestion.id));
+  const insights = habitInsights(live, currentDay);
+  const pct0 = (rate) => `${Math.round(rate * 100)}%`;
+  const dayName = (index) => DIAS[index];
+  function insightsSection() {
+    const hasRate = insights.scheduled >= 8 && insights.rate !== null;
+    if (!hasRate && !insights.atRisk.length) return '';
+    return h`<section class="surface-open habit-insights" aria-labelledby="habit-insights-title">
+      <div><h2 id="habit-insights-title">Como está indo</h2>${hasRate ? h`<p class="small muted">Nos últimos ${insights.windowDays} dias você cumpriu ${insights.completed} de ${insights.scheduled} ${plural(insights.scheduled, 'dia programado', 'dias programados')} (${pct0(insights.rate)}).</p>` : ''}</div>
+      <ul class="habit-insight-list">
+        ${insights.atRisk.map(({ habit, streak }) => h`<li class="is-risk" style="--hc:${habitColor(habit)}"><span class="home-habit-icon">${icon(habitIconKey(habit), 18)}</span><p><b>${habit.name}</b> está com ${streak} dias seguidos. Marque hoje para manter a sequência.</p></li>`)}
+        ${insights.struggling.slice(0, 3).map(({ habit, completed, scheduled, rate }) => h`<li style="--hc:${habitColor(habit)}"><span class="home-habit-icon">${icon(habitIconKey(habit), 18)}</span><p><b>${habit.name}</b> foi cumprido em ${completed} de ${scheduled} dias (${pct0(rate)}). Que tal reduzir os dias ou a meta?</p><button type="button" class="btn sm" data-action="habit-edit-open" data-id="${habit.id}" aria-label="Editar ${habit.name}">${icon('pencil', 15)}Ajustar</button></li>`)}
+        ${insights.hardestWeekday ? h`<li><span class="home-habit-icon">${icon('calendarCheck', 18)}</span><p>${dayName(insights.hardestWeekday.weekday)} é seu dia mais difícil (${pct0(insights.hardestWeekday.rate)}). ${dayName(insights.easiestWeekday.weekday)} é o melhor (${pct0(insights.easiestWeekday.rate)}).</p></li>` : ''}
+        ${insights.solid.length ? h`<li><span class="home-habit-icon">${icon('sparkles', 18)}</span><p>Mais constante${insights.solid.length > 1 ? 's' : ''}: <b>${insights.solid.slice(0, 3).map(({ habit }) => habit.name).join(', ')}</b>.</p></li>` : ''}
+        ${insights.bestStreak && insights.bestStreak.bestStreak >= 7 ? h`<li><span class="home-habit-icon">${icon('flag', 18)}</span><p>Maior sequência: <b>${insights.bestStreak.habit.name}</b>, ${insights.bestStreak.bestStreak} dias seguidos.</p></li>` : ''}
+      </ul>
+    </section>`.s;
+  }
   const slots = {
     'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
     'water-tracker': !hasActiveWaterHabit && S.water.length ? waterSummary().s : '',
     'habit-dashboard-class': live.length ? 'has-week' : '',
     'today-summary': h`${todaySummary}`.s,
-    'add-button': todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`.s : '',
+    'add-button': h`<div class="habit-today-actions">${live.length || todays.length ? h`<button type="button" class="btn sm" data-action="habit-bulk">${icon('note', 15)}Vários</button>` : ''}${todays.length ? h`<button type="button" class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>` : ''}</div>`.s,
+    'habit-insights': insightsSection(),
     'today-progress': eligibleToday
       ? h`<div class="habit-today-bar" role="progressbar" aria-label="Hábitos concluídos hoje, sem contar dias pulados" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`.s
       : '',

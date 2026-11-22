@@ -77,6 +77,7 @@ import {
 } from './features/planning/annual-plan.js';
 import { canAccessCycle } from './features/cycle/access.js';
 import { habitStartedOnOrBefore } from './features/habits/dates.js';
+import { MAX_BULK_HABITS, parseBulkHabits } from './features/habits/bulk-habits.js';
 import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
 import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from './features/cycle/report.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
@@ -4328,6 +4329,69 @@ function applyBulkTasks() {
     commit('tasks');
   });
 }
+const HABIT_BULK_EXAMPLES = ['Ler 10 páginas - seg a sex', 'Treinar - seg, qua, sex', 'Correr - 3x por semana', 'Alongar'];
+function dlgHabitBulk() {
+  const d = ui.dlg.d;
+  if (d.step === 'review') {
+    const valid = d.rows.filter((row) => !row.error), invalid = d.rows.length - valid.length;
+    const chosen = valid.filter((row) => row.on);
+    return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Confira antes de criar</h2>${closeBtn}</div>
+      <p class="small muted" role="status" aria-live="polite">${valid.length} ${plural(valid.length, 'hábito entendido', 'hábitos entendidos')}${invalid ? h` · <b>${invalid} ${plural(invalid, 'precisa', 'precisam')} de ajuste</b>` : ''}. Marcados: ${chosen.length}.</p>
+      <ul class="list imp bulk-entry-list">${d.rows.map((row, index) => row.error
+        ? h`<li class="bulk-entry-error"><span class="grow"><b class="ellip user-value">${row.source}</b><span class="small bulk-entry-error-text">${icon('alert', 14)} Linha ${row.line}: ${row.error}</span></span></li>`
+        : h`<li><label class="row import-row-label"><input type="checkbox" data-dlg="rows.${index}.on" ${row.on ? raw('checked') : ''} aria-label="Criar ${row.name}"><span class="grow"><b class="ellip user-value">${row.name}</b><span class="small muted">${row.days.length === 7 ? 'Todos os dias' : row.days.map((day) => DIAS[day]).join(', ')}${row.weeklyGoal ? ` · meta ${row.weeklyGoal}x por semana` : ''}${row.duplicate ? ' · já existe (desmarcado)' : ''}</span></span></label></li>`)}</ul>`,
+      h`<button type="button" class="btn back" data-action="habitbulk-back">Voltar e editar</button><button type="button" class="btn primary" data-action="habitbulk-apply" ${chosen.length ? '' : raw('disabled')}>Criar ${chosen.length ? `(${chosen.length})` : ''}</button>`);
+  }
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Criar vários hábitos</h2>${closeBtn}</div>
+    <p class="small muted">Escreva um hábito por linha. Depois, confira antes de criar.</p>
+    <form id="dlgform" class="form" data-form="dlg-habitbulk" novalidate>
+      ${dlgField('Hábitos', h`<textarea id="f0" class="bulk-entry-text" data-dlg="text" rows="9" spellcheck="true" autocomplete="off" autocapitalize="sentences">${d.text || ''}</textarea>`, 'full')}
+    </form>
+    <section class="bulk-entry-examples" aria-label="Exemplos">
+      <p class="fine"><b>Exemplos:</b></p>
+      ${HABIT_BULK_EXAMPLES.map((example) => h`<div class="bulk-entry-example"><code class="bulk-entry-example-text user-value">${example}</code></div>`)}
+    </section>
+    <details class="bulk-entry-help">
+      <summary>Como montar cada linha</summary>
+      <ul class="fine">
+        <li><b>Nome e dias:</b> escreva o nome, um hífen e os dias. Sem dias, o hábito vale para todos.</li>
+        <li><b>Dias:</b> seg, ter, qua…, "seg a sex", "dias úteis", "fim de semana" ou "todos os dias".</li>
+        <li><b>Meta semanal:</b> acrescente 3x por semana (ou 3x) para definir uma meta.</li>
+        <li><b>Marcadores:</b> pode colar listas com "-", "•" ou números; eles são ignorados.</li>
+      </ul>
+      <p class="fine muted">Você pode criar até ${MAX_BULK_HABITS} hábitos por vez. Nomes que você já usa vêm desmarcados. Ícone e cor podem ser ajustados depois.</p>
+    </details>`,
+    h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Revisar</button>`);
+}
+function reviewBulkHabits() {
+  const d = ui.dlg.d;
+  const rows = parseBulkHabits(d.text, S.habits);
+  if (!rows.length) return fieldError('Escreva ao menos um hábito.', '[data-dlg="text"]');
+  d.rows = rows;
+  d.step = 'review';
+  render();
+}
+function applyBulkHabits() {
+  const d = ui.dlg?.type === 'habitbulk' ? ui.dlg.d : null;
+  const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
+  if (!chosen.length) return toast('Marque ao menos um hábito.', 'info');
+  const base = Date.now(), start = S.habits.length;
+  const created = chosen.map((row, index) => ({
+    id: newId(), name: row.name.slice(0, 60), days: [...row.days], completions: [], createdAt: base + index, status: 'active',
+    color: HABIT_COLORS[(start + index) % HABIT_COLORS.length],
+    ...(row.weeklyGoal ? { weeklyGoal: row.weeklyGoal } : {}),
+  }));
+  S.habits.push(...created);
+  ui.dlg = null;
+  const saved = saveSlices('habits');
+  render();
+  if (!saved) return;
+  const ids = new Set(created.map((habit) => habit.id));
+  toast(`${created.length} ${plural(created.length, 'hábito criado', 'hábitos criados')}.`, 'action', () => {
+    S.habits = S.habits.filter((habit) => !ids.has(habit.id));
+    commit('habits');
+  });
+}
 function dlgTask() {
   const d = ui.dlg.d, subs = d.subs || [], creating = d.create === true;
   return dlgWrap(h`<div class="head task-dialog-head"><span class="task-dialog-mark" aria-hidden="true">${icon(creating ? 'plus' : 'check', 20)}</span><div><p class="task-dialog-eyebrow">${creating ? 'planejamento completo' : 'organize os detalhes'}</p><h2 id="dt">${creating ? 'Nova tarefa' : 'Editar tarefa'}</h2></div>${closeBtn}</div>
@@ -4724,7 +4788,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, taskbulk: dlgTaskBulk, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, taskbulk: dlgTaskBulk, habitbulk: dlgHabitBulk, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?</h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -5422,6 +5486,9 @@ const ACTIONS = {
   'task-bulk': () => dlgOpen('taskbulk', { step: 'edit', text: '', rows: [] }),
   'taskbulk-back': () => { if (ui.dlg?.type === 'taskbulk') { ui.dlg.d.step = 'edit'; render(); } },
   'taskbulk-apply': () => applyBulkTasks(),
+  'habit-bulk': () => dlgOpen('habitbulk', { step: 'edit', text: '', rows: [] }),
+  'habitbulk-back': () => { if (ui.dlg?.type === 'habitbulk') { ui.dlg.d.step = 'edit'; render(); } },
+  'habitbulk-apply': () => applyBulkHabits(),
   'focus-task-title': () => openTaskDialog(),
   'first-steps-dismiss': async () => {
     if (!await confirmInDialog('Dispensar o cartão “Comece em 3 passos”? Ele não aparecerá novamente.')) return;
@@ -6730,6 +6797,7 @@ async function deleteAccountFromSettings(form) {
 }
 const FORMS = {
   'dlg-taskbulk': () => reviewBulkTasks(),
+  'dlg-habitbulk': () => reviewBulkHabits(),
   'dlg-txbulk': () => reviewBulkEntry(),
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '').trim().slice(0, 80);
