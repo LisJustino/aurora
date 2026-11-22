@@ -1,7 +1,8 @@
-import { addDays, DIAS, longDate, MESES_L, pad, pk, shortDate, today } from '../../utils/dates.js';
+import { addDays, dayDiff, DIAS, longDate, MESES_L, pad, pk, shortDate, today } from '../../utils/dates.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
+import { cycleHistory, nextPeriodRange, periodDelay, symptomPhasePatterns } from './calculations.js';
 
 export function renderCycleView({
   S, ui, gate, areaPageTitle, cycleStats, dayLog, cycleDayNumber,
@@ -55,7 +56,22 @@ export function renderCycleView({
   const pastEstimateNotice = hasPastEstimate
     ? 'A data estimada já passou. Registre o próximo início quando acontecer para atualizar as previsões.'
     : '';
-  return h`${areaPageTitle('ciclo', 'Ciclo')}
+  const discreet = Boolean(S.settings?.prefs?.cycleDiscreet);
+  const range = nextPeriodRange(st);
+  const delay = hasCycleHistory ? periodDelay(st, tdy) : null;
+  const startSoon = Boolean(range && !delay && !st.set.has(tdy)
+    && tdy >= addDays(range.from, -3) && tdy <= range.to);
+  const rangeText = range && !range.single ? `entre ${shortDate(range.from)} e ${shortDate(range.to)}` : range ? `em ${shortDate(range.from)}` : '';
+  const history = cycleHistory(st.starts, st.set, 6);
+  const completedCycles = history.filter((row) => row.length);
+  const longestCycle = Math.max(1, ...completedCycles.map((row) => row.length));
+  const patterns = symptomPhasePatterns(S.cycleLog, st, tdy, cycLabel);
+  const quickSymptoms = recentSymptoms.filter((item) => ['pain', 'mood', 'digestion', 'skin'].includes(item.category)).slice(0, 4);
+  const medicationInUse = Object.entries(S.cycleLog).some(([day, entry]) => day >= addDays(tdy, -14) && typeof entry?.medicationTaken === 'boolean');
+  const privacyToggle = h`<button type="button" class="ibtn cycle-discreet-toggle" data-action="cycle-discreet-toggle" aria-pressed="${String(discreet)}" aria-label="${discreet ? 'Mostrar informações do Ciclo' : 'Ocultar informações do Ciclo'}" title="${discreet ? 'Mostrar informações' : 'Modo discreto'}">${icon(discreet ? 'eyeOff' : 'eye', 18)}</button>`;
+  return h`${areaPageTitle('ciclo', 'Ciclo', privacyToggle)}
+    ${discreet ? h`<p class="notice cycle-discreet-note" role="status">${icon('eyeOff', 16)}<span>Modo discreto ativado: as informações do Ciclo ficam ocultas. Toque no olho para mostrar.</span></p>` : ''}
+    <div class="cycle-content${discreet ? ' is-discreet' : ''}" ${discreet ? raw('aria-hidden="true" inert') : ''}>
     ${!hasCycleHistory && !hasCycleRecords
       ? h`<section class="surface-open cycle-start-empty">${emptyState({
         title: 'Seu ciclo começa no seu tempo.',
@@ -64,10 +80,13 @@ export function renderCycleView({
         iconName: 'calendar',
         headingLevel: 'h2',
       })}<div class="cycle-empty-actions"><button type="button" class="btn" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn ghost" data-action="cyc-period-past">Período anterior</button></div></section>`
-      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}</h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`      <div class="stat"><b>${st.avg} dias</b><span>Média dos ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo recente', 'intervalos recentes')} · variação de ${cycleRange}</span></div><div class="stat"><b>${shortDate(st.next)}</b><span>${hasPastEstimate ? 'Data estimada já passou' : 'Próximo início estimado'}</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
+      : h`<section class="cycle-overview" aria-labelledby="cycle-overview-title"><header class="cycle-overview-head"><div><span>${hasCycleHistory ? 'Seu ciclo' : 'Primeiros passos'}</span><h2 id="cycle-overview-title">${cycleMoment[0]}</h2><p>${cycleMoment[1]}</p></div><div class="cycle-overview-actions"><button type="button" class="btn primary" data-action="cyc-start-today">${icon('plus', 16)}Começou hoje</button><button type="button" class="btn" data-action="cyc-period-open">${icon('calendar', 16)}Registrar período</button><button type="button" class="btn" data-action="cyc-period-past">Período anterior</button></div></header>${hasCycleHistory ? h`<div class="stats cycle-overview-stats">${dn ? h`<div class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>` : ''}${st.avg ? h`      <div class="stat"><b>${st.avg} dias</b><span>Média dos ${st.observedIntervals} ${plural(st.observedIntervals, 'intervalo recente', 'intervalos recentes')} · variação de ${cycleRange}</span></div><div class="stat"><b>${range && !range.single ? `${shortDate(range.from)} a ${shortDate(range.to)}` : shortDate(st.next)}</b><span>${hasPastEstimate ? 'Data estimada já passou' : 'Próximo início estimado'}</span></div>` : h`<p class="cycle-next-step">Registre o próximo início da menstruação para calcular a duração média e mostrar estimativas.</p>`}</div>` : ''}</section>`}
+    ${delay ? h`<aside class="notice cycle-delay-note" role="status">${icon('alert', 18)}<span><b>Passaram ${delay.days} ${plural(delay.days, 'dia', 'dias')} da data estimada.</b> ${delay.insideRange ? `Ainda está dentro da variação dos seus ciclos (até ${shortDate(range.to)}). Registre quando começar.` : 'Atrasos podem ter várias causas. Se continuar, ou se houver chance de gravidez, converse com um profissional de saúde.'}</span></aside>` : startSoon ? h`<aside class="notice cycle-soon-note" role="status">${icon('calendar', 18)}<span>Seu início deve acontecer ${rangeText}. As previsões podem variar.</span></aside>` : ''}
     <section class="surface-open cycle-day-entry" aria-labelledby="cd"><div class="head"><div><h2 id="cd">${sel === tdy ? 'Hoje' : cap(longDate(sel))}</h2><p class="cycle-day-summary">${hasAnyLog(log) ? cycleLogSummary(log) : st.set.has(sel) ? 'Este dia faz parte de um período registrado. Se quiser, anote sintomas ou fluxo.' : hasCycleHistory ? 'Sem registro neste dia. Se quiser, anote sintomas ou fluxo.' : 'Ainda não há registro neste dia. Escolha uma data e registre o fluxo para começar.'}</p></div>${hasAnyLog(log) ? h`<button type="button" class="btn ghost sm" data-action="cyc-clear">Limpar o dia</button>` : ''}</div>
       ${selectedPeriod ? h`<div class="cycle-period-tools" aria-label="Período menstrual selecionado"><p><b>Período registrado:</b> ${longDate(selectedPeriod.start)}${cyclePeriodEnd(selectedPeriod) === selectedPeriod.start ? '' : ` a ${longDate(cyclePeriodEnd(selectedPeriod))}`}</p><div><button type="button" class="btn sm" data-action="cyc-period-edit" data-index="${selectedPeriodIndex}">Editar período</button><button type="button" class="btn danger sm" data-action="cyc-period-delete" data-index="${selectedPeriodIndex}">Excluir período</button></div></div>` : ''}
       <div class="cycle-day-tools"><button type="button" class="btn ghost sm" data-action="cyc-flow-open">${icon(CYC_ICON.flow, 16)}Registrar fluxo</button><button type="button" class="btn sm" data-action="cyc-open">${icon('pencil', 16)}Registrar este dia</button></div>
+      ${sel === tdy && medicationInUse && typeof log.medicationTaken !== 'boolean' ? h`<div class="cycle-med-reminder" role="group" aria-label="Medicação de hoje"><span class="small">Medicação de hoje ainda sem registro.</span><button type="button" class="btn sm" data-action="cyc-med-quick" data-v="yes">Tomei</button><button type="button" class="btn ghost sm" data-action="cyc-med-quick" data-v="no">Não tomei</button></div>` : ''}
+      ${quickSymptoms.length ? h`<div class="cycle-quick" role="group" aria-label="Registro rápido para este dia"><span class="small muted">Registro rápido</span>${quickSymptoms.map((item) => h`<button type="button" class="chip" data-action="cyc-quick" data-c="${item.category}" data-v="${item.value}" aria-pressed="${String((log[item.category] || []).includes(item.value))}">${item.label}</button>`)}</div>` : ''}
       <div class="scroll-x" role="group" aria-label="Escolher o dia">${strip.map((k) => h`<button type="button" class="dchip ${k === sel ? 'on' : ''} ${st.set.has(k) ? 'per' : ''}" data-action="cyc-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${longDate(k)}${st.set.has(k) ? ', período' : ''}${hasAnyLog(S.cycleLog[k]) ? ', com registro' : ''}"><span>${DIAS[pk(k).getDay()]}</span><b>${pk(k).getDate()}</b><i class="${hasAnyLog(S.cycleLog[k]) ? 'on' : ''}"></i></button>`)}</div></section>
     <section class="surface-open cycle-calendar-card"><div class="head"><button class="ibtn" data-action="cal-month" data-n="-1" aria-label="Mês anterior">${icon('chevLeft', 20)}</button><div><p class="section-kicker">Calendário do ciclo</p><h2>${cap(ymLabel(ym))}</h2><p class="cycle-calendar-help">Selecione um dia. As cores indicam registros ou fases estimadas.</p></div><button class="ibtn" data-action="cal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
       <div class="cal">${raw(DIAS.map((d) => `<b>${d}</b>`).join('') + cells.join(''))}</div>
@@ -82,6 +101,17 @@ export function renderCycleView({
         <summary>Como as estimativas funcionam ${icon('chevDown', 18)}</summary>
         <p>${cycleEstimateNotice}${pastEstimateNotice ? ` ${pastEstimateNotice}` : ''}</p>
       </details></section>
+    ${hasCycleHistory ? h`<details class="card cycle-history" id="d-cycle-history" ${ui.openDetails['cycle-history'] ? raw('open') : ''}>
+      <summary>Histórico dos ciclos ${icon('chevDown', 18)}</summary>
+      <ul class="list cycle-history-list">${history.map((row) => h`<li><span class="cycle-history-date">${shortDate(row.start)}</span><span class="cycle-history-bar" aria-hidden="true">${row.length ? h`<i style="width:${Math.round(row.length / longestCycle * 100)}%"></i>` : ''}</span><b>${row.length ? `${row.length} dias` : 'em andamento'}</b><small>${row.periodLength ? `período de ${row.periodLength} ${plural(row.periodLength, 'dia', 'dias')}` : ''}</small></li>`)}</ul>
+      ${completedCycles.length ? '' : h`<p class="small muted">Com dois inícios registrados, a duração de cada ciclo aparece aqui.</p>`}
+      <button type="button" class="btn sm" data-action="cyc-report-open">${icon('list', 16)}Resumo para consulta</button>
+    </details>` : ''}
+    ${patterns.length ? h`<details class="card cycle-patterns" id="d-cycle-patterns" ${ui.openDetails['cycle-patterns'] ? raw('open') : ''}>
+      <summary>Padrões nos seus registros ${icon('chevDown', 18)}</summary>
+      <p class="small muted">Sintomas que, nos seus registros do último ano, aparecem mais em uma fase. Isso pode refletir quando você costuma registrar e não indica causa nem diagnóstico.</p>
+      <ul class="list">${patterns.map((item) => h`<li><span>${item.label}</span><b>${item.inBucket} de ${item.count} ${item.bucket === 'period' ? 'durante o período' : 'nos 5 dias antes'}</b></li>`)}</ul>
+    </details>` : ''}
     ${recentSymptoms.length ? h`<details class="card cycle-symptom-summary">
       <summary>Mais registrados nos últimos 90 dias ${icon('chevDown', 18)}</summary>
       <p class="small muted">Contagem dos registros feitos neste período; não indica causa nem diagnóstico, e não registrar um sinal não significa que ele não ocorreu.</p>
@@ -123,5 +153,6 @@ export function renderCycleView({
         <button type="button" class="btn back sm" data-action="cycle-consent-revoke" ${ui.cycleConsentBusy ? raw('disabled aria-busy="true"') : ''}>Retirar consentimento</button>
       </div>
     </details>
+    </div>
     `;
 }

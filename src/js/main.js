@@ -78,6 +78,7 @@ import {
 import { canAccessCycle } from './features/cycle/access.js';
 import { habitStartedOnOrBefore } from './features/habits/dates.js';
 import { cycleDayNumber, cycleStats, topSymptoms } from './features/cycle/calculations.js';
+import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from './features/cycle/report.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
 import {
   getReleaseNotes,
@@ -526,7 +527,7 @@ const defaults = () => ({
   tasks: [],
   habits: [],
   pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
-  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
+  settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
 const SLICES = Object.keys(defaults());
@@ -803,6 +804,7 @@ function normalizeSettings(s) {
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
   o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
+  o.prefs.cycleDiscreet = prefs.cycleDiscreet === true;
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
@@ -1002,6 +1004,7 @@ function settingsIssueCount(value) {
       && !isValidBirthdayReference(prefs.birthday)) issues++;
     if (Object.hasOwn(prefs, 'birthdayCorrectionUsed') && typeof prefs.birthdayCorrectionUsed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'financeValuesHidden') && typeof prefs.financeValuesHidden !== 'boolean') issues++;
+    if (Object.hasOwn(prefs, 'cycleDiscreet') && typeof prefs.cycleDiscreet !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsDismissed') && typeof prefs.firstStepsDismissed !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'firstStepsStarted') && typeof prefs.firstStepsStarted !== 'boolean') issues++;
     if (Object.hasOwn(prefs, 'menuOrder') && prefs.menuOrder !== undefined
@@ -2736,7 +2739,7 @@ function viewInicio() {
       }
       : null,
     cycle: showCycleSummary
-      ? { day: cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
+      ? { day: S.settings.prefs.cycleDiscreet ? null : cycleDayNumber(todayKey, cycleStats(S.cycleLog, S.cycle, todayKey).starts) }
       : null,
   });
   const weekProgress = weeklyReview(S.tasks, [], todayKey).tasks;
@@ -4266,8 +4269,22 @@ function dlgTask() {
       : h`<button type="button" class="btn danger back" data-action="del-task-dlg" aria-label="Excluir tarefa">${icon('trash', 18)}</button><button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button class="btn primary" type="submit" form="dlgform">Salvar</button>`,
     'task-dialog');
 }
+function saveCycleLogDay(day, log) {
+  if (!isDay(day) || day > today() || !isValidCycleLog(log)) return toast('Não foi possível salvar este registro.', 'info'), false;
+  const snapshot = snapshotSlices(['cycleLog']);
+  if (hasAnyLog(log)) S.cycleLog[day] = log;
+  else delete S.cycleLog[day];
+  if (!saveSlicesWithRollback(['cycleLog'], snapshot, false, 'registro do ciclo')) return false;
+  ui.cycDay = day;
+  render();
+  return true;
+}
 function dlgCycleLog() { return cycleDialogViews.log(); }
 function dlgCyclePeriod() { return cycleDialogViews.period(); }
+function dlgCycleReport() {
+  return dlgWrap(h`<div class="head head-nowrap"><h2 id="dt">Resumo para consulta</h2>${closeBtn}</div>${raw(ui.dlg.d.html)}`,
+    h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary" data-action="cyc-report-print">${icon('list', 16)}Imprimir ou salvar PDF</button>`, 'cycle-report-body');
+}
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || d.tracking === 'water' || isWaterHabit(habit));
@@ -4624,7 +4641,7 @@ function resolveNew(g, d, key) {
   d[key] = addItem(g, n, parentName, d.newColor, d.newIcon);
   d.newName = ''; d.newParent = ''; d.newColor = ''; d.newIcon = ''; commit('settings'); return true;
 }
-const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
+const DLG = { task: dlgTask, tx: dlgTx, 'cycle-log': dlgCycleLog, 'cycle-period': dlgCyclePeriod, 'cycle-report': dlgCycleReport, 'habit-edit': dlgHabitEdit, search: dlgSearch, 'action-confirm': dlgActionConfirm, confirmation: dlgConfirmation, 'release-notes': dlgReleaseNotes, wipe: dlgWipe, 'wipe-complete': dlgWipeComplete, onboard: dlgOnboard, 'area-tutorial': dlgAreaTutorial, export: dlgExport, import: dlgImport };
 DLG.discard = () => dlgWrap(h`<div class="head"><div><h2 id="dt">Descartar alterações?</h2><p class="small muted">Há alterações que ainda não foram salvas. Se sair agora, elas serão perdidas.</p></div></div>`,
   h`<button type="button" class="btn" data-action="dlg-keep">Continuar editando</button><button type="button" class="btn danger" data-action="dlg-discard">Descartar alterações</button>`);
 
@@ -5411,6 +5428,59 @@ const ACTIONS = {
   'accessibility-links': (el) => updateAccessibilityLook({ highlightLinks: !settingsView().look.highlightLinks }, el.id),
   'accessibility-spacing': (el) => updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
+  'cycle-discreet-toggle': () => {
+    S.settings.prefs.cycleDiscreet = !S.settings.prefs.cycleDiscreet;
+    commit('settings');
+  },
+  'cyc-quick': (el) => {
+    const category = el.dataset.c, value = el.dataset.v;
+    const group = CYC.find(({ id }) => id === category);
+    if (!group || group.single || !['pain', 'mood', 'digestion', 'skin'].includes(category)
+      || !group.opts.some(([optionValue]) => optionValue === value)) return;
+    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
+    const log = structuredClone(dayLog(day));
+    const current = Array.isArray(log[category]) ? log[category] : [];
+    log[category] = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+    if (!log[category].length) delete log[category];
+    saveCycleLogDay(day, log);
+  },
+  'cyc-med-quick': (el) => {
+    if (!['yes', 'no'].includes(el.dataset.v)) return;
+    const day = today();
+    const log = structuredClone(dayLog(day));
+    if (typeof log.medicationTaken === 'boolean') return;
+    log.medicationTaken = el.dataset.v === 'yes';
+    if (saveCycleLogDay(day, log)) toast('Medicação de hoje registrada.', 'success');
+  },
+  'cyc-report-open': () => {
+    const todayKey = today();
+    const report = buildCycleReport({
+      cycleLog: S.cycleLog,
+      stats: cycleStats(S.cycleLog, S.cycle, todayKey),
+      asOfDate: todayKey,
+      getLabel: cycLabel,
+    });
+    dlgOpen('cycle-report', { html: cycleReportHtml(report, { esc, longDate, shortDate, plural }) });
+  },
+  'cyc-report-print': () => {
+    const html = ui.dlg?.type === 'cycle-report' ? ui.dlg.d.html : '';
+    if (!html) return;
+    const frame = document.createElement('iframe');
+    frame.title = 'Resumo do ciclo para impressão';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    frame.srcdoc = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Resumo do ciclo</title><style>${CYCLE_REPORT_PRINT_CSS}</style></head><body>${html}</body></html>`;
+    frame.onload = () => {
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch {
+        toast('Não foi possível abrir a impressão neste aparelho.', 'info');
+      }
+      setTimeout(() => frame.remove(), 60000);
+    };
+    document.body.appendChild(frame);
+  },
   'finance-values-toggle': () => {
     S.settings.prefs.financeValuesHidden = !S.settings.prefs.financeValuesHidden;
     ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
