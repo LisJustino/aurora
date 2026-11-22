@@ -4,6 +4,7 @@ import { emptyState } from '../../utils/empty-state.js';
 import { DIAS, longDate, MESES_L, pad, pk, shortDate } from '../../utils/dates.js';
 import { tasksForWeek, weekDays } from './week.js';
 import { agendaLabel, agendaMarker } from './agenda.js';
+import { DEFAULT_HABIT_TARGET, HABIT_TARGETS, MAX_COUNT_TARGET, yearBalance } from './goal-progress.js';
 import { routePathFor } from '../../core/router.js';
 import {
   ANNUAL_PLAN_IDEA_CATEGORIES,
@@ -48,7 +49,9 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
   const year = ui.annualYear;
   const plan = plans[year] || { intention: '', goals: [] };
   const goals = plan.goals || [];
-  const completed = goals.filter((goal) => goal.done).length;
+  const balance = yearBalance(goals, { today: today(), year, habits: S.habits });
+  const progressOf = new Map(balance.items.map(({ goal, progress }) => [goal.id, progress]));
+  const completed = balance.kept;
   const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
   const quarterData = [
     { id: 'q1', title: '1º trimestre', months: 'jan — mar' },
@@ -57,11 +60,17 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
     { id: 'q4', title: '4º trimestre', months: 'out — dez' },
     { id: '', title: 'Ao longo do ano', months: 'sem data definida' },
   ];
+  const STATUS_LABEL = { done: 'Cumprida', 'on-track': 'No ritmo', behind: 'Atrasada', missed: 'Não cumprida', open: 'Em aberto' };
   const goalCard = (goal) => {
     const linkedTask = S.tasks.find((task) => task.id === goal.taskId);
-    return h`<li class="annual-goal${goal.done ? ' is-done' : ''}">
-      <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${goal.done ? icon('check', 16) : ''}</button>
+    const progress = progressOf.get(goal.id);
+    const isDone = progress.status === 'done';
+    return h`<li class="annual-goal${isDone ? ' is-done' : ''}">
+      <button type="button" class="annual-goal-check" data-action="annual-goal-toggle" data-id="${goal.id}" aria-pressed="${goal.done}" aria-label="${goal.done ? 'Reabrir' : 'Marcar como concluída'}: ${goal.title}">${isDone ? icon('check', 16) : ''}</button>
       <div class="annual-goal-content"><h4>${goal.title}</h4>
+        <p class="annual-goal-status is-${progress.status}"><b>${STATUS_LABEL[progress.status]}</b>${progress.detail ? ` · ${progress.detail}` : ''}</p>
+        ${progress.pct !== null ? h`<progress class="annual-goal-bar is-${progress.status}" value="${progress.pct}" max="100" aria-label="Andamento de ${goal.title}"></progress>` : ''}
+        ${goal.track?.kind === 'count' ? h`<div class="annual-goal-counter" role="group" aria-label="Contar: ${goal.title}"><button type="button" class="btn sm" data-action="annual-goal-count" data-id="${goal.id}" data-n="-1" aria-label="Diminuir um">−1</button><button type="button" class="btn sm primary" data-action="annual-goal-count" data-id="${goal.id}" data-n="1" aria-label="Somar um">+1</button></div>` : ''}
         ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}
         <button type="button" class="btn ghost sm" data-action="annual-goal-task" data-id="${goal.id}">${linkedTask ? 'Abrir tarefa relacionada' : goal.action ? 'Criar tarefa do primeiro passo' : 'Criar tarefa para esta conquista'}</button>
       </div>
@@ -74,6 +83,9 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
   const goalForm = (quarter) => h`<form class="annual-goal-form" data-form="annual-goal-save" data-id="${editing?.id || ''}">
     <label class="annual-goal-title-field"><span>Conquista</span><input name="title" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalTitle}" required placeholder="Ex.: fazer uma viagem especial" value="${editing?.title || ui.annualGoalDraft?.title || ''}"></label>
     <label class="annual-goal-action-field"><span>Primeiro passo <small>(opcional)</small></span><input name="action" type="text" maxlength="${ANNUAL_PLAN_LIMITS.goalAction}" placeholder="Ex.: pesquisar destinos e custos" value="${editing?.action || ui.annualGoalDraft?.action || ''}"></label>
+    <label class="annual-goal-track-field"><span>Acompanhar um hábito <small>(opcional)</small></span><select name="habitId"><option value="">Não, vou marcar sozinha</option>${S.habits.filter((habit) => (habit.status || 'active') !== 'archived').map((habit) => h`<option value="${habit.id}" ${editing?.track?.kind === 'habit' && editing.track.habitId === habit.id ? raw('selected') : ''}>${habit.name}</option>`)}</select></label>
+    <label class="annual-goal-track-field"><span>Meta do hábito</span><select name="targetPct">${HABIT_TARGETS.map((value) => h`<option value="${value}" ${(editing?.track?.kind === 'habit' ? editing.track.targetPct : DEFAULT_HABIT_TARGET) === value ? raw('selected') : ''}>${value === 100 ? 'Todos os dias programados' : `${value}% dos dias programados`}</option>`)}</select></label>
+    <label class="annual-goal-track-field"><span>Ou contar até <small>(ex.: 12 livros)</small></span><input name="countTarget" type="number" inputmode="numeric" min="1" max="${MAX_COUNT_TARGET}" step="1" placeholder="Sem contagem" value="${editing?.track?.kind === 'count' ? editing.track.target : ''}"></label>
     <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option value="">Ao longo do ano</option>${quarterData.slice(0, 4).map(({ id, title }) => h`<option value="${id}" ${quarter === id ? raw('selected') : ''}>${title}</option>`)}</select></label>
     <div class="annual-goal-form-actions"><button type="submit" class="btn primary">${editing ? 'Salvar conquista' : 'Adicionar conquista'}</button><button type="button" class="btn ghost" data-action="annual-goal-edit-cancel">Cancelar</button></div>
   </form>`;
@@ -85,9 +97,16 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
       </div>
       <div class="annual-plan-progress-card" aria-label="Resumo das conquistas do ano">
         <span class="annual-plan-progress-ring" style="--annual-progress:${goals.length ? Math.round(completed / goals.length * 100) : 0}%"><b>${goals.length ? `${Math.round(completed / goals.length * 100)}%` : '—'}</b></span>
-        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${completed} concluída(s) · ${goals.length - completed} em andamento</small></span>
+        <span><b>${goals.length} ${plural(goals.length, 'conquista', 'conquistas')}</b><small>${balance.ended ? `Você cumpriu ${completed} de ${goals.length}` : `${completed} cumprida(s) · ${balance.counts['on-track']} no ritmo · ${balance.counts.behind} atrasada(s)`}</small></span>
       </div>
     </header>
+    ${goals.length ? h`<section class="annual-balance${balance.ended ? ' is-final' : ''}" aria-labelledby="annual-balance-title">
+      <p class="section-kicker">${balance.ended ? `Balanço de ${year}` : `Como ${year} está indo`}</p>
+      <h3 id="annual-balance-title">${balance.ended
+        ? (completed === goals.length ? 'Você cumpriu tudo o que prometeu.' : `Você cumpriu ${completed} de ${goals.length} ${plural(goals.length, 'promessa', 'promessas')}.`)
+        : (balance.counts.behind || balance.counts.missed ? `${balance.counts.behind} ${plural(balance.counts.behind, 'conquista pede', 'conquistas pedem')} atenção.` : 'Tudo no ritmo até agora.')}</h3>
+      <ul class="annual-balance-list">${balance.items.filter(({ progress }) => balance.ended || progress.status === 'behind' || progress.status === 'missed').map(({ goal, progress }) => h`<li class="is-${progress.status}"><b>${goal.title}</b><span>${STATUS_LABEL[progress.status]}${progress.detail ? ` · ${progress.detail}` : ''}</span></li>`)}</ul>
+    </section>` : ''}
     <form class="annual-intention-form" data-form="annual-intention">
       <label for="annual-intention"><span class="annual-intention-label">Sua intenção para ${year}</span><span class="annual-intention-hint">O que você quer sentir, mudar ou priorizar neste ano?</span></label>
       <textarea id="annual-intention" name="intention" rows="2" maxlength="${ANNUAL_PLAN_LIMITS.intention}" placeholder="Ex.: ter mais tempo para mim e para quem amo.">${plan.intention}</textarea>

@@ -13,7 +13,7 @@ const SOLID_FROM = 0.8;
 const isActive = (habit) => (habit.status || 'active') === 'active';
 
 // Dias em que o hábito era esperado: programado, já iniciado e não pulado.
-function expectedDays(habit, from, to) {
+export function habitExpectedDays(habit, from, to) {
   const days = [];
   for (let day = from, guard = 0; day <= to && guard < 400; day = addDays(day, 1), guard++) {
     if (!habitStartedOnOrBefore(habit, day)) continue;
@@ -31,7 +31,7 @@ export function habitBestStreak(habit, today) {
   if (!first) return 0;
   let best = 0;
   let run = 0;
-  for (const day of expectedDays(habit, first, today)) {
+  for (const day of habitExpectedDays(habit, first, today)) {
     if (done.has(day)) {
       run++;
       best = Math.max(best, run);
@@ -47,7 +47,7 @@ function currentStreak(habit, today) {
   const done = new Set(habit.completions);
   const first = [...done].sort()[0];
   if (!first) return 0;
-  const days = expectedDays(habit, first, today);
+  const days = habitExpectedDays(habit, first, today);
   let streak = 0;
   for (let index = days.length - 1; index >= 0; index--) {
     if (done.has(days[index])) streak++;
@@ -67,7 +67,7 @@ export function habitInsights(habits, today, windowDays = INSIGHT_WINDOW_DAYS) {
 
   for (const habit of live) {
     const done = new Set(habit.completions);
-    const days = expectedDays(habit, from, today);
+    const days = habitExpectedDays(habit, from, today);
     // Hoje ainda em aberto não conta como falha.
     const settled = days.filter((day) => day !== today || done.has(day));
     for (const day of settled) {

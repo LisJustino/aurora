@@ -78,6 +78,7 @@ import {
 import { canAccessCycle } from './features/cycle/access.js';
 import { habitStartedOnOrBefore } from './features/habits/dates.js';
 import { MAX_BULK_HABITS, parseBulkHabits } from './features/habits/bulk-habits.js';
+import { HABIT_TARGETS, MAX_COUNT_TARGET } from './features/planning/goal-progress.js';
 import { cycleDayNumber, cycleStats, nextPeriodRange, topSymptoms } from './features/cycle/calculations.js';
 import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from './features/cycle/report.js';
 import { containsRemovedStudyData } from './features/backup/validation.js';
@@ -5810,6 +5811,15 @@ const ACTIONS = {
     goal.done = !goal.done;
     saveSlicesWithRollback(['settings'], snapshot);
   },
+  'annual-goal-count': (el) => {
+    const goal = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals.find((item) => item.id === el.dataset.id);
+    if (goal?.track?.kind !== 'count') return;
+    const next = Math.max(0, goal.track.current + (Number(el.dataset.n) < 0 ? -1 : 1));
+    if (next === goal.track.current || next > MAX_COUNT_TARGET * 10) return;
+    const snapshot = snapshotSlices(['settings']);
+    goal.track.current = next;
+    if (saveSlicesWithRollback(['settings'], snapshot) && next === goal.track.target) toast('Meta alcançada. Parabéns!', 'success');
+  },
   'annual-goal-task': (el) => {
     const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
     const goal = plan?.goals.find((item) => item.id === el.dataset.id);
@@ -9135,6 +9145,16 @@ Object.assign(FORMS, {
     if (!['', 'q1', 'q2', 'q3', 'q4'].includes(quarter)) {
       return fieldError('Escolha um período válido.', '[name="quarter"]');
     }
+    const habitId = String(data.get('habitId') || '');
+    const countTarget = String(data.get('countTarget') || '').trim();
+    if (habitId && countTarget) return fieldError('Escolha só uma forma de acompanhar: um hábito ou uma contagem.', '[name="countTarget"]');
+    if (habitId && !S.habits.some((habit) => habit.id === habitId)) return fieldError('Escolha um hábito válido.', '[name="habitId"]');
+    const targetPct = Number(data.get('targetPct') || 80);
+    if (habitId && !HABIT_TARGETS.includes(targetPct)) return fieldError('Escolha uma meta válida para o hábito.', '[name="targetPct"]');
+    const countValue = countTarget ? Number(countTarget) : 0;
+    if (countTarget && (!Number.isInteger(countValue) || countValue < 1 || countValue > MAX_COUNT_TARGET)) {
+      return fieldError('Informe uma contagem inteira entre 1 e 100.000.', '[name="countTarget"]');
+    }
     const snapshot = snapshotSlices(['settings']);
     const plans = S.settings.prefs.annualPlans;
     const plan = plans[ui.annualYear] || { intention: '', goals: [] };
@@ -9145,8 +9165,15 @@ Object.assign(FORMS, {
     if (!goal && plan.goals.length >= ANNUAL_PLAN_LIMITS.goals) {
       return toast('Este ano já tem o limite de conquistas. Remova uma antes de adicionar outra.', 'warning');
     }
-    if (goal) Object.assign(goal, { title, action, quarter });
-    else plan.goals.push({ id: newId(), title, action, quarter, done: false });
+    const previousCount = goal?.track?.kind === 'count' ? goal.track.current : 0;
+    const track = habitId
+      ? { kind: 'habit', habitId, targetPct }
+      : countTarget ? { kind: 'count', target: countValue, current: previousCount } : null;
+    if (goal) {
+      Object.assign(goal, { title, action, quarter });
+      if (track) goal.track = track;
+      else delete goal.track;
+    } else plan.goals.push({ id: newId(), title, action, quarter, done: false, ...(track ? { track } : {}) });
     plans[ui.annualYear] = plan;
     if (saveSlicesWithRollback(['settings'], snapshot)) {
       ui.annualEditingGoalId = '';

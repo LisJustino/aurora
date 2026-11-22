@@ -1,4 +1,5 @@
 import { isPlainObject } from '../../core/data-integrity.js';
+import { isValidGoalTrack } from './goal-progress.js';
 
 const MAX_GOALS_PER_PLAN = 100;
 const MAX_INTENTION_LENGTH = 300;
@@ -67,6 +68,7 @@ const isAnnualGoal = (goal) => isPlainObject(goal)
   && typeof goal.action === 'string'
   && goal.action.length <= MAX_GOAL_ACTION_LENGTH
   && QUARTERS.has(goal.quarter)
+  && isValidGoalTrack(goal.track)
   && typeof goal.done === 'boolean';
 
 export function isValidAnnualPlans(value) {
