@@ -1896,7 +1896,7 @@ function gate(area, name) {
 }
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
-  return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}Como usar?</button>`;
+  return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}<span class="area-guide-label">Como usar?</span></button>`;
 }
 function areaPageTitle(route, title, action = '') {
   return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
