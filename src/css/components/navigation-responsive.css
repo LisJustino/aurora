@@ -168,8 +168,11 @@
     font-size: var(--text-xs);
     line-height: 1.15;
   }
-  .topbar .nav .profile-menu-trigger:hover,
-  .topbar .nav a:hover { background: var(--surface-soft); }
+  /* Só com mouse: no toque o :hover fica grudado no último item tocado e parece que ele está selecionado. */
+  @media (hover: hover) {
+    .topbar .nav .profile-menu-trigger:hover,
+    .topbar .nav a:hover { background: var(--surface-soft); }
+  }
   .topbar .nav .profile-menu-control[open] > .profile-menu-trigger { background: var(--soft); color: var(--accent); }
   .topbar .profile-menu-panel {
     position: fixed;
