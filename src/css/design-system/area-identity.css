@@ -31,3 +31,10 @@
 .main[data-route] .empty {
   border-color: color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line));
 }
+
+/* Botões do topo: ícones simples, sem círculo rosa. O fundo aparece ao tocar ou quando o menu está aberto. */
+:where(.topbar .header-actions) .iconbtn { background: transparent; }
+:where(.topbar .header-actions) .iconbtn:active { background: var(--soft); }
+
+/* Cards com borda mais discreta sobre o fundo claro; a sombra continua separando do fundo. */
+.card { border-color: color-mix(in srgb, var(--accent) 8%, var(--line)); }

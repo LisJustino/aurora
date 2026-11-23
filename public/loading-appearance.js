@@ -14,7 +14,7 @@
       root.setAttribute('data-theme', isDark ? 'dark' : 'light');
     }
     root.style.colorScheme = isDark ? 'dark' : 'light';
-    root.style.backgroundColor = isDark ? '#1c1b19' : '#f5f3ed';
+    root.style.backgroundColor = isDark ? '#1c1b19' : '#faf8f5';
     var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
     if (statusBar) statusBar.content = isDark ? 'black' : 'default';
   }

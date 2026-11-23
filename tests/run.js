@@ -2239,7 +2239,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
 
   browserWindow.auroraManifestTheme.setMode('light');
   equal(attributes['data-theme'], 'light');
-  equal(root.style.backgroundColor, '#f5f3ed');
+  equal(root.style.backgroundColor, '#faf8f5');
   equal(manifestHref, 'https://aurora.test/manifest-light.webmanifest');
 
   browserWindow.auroraManifestTheme.setMode('auto');
