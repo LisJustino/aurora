@@ -1680,8 +1680,8 @@ function shell(body) {
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
   const feedbackPrompt = ui.feedbackPromptVisible ? renderFeedbackPrompt() : '';
-  // No celular a barra tem 4 espaços: 3 áreas + Mais (o "+" de criar fica no topo). As demais áreas ficam dentro do Mais.
-  const MOBILE_NAV_PRIMARY = 3;
+  // No celular a barra comporta as 5 áreas visíveis (o "+" de criar e o perfil ficam no topo). O "Mais" só aparece se um dia houver mais de 5.
+  const MOBILE_NAV_PRIMARY = 5;
   const overflowItems = menuItems.slice(MOBILE_NAV_PRIMARY);
   const navLink = ({ id, label, icon: iconName, area }, index) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${index >= MOBILE_NAV_PRIMARY ? raw('data-overflow="true"') : ''} ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
@@ -7966,6 +7966,38 @@ function categoryBars(items, total) {
   }
   return h`<ul class="category-bars">${rows}</ul>`;
 }
+function categoryDonut(items, total) {
+  if (!total || !items.length) return '';
+  const top = items.slice(0, CATEGORY_BAR_LIMIT);
+  const restValue = items.slice(CATEGORY_BAR_LIMIT).reduce((sum, [, value]) => sum + value, 0);
+  const slices = [...top.map(([name, value]) => [value, catMeta({ type: 'out', category: name }).c]), ...(restValue ? [[restValue, 'var(--muted)']] : [])];
+  let acc = 0;
+  const stops = slices.map(([value, tone]) => {
+    const start = acc / total * 100;
+    acc += value;
+    return `${tone} ${start.toFixed(2)}% ${(acc / total * 100).toFixed(2)}%`;
+  });
+  const leader = top[0];
+  const leaderPercent = Math.round(leader[1] / total * 100);
+  return h`<div class="category-donut" role="img" aria-label="Maior categoria: ${expenseTitle(leader[0])}, ${leaderPercent}% das despesas do mês"><span class="category-donut-ring" style="background:conic-gradient(${stops.join(',')})"></span><span class="category-donut-center"><small>Despesas</small><b>${money(total)}</b></span></div>`;
+}
+const FLOW_CHART_MONTHS = 6;
+function monthlyFlowChart(ym) {
+  const months = Array.from({ length: FLOW_CHART_MONTHS }, (_, index) => shiftMonth(ym, index - (FLOW_CHART_MONTHS - 1)));
+  const data = months.map((month) => {
+    const stats = monthStats(month);
+    return { month, income: stats.inAll, expense: stats.outAll };
+  });
+  if (!data.some((item) => item.income || item.expense)) return '';
+  const max = Math.max(...data.map((item) => Math.max(item.income, item.expense)), 1);
+  const summary = data.map((item) => `${MESES_L[Number(item.month.slice(5)) - 1]}: receitas ${money(item.income)}, despesas ${money(item.expense)}`).join('; ');
+  const columns = data.map((item) => {
+    const label = MESES_L[Number(item.month.slice(5)) - 1].slice(0, 3);
+    return h`<li class="${item.month === ym ? 'is-current' : ''}"><span class="flow-bars" aria-hidden="true"><i class="is-income" style="height:${Math.round(item.income / max * 100)}%"></i><i class="is-expense" style="height:${Math.round(item.expense / max * 100)}%"></i></span><span class="flow-label">${label}</span></li>`;
+  });
+  return h`<section class="surface-open finance-flow-chart"><div class="head"><div><h2>Últimos ${FLOW_CHART_MONTHS} meses</h2><p class="small muted">Receitas e despesas lado a lado.</p></div><span class="flow-legend" aria-hidden="true"><span class="is-income">Receitas</span><span class="is-expense">Despesas</span></span></div>
+    <ol class="flow-columns" role="img" aria-label="${summary}">${columns}</ol></section>`;
+}
 const UPCOMING_WINDOW_DAYS = 14;
 function calendarAgenda(ym) {
   const F = S.finance, now = today();
@@ -8078,9 +8110,10 @@ function finResumo() {
       </div>
     </section>
     ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
+    ${monthlyFlowChart(ym)}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div class="head"><div><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
-        ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
+        ${cats.length ? h`${categoryDonut(cats, totOut)}${categoryBars(cats, totOut)}` : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
       <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
     `;

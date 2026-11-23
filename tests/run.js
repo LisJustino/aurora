@@ -297,10 +297,9 @@ test('Ciclo identifica estimativas passadas e resume sinais registrados sem infe
     || pastEstimate.includes('Próximo início estimado')
     || !futureEstimate.includes('Próximo início estimado')
     || futureEstimate.includes('Data estimada já passou')
-    || !pastEstimate.includes('Mais registrados nos últimos 90 dias')
-    || !pastEstimate.includes('cramps')
-    || !pastEstimate.includes('não indica causa nem diagnóstico')) {
-    throw new Error('O Ciclo deve sinalizar datas estimadas passadas e resumir registros sem inferências.');
+    || pastEstimate.includes('Mais registrados nos últimos 90 dias')
+    || !pastEstimate.includes('cramps')) {
+    throw new Error('O Ciclo deve sinalizar datas estimadas passadas e não mostrar o resumo de registros dos últimos 90 dias.');
   }
 });
 

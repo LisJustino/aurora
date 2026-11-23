@@ -40,9 +40,8 @@ const check = (passed, name, detail = '') => {
     } else if (await direct.count()) {
       await direct.first().click();
     } else {
-      // No celular, as áreas além das três primeiras ficam dentro do menu Mais.
-      await page.locator('.topbar .nav .profile-menu-trigger:visible').click();
-      await page.locator(`#profile-menu a[href="/${route}"]`).click();
+      // Todas as áreas ficam direto no dock; se uma não estiver visível, é erro de navegação.
+      throw new Error(`área ${route} não aparece na navegação`);
     }
     await page.waitForFunction((expected) => location.pathname === `/${expected}`, route);
     check(await page.locator('main h1, main h2').count() > 0, `rota ${route} renderiza conteúdo`);

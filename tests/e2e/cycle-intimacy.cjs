@@ -198,10 +198,8 @@ const check = (passed, name) => {
   check((await summary.textContent()).includes('Teste de ovulação: Positivo'), 'resultado do teste de ovulação aparece no resumo');
   check((await summary.textContent()).includes('Teste de gravidez: Negativo'), 'resultado do teste de gravidez aparece no resumo');
   check((await summary.textContent()).includes('Tomou medicação'), 'registro de medicação aparece no resumo sem detalhes');
-  const symptomSummary = page.locator('.cycle-symptom-summary');
-  check(await symptomSummary.count() === 1
-    && (await symptomSummary.textContent()).includes('não indica causa nem diagnóstico'),
-  'sintomas mais registrados aparecem como contagem descritiva, sem inferência médica');
+  check(await page.locator('.cycle-symptom-summary').count() === 0,
+    'o Ciclo não mostra mais o resumo dos sintomas mais registrados nos últimos 90 dias');
 
   await page.getByRole('button', { name: 'Registrar este dia' }).click();
   check(await mindGroup.locator('[data-action="cyc-opt"][data-v="concentration"]').getAttribute('aria-pressed') === 'true', 'opções de mente permanecem ao reabrir o dia');

@@ -112,11 +112,6 @@ export function renderCycleView({
       <p class="small muted">Sintomas que, nos seus registros do último ano, aparecem mais em uma fase. Isso pode refletir quando você costuma registrar e não indica causa nem diagnóstico.</p>
       <ul class="list">${patterns.map((item) => h`<li><span>${item.label}</span><b>${item.inBucket} de ${item.count} ${item.bucket === 'period' ? 'durante o período' : 'nos 5 dias antes'}</b></li>`)}</ul>
     </details>` : ''}
-    ${recentSymptoms.length ? h`<details class="card cycle-symptom-summary">
-      <summary>Mais registrados nos últimos 90 dias ${icon('chevDown', 18)}</summary>
-      <p class="small muted">Contagem dos registros feitos neste período; não indica causa nem diagnóstico, e não registrar um sinal não significa que ele não ocorreu.</p>
-      <ul class="list">${recentSymptoms.map((item) => h`<li><span>${item.label}</span><b>${item.count} ${plural(item.count, 'registro', 'registros')}</b></li>`)}</ul>
-    </details>` : ''}
     <details class="card cycle-health-card">
       <summary class="cycle-health-summary"><span><span class="cycle-health-eyebrow">Informação e cuidado</span><strong>Ciclo, sexualidade e prevenção</strong><small>Orientações gerais sobre mudanças do ciclo, contracepção, ISTs e quando buscar ajuda.</small></span>${icon('chevDown', 18)}</summary>
       <div class="cycle-health-content">

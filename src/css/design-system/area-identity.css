@@ -1,0 +1,33 @@
+/* Identidade por área: cada página ganha a cor da sua área (--area) em poucos pontos, sem trocar a base neutra. */
+.main[data-route] > .page-title {
+  border-bottom-color: color-mix(in srgb, var(--area, var(--accent)) 38%, var(--line-strong));
+}
+.main[data-route] > .page-title .page-title-eyebrow { color: var(--area, var(--accent)); }
+.main[data-route] > .page-title h1 i { color: var(--area, var(--accent)); }
+
+/* Um destaque por tela: o bloco principal de Finanças ganha um leve tom da área. */
+.main[data-route="financas"] .fin-hero {
+  background: color-mix(in srgb, var(--area) 6%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--area) 22%, var(--line));
+}
+
+/* Valores monetários nunca quebram no meio. */
+.home-day-chip-count,
+.finance-summary-stat > b,
+.finance-upcoming-item > b,
+.category-bars b,
+.home-day-upcoming b {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Estados vazios com o tom da área em vez do rosa genérico. */
+.main[data-route] .empty .eic {
+  border-color: color-mix(in srgb, var(--area, var(--accent)) 24%, transparent);
+  background: color-mix(in srgb, var(--area, var(--accent)) 10%, var(--surface));
+  color: var(--area, var(--accent));
+  box-shadow: none;
+}
+.main[data-route] .empty {
+  border-color: color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line));
+}
