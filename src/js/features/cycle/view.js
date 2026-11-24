@@ -1,4 +1,4 @@
-import { addDays, dayDiff, DIAS, longDate, MESES_L, pad, pk, shortDate, today } from '../../utils/dates.js';
+import { addDays, DIAS, longDate, MESES_L, pad, pk, shortDate, today } from '../../utils/dates.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';

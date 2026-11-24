@@ -3,7 +3,7 @@ import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
 import { brl as formatBRL, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
-  addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
+  addDays, addMonths, dayDiff, DIAS, dk, isoDay, isDay, longDate,
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
@@ -210,22 +210,16 @@ import { isNativeApp } from './utils/platform.js';
 import {
   habitDayOverview,
   habitWeeklyTarget,
-  habitWeekReview,
   habitIsComplete,
   filterSuggestedHabits,
-  featuredHabitSuggestions,
-  habitSuggestionTags,
   habitMonthDays,
   habitMonthStats,
   habitStats,
-  habitWeekOverview,
   isWaterHabit,
   isValidHabit,
   normalizeHabits,
   remainingHabitSuggestions,
   SUGGESTED_HABITS,
-  SUGGESTED_HABIT_CATEGORIES,
-  SUGGESTED_HABIT_TAGS,
   HABIT_ICONS,
   HABIT_ICON_KEYS,
   HABIT_COLORS,
@@ -268,7 +262,8 @@ import {
   orderMenuItems,
 } from './features/navigation/menu.js';
 import { weekDays, weeklyReview } from './features/planning/week.js';
-import { weekSpending } from './features/planning/week-finance.js';
+import { monthBudgetProgress, weekSpending } from './features/planning/week-finance.js';
+import { renderWeeklyReviewView } from './features/planning/review-view.js';
 import { agendaForMonth as buildAgendaForMonth } from './features/planning/agenda.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
 import { MAX_BULK_TASKS, parseBulkTasks } from './features/planning/bulk-tasks.js';
@@ -516,8 +511,6 @@ const bankFieldValue = (value) => value === OTHER_BANK
   : Object.hasOwn(BANKS, value) ? BANKS[value].name : value || '';
 const AREAS = { finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
 const SEX = PROFILE_SEX;
-const hasRequiredProfile = (profile) => typeof profile?.name === 'string'
-  && Boolean(profile.name.trim());
 const CASE_TERMS = new Set(['Android', 'CSV', 'Google', 'HTTPS', 'iPhone', 'JSON', 'MB', 'mL', 'OFX', 'Push', 'URL', 'VAPID']);
 const preserveCopyTerms = (text) => h`${String(text).split(/\b(Android|CSV|Google|HTTPS|iPhone|JSON|MB|mL|OFX|Push|URL|VAPID)\b/g).map((part) => {
   return CASE_TERMS.has(part) ? h`<span class="case-preserve">${part}</span>` : part;
@@ -1608,7 +1601,6 @@ function purgeExpiredTrash() {
 /* Ícones: src/js/utils/icons.js */
 const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
-const configLink = () => h`<a class="inline-link" href="${routePathFor('config?weight')}" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
@@ -1793,6 +1785,7 @@ function weeklyReviewView() {
     ? {
       hidden: S.settings.prefs.financeValuesHidden === true,
       spending: weekSpending(S.finance.tx, week[0], today()),
+      budget: monthBudgetProgress(S.finance.tx, S.finance.budgets, today().slice(0, 7)),
       dues: upcomingDueItems().filter((item) => item.date >= review.nextWeek.start && item.date <= review.nextWeek.end),
     }
     : null;
@@ -1802,46 +1795,10 @@ function weeklyReviewView() {
     const [year, month, date] = day.split('-').map(Number);
     return `${date} de ${MESES_L[month - 1]} de ${year}`;
   };
-  return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Revisão gentil</span><h2>Sua semana</h2><p>De ${formatDay(week[0])} a ${formatDay(week[6])}. Cada passo conta, no seu tempo.</p></div></section>
-    <section class="card weekly-review-main" aria-label="Resumo da semana">
-      <div class="review-stats">
-        <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
-        <div class="stat"><b>${review.tasks.pending}</b><span>Pendentes nesta semana</span></div>
-        <div class="stat"><b>${review.waterDays}</b><span>Dias com meta de água</span></div>
-        <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
-      </div>
-    </section>
-    ${weekMoney ? h`<section class="card weekly-review-money" aria-labelledby="weekly-money-title">
-      <div class="head"><h3 id="weekly-money-title">Dinheiro da semana</h3></div>
-      <p>${weekMoney.hidden ? 'Valores ocultos.' : h`Você gastou <b>${brl(weekMoney.spending.current)}</b> até hoje.`}${!weekMoney.hidden && weekMoney.spending.hasPrevious ? h` Na semana passada, no mesmo trecho, foram ${brl(weekMoney.spending.previous)}.` : ''}</p>
-      ${weekMoney.dues.length ? h`<p class="small muted">Vencem na próxima semana: ${weekMoney.dues.slice(0, 3).map((item) => `${item.label}${weekMoney.hidden ? '' : ` (${brl(item.cents)})`}`).join(', ')}${weekMoney.dues.length > 3 ? ` e mais ${weekMoney.dues.length - 3}` : ''}.</p>` : h`<p class="small muted">Nenhuma conta vence na próxima semana.</p>`}
-    </section>` : ''}
-    <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
-      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
-      ${review.tasks.overdueTasks.length
-        ? h`<ul class="list">${review.tasks.overdueTasks.map((task) => taskRow(task))}</ul>`
-        : h`<p class="small muted" role="status">Nenhuma tarefa atrasada.</p>`}
-    </section>
-    <section class="card weekly-review-tasks" aria-labelledby="weekly-next-title">
-      <div class="head"><div><h3 id="weekly-next-title">Próxima semana</h3><p class="small muted">${formatDay(review.nextWeek.start)} a ${formatDay(review.nextWeek.end)}</p></div><span class="small muted">${review.nextWeek.tasks.length} pendente(s)</span></div>
-      ${review.nextWeek.tasks.length
-        ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
-        : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
-    </section>
-    ${currentReflection && !ui.reflectionEditing
-      ? h`<section class="card weekly-reflection is-answered" aria-labelledby="weekly-reflection-title">
-      <div class="head"><div><p class="section-kicker">Para a próxima semana</p><h2 id="weekly-reflection-title">${currentReflection}</h2></div><button type="button" class="btn sm" data-action="weekly-reflection-edit">Mudar</button></div>
-      <p class="small muted" role="status">Sua resposta está salva na revisão desta semana.</p>
-    </section>`
-      : h`<section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
-      <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      <p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>
-      <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
-        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
-      </div>
-    </section>`}
-  </div>`;
+  return renderWeeklyReviewView(
+    { review, week, weekMoney, currentReflection, reflectionEditing: ui.reflectionEditing, formatDay },
+    { taskRow },
+  );
 }
 
 function profileGreeting(style) {
@@ -1906,31 +1863,11 @@ function areaPageTitle(route, title, action = '') {
   return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
 }
 /* ---------- Tarefas (reuso) ---------- */
-function dueBadge(t) {
-  if (!t.dueDate) return '';
-  const d = dayDiff(t.dueDate, today());
-  if (!t.done && d < 0) return h`<span class="badge bad">${icon('alert', 12)}Atrasada · ${shortDate(t.dueDate)}</span>`;
-  if (d === 0) return h`<span class="badge warn">Hoje</span>`;
-  if (d === 1) return h`<span class="badge">Amanhã</span>`;
-  return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
-}
 function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
   return renderTaskRow(t, reviewNextWeek, homeNextStep, { route: ui.route, sort: ui.filters.sort });
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
 
-/* ---------- gráfico de barras semanal (SVG) ---------- */
-function barChart(points, goal, unit) {
-  const W = 320, H = 150, top = goal ? 30 : 14, bot = 24, bw = 28, gap = (W - bw * points.length) / (points.length + 1);
-  const max = Math.max(goal || 0, ...points.map((p) => p.v), 1) * 1.1;
-  const y = (v) => top + (H - top - bot) * (1 - v / max);
-  const displayUnit = unit === 'mL' ? '<tspan class="case-preserve">mL</tspan>' : esc(unit);
-  const bars = points.map((p, i) => { const x = gap + i * (bw + gap), yy = y(p.v); return `<rect class="b ${p.today ? 'today' : ''}" x="${x}" y="${yy}" width="${bw}" height="${Math.max(0, H - bot - yy)}" rx="6"><title>${esc(p.label)}: ${p.v} ${esc(unit)}</title></rect><text x="${x + bw / 2}" y="${H - 7}" text-anchor="middle">${esc(p.label)}</text>`; }).join('');
-  const g = goal ? `<text class="goal-label" x="4" y="16" text-anchor="start">meta ${goal} ${displayUnit}</text><line class="g" x1="0" x2="${W}" y1="${y(goal)}" y2="${y(goal)}"/>` : '';
-  const sum = points.map((p) => `${p.label}: ${p.v} ${unit}`).join(', ');
-  return raw(`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Últimos 7 dias. ${esc(sum)}">${bars}${g}</svg>`);
-}
-const last7 = (valueOf) => Array.from({ length: 7 }, (_, i) => { const k = addDays(today(), i - 6); return { label: DIAS[pk(k).getDay()], v: valueOf(k), today: i === 6 }; });
 
 /* ---------- render principal ---------- */
 function applyTheme(theme) {
@@ -3329,6 +3266,28 @@ function updateHabitIdeaFilters() {
   }
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
+function lastWaterEntryToday() {
+  const day = today();
+  return S.water
+    .filter((entry) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at)) && isoDay(entry.at) === day)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+    .at(-1) || null;
+}
+function undoLastWaterEntry(habit) {
+  const day = today();
+  const last = lastWaterEntryToday();
+  if (!last) return toast('Não há registro de água hoje para desfazer.', 'info');
+  const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
+  const totalAfter = waterMlForDay(S.water, day) - Math.round(last.ml);
+  const uncompleting = Boolean(habit && habit.completions.includes(day) && !waterGoalReached(totalAfter, target));
+  const slices = ['water', ...(uncompleting ? ['habits'] : [])];
+  const snapshot = snapshotSlices(slices);
+  S.water = S.water.filter((entry) => entry.id !== last.id);
+  if (uncompleting) habit.completions = habit.completions.filter((completed) => completed !== day);
+  if (!saveSlicesWithRollback(slices, snapshot, false, 'a remoção do registro de água')) return;
+  render();
+  toast(`${Math.round(last.ml).toLocaleString('pt-BR')} mL removidos do dia.`, 'success');
+}
 function habitWaterTracker(habit) {
   if (!isWaterHabit(habit)) return '';
   const currentDay = today();
@@ -3340,7 +3299,8 @@ function habitWaterTracker(habit) {
   return h`<section class="water-tracker" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
-    ${habit.status === 'active' ? h`<form class="water-add-form" data-form="water-add" data-id="${habit.id}">
+    ${habit.status === 'active' ? h`<div class="water-quick-amounts" role="group" aria-label="Registrar quantidade rápida">${[150, 250, 330, 500].map((ml) => h`<button type="button" class="btn sm" data-action="water-quick" data-id="${habit.id}" data-ml="${ml}">+${ml} mL</button>`)}${lastWaterEntryToday() ? h`<button type="button" class="btn sm ghost" data-action="water-undo" data-id="${habit.id}">Desfazer último</button>` : ''}</div>
+    <form class="water-add-form" data-form="water-add" data-id="${habit.id}">
       <label for="water-amount-${habit.id}">Quantidade consumida (mL)</label>
       <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="Ex.: 250" required><button type="submit" class="btn sm">Adicionar</button></div>
     </form>` : ''}
@@ -3751,7 +3711,6 @@ function areasNavigationSettings(s) {
     .filter((item) => item && !HIDDEN_MENU_IDS.includes(item.id)
       && (item.id !== 'ciclo' || canAccessCycle(s.profile, ui.preview)));
   const orderedItems = items;
-  const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
     <div class="head areas-navigation-head"><h2>Áreas e menu</h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
@@ -5042,21 +5001,6 @@ function findDialogFocusTarget(root, snap) {
   const sameSlot = snap.index >= 0 ? root.querySelectorAll(DIALOG_FOCUSABLE)[snap.index] : null;
   return sameSlot && sameSlot.tagName === snap.tag && sameSlot.type === snap.type ? sameSlot : null;
 }
-function restoreDialogCaret(target, caret) {
-  if (!caret || typeof target.setSelectionRange !== 'function') return;
-  try { target.setSelectionRange(caret.start, caret.end, caret.dir || 'none'); } catch (e) { /* date, time e number não têm cursor */ }
-}
-function keepDialogControlInView(target) {
-  const body = target.closest('.dlg-body');
-  if (!body) return;
-  const viewport = window.visualViewport;
-  const bounds = target.getBoundingClientRect();
-  const bodyBounds = body.getBoundingClientRect();
-  const top = Math.max(bodyBounds.top, viewport ? viewport.offsetTop : 0) + 12;
-  const bottom = Math.min(bodyBounds.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight) - 16;
-  if (bounds.top < top) body.scrollTop += bounds.top - top;
-  else if (bounds.bottom > bottom) body.scrollTop += bounds.bottom - bottom;
-}
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
@@ -5237,7 +5181,6 @@ async function exportRecoveryData() {
   downloadFile(`aurora-recovery-${today()}.json`, recovery, 'application/json;charset=utf-8');
   toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.', 'success');
 }
-const arr = (v) => Array.isArray(v) ? v : [];
 function backupRecords(value, validator, label) {
   if (value == null) return [];
   const result = filterValidRecords(value, validator);
@@ -5326,9 +5269,8 @@ async function importFile(file) {
     return err('Não consegui ler o arquivo.');
   }
   try {
-    let document;
     try {
-      document = JSON.parse(text);
+      JSON.parse(text);
     } catch {
       const parsed = parseBackup(text);
       ui.dlg = null;
@@ -5908,6 +5850,20 @@ const ACTIONS = {
     ui.planView = 'revisao';
     if (ui.route === 'planejar') render();
     else nav('planejar');
+  },
+  'water-quick': (el) => {
+    const habit = S.habits.find((item) => item.id === el.dataset.id);
+    if (!habit || !isWaterHabit(habit) || habit.status !== 'active') {
+      return toast('Este hábito de água não está disponível para registro.', 'info');
+    }
+    const amount = parseWaterMl(el.dataset.ml);
+    if (amount === null) return toast('Não foi possível registrar essa quantidade.', 'error');
+    recordWaterEntry(amount, habit);
+  },
+  'water-undo': (el) => {
+    const habit = S.habits.find((item) => item.id === el.dataset.id);
+    if (!habit || !isWaterHabit(habit)) return;
+    undoLastWaterEntry(habit);
   },
   'weekly-reflection-save': (el) => {
     const choice = ['Menos tarefas', 'Mais pausas', 'Manter assim'].find((value) => value === el.dataset.v);
@@ -7422,7 +7378,6 @@ const SETTINGS_INPUT_CHANGES = new Set(['home-message']);
 
 /* ---- Salvar sem trocar a tela debaixo do dedo (campos de texto salvam ao sair do campo) ---- */
 const flushDirty = () => { if (ui.dirty) { ui.dirty = false; clearTimeout(ui.dirtyT); render(); } };
-function commitSoft(...ks) { saveSlices(...ks); ui.dirty = true; clearTimeout(ui.dirtyT); ui.dirtyT = setTimeout(flushDirty, 700); }
 document.addEventListener('click', () => setTimeout(flushDirty, 0));
 
 /* ---- Relógio ---- */
@@ -7991,14 +7946,12 @@ const accountOptionLabel = (account) => `${accountDisplayName(account)} · ${acc
 const accName = (id) => { const account = accById(id); return account ? accountDisplayName(account) : 'Conta removida'; };
 const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const ymLabel = (ym) => { const [y, m] = ym.split('-').map(Number); return `${MESES_L[m - 1]} de ${y}`; };
-const signed = signedAmount;
 const accBalance = (account) => balanceForAccount(account, S.finance.tx);
 const netBalance = () => netAccountBalance(S.finance.accounts, S.finance.tx);
 const monthStats = (month) => summarizeMonth(S.finance.tx, month, accById);
 const byCategory = summarizeByCategory;
 
 /* ---- fatura do cartão ---- */
-const invoiceYM = (card, date) => invoiceMonth(card, date, shiftMonth, pk);
 const cardInfo = (card) => calculateCardInfo(S.finance, card, today(), {
   shiftMonth,
   parseDate: pk,
@@ -8475,7 +8428,7 @@ function finInvoiceDetails(card) {
       <span class="cc-invoice-title"><b>Fatura de ${ymLabel(month)}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
       <button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="1" aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button></div>
     <p class="cc-invoice-total"><span class="small muted">${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')}${invoice.installmentCount ? ` · ${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')}` : ''}</span><b>${money(invoice.total)}</b></p>
-    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : h`<p class="small muted">Nenhuma compra nesta fatura.</p>`}
+    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : empty('Nenhuma compra nesta fatura', 'As compras feitas no cartão neste período aparecem aqui.', '', 'card')}
   </details>`;
 }
 function creditCardCard(card, paymentAccounts) {
@@ -8574,7 +8527,7 @@ function finMonthClose(ym) {
     </dl>
     <div class="finance-close-next">${close.topExpense
       ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
-      : h`<p class="small muted">Nenhuma despesa neste mês.</p>`}
+      : empty('Nenhuma despesa neste mês', 'Quando você lançar despesas, o fechamento mostra a maior categoria aqui.', '', 'wallet')}
       <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
     </div>
   </details>`;
@@ -9086,7 +9039,6 @@ function dlgTxAnticipate() {
 Object.assign(DLG, { txbulk: dlgTxBulk, txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
-const F_ = () => S.finance;
 Object.assign(ACTIONS, {
   'finance-category-rule-focus': () => document.querySelector('.finance-category-rule-form [name="phrase"]')?.focus(),
   'fin-tab': (el) => {
