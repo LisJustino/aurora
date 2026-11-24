@@ -264,6 +264,7 @@
 .water-tracker-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1); font-size: var(--text-sm); }
 .water-tracker-summary > span, .water-tracker > p { color: var(--muted); }
 .water-tracker progress { width: 100%; height: 10px; accent-color: var(--area-water); }
+.water-quick-amounts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .water-add-form { display: grid; gap: var(--space-2); }
 .water-add-form > label { font-size: var(--text-meta); font-weight: var(--weight-bold); }
 .water-add-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
@@ -636,3 +637,22 @@ button.habit-month-day { font: inherit; color: inherit; cursor: pointer; }
 .habit-insight-list li:first-child { border-top: 0; }
 .habit-insight-list p { margin: 0; flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 1.45; }
 .habit-insight-list .is-risk p { color: var(--ink); }
+
+/* Hoje sem cartão por fora: os hábitos ficam soltos sobre o fundo, em vez de cartão dentro de cartão. */
+.main[data-route="habitos"] .habit-today {
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+/* Botões da seção em uma linha própria, para o resumo "0 de 5 hábitos feitos" não quebrar. */
+@media (width <= 700px) {
+  .habit-today-head { flex-wrap: wrap; }
+  .habit-today-head > div { flex: 1 1 100%; }
+  .habit-today-actions { width: 100%; flex-wrap: nowrap; justify-content: stretch; }
+  .habit-today-actions > .btn { flex: none; }
+  .habit-today-actions > .btn.primary { flex: 1; }
+}
+/* Primeira letra maiúscula na exibição, sem alterar o nome salvo. */
+.habit-title::first-letter,
+.main[data-route="habitos"] .habit-review-copy > b::first-letter { text-transform: uppercase; }

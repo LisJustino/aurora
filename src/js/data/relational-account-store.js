@@ -3,8 +3,8 @@ import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
-  'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins',
+  'habits', 'habit_logs', 'water_logs',
   'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
   'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
   'cycle_periods', 'cycle_days', 'weight_logs', 'trash_records',
@@ -40,7 +40,6 @@ const rowSignature = (row) => {
   delete data.expected_updated_at;
   return JSON.stringify(sortObject(data));
 };
-const byId = (rows) => new Map(rows.map((row) => [row.id, row]));
 const includeActive = (row) => !row.deleted_at;
 const dateMonth = (month) => `${month}-01`;
 const timeOnly = (time) => time ? String(time).slice(0, 5) : '';
@@ -334,7 +333,6 @@ function buildRows(userId, state, idMap) {
   trashedTasks.forEach((record) => {
     if (!tasks.some((task) => task.id === record.value.id)) tasks.push(record.value);
   });
-  const taskById = new Map(tasks.map((task) => [task.id, task]));
   const taskTags = new Set();
   tasks.forEach((task) => (task.tags || []).forEach((tag) => taskTags.add(tag)));
   const tagIds = new Map();
@@ -394,32 +392,6 @@ function buildRows(userId, state, idMap) {
       }));
     });
   }
-
-  const timer = state.pomodoro || {};
-  const timerId = idFor(idMap, 'timer_state', 'pomodoro');
-  pushRow(rows, 'timer_state', {
-    id: timerId,
-    user_id: userId,
-    timer_kind: 'pomodoro',
-    focus_task_id: databaseId(idMap, 'tasks', timer.focusTaskId),
-    elapsed_seconds: Math.max(0, Math.floor(timer.elapsedSeconds || 0)),
-    started_at: toIso(timer.startedAt),
-    phase: timer.phase || 'focus',
-    phase_elapsed_seconds: Math.max(0, Math.floor(timer.phaseElapsedSeconds || 0)),
-    completed_pomodoros: Math.max(0, Math.floor(timer.completedPomodoros || 0)),
-    daily_completed_pomodoros: Math.max(0, Math.floor(timer.dailyCompletedPomodoros || 0)),
-    daily_completed_on: timer.dailyCompletedOn || null,
-    focus_label: timer.focusLabel || null,
-    is_test_data: false,
-  });
-  Object.entries(state.pomodoro?.history || {}).forEach(([day, count]) => {
-    pushRow(rows, 'pomodoro_daily_stats', rowId(idMap, 'pomodoro_daily_stats', userId, day, {
-      stat_date: day,
-      completed_count: count,
-      is_test_data: false,
-      deleted_at: null,
-    }));
-  });
 
   for (const habit of habits) {
     const removedAt = deletedAtFor(settings, 'habits', habit.id);
@@ -914,27 +886,6 @@ function buildState(tables, idMap) {
   delete settings.prefs.onboardingComplete;
   delete settings.prefs.introSeen;
 
-  const mapPomodoroTimer = () => {
-    const row = active('timer_state').find((item) => item.timer_kind === 'pomodoro');
-    if (!row) return null;
-    idMap.get('timer_state').set('pomodoro', row.id);
-    const timer = {
-      elapsedSeconds: row.elapsed_seconds,
-      startedAt: fromIso(row.started_at),
-      phase: row.phase,
-      phaseElapsedSeconds: row.phase_elapsed_seconds,
-      completedPomodoros: row.completed_pomodoros,
-      dailyCompletedPomodoros: row.daily_completed_pomodoros,
-      dailyCompletedOn: row.daily_completed_on || '',
-    };
-    timer.focusTaskId = row.focus_task_id ? sourceId(idMap, 'tasks', row.focus_task_id) : '';
-    if (row.focus_label) timer.focusLabel = row.focus_label;
-    timer.history = Object.fromEntries(active('pomodoro_daily_stats').map((item) => [
-      item.stat_date,
-      item.completed_count,
-    ]));
-    return timer;
-  };
   const financeAccounts = active('finance_accounts').map((row) => financeRecordFromRow(row, 'finance_accounts', idMap));
   const financeRecurring = active('finance_recurrences').map((row) => financeRecordFromRow(row, 'finance_recurrences', idMap));
   const finance = {
@@ -951,7 +902,6 @@ function buildState(tables, idMap) {
   return {
     settings,
     tasks: taskRows.map((row) => taskFromRow(row, tables, idMap)),
-    pomodoro: mapPomodoroTimer(),
     checkins: active('daily_checkins')
       .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
       .map((row) => ({

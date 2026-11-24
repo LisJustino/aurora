@@ -3,7 +3,7 @@ import { $, $$, esc, h, raw } from './utils/dom.js';
 import { icon } from './utils/icons.js';
 import { brl as formatBRL, formatMoneyInput, parseMoney } from './utils/currency.js';
 import {
-  addDays, addMonths, clock, dayDiff, DIAS, dk, dur, isoDay, isDay, longDate,
+  addDays, addMonths, dayDiff, DIAS, dk, isoDay, isDay, longDate,
   MESES, MESES_L, normalizeDay, pad, pk, shortDate, today,
 } from './utils/dates.js';
 import { newId } from './utils/ids.js';
@@ -29,7 +29,6 @@ import {
   accountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
-  invoiceMonth,
   isCreditAccount,
   isPaid as transactionIsPaid,
   monthStats as summarizeMonth,
@@ -38,7 +37,6 @@ import {
   reportMonthStats,
   linkedGoalProgressCents,
   projectedNetAccountBalance,
-  signedAmount,
   expenseBudgetByCategory,
   dailyBudgetRoom,
   cardInvoice as calculateCardInvoice,
@@ -87,7 +85,6 @@ import {
   markReleaseNotesSeen,
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
-import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
 import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
 import {
   BUDGET_ALERT_OPTIONS,
@@ -195,8 +192,6 @@ import {
   HOME_BLOCK_IDS,
   HOME_MESSAGE_MAX_LENGTH,
   HOME_MODES,
-  HOME_SHORTCUTS,
-  HOME_SHORTCUT_IDS,
   normalizeHomeAreaColors,
   normalizeHomeLayout,
   normalizeHomeMessage,
@@ -212,22 +207,16 @@ import { isNativeApp } from './utils/platform.js';
 import {
   habitDayOverview,
   habitWeeklyTarget,
-  habitWeekReview,
   habitIsComplete,
   filterSuggestedHabits,
-  featuredHabitSuggestions,
-  habitSuggestionTags,
   habitMonthDays,
   habitMonthStats,
   habitStats,
-  habitWeekOverview,
   isWaterHabit,
   isValidHabit,
   normalizeHabits,
   remainingHabitSuggestions,
   SUGGESTED_HABITS,
-  SUGGESTED_HABIT_CATEGORIES,
-  SUGGESTED_HABIT_TAGS,
   HABIT_ICONS,
   HABIT_ICON_KEYS,
   HABIT_COLORS,
@@ -236,6 +225,11 @@ import {
   habitIconKey,
   habitColor,
   habitIsSkipped,
+  isWeightHabit,
+  HABIT_ENTRY_TYPES,
+  habitEntryType,
+  habitEntryOptions,
+  habitEntryForDay,
 } from './features/habits/model.js';
 import {
   estimateWaterGoal,
@@ -247,6 +241,7 @@ import {
   waterMlForDay,
   waterWeekProgress,
 } from './features/habits/water-goal.js';
+import { weightChange } from './features/habits/weight-tracking.js';
 import { APPEARANCE_PRESETS, hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
 import {
   DEFAULT_VISIBLE_MENU_ITEMS,
@@ -264,7 +259,8 @@ import {
   orderMenuItems,
 } from './features/navigation/menu.js';
 import { weekDays, weeklyReview } from './features/planning/week.js';
-import { weekSpending } from './features/planning/week-finance.js';
+import { monthBudgetProgress, weekSpending } from './features/planning/week-finance.js';
+import { renderWeeklyReviewView } from './features/planning/review-view.js';
 import { agendaForMonth as buildAgendaForMonth } from './features/planning/agenda.js';
 import { nextDue, REPEATS } from './features/planning/recurrence.js';
 import { MAX_BULK_TASKS, parseBulkTasks } from './features/planning/bulk-tasks.js';
@@ -512,8 +508,6 @@ const bankFieldValue = (value) => value === OTHER_BANK
   : Object.hasOwn(BANKS, value) ? BANKS[value].name : value || '';
 const AREAS = { finances: ['Finanças', 'Contas, entradas e saídas'], cycle: ['Ciclo', 'Registro e estimativas'], habits: ['Hábitos', 'Rotinas e histórico semanal'] };
 const SEX = PROFILE_SEX;
-const hasRequiredProfile = (profile) => typeof profile?.name === 'string'
-  && Boolean(profile.name.trim());
 const CASE_TERMS = new Set(['Android', 'CSV', 'Google', 'HTTPS', 'iPhone', 'JSON', 'MB', 'mL', 'OFX', 'Push', 'URL', 'VAPID']);
 const preserveCopyTerms = (text) => h`${String(text).split(/\b(Android|CSV|Google|HTTPS|iPhone|JSON|MB|mL|OFX|Push|URL|VAPID)\b/g).map((part) => {
   return CASE_TERMS.has(part) ? h`<span class="case-preserve">${part}</span>` : part;
@@ -532,7 +526,6 @@ function saveActiveHomeMode(settings) {
 const defaults = () => ({
   tasks: [],
   habits: [],
-  pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
   settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, backupReminderSnoozedUntil: null, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
@@ -1088,47 +1081,6 @@ function normalizeSlice(k, v) {
   if (k === 'settings') {
     return { value: normalizeSettings(v), invalidCount: settingsIssueCount(v) };
   }
-  if (k === 'pomodoro') {
-    let invalidCount = 0;
-    if (!isPlainObject(v)) return { value: d, invalidCount: 1 };
-    const timer = { ...d, ...v };
-    if (!isFiniteValue(timer.elapsedSeconds) || timer.elapsedSeconds < 0) { timer.elapsedSeconds = d.elapsedSeconds; invalidCount++; }
-    if (timer.startedAt !== null && !isFiniteValue(timer.startedAt)) { timer.startedAt = d.startedAt; invalidCount++; }
-    if (!Object.hasOwn(v, 'phase')) {
-      timer.phase = 'focus';
-      timer.phaseElapsedSeconds = 0;
-      timer.completedPomodoros = 0;
-      if (timer.startedAt !== null) timer.startedAt = Date.now();
-    } else if (!['focus', 'short-break', 'long-break'].includes(timer.phase)) {
-      timer.phase = 'focus';
-      invalidCount++;
-    }
-    if (!Number.isInteger(timer.phaseElapsedSeconds) || timer.phaseElapsedSeconds < 0 || timer.phaseElapsedSeconds > 7200) {
-      timer.phaseElapsedSeconds = 0;
-      invalidCount++;
-    }
-    if (!Number.isSafeInteger(timer.completedPomodoros) || timer.completedPomodoros < 0) {
-      timer.completedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!Number.isSafeInteger(timer.dailyCompletedPomodoros) || timer.dailyCompletedPomodoros < 0) {
-      timer.dailyCompletedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!Object.hasOwn(v, 'dailyCompletedOn')) {
-      timer.dailyCompletedOn = '';
-      timer.dailyCompletedPomodoros = 0;
-    } else if (timer.dailyCompletedOn !== '' && !isDay(timer.dailyCompletedOn)) {
-      timer.dailyCompletedOn = '';
-      timer.dailyCompletedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!timer.dailyCompletedOn) timer.dailyCompletedPomodoros = 0;
-    timer.history = normalizeLegacyTimerHistory(v.history);
-    if (typeof timer.focusTaskId !== 'string') { timer.focusTaskId = ''; invalidCount++; }
-    if (typeof timer.focusLabel === 'string' && timer.focusLabel.trim()) timer.focusLabel = timer.focusLabel.trim().slice(0, 40); else delete timer.focusLabel;
-    return { value: timer, invalidCount };
-  }
   if (k === 'gym') {
     if (!isPlainObject(v)) return { value: d, invalidCount: 1 };
     const templates = recordsOrEmpty(v.templates, isValidGymTemplate);
@@ -1604,7 +1556,6 @@ function purgeExpiredTrash() {
 /* Ícones: src/js/utils/icons.js */
 const GRAD = raw('<svg class="app-definitions" width="0" height="0" aria-hidden="true"><defs><linearGradient id="auroraGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D991AA"/><stop offset="1" stop-color="#8D4665"/></linearGradient></defs></svg>');
 const brandIcon = (size = 40) => raw(`<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="url(#auroraGrad)"/><path d="M32 14 46 48h-7.5l-2.600-6.800H28.100L25.5 48H18zm0 12.5-3.200 8.5h6.400z" fill="#fff"/><circle cx="46.5" cy="17.5" r="4" fill="#FBE7D3"/></svg>`);
-const configLink = () => h`<a class="inline-link" href="${routePathFor('config?weight')}" aria-label="Abrir Ajustes e editar o peso">Ajustes</a>`;
 
 /* ========== Casca, roteamento e componentes comuns ========== */
 const ROUTE_TITLES = { inicio: 'Início', planejar: 'Planejar', financas: 'Finanças', ciclo: 'Ciclo', habitos: 'Hábitos', config: 'Ajustes' };
@@ -1680,8 +1631,8 @@ function shell(body) {
   const hasActiveArea = Object.values(menuAreas).some(Boolean);
   const isCurrent = (id) => id === ui.route;
   const feedbackPrompt = ui.feedbackPromptVisible ? renderFeedbackPrompt() : '';
-  // No celular a barra tem 4 espaços: 3 áreas + Mais (o "+" de criar fica no topo). As demais áreas ficam dentro do Mais.
-  const MOBILE_NAV_PRIMARY = 3;
+  // No celular a barra comporta as 5 áreas visíveis (o "+" de criar e o perfil ficam no topo). O "Mais" só aparece se um dia houver mais de 5.
+  const MOBILE_NAV_PRIMARY = 5;
   const overflowItems = menuItems.slice(MOBILE_NAV_PRIMARY);
   const navLink = ({ id, label, icon: iconName, area }, index) => h`<a class="nav-item" href="/${id}" data-route="${id}" ${index >= MOBILE_NAV_PRIMARY ? raw('data-overflow="true"') : ''} ${isCurrent(id) ? raw('aria-current="page"') : ''}><span class="ni">${icon(iconName, area ? 20 : 22)}${id === 'planejar' && overdue ? h`<span class="dot" aria-label="${overdue} tarefas atrasadas"></span>` : ''}</span>${tabLabel(label)}</a>`;
   const financeQuickActions = !areaOn('finances') ? '' : !S.finance.accounts.length
@@ -1789,6 +1740,7 @@ function weeklyReviewView() {
     ? {
       hidden: S.settings.prefs.financeValuesHidden === true,
       spending: weekSpending(S.finance.tx, week[0], today()),
+      budget: monthBudgetProgress(S.finance.tx, S.finance.budgets, today().slice(0, 7)),
       dues: upcomingDueItems().filter((item) => item.date >= review.nextWeek.start && item.date <= review.nextWeek.end),
     }
     : null;
@@ -1798,46 +1750,10 @@ function weeklyReviewView() {
     const [year, month, date] = day.split('-').map(Number);
     return `${date} de ${MESES_L[month - 1]} de ${year}`;
   };
-  return h`<div class="weekly-review">
-    <section class="weekly-review-hero"><div><span>Revisão gentil</span><h2>Sua semana</h2><p>De ${formatDay(week[0])} a ${formatDay(week[6])}. Cada passo conta, no seu tempo.</p></div></section>
-    <section class="card weekly-review-main" aria-label="Resumo da semana">
-      <div class="review-stats">
-        <div class="stat"><b>${review.tasks.completed}</b><span>Tarefas concluídas</span></div>
-        <div class="stat"><b>${review.tasks.pending}</b><span>Pendentes nesta semana</span></div>
-        <div class="stat"><b>${review.waterDays}</b><span>Dias com meta de água</span></div>
-        <div class="stat"><b>${review.habits.onTrack}</b><span>Hábitos em dia</span></div>
-      </div>
-    </section>
-    ${weekMoney ? h`<section class="card weekly-review-money" aria-labelledby="weekly-money-title">
-      <div class="head"><h3 id="weekly-money-title">Dinheiro da semana</h3></div>
-      <p>${weekMoney.hidden ? 'Valores ocultos.' : h`Você gastou <b>${brl(weekMoney.spending.current)}</b> até hoje.`}${!weekMoney.hidden && weekMoney.spending.hasPrevious ? h` Na semana passada, no mesmo trecho, foram ${brl(weekMoney.spending.previous)}.` : ''}</p>
-      ${weekMoney.dues.length ? h`<p class="small muted">Vencem na próxima semana: ${weekMoney.dues.slice(0, 3).map((item) => `${item.label}${weekMoney.hidden ? '' : ` (${brl(item.cents)})`}`).join(', ')}${weekMoney.dues.length > 3 ? ` e mais ${weekMoney.dues.length - 3}` : ''}.</p>` : h`<p class="small muted">Nenhuma conta vence na próxima semana.</p>`}
-    </section>` : ''}
-    <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
-      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span class="small muted">${review.tasks.overdue}</span></div>
-      ${review.tasks.overdueTasks.length
-        ? h`<ul class="list">${review.tasks.overdueTasks.map((task) => taskRow(task))}</ul>`
-        : h`<p class="small muted" role="status">Nenhuma tarefa atrasada.</p>`}
-    </section>
-    <section class="card weekly-review-tasks" aria-labelledby="weekly-next-title">
-      <div class="head"><div><h3 id="weekly-next-title">Próxima semana</h3><p class="small muted">${formatDay(review.nextWeek.start)} a ${formatDay(review.nextWeek.end)}</p></div><span class="small muted">${review.nextWeek.tasks.length} pendente(s)</span></div>
-      ${review.nextWeek.tasks.length
-        ? h`<ul class="list">${review.nextWeek.tasks.map((task) => taskRow(task, true))}</ul>`
-        : h`<p class="small muted" role="status">Nenhuma tarefa planejada para a próxima semana.</p>`}
-    </section>
-    ${currentReflection && !ui.reflectionEditing
-      ? h`<section class="card weekly-reflection is-answered" aria-labelledby="weekly-reflection-title">
-      <div class="head"><div><p class="section-kicker">Para a próxima semana</p><h2 id="weekly-reflection-title">${currentReflection}</h2></div><button type="button" class="btn sm" data-action="weekly-reflection-edit">Mudar</button></div>
-      <p class="small muted" role="status">Sua resposta está salva na revisão desta semana.</p>
-    </section>`
-      : h`<section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
-      <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2 id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      <p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>
-      <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
-        ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map((choice) => h`<button type="button" class="btn" data-action="weekly-reflection-save" data-v="${choice}" aria-pressed="${String(currentReflection === choice)}">${choice}</button>`)}
-      </div>
-    </section>`}
-  </div>`;
+  return renderWeeklyReviewView(
+    { review, week, weekMoney, currentReflection, reflectionEditing: ui.reflectionEditing, formatDay },
+    { taskRow },
+  );
 }
 
 function profileGreeting(style) {
@@ -1896,37 +1812,17 @@ function gate(area, name) {
 }
 function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
-  return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}Como usar?</button>`;
+  return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open" data-area-guide="${route}">${icon('play', 16)}<span class="area-guide-label">Como usar?</span></button>`;
 }
 function areaPageTitle(route, title, action = '') {
   return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
 }
 /* ---------- Tarefas (reuso) ---------- */
-function dueBadge(t) {
-  if (!t.dueDate) return '';
-  const d = dayDiff(t.dueDate, today());
-  if (!t.done && d < 0) return h`<span class="badge bad">${icon('alert', 12)}Atrasada · ${shortDate(t.dueDate)}</span>`;
-  if (d === 0) return h`<span class="badge warn">Hoje</span>`;
-  if (d === 1) return h`<span class="badge">Amanhã</span>`;
-  return h`<span class="badge">${shortDate(t.dueDate)}</span>`;
-}
 function taskRow(t, reviewNextWeek = false, homeNextStep = false) {
   return renderTaskRow(t, reviewNextWeek, homeNextStep, { route: ui.route, sort: ui.filters.sort });
 }
 const prioOptions = (cur) => Object.entries(PRIO).map(([k, v]) => h`<option value="${k}" ${k === cur ? raw('selected') : ''}>${v}</option>`);
 
-/* ---------- gráfico de barras semanal (SVG) ---------- */
-function barChart(points, goal, unit) {
-  const W = 320, H = 150, top = goal ? 30 : 14, bot = 24, bw = 28, gap = (W - bw * points.length) / (points.length + 1);
-  const max = Math.max(goal || 0, ...points.map((p) => p.v), 1) * 1.1;
-  const y = (v) => top + (H - top - bot) * (1 - v / max);
-  const displayUnit = unit === 'mL' ? '<tspan class="case-preserve">mL</tspan>' : esc(unit);
-  const bars = points.map((p, i) => { const x = gap + i * (bw + gap), yy = y(p.v); return `<rect class="b ${p.today ? 'today' : ''}" x="${x}" y="${yy}" width="${bw}" height="${Math.max(0, H - bot - yy)}" rx="6"><title>${esc(p.label)}: ${p.v} ${esc(unit)}</title></rect><text x="${x + bw / 2}" y="${H - 7}" text-anchor="middle">${esc(p.label)}</text>`; }).join('');
-  const g = goal ? `<text class="goal-label" x="4" y="16" text-anchor="start">meta ${goal} ${displayUnit}</text><line class="g" x1="0" x2="${W}" y1="${y(goal)}" y2="${y(goal)}"/>` : '';
-  const sum = points.map((p) => `${p.label}: ${p.v} ${unit}`).join(', ');
-  return raw(`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Últimos 7 dias. ${esc(sum)}">${bars}${g}</svg>`);
-}
-const last7 = (valueOf) => Array.from({ length: 7 }, (_, i) => { const k = addDays(today(), i - 6); return { label: DIAS[pk(k).getDay()], v: valueOf(k), today: i === 6 }; });
 
 /* ---------- render principal ---------- */
 function applyTheme(theme) {
@@ -2595,20 +2491,25 @@ function homeUpcomingTasks() {
 
 function homeHabitCheckins(highlightNext = false, onlyNext = false) {
   if (!areaOn('habits')) return '';
-  const scheduled = S.habits.filter((habit) => (
-    (habit.status || 'active') === 'active'
-    && habit.days.includes(pk(today()).getDay())
+  const day = today();
+  const overview = habitDayOverview(
+    S.habits,
+    day,
+    habitCompletedFor,
+    (habit, targetDay) => habitIsSkipped(habit, targetDay, day),
+  );
+  const pending = overview.scheduled.filter((habit) => (
+    !habitCompletedFor(habit, day)
+    && !habitIsSkipped(habit, day, day)
   ));
-  if (!scheduled.length) return '';
-  const nextHabit = highlightNext ? scheduled.find((habit) => (
-    !habitCompletedFor(habit, today()) && !habitIsSkipped(habit, today(), today())
-  )) : null;
+  if (!pending.length) return '';
+  const nextHabit = highlightNext ? pending[0] : null;
   if (onlyNext && !nextHabit) return '';
   return h`<section class="card home-habit-checkins" aria-label="${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}">
     <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}</h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
-    <ul class="list">${(onlyNext ? [nextHabit] : scheduled).map((habit) => {
-      const completed = habitCompletedFor(habit, today());
-      const skipped = habitIsSkipped(habit, today(), today());
+    <ul class="list">${(onlyNext ? [nextHabit] : pending).map((habit) => {
+      const completed = habitCompletedFor(habit, day);
+      const skipped = habitIsSkipped(habit, day, day);
       return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
         <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span>${habit.id === nextHabit?.id ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
@@ -2717,11 +2618,6 @@ function viewInicio() {
   const sundayReview = pk(todayKey).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
-  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => (
-    homePrefs.homeShortcuts.includes(id)
-    && (!area || areaOn(area))
-    && !(id === 'task' && showHomeBlock('quick'))
-  ));
   const emptyWorkspace = !S.tasks.length
     && !S.habits.some((habit) => (habit.status || 'active') === 'active')
     && !S.finance.accounts.length;
@@ -2803,7 +2699,6 @@ function viewInicio() {
     completed,
     nextTask,
     inbox,
-    homeShortcuts,
     emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
@@ -3326,6 +3221,28 @@ function updateHabitIdeaFilters() {
   }
 }
 const HABIT_COLOR_NAMES = ['Rosa', 'Coral', 'Âmbar', 'Verde-claro', 'Verde', 'Azul-claro', 'Azul', 'Lilás', 'Roxo', 'Vermelho', 'Cinza', 'Marrom'];
+function lastWaterEntryToday() {
+  const day = today();
+  return S.water
+    .filter((entry) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at)) && isoDay(entry.at) === day)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+    .at(-1) || null;
+}
+function undoLastWaterEntry(habit) {
+  const day = today();
+  const last = lastWaterEntryToday();
+  if (!last) return toast('Não há registro de água hoje para desfazer.', 'info');
+  const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
+  const totalAfter = waterMlForDay(S.water, day) - Math.round(last.ml);
+  const uncompleting = Boolean(habit && habit.completions.includes(day) && !waterGoalReached(totalAfter, target));
+  const slices = ['water', ...(uncompleting ? ['habits'] : [])];
+  const snapshot = snapshotSlices(slices);
+  S.water = S.water.filter((entry) => entry.id !== last.id);
+  if (uncompleting) habit.completions = habit.completions.filter((completed) => completed !== day);
+  if (!saveSlicesWithRollback(slices, snapshot, false, 'a remoção do registro de água')) return;
+  render();
+  toast(`${Math.round(last.ml).toLocaleString('pt-BR')} mL removidos do dia.`, 'success');
+}
 function habitWaterTracker(habit) {
   if (!isWaterHabit(habit)) return '';
   const currentDay = today();
@@ -3337,7 +3254,8 @@ function habitWaterTracker(habit) {
   return h`<section class="water-tracker" aria-label="Acompanhamento de água">
     <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
     <progress value="${Math.min(total, target)}" max="${target}" aria-label="Progresso da meta diária de água"></progress>
-    ${habit.status === 'active' ? h`<form class="water-add-form" data-form="water-add" data-id="${habit.id}">
+    ${habit.status === 'active' ? h`<div class="water-quick-amounts" role="group" aria-label="Registrar quantidade rápida">${[150, 250, 330, 500].map((ml) => h`<button type="button" class="btn sm" data-action="water-quick" data-id="${habit.id}" data-ml="${ml}">+${ml} mL</button>`)}${lastWaterEntryToday() ? h`<button type="button" class="btn sm ghost" data-action="water-undo" data-id="${habit.id}">Desfazer último</button>` : ''}</div>
+    <form class="water-add-form" data-form="water-add" data-id="${habit.id}">
       <label for="water-amount-${habit.id}">Quantidade consumida (mL)</label>
       <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="Ex.: 250" required><button type="submit" class="btn sm">Adicionar</button></div>
     </form>` : ''}
@@ -3370,9 +3288,18 @@ function habitRow(habit) {
   const target = stats.weeklyTarget ?? stats.scheduledThisWeek;
   const waterTotal = isWaterHabit(habit) ? waterMlForDay(S.water, today()) : 0;
   const waterTarget = isWaterHabit(habit) ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
+  const weightEntry = isWeightHabit(habit) ? S.weight.find((entry) => entry.date === today()) : null;
   const sub = status === 'paused' ? 'Pausado' : skipped ? 'Dia pulado' : isWaterHabit(habit)
     ? `${waterTotal.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL hoje`
-    : habitDaysLabel(habit);
+    : isWeightHabit(habit)
+      ? weightEntry
+        ? `Peso registrado: ${weightEntry.kg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`
+        : 'Informe o peso de hoje'
+      : habitEntryType(habit) !== 'check'
+        ? habitEntryForDay(habit, today())
+          ? `${habitEntryType(habit) === 'select' ? 'Escolha de hoje' : 'Registro de hoje'}: ${habitEntryForDay(habit, today())}`
+          : habitEntryType(habit) === 'select' ? 'Escolha uma opção hoje' : 'Escreva o registro de hoje'
+        : habitDaysLabel(habit);
   const orderList = S.habits.filter((item) => item.status !== 'archived');
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
@@ -3704,7 +3631,7 @@ const settingsTabId = (id) => LEGACY_SETTINGS_TABS[id] || id;
 const SETTINGS_SECTIONS = [
   ['profile', 'Seu perfil', 'user', 'Nome, saudação e idade'],
   ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
-  ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
+  ['home', 'Tela inicial', 'home', 'Modo e blocos da tela inicial'],
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e recuperação', 'archive', 'Gerenciar a lixeira e a recuperação de dados'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
@@ -3720,13 +3647,11 @@ function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
   const modeDefaults = defaultHomeModes()[activeMode];
   const layout = s.prefs.homeLayout;
-  const shortcuts = s.prefs.homeShortcuts;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
-  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
+  const isDefault = sameJsonValue(layout, modeDefaults.layout);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
-    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(([id, label, description], index) => h`<li class="home-layout-item">
       <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}" aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
@@ -3741,7 +3666,6 @@ function areasNavigationSettings(s) {
     .filter((item) => item && !HIDDEN_MENU_IDS.includes(item.id)
       && (item.id !== 'ciclo' || canAccessCycle(s.profile, ui.preview)));
   const orderedItems = items;
-  const defaultPreferences = defaultMenuPreferences();
   const isDefaultMenuSettings = isDefaultMenuPreferences(s.prefs);
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
     <div class="head areas-navigation-head"><h2>Áreas e menu</h2><button type="button" class="btn sm" data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
@@ -4075,7 +3999,7 @@ function dataSettings(p) {
 function relationalDataWipeScope() {
   return h`<ul class="settings-data-scope" aria-label="Dados que serão apagados">
     <li>Tarefas, listas, etiquetas, registros diários e revisões semanais.</li>
-    <li>Hábitos, registros de água, treinos, cronômetros e sessões de Pomodoro.</li>
+    <li>Hábitos, registros de água e treinos.</li>
     <li>Finanças: contas, lançamentos, orçamentos, metas e recorrências.</li>
     <li>Registros do Ciclo, pesagens e itens da lixeira.</li>
     <li>Perfil, preferências e configuração de notificações.</li>
@@ -4456,18 +4380,38 @@ function dlgCycleReport() {
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || d.tracking === 'water' || isWaterHabit(habit));
+  const weightHabit = Boolean(d.weightEntry || d.tracking === 'weight' || isWeightHabit(habit));
+  const entryType = d.entryType || habitEntryType(habit) || 'check';
+  const entryOptions = d.entryOptions || habitEntryOptions(habit);
+  const entryValue = d.entryValue || habitEntryForDay(habit, today()) || '';
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
   return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${d.recordWaterAfterSave ? 'Criar acompanhamento de água' : edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${d.recordWaterAfterSave ? 'Ao criar o hábito, 250 mL serão registrados.' : edit ? 'Ajuste os dias deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     ${d.enableHabits ? h`<p class="fine">A área Hábitos será ativada para mostrar seu acompanhamento.</p>` : ''}
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
-      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
+      ${waterHabit ? h`${d.waterSuggestion || d.waterWeightPersistent ? h`<label class="f full">Peso para estimativa
         <span class="water-weight-input"><input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
-        <span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
+        <span class="profile-field-help" id="water-weight-help">${d.waterWeightPersistent ? 'De 20 a 400 kg. Esse peso atualiza o perfil e recalcula automaticamente a meta de água.' : 'De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.'}</span></label>
         <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>` : ''}
         <label class="f full" for="water-goal-ml">Meta diária de água (mL)<input id="water-goal-ml" name="waterGoalMl" type="number" data-dlg="waterGoalMl" min="500" max="10000" step="50" value="${waterGoal}" required aria-describedby="water-goal-help"><span class="profile-field-help" id="water-goal-help">É uma referência ajustável, não uma recomendação médica. Registre os volumes para acompanhar o dia.</span></label>
         ${d.waterSuggestion ? h`<p class="fine full">A estimativa considera a idade informada em Ajustes (ou uma referência adulta) e o peso informado acima. Você pode ajustar a meta. Ao atingir o volume, o check-in do dia é concluído.</p>` : ''}` : ''}
+      ${weightHabit ? h`<label class="f full">Peso de hoje
+        <span class="water-weight-input"><input id="weight-kg" name="weightKg" type="text" data-dlg="weightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.weightKg || ''}" aria-describedby="weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
+        <span class="profile-field-help" id="weight-help">De 20 a 400 kg. A medição será comparada com a última registrada.</span></label>` : ''}
+      ${d.entryPrompt ? h`<label class="f full">${d.entryPrompt}
+        ${entryType === 'select'
+          ? h`<select name="entryValue" data-dlg="entryValue"><option value="">Escolha uma opção</option>${entryOptions.map((option) => h`<option value="${option}" ${entryValue === option ? raw('selected') : ''}>${option}</option>`)}</select>`
+          : h`<textarea name="entryValue" data-dlg="entryValue" rows="3" maxlength="500" placeholder="Escreva o registro de hoje">${entryValue}</textarea>`}
+      </label>` : ''}
+      ${!waterHabit && !weightHabit ? h`<fieldset class="habit-look full"><legend>Como registrar?</legend>
+        <label class="f"><select name="entryType" data-dlg="entryType">
+          <option value="check" ${entryType === 'check' ? raw('selected') : ''}>Só marcar concluído</option>
+          <option value="text" ${entryType === 'text' ? raw('selected') : ''}>Escrever uma anotação</option>
+          <option value="select" ${entryType === 'select' ? raw('selected') : ''}>Escolher uma opção</option>
+        </select></label>
+        ${entryType === 'select' ? h`<label class="f">Opções (uma por linha)<textarea name="entryOptions" data-dlg="entryOptions" rows="4" maxlength="1200" placeholder="Ex.: Fácil&#10;Moderado&#10;Difícil">${entryOptions.join('\n')}</textarea></label>` : ''}
+      </fieldset>` : ''}
       <fieldset class="habit-look full"><legend>Ícone</legend><div class="habit-icon-picker">${HABIT_ICONS.map(([key, label]) => h`<label title="${label}"><input type="radio" name="icon" value="${key}" data-dlg="icon" ${(d.icon || DEFAULT_HABIT_ICON) === key ? raw('checked') : ''}><span>${icon(key, 20)}<i class="sr">${label}</i></span></label>`)}</div></fieldset>
       <fieldset class="habit-look full"><legend>Cor</legend><div class="habit-color-picker">${HABIT_COLORS.map((color, index) => h`<label title="${HABIT_COLOR_NAMES[index]}"><input type="radio" name="color" value="${color}" data-dlg="color" ${(d.color || DEFAULT_HABIT_COLOR).toLowerCase() === color ? raw('checked') : ''}><span style="--c:${color}"><i class="sr">${HABIT_COLOR_NAMES[index]}</i>${icon('check', 16)}</span></label>`)}</div></fieldset>
       <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div class="habit-weekday-picker">${DIAS.map((day, index) => h`<label class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days" value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`)}</div></fieldset>
@@ -4713,10 +4657,13 @@ function dlgAreaTutorial() {
   const guide = AREA_GUIDES[ui.dlg.d.route];
   if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível</h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+  const mobileTutorial = window.matchMedia('(width <= 700px)').matches;
+  const tutorialVideo = mobileTutorial && guide.mobileVideo ? guide.mobileVideo : guide.video;
+  const tutorialPoster = mobileTutorial && guide.mobilePoster ? guide.mobilePoster : guide.poster;
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}</h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
-    <video class="area-tutorial-video" controls playsinline preload="metadata" poster="${guide.poster}" width="1280" height="720" aria-label="Tutorial em vídeo: ${guide.title}">
-      <source src="${guide.video}" type="video/mp4">
+    <video class="area-tutorial-video${mobileTutorial ? ' is-mobile' : ''}" controls playsinline preload="metadata" poster="${tutorialPoster}" width="${mobileTutorial ? '780' : '1280'}" height="${mobileTutorial ? '1688' : '720'}" aria-label="Tutorial em vídeo: ${guide.title}">
+      <source src="${tutorialVideo}" type="video/mp4">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
@@ -5009,21 +4956,6 @@ function findDialogFocusTarget(root, snap) {
   const sameSlot = snap.index >= 0 ? root.querySelectorAll(DIALOG_FOCUSABLE)[snap.index] : null;
   return sameSlot && sameSlot.tagName === snap.tag && sameSlot.type === snap.type ? sameSlot : null;
 }
-function restoreDialogCaret(target, caret) {
-  if (!caret || typeof target.setSelectionRange !== 'function') return;
-  try { target.setSelectionRange(caret.start, caret.end, caret.dir || 'none'); } catch (e) { /* date, time e number não têm cursor */ }
-}
-function keepDialogControlInView(target) {
-  const body = target.closest('.dlg-body');
-  if (!body) return;
-  const viewport = window.visualViewport;
-  const bounds = target.getBoundingClientRect();
-  const bodyBounds = body.getBoundingClientRect();
-  const top = Math.max(bodyBounds.top, viewport ? viewport.offsetTop : 0) + 12;
-  const bottom = Math.min(bodyBounds.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight) - 16;
-  if (bounds.top < top) body.scrollTop += bounds.top - top;
-  else if (bounds.bottom > bottom) body.scrollTop += bounds.bottom - bottom;
-}
 function renderDialog() {
   let el = $('#dlg');
   if (ui.dlg && ui.dlg.type === 'onboard' && profileSetupComplete()) ui.dlg = null;
@@ -5169,7 +5101,7 @@ function buildBackup() {
     },
     tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
     areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
-    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
+    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
 async function doExport() {
   if (Object.keys(ui.integrityIssues).length) {
@@ -5204,7 +5136,6 @@ async function exportRecoveryData() {
   downloadFile(`aurora-recovery-${today()}.json`, recovery, 'application/json;charset=utf-8');
   toast('Cópia bruta de recuperação baixada. Ela não altera nem substitui os dados atuais.', 'success');
 }
-const arr = (v) => Array.isArray(v) ? v : [];
 function backupRecords(value, validator, label) {
   if (value == null) return [];
   const result = filterValidRecords(value, validator);
@@ -5266,11 +5197,9 @@ function parseBackup(text) {
     Object.assign(settings.profile, { sex: SEX[a.sex] ? a.sex : '', age: Number.isFinite(a.age) ? a.age : null, weightKg: Number.isFinite(a.weightKg) ? a.weightKg : null, heightCm: Number.isFinite(a.heightCm) ? a.heightCm : null });
   }
   settings.prefs.sample = false;
-  const pomodoro = validatedBackupSlice('pomodoro', Object.hasOwn(ex, 'pomodoroTimer') ? ex.pomodoroTimer : defaults().pomodoro);
   const habits = backupRecords(ex.habits, isValidHabit, 'hábitos');
   return {
     tasks: validatedBackupSlice('tasks', tasks),
-    pomodoro,
     habits: validatedBackupSlice('habits', habits),
     settings,
     water: validatedBackupSlice('water', ex.water),
@@ -5293,9 +5222,8 @@ async function importFile(file) {
     return err('Não consegui ler o arquivo.');
   }
   try {
-    let document;
     try {
-      document = JSON.parse(text);
+      JSON.parse(text);
     } catch {
       const parsed = parseBackup(text);
       ui.dlg = null;
@@ -5876,6 +5804,20 @@ const ACTIONS = {
     if (ui.route === 'planejar') render();
     else nav('planejar');
   },
+  'water-quick': (el) => {
+    const habit = S.habits.find((item) => item.id === el.dataset.id);
+    if (!habit || !isWaterHabit(habit) || habit.status !== 'active') {
+      return toast('Este hábito de água não está disponível para registro.', 'info');
+    }
+    const amount = parseWaterMl(el.dataset.ml);
+    if (amount === null) return toast('Não foi possível registrar essa quantidade.', 'error');
+    recordWaterEntry(amount, habit);
+  },
+  'water-undo': (el) => {
+    const habit = S.habits.find((item) => item.id === el.dataset.id);
+    if (!habit || !isWaterHabit(habit)) return;
+    undoLastWaterEntry(habit);
+  },
   'weekly-reflection-save': (el) => {
     const choice = ['Menos tarefas', 'Mais pausas', 'Manter assim'].find((value) => value === el.dataset.v);
     if (!choice) return;
@@ -5939,6 +5881,7 @@ const ACTIONS = {
       icon: idea.icon,
       color: idea.color,
       ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: S.settings.prefs.waterGoalMl, waterGoalEdited: false } : {}),
+      ...(idea.id === 'weight' ? { tracking: 'weight', weightEntry: true, weightKg: '' } : {}),
     });
   },
   'habit-ideas-clear': () => {
@@ -5977,6 +5920,37 @@ const ACTIONS = {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
     if (!habit || (habit.status || 'active') !== 'active' || !habit.days.includes(pk(today()).getDay())) return;
     const day = today();
+    if (isWeightHabit(habit)) {
+      const todayEntry = S.weight.find((entry) => entry.date === day);
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        tracking: 'weight',
+        weightEntry: true,
+        weightKg: todayEntry ? String(todayEntry.kg).replace('.', ',') : '',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    const entryType = habitEntryType(habit);
+    if (entryType !== 'check' && !habit.completions.includes(day)) {
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        entryType,
+        entryOptions: habitEntryOptions(habit),
+        entryValue: habitEntryForDay(habit, day),
+        entryPrompt: entryType === 'text' ? 'Registro de hoje' : 'Escolha o registro de hoje',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
     const previousCelebrationDay = ui.habitCelebrationDay;
@@ -6080,7 +6054,51 @@ const ACTIONS = {
   },
   'habit-edit-open': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
-    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], weeklyGoal: habit.weeklyGoal || '', ...(isWaterHabit(habit) ? { waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) } : {}), icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
+    if (habit && !isWaterHabit(habit) && !isWeightHabit(habit)) {
+      const entryType = habitEntryType(habit);
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        entryType,
+        entryOptions: habitEntryOptions(habit),
+        entryValue: habitEntryForDay(habit, today()),
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    if (habit && isWeightHabit(habit)) {
+      const todayEntry = S.weight.find((entry) => entry.date === today());
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        tracking: 'weight',
+        weightEntry: true,
+        weightKg: todayEntry ? String(todayEntry.kg).replace('.', ',') : '',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    if (habit) dlgOpen('habit-edit', {
+      id: habit.id,
+      name: habit.name,
+      days: [...habit.days],
+      weeklyGoal: habit.weeklyGoal || '',
+      ...(isWaterHabit(habit) ? {
+        waterSuggestion: true,
+        waterWeightPersistent: true,
+        waterWeightKg: S.settings.profile.weightKg ? String(S.settings.profile.weightKg).replace('.', ',') : '',
+        waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl),
+        waterGoalEdited: false,
+      } : {}),
+      icon: habit.icon || DEFAULT_HABIT_ICON,
+      color: habit.color || DEFAULT_HABIT_COLOR,
+    });
   },
   'habit-toggle-pause': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -6235,17 +6253,15 @@ const ACTIONS = {
       settings.prefs.homeMode = mode;
       const saved = settings.prefs.homeModes[mode];
       settings.prefs.homeLayout = { order: [...saved.layout.order], visible: [...saved.layout.visible] };
-      settings.prefs.homeShortcuts = [...saved.shortcuts];
     });
   },
   'home-layout-reset': () => {
     const mode = settingsView().prefs.homeMode;
     const defaults = defaultHomeModes()[mode];
     const prefs = settingsView().prefs;
-    if (sameJsonValue(prefs.homeLayout, defaults.layout) && sameJsonValue(prefs.homeShortcuts, defaults.shortcuts)) return;
+    if (sameJsonValue(prefs.homeLayout, defaults.layout)) return;
     updateSettingsDraft((settings) => {
       settings.prefs.homeLayout = { order: [...defaults.layout.order], visible: [...defaults.layout.visible] };
-      settings.prefs.homeShortcuts = [...defaults.shortcuts];
       saveActiveHomeMode(settings);
     });
     toast('Modo inicial restaurado. Será salvo automaticamente.', 'success');
@@ -6950,6 +6966,71 @@ const FORMS = {
   'habit-edit': (f, d) => {
     const draft = ui.dlg?.d;
     let habit = S.habits.find((item) => item.id === draft?.id);
+    if (draft?.entryPrompt) {
+      const entryType = HABIT_ENTRY_TYPES.includes(d.get('entryType')) ? d.get('entryType') : habitEntryType(habit);
+      const entryValue = String(d.get('entryValue') || '').trim();
+      if (!entryValue) return fieldError(entryType === 'text' ? 'Escreva o registro de hoje.' : 'Escolha uma opção.', '[data-dlg="entryValue"]');
+      if (entryType === 'select' && !habitEntryOptions(habit).includes(entryValue)) {
+        return fieldError('Escolha uma opção válida.', '[data-dlg="entryValue"]');
+      }
+      const day = today();
+      const snapshot = snapshotSlices(['habits']);
+      const entries = (habit.entries || []).filter((entry) => entry.day !== day);
+      entries.push({ day, value: entryValue });
+      habit.entries = entries.sort((a, b) => a.day.localeCompare(b.day));
+      if (!habit.completions.includes(day)) habit.completions = [...habit.completions, day].sort();
+      if (!saveSlicesWithRollback(['habits'], snapshot, false, 'o registro do hábito')) return;
+      ui.dlg = null;
+      render();
+      toast(`${entryValue}`, 'success');
+      return;
+    }
+    if (draft?.weightEntry) {
+      const weightKg = parseWaterWeightKg(d.get('weightKg'));
+      if (weightKg === null) return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="weightKg"]');
+      const day = today();
+      const name = String(d.get('name') || '').trim();
+      if (!name) return fieldError('Dê um nome ao hábito.', '[data-dlg="name"]');
+      const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
+      if (!days.length || days.some((value) => !Number.isInteger(value) || value < 0 || value > 6)) {
+        return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
+      }
+      if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) {
+        return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
+      }
+      const change = weightChange(S.weight, day, weightKg);
+      const snapshot = snapshotSlices(['habits', 'weight', 'settings']);
+      if (habit) {
+        habit.name = name.slice(0, 60);
+        habit.days = days;
+        habit.tracking = 'weight';
+        if (!habit.completions.includes(day)) habit.completions = [...habit.completions, day].sort();
+      } else {
+        habit = {
+          id: newId(),
+          name: name.slice(0, 60),
+          days,
+          completions: [day],
+          createdAt: Date.now(),
+          status: 'active',
+          tracking: 'weight',
+        };
+        S.habits.push(habit);
+      }
+      const existing = S.weight.find((entry) => entry.date === day);
+      if (existing) existing.kg = weightKg;
+      else S.weight.push({ id: newId(), date: day, kg: weightKg });
+      S.weight.sort((a, b) => a.date.localeCompare(b.date));
+      S.settings.profile.weightKg = weightKg;
+      if (!saveSlicesWithRollback(['habits', 'weight', 'settings'], snapshot, false, 'a pesagem')) return;
+      ui.dlg = null;
+      render();
+      if (!change) toast(`Peso registrado: ${weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg.`, 'success');
+      else if (change.direction === 'loss') toast(`Você perdeu ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`, 'success');
+      else if (change.direction === 'gain') toast(`Você ganhou ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`, 'success');
+      else toast('Seu peso permaneceu igual à última medição.', 'success');
+      return;
+    }
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
@@ -6961,31 +7042,84 @@ const FORMS = {
     };
     if (!name) return fieldError('Dê um nome ao hábito.', '[data-dlg="name"]');
     const waterWeightInput = String(d.get('waterWeightKg') || '').trim();
-    if (draft?.waterSuggestion && waterWeightInput && parseWaterWeightKg(waterWeightInput) === null) {
+    if ((draft?.waterSuggestion || draft?.waterWeightPersistent) && waterWeightInput && parseWaterWeightKg(waterWeightInput) === null) {
       return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="waterWeightKg"]');
     }
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
+    let configuredEntryType = habit ? habitEntryType(habit) : 'check';
+    let configuredEntryOptions = habit ? habitEntryOptions(habit) : [];
+    if (!draft?.weightEntry && !draft?.entryPrompt) {
+      const entryType = HABIT_ENTRY_TYPES.includes(d.get('entryType'))
+        ? d.get('entryType')
+        : 'check';
+      const entryOptions = entryType === 'select'
+        ? String(d.get('entryOptions') || '').split('\n').map((option) => option.trim()).filter(Boolean).slice(0, 20)
+        : [];
+      if (entryType === 'select' && entryOptions.length < 2) {
+        return fieldError('Informe pelo menos duas opções, uma por linha.', '[data-dlg="entryOptions"]');
+      }
+      configuredEntryType = entryType;
+      configuredEntryOptions = entryOptions;
+    }
     const tracksWater = Boolean(draft?.tracking === 'water' || draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
-    const waterGoalMl = tracksWater
+    let waterGoalMl = tracksWater
       ? Number(d.has('waterGoalMl') ? d.get('waterGoalMl') : (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
       : null;
     if (tracksWater && !isValidWaterGoalMl(waterGoalMl)) {
       return fieldError('A meta deve ser um valor inteiro entre 500 e 10.000 mL.', '[data-dlg="waterGoalMl"]');
     }
+    const persistentWeight = draft?.waterWeightPersistent
+      ? parseWaterWeightKg(waterWeightInput)
+      : null;
+    const weightSnapshot = draft?.waterWeightPersistent && waterWeightInput && persistentWeight !== null
+      ? snapshotSlices(['habits', 'settings'])
+      : null;
+    if (draft?.waterWeightPersistent && waterWeightInput && persistentWeight !== null) {
+      S.settings.profile.weightKg = persistentWeight;
+      if (!draft.waterGoalEdited) {
+        const estimate = estimateWaterGoal({ weightKg: persistentWeight, age: currentProfileAge(S.settings) });
+        if (estimate) waterGoalMl = estimate.ml;
+      }
+    }
     const recordWaterAfterSave = !draft?.id && draft?.recordWaterAfterSave === true;
     const enableHabits = recordWaterAfterSave && draft.enableHabits && !areaOn('habits');
-    const slices = ['habits', ...(enableHabits ? ['settings'] : [])];
-    const snapshot = recordWaterAfterSave ? snapshotSlices(slices) : null;
+    const slices = [
+      'habits',
+      ...((enableHabits || draft?.waterWeightPersistent) ? ['settings'] : []),
+    ];
+    const snapshot = recordWaterAfterSave
+      ? snapshotSlices(slices)
+      : weightSnapshot;
     if (habit) {
-      Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}) });
+      Object.assign(habit, {
+        name: name.slice(0, 60),
+        days,
+        ...look,
+        entryType: configuredEntryType,
+        ...(configuredEntryType === 'select' ? { entryOptions: configuredEntryOptions } : { entryOptions: [] }),
+        ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}),
+      });
       delete habit.remind;
       if (weeklyGoal) habit.weeklyGoal = weeklyGoal;
       else delete habit.weeklyGoal;
     } else {
-      habit = { id: newId(), name: name.slice(0, 60), days, completions: [], createdAt: Date.now(), status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) };
+      habit = {
+        id: newId(),
+        name: name.slice(0, 60),
+        days,
+        completions: [],
+        entries: [],
+        createdAt: Date.now(),
+        status: 'active',
+        entryType: configuredEntryType,
+        ...(configuredEntryType === 'select' ? { entryOptions: configuredEntryOptions } : {}),
+        ...look,
+        ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}),
+        ...(weeklyGoal ? { weeklyGoal } : {}),
+      };
       S.habits.push(habit);
     }
     if (recordWaterAfterSave) {
@@ -7002,7 +7136,9 @@ const FORMS = {
       return;
     }
     ui.dlg = null;
-    const saved = saveSlices('habits');
+    const saved = snapshot
+      ? saveSlicesWithRollback(slices, snapshot, false, 'o peso e a meta de água')
+      : saveSlices('habits');
     render();
     if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
   },
@@ -7181,16 +7317,6 @@ const CHANGES = {
       saveActiveHomeMode(settings);
     });
   },
-  'home-shortcut-visible': (el) => {
-    const id = el.dataset.homeShortcut;
-    if (!HOME_SHORTCUT_IDS.includes(id)) return;
-    updateSettingsDraft((settings) => {
-      const selected = new Set(settings.prefs.homeShortcuts);
-      if (el.checked) selected.add(id); else selected.delete(id);
-      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
-      saveActiveHomeMode(settings);
-    });
-  },
   'home-message': (el) => {
     updateSettingsDraft((settings) => { settings.prefs.homeMessage = el.value.slice(0, HOME_MESSAGE_MAX_LENGTH); }, false);
   },
@@ -7205,7 +7331,6 @@ const SETTINGS_INPUT_CHANGES = new Set(['home-message']);
 
 /* ---- Salvar sem trocar a tela debaixo do dedo (campos de texto salvam ao sair do campo) ---- */
 const flushDirty = () => { if (ui.dirty) { ui.dirty = false; clearTimeout(ui.dirtyT); render(); } };
-function commitSoft(...ks) { saveSlices(...ks); ui.dirty = true; clearTimeout(ui.dirtyT); ui.dirtyT = setTimeout(flushDirty, 700); }
 document.addEventListener('click', () => setTimeout(flushDirty, 0));
 
 /* ---- Relógio ---- */
@@ -7498,7 +7623,7 @@ document.addEventListener('input', (e) => {
       }
     }
   }
-  if (el.matches('[data-dlg="log.weightKg"]')) {
+  if (el.matches('[data-dlg="log.weightKg"], [data-dlg="weightKg"]')) {
     const value = el.value;
     const cursor = el.selectionStart;
     const filteredValue = filterWeightInput(value);
@@ -7509,6 +7634,9 @@ document.addEventListener('input', (e) => {
         el.setSelectionRange(filteredCursor, filteredCursor);
       }
     }
+  }
+  if (el.matches('[data-dlg="entryOptions"]') && ui.dlg?.d) {
+    ui.dlg.d.entryOptions = el.value.split('\n').map((option) => option.trim()).filter(Boolean);
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
@@ -7650,6 +7778,12 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
+  if (el.matches('[data-dlg="entryType"]') && ui.dlg?.d) {
+    ui.dlg.d.entryType = el.value;
+    ui.dlg.d.entryOptions = habitEntryOptions({ entryOptions: ui.dlg.d.entryOptions });
+    render();
+    return;
+  }
   if (el instanceof HTMLInputElement && el.matches('[data-profile-avatar-file]')) {
     const file = el.files?.[0] || null;
     el.value = '';
@@ -7765,14 +7899,12 @@ const accountOptionLabel = (account) => `${accountDisplayName(account)} · ${acc
 const accName = (id) => { const account = accById(id); return account ? accountDisplayName(account) : 'Conta removida'; };
 const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const ymLabel = (ym) => { const [y, m] = ym.split('-').map(Number); return `${MESES_L[m - 1]} de ${y}`; };
-const signed = signedAmount;
 const accBalance = (account) => balanceForAccount(account, S.finance.tx);
 const netBalance = () => netAccountBalance(S.finance.accounts, S.finance.tx);
 const monthStats = (month) => summarizeMonth(S.finance.tx, month, accById);
 const byCategory = summarizeByCategory;
 
 /* ---- fatura do cartão ---- */
-const invoiceYM = (card, date) => invoiceMonth(card, date, shiftMonth, pk);
 const cardInfo = (card) => calculateCardInfo(S.finance, card, today(), {
   shiftMonth,
   parseDate: pk,
@@ -7966,6 +8098,38 @@ function categoryBars(items, total) {
   }
   return h`<ul class="category-bars">${rows}</ul>`;
 }
+function categoryDonut(items, total) {
+  if (!total || !items.length) return '';
+  const top = items.slice(0, CATEGORY_BAR_LIMIT);
+  const restValue = items.slice(CATEGORY_BAR_LIMIT).reduce((sum, [, value]) => sum + value, 0);
+  const slices = [...top.map(([name, value]) => [value, catMeta({ type: 'out', category: name }).c]), ...(restValue ? [[restValue, 'var(--muted)']] : [])];
+  let acc = 0;
+  const stops = slices.map(([value, tone]) => {
+    const start = acc / total * 100;
+    acc += value;
+    return `${tone} ${start.toFixed(2)}% ${(acc / total * 100).toFixed(2)}%`;
+  });
+  const leader = top[0];
+  const leaderPercent = Math.round(leader[1] / total * 100);
+  return h`<div class="category-donut" role="img" aria-label="Maior categoria: ${expenseTitle(leader[0])}, ${leaderPercent}% das despesas do mês"><span class="category-donut-ring" style="background:conic-gradient(${stops.join(',')})"></span><span class="category-donut-center"><small>Despesas</small><b>${money(total)}</b></span></div>`;
+}
+const FLOW_CHART_MONTHS = 6;
+function monthlyFlowChart(ym) {
+  const months = Array.from({ length: FLOW_CHART_MONTHS }, (_, index) => shiftMonth(ym, index - (FLOW_CHART_MONTHS - 1)));
+  const data = months.map((month) => {
+    const stats = monthStats(month);
+    return { month, income: stats.inAll, expense: stats.outAll };
+  });
+  if (!data.some((item) => item.income || item.expense)) return '';
+  const max = Math.max(...data.map((item) => Math.max(item.income, item.expense)), 1);
+  const summary = data.map((item) => `${MESES_L[Number(item.month.slice(5)) - 1]}: receitas ${money(item.income)}, despesas ${money(item.expense)}`).join('; ');
+  const columns = data.map((item) => {
+    const label = MESES_L[Number(item.month.slice(5)) - 1].slice(0, 3);
+    return h`<li class="${item.month === ym ? 'is-current' : ''}"><span class="flow-bars" aria-hidden="true"><i class="is-income" style="height:${Math.round(item.income / max * 100)}%"></i><i class="is-expense" style="height:${Math.round(item.expense / max * 100)}%"></i></span><span class="flow-label">${label}</span></li>`;
+  });
+  return h`<section class="surface-open finance-flow-chart"><div class="head"><div><h2>Últimos ${FLOW_CHART_MONTHS} meses</h2><p class="small muted">Receitas e despesas lado a lado.</p></div><span class="flow-legend" aria-hidden="true"><span class="is-income">Receitas</span><span class="is-expense">Despesas</span></span></div>
+    <ol class="flow-columns" role="img" aria-label="${summary}">${columns}</ol></section>`;
+}
 const UPCOMING_WINDOW_DAYS = 14;
 function calendarAgenda(ym) {
   const F = S.finance, now = today();
@@ -8078,9 +8242,10 @@ function finResumo() {
       </div>
     </section>
     ${cur || attentionLimits || attentionCards || goalFocus ? h`<div class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>` : ''}
+    ${monthlyFlowChart(ym)}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div class="head"><div><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go" data-t="relatorios">Relatórios</button></div>
-        ${cats.length ? categoryBars(cats, totOut) : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
+        ${cats.length ? h`${categoryDonut(cats, totOut)}${categoryBars(cats, totOut)}` : areaEmpty('Nenhuma despesa neste mês.', 'Quando houver um lançamento, a divisão por categoria aparecerá aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Registrar despesa</button>`, 'pie', 'h3')}</section>
       <section class="surface-open finance-recent"><div class="head"><div><h2>Últimos lançamentos</h2><p class="small muted">${recentDescription}</p></div><button class="btn ghost sm" data-action="fin-go" data-t="lancamentos">Ver todos</button></div>${recents.length ? h`<ul class="list">${recents.map((t) => finRow(t, { showDate: true }))}</ul>` : areaEmpty('Nenhum lançamento neste mês.', 'Quando registrar algo, os lançamentos recentes aparecerão aqui.', h`<button type="button" class="btn primary" data-action="tx-new">${icon('plus', 16)}Criar primeiro lançamento</button>`, 'list', 'h3')}</section>
     </div>
     `;
@@ -8216,7 +8381,7 @@ function finInvoiceDetails(card) {
       <span class="cc-invoice-title"><b>Fatura de ${ymLabel(month)}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
       <button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="1" aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button></div>
     <p class="cc-invoice-total"><span class="small muted">${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')}${invoice.installmentCount ? ` · ${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')}` : ''}</span><b>${money(invoice.total)}</b></p>
-    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : h`<p class="small muted">Nenhuma compra nesta fatura.</p>`}
+    ${invoice.purchases.length ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>` : empty('Nenhuma compra nesta fatura', 'As compras feitas no cartão neste período aparecem aqui.', '', 'card')}
   </details>`;
 }
 function creditCardCard(card, paymentAccounts) {
@@ -8315,7 +8480,7 @@ function finMonthClose(ym) {
     </dl>
     <div class="finance-close-next">${close.topExpense
       ? h`<p><b>Maior categoria de despesa:</b> ${expenseTitle(close.topExpense[0])} · ${money(close.topExpense[1])}.</p>`
-      : h`<p class="small muted">Nenhuma despesa neste mês.</p>`}
+      : empty('Nenhuma despesa neste mês', 'Quando você lançar despesas, o fechamento mostra a maior categoria aqui.', '', 'wallet')}
       <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos" data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
     </div>
   </details>`;
@@ -8827,7 +8992,6 @@ function dlgTxAnticipate() {
 Object.assign(DLG, { txbulk: dlgTxBulk, txdel: dlgTxDel, txanticipate: dlgTxAnticipate, 'installment-summary': dlgInstallmentSummary, tx: dlgTx, 'category-manager': dlgCategoryManager, 'category-new': dlgCategoryNew, account: dlgAccount, acctdelete: dlgAccountDelete, 'account-delete': dlgPermanentlyDeleteAccount, budget: dlgBudget, goal: dlgGoal, deposit: dlgDeposit, payinv: dlgPayInv });
 
 /* ========== Ações e formulários de Finanças ========== */
-const F_ = () => S.finance;
 Object.assign(ACTIONS, {
   'finance-category-rule-focus': () => document.querySelector('.finance-category-rule-form [name="phrase"]')?.focus(),
   'fin-tab': (el) => {

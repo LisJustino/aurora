@@ -133,8 +133,8 @@
   box-shadow: var(--card-shadow);
 }
 .cycle-calendar-card .cal {
-  width: min(100%, 760px);
-  gap: var(--space-2);
+  width: min(100%, 620px);
+  gap: var(--space-1);
   padding: var(--space-2);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
@@ -148,7 +148,7 @@
   text-transform: uppercase;
 }
 .cycle-calendar-card .cal > span,
-.cycle-calendar-card .cal button { min-height: 64px; }
+.cycle-calendar-card .cal button { min-height: 52px; }
 .cycle-calendar-card .cal button {
   border: 1px solid var(--line);
   background: var(--surface-soft);
@@ -174,6 +174,33 @@
 .main[data-route="ciclo"] .cycle-calendar-card .cal button[disabled].phase-menstruation,
 .main[data-route="ciclo"] .cycle-calendar-card .cal button[disabled].phase-fertile,
 .main[data-route="ciclo"] .cycle-calendar-card .cal button[disabled].phase-ovulation { opacity: .92; }
+/* Cores do calendário mais fortes: período preenchido, janela fértil e ovulação destacadas, início estimado tracejado. */
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.m {
+  border-color: var(--area-cycle);
+  background: var(--area-cycle);
+  color: var(--surface-strong);
+  font-weight: var(--weight-bold);
+  box-shadow: none;
+}
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.phase-fertile {
+  background: color-mix(in srgb, var(--area-water) 36%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--area-water) 70%, var(--line));
+}
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.phase-ovulation {
+  background: color-mix(in srgb, var(--warn) 44%, var(--surface));
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.p {
+  border: 2px dashed var(--area-cycle);
+  background: color-mix(in srgb, var(--area-cycle) 14%, var(--surface));
+}
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.s { box-shadow: 0 0 0 2px var(--surface-strong), 0 0 0 4px var(--area-cycle); }
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.l::after { bottom: 7px; width: 7px; height: 7px; background: var(--ink); }
+.main[data-route="ciclo"] .cycle-calendar-card .cal button.m.l::after { background: var(--surface-strong); }
+.cycle-calendar-legend .lg.m { background: var(--area-cycle); }
+.cycle-calendar-legend .lg.fertile { background: color-mix(in srgb, var(--area-water) 70%, var(--surface)); }
+.cycle-calendar-legend .lg.ovulation { background: var(--warn); }
+.cycle-calendar-legend .lg.p { border: 2px dashed var(--area-cycle); background: transparent; }
 .cycle-day-entry {
   gap: var(--space-4);
   padding: var(--card-padding);
@@ -425,7 +452,16 @@
 .area-tutorial-head { align-items: center; }
 .area-tutorial-head h2 { margin: 0; }
 .area-tutorial-intro, .area-tutorial-caption { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
-.area-tutorial-video { display: block; width: 100%; max-height: min(58vh, 500px); aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface-strong); object-fit: contain; }
+.area-tutorial-video { display: block; width: 100%; height: auto; max-height: min(58vh, 500px); aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface-strong); object-fit: contain; }
+.area-tutorial-video.is-mobile {
+  width: auto;
+  height: min(62vh, 570px);
+  max-width: 100%;
+  max-height: 62vh;
+  aspect-ratio: 390 / 844;
+  margin-inline: auto;
+  object-fit: contain;
+}
 .area-tutorial-script { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-group); background: var(--surface-soft); }
 .area-tutorial-script > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 11px 14px; color: var(--ink); cursor: pointer; font-size: var(--text-sm); font-weight: var(--weight-bold); list-style: none; }
 .area-tutorial-script > summary::-webkit-details-marker { display: none; }
@@ -440,6 +476,7 @@
 .finance-privacy-note > span > span { color: var(--muted); }
 @media (width <= 480px) {
   .area-tutorial-video { max-height: 38vh; }
+  .area-tutorial-video.is-mobile { width: auto; height: min(62vh, 570px); max-height: 62vh; }
   .area-tutorial-script > summary { padding: 10px 12px; }
   .finance-privacy-note { padding: 12px; }
 }

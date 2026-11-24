@@ -3,7 +3,7 @@ export { containsRemovedStudyData } from '../features/backup/validation.js';
 export { purgeRemovedStudyDataFromBrowserStorage } from '../features/backup/removed-study-data.js';
 
 export const LEGACY_SLICES = [
-  'tasks', 'pomodoro', 'settings',
+  'tasks', 'settings',
   'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits',
 ];
 

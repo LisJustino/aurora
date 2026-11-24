@@ -39,6 +39,7 @@ assert.equal(homeBadgeCount({
     { id: 'pending', status: 'active', days: [2] },
     { id: 'done', status: 'active', days: [2] },
     { id: 'skipped', status: 'active', days: [2] },
+    { id: 'future', status: 'active', days: [2], createdAt: new Date(2026, 10, 18).getTime() },
     { status: 'paused', days: [2] },
   ],
   isComplete: (habit) => habit.id === 'done',

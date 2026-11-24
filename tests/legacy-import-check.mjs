@@ -245,7 +245,6 @@ assert.throws(
 const defaults = {
   tasks: [],
   habits: [],
-  pomodoro: { elapsedSeconds: 0, startedAt: null },
   settings: {
     profile: { name: '', preferredName: '' },
     theme: 'rose',

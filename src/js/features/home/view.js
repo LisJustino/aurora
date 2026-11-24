@@ -22,7 +22,6 @@ export function renderHomeView(model, renderers) {
     emptyWorkspace,
     openCompleted,
     optionalAreas,
-    homeShortcuts,
     showHomeBlock,
     homeBlockStyle,
     financeUpcoming = null,
@@ -99,7 +98,7 @@ export function renderHomeView(model, renderers) {
               emptyWorkspace ? 'Seu Início começa aqui' : 'Seu dia está aberto',
               emptyWorkspace
                 ? 'Adicione sua primeira tarefa pelo campo “Qual é o próximo passo?” acima.'
-                : 'Inclua uma prioridade no Planejar ou use as ações rápidas.',
+                : 'Inclua uma prioridade no Planejar.',
               emptyWorkspace ? '' : h`<a class="btn" href="/planejar">${icon('list', 16)}Ver tarefas no Planejar</a>`,
               'calendarCheck',
             )}
@@ -118,16 +117,6 @@ export function renderHomeView(model, renderers) {
         ${showHomeBlock('habits') ? h`<div class="home-habits-block" ${raw(homeBlockStyle('habits'))}>${homeHabitCheckins(false)}</div>` : ''}
       </div>
     </div>
-    ${homeShortcuts.length ? h`<section class="surface-open home-tools" aria-labelledby="home-tools-title">
-      <div class="head"><div><h2 id="home-tools-title">Ações rápidas</h2></div></div>
-      <div class="home-tool-grid${homeShortcuts.length === 1 ? ' single' : ''}">
-        ${homeShortcuts.map((shortcut) => h`<button class="home-tool" type="button" data-action="${shortcut.action}">
-          <span class="home-tool-icon" aria-hidden="true">${icon(shortcut.icon, 18)}</span>
-          <span><b>${shortcut.label}</b><small>${shortcut.description}</small></span>
-          <span class="home-tool-go" aria-hidden="true">${icon('chevRight', 16)}</span>
-        </button>`)}
-      </div>
-    </section>` : ''}
     ${optionalAreas ? h`<section class="surface-open home-areas" aria-labelledby="ar">${optionalAreas}</section>` : ''}
     ${homeInboxReminder(inbox)}
     ${sundayReview ? h`<section class="card home-next-action home-weekly-review" aria-labelledby="home-weekly-review-title"><div class="home-next-mark">${icon('chart', 19)}</div><div class="grow"><span class="section-kicker">Domingo · sua semana</span><h2 id="home-weekly-review-title">Um momento para olhar com carinho</h2><p>Veja um retrato simples de tarefas, água e hábitos.</p></div><button type="button" class="btn primary" data-action="home-weekly-review">Ver minha semana</button></section>` : ''}

@@ -108,6 +108,6 @@ a.inline-link:focus-visible { color: var(--accent); text-decoration-thickness: 2
 body {
   background:
     radial-gradient(ellipse at 10% -12%, var(--canvas-glow), transparent 36rem),
-    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--area-cycle) 5%, transparent), transparent 42rem),
+    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--area-cycle) 2%, transparent), transparent 42rem),
     var(--bg);
 }

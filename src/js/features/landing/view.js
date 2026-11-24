@@ -15,11 +15,11 @@ const LANDING_TUTORIALS = [
     icon: 'sun',
     color: 'var(--area-plan)',
     heading: 'O seu dia, numa tela só',
-    description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas, hábitos e os atalhos que escolheu deixar por perto.',
+    description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas e hábitos organizados na sua tela.',
     steps: ['Tarefas atrasadas e do dia em destaque', 'Anote algo novo sem sair da tela', 'Escolha quais blocos aparecem'],
     image: '/src/assets/tutorials/landing/hoje.webp',
     imageMobile: '/assets/landing-areas/hoje-mobile.webp',
-    alt: 'Tela inicial do Aurora com tarefas e atalhos para o dia.',
+    alt: 'Tela inicial do Aurora com tarefas e hábitos para o dia.',
   },
   {
     id: 'tarefas',

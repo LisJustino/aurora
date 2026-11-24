@@ -183,6 +183,11 @@ assert.match(studyRemovalMigration, /drop table if exists public\.study_sessions
 assert.match(studyRemovalMigration, /drop table if exists public\.study_subjects/i);
 assert.match(studyRemovalMigration, /drop column if exists subject_id/i);
 assert.match(studyRemovalMigration, /check \(timer_kind = 'pomodoro'\)/i);
+const pomodoroRemovalMigration = await readFile(new URL('../supabase/migrations/20261123230000_remove_pomodoro_data.sql', import.meta.url), 'utf8');
+for (const table of ['pomodoro_daily_stats', 'timer_state', 'push_subscriptions']) {
+  assert.match(pomodoroRemovalMigration, new RegExp(`delete from public\\.${table};`));
+}
+assert.doesNotMatch(pomodoroRemovalMigration, /drop table/i);
 assert.match(studyRemovalMigration, /slice_count <> 10/i);
 const activeAllowlist = studyRemovalMigration.match(
   /table_allowlist constant text\[\] := array\[([\s\S]*?)\];/i,
@@ -283,7 +288,6 @@ const state = {
     introSeen: true,
   },
   tasks: [{ id: 'legacy-task-id', title: 'Tarefa', done: false, priority: 'normal', icon: 'book', subtasks: [], tags: [] }],
-  pomodoro: { elapsedSeconds: 120, startedAt: null, phase: 'focus', phaseElapsedSeconds: 120, completedPomodoros: 3, dailyCompletedPomodoros: 2, dailyCompletedOn: '2026-10-29', history: { '2026-10-29': 2 } },
   habits: [{
     id: 'water-habit',
     name: 'Beber água',
@@ -463,9 +467,8 @@ assert.deepEqual(changeByTable.get('user_settings')[0].enabled_areas, { finances
 assert.equal(changeByTable.has('push_subscriptions'), false);
 assert.equal(changeByTable.has('study_subjects'), false);
 assert.equal(changeByTable.has('study_sessions'), false);
-assert.equal(changeByTable.get('timer_state')[0].timer_kind, 'pomodoro');
-assert.equal(Object.hasOwn(changeByTable.get('timer_state')[0], 'subject_id'), false);
-assert.equal(changeByTable.get('pomodoro_daily_stats')[0].completed_count, 2);
+assert.equal(changeByTable.has('timer_state'), false);
+assert.equal(changeByTable.has('pomodoro_daily_stats'), false);
 assert.equal(changeByTable.get('gym_templates')[0].name, 'Treino antigo');
 assert.equal(changeByTable.get('gym_template_exercises')[0].name, 'Alongamento');
 assert.equal(changeByTable.get('gym_logs')[0].notes, 'Registro preservado');
@@ -515,9 +518,7 @@ const loadedState = await new RelationalAccountStore(loadClient, userId).load();
 assert.equal(loadedState.settings.areas.gym, true);
 assert.equal(loadedState.settings.prefs.annualPlans[2027].goals[0].taskId, 'legacy-task-id');
 assert.deepEqual(loadedState.settings.prefs.weeklyReflection, { weekOf: '2026-11-02', text: 'Mais pausas' });
-assert.equal(loadedState.pomodoro.elapsedSeconds, 120);
-assert.equal(loadedState.pomodoro.completedPomodoros, 3);
-assert.deepEqual(loadedState.pomodoro.history, { '2026-10-29': 2 });
+assert.equal(Object.hasOwn(loadedState, 'pomodoro'), false);
 assert.deepEqual(loadedState.gym.templates[0].exercises, ['Alongamento']);
 assert.equal(loadedState.gym.templates[0].id, 'legacy-template');
 assert.equal(loadedState.gym.logs[0].id, 'legacy-workout');
@@ -820,8 +821,8 @@ assert.deepEqual(loaded.settings.areas, { finances: true });
 
 const snapshotTableNames = [
   'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'timer_state',
-  'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs', 'gym_templates',
+  'task_tag_assignments', 'weekly_reflections', 'daily_checkins',
+  'habits', 'habit_logs', 'water_logs', 'gym_templates',
   'gym_template_exercises', 'gym_logs', 'finance_accounts', 'finance_recurrences',
   'finance_transactions', 'finance_budgets', 'finance_goals', 'cycle_periods',
   'cycle_days', 'weight_logs', 'trash_records',
@@ -881,7 +882,6 @@ const recoveryClient = {
 };
 const recoveryStore = new RelationalAccountStore(recoveryClient, userId);
 const recoveryBaseline = await recoveryStore.load();
-recoveryBaseline.pomodoro = null;
 const recoveryDraft = structuredClone(recoveryBaseline);
 recoveryDraft.tasks[0].title = 'Rascunho recuperável';
 const taskVersion = recoveryStore.rowVersions.get('tasks').get(recoveryDraft.tasks[0].id);

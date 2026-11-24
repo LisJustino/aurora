@@ -3,13 +3,6 @@ import {
   hasSupabaseConfig,
   setRememberSession,
 } from '../data/supabase-client.js';
-import {
-  createVault,
-  decryptAccountSlice,
-  encryptAccountSlice,
-  unlockVaultWithPassword,
-  unlockVaultWithRecovery,
-} from './crypto-vault.js';
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, isValidBirthdayReference } from '../features/profile/birthday.js';
@@ -113,7 +106,7 @@ export function getOAuthRedirectUrl(origin) {
 }
 
 const SLICES = new Set([
-  'tasks', 'pomodoro', 'settings',
+  'tasks', 'settings',
   'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits',
 ]);
 
@@ -1180,16 +1173,6 @@ export function signupErrorMessage(error, data = {}) {
   return genericAuthError();
 }
 
-async function loadVaultRecord(client, userId) {
-  const { data, error } = await client
-    .from('user_keys')
-    .select('key_version,salt,password_wrap,recovery_wrap')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error) throw new Error('O cofre criptografado não pôde ser carregado. Nenhum dado foi exibido.');
-  return data;
-}
-
 function sameJsonValue(a, b) {
   if (a === b) return true;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
@@ -1197,125 +1180,6 @@ function sameJsonValue(a, b) {
   const keysB = Object.keys(b).sort();
   return keysA.length === keysB.length
     && keysA.every((key, index) => keysA[index] === keysB[index] && sameJsonValue(a[key], b[key]));
-}
-
-async function unlockAccountData(client, user, knownPassword, root) {
-  const record = await loadVaultRecord(client, user.id);
-  const existingRows = await loadAccountSlices(client, user.id);
-  if (!record) {
-    if (existingRows.size) {
-      throw new Error('Há dados remotos sem a chave criptográfica necessária. Eles foram preservados e não serão exibidos nem substituídos.');
-    }
-
-    let password = knownPassword;
-    while (!password) {
-      const { form, message } = createAccountForm(root, {
-        title: 'Criar seu cofre privado',
-        description: 'Informe a senha da conta para criar as chaves criptográficas. A senha não é armazenada pelo Aurora.',
-        mode: 'setup-vault',
-      });
-      const result = await new Promise((resolve) => {
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          resolve({ password: form.elements.password.value, message });
-        }, { once: true });
-      });
-      if (result.password.length < LEGACY_PASSWORD_MIN_LENGTH || result.password.length > PASSWORD_MAX_LENGTH) {
-        result.message.textContent = `Use uma senha entre ${LEGACY_PASSWORD_MIN_LENGTH} e ${PASSWORD_MAX_LENGTH} caracteres.`;
-        continue;
-      }
-      password = result.password;
-    }
-
-    const vault = await createVault(password, user.id);
-    password = '';
-    for (;;) {
-      const { form, message, submit } = createAccountForm(root, {
-        title: 'Guarde sua chave de recuperação',
-        description: 'Este cofre antigo guarda dados cifrados. Novos dados ficam na sua conta; use a importação para trazer o conteúdo antigo.',
-        mode: 'confirm-recovery',
-        recoveryKey: vault.recoveryKey,
-      });
-      const result = await new Promise((resolve) => {
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          resolve({ recoverySaved: form.elements.recoverySaved.checked, message, submit });
-        }, { once: true });
-      });
-      if (!result.recoverySaved) {
-        result.message.textContent = 'Confirme que guardou a chave para continuar.';
-        continue;
-      }
-      setSubmitPending(result.submit, true);
-      const { error } = await client.from('user_keys').insert({
-        user_id: user.id,
-        ...vault.record,
-      });
-      if (error) {
-        const saved = await loadVaultRecord(client, user.id);
-        if (saved && sameJsonValue(saved, vault.record)) return vault.dataKey;
-        if (saved) {
-          throw new Error('Um cofre foi criado em outra sessão. Recarregue a página e desbloqueie seus dados com a senha ou a chave de recuperação.');
-        }
-        setSubmitPending(result.submit, false);
-        result.message.textContent = 'Não foi possível confirmar o salvamento das chaves. A conta não será aberta; tente novamente.';
-        continue;
-      }
-      return vault.dataKey;
-    }
-  }
-
-  if (knownPassword) {
-    try {
-      return await unlockVaultWithPassword(knownPassword, record, user.id);
-    } catch {
-      knownPassword = '';
-    }
-  }
-
-  let mode = 'unlock-password';
-  let message = '';
-  for (;;) {
-    const config = mode === 'unlock-password'
-      ? {
-        title: 'Desbloquear seus dados',
-        description: 'Informe a senha que foi usada para criar o cofre criptografado.',
-        mode,
-        links: [{ label: 'Usar chave de recuperação', target: 'unlock-recovery' }],
-      }
-      : {
-        title: 'Recuperar acesso aos dados',
-        description: 'Informe a chave de recuperação que foi exibida quando o cofre foi criado.',
-        mode,
-        links: [{ label: 'Tentar a senha do cofre', target: 'unlock-password' }],
-      };
-    const { form, message: status } = createAccountForm(root, config);
-    status.textContent = message;
-    const result = await new Promise((resolve) => {
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        resolve({
-          password: form.elements.password?.value || '',
-          recoveryKey: form.elements.recoveryKey?.value || '',
-        });
-      }, { once: true });
-      root.querySelectorAll('button[data-account-mode], a[data-account-mode]').forEach((control) => {
-        control.addEventListener('click', () => resolve({ nextMode: control.dataset.accountMode }), { once: true });
-      });
-    });
-    if (result.nextMode) {
-      mode = result.nextMode;
-      message = '';
-      continue;
-    }
-    try {
-      return mode === 'unlock-password'
-        ? await unlockVaultWithPassword(result.password, record, user.id)
-        : await unlockVaultWithRecovery(result.recoveryKey.trim(), record, user.id);
-    } catch {
-      message = 'Não foi possível desbloquear os dados. Confira a senha ou a chave e tente novamente.';
-    }
-  }
 }
 
 export async function requireAccount(root, initialMode = 'login', {

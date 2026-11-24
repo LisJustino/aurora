@@ -21,10 +21,10 @@
   --p: #d991aa;
   --pd: #8d4665;
   --plum: #593047;
-  --bg: #f5f0e9;
-  --canvas-initial: #f5f3ed;
+  --bg: #faf8f5;
+  --canvas-initial: #faf8f5;
   --loading-canvas-dark: #1c1b19;
-  --bg-strong: #eee6de;
+  --bg-strong: #f3eee8;
   --surface: #fffdf9;
   --surface-strong: #fffefa;
   --surface-raised: #ffffff;
@@ -239,7 +239,7 @@
   --select-menu-max-height: 288px;
   /* Raios: 14 · 24 · 32 · pill */
   /* Elevação e canvas */
-  --canvas-glow: color-mix(in srgb, var(--p) 16%, transparent);
+  --canvas-glow: color-mix(in srgb, var(--p) 6%, transparent);
   --public-glow: transparent;
   --canvas-grid: color-mix(in srgb, var(--ink) 2.2%, transparent);
   --nav-h: 72px;

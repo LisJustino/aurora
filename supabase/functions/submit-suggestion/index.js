@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { parseAllowedOrigins } from '../delete-account/push-cleanup.js';
+import { parseAllowedOrigins } from '../delete-account/allowed-origins.js';
 
 const corsHeaders = (origin) => ({
   'Access-Control-Allow-Origin': origin,

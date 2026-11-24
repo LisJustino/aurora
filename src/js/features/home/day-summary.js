@@ -1,3 +1,5 @@
+import { habitStartedOnOrBefore } from '../habits/dates.js';
+
 export function createHomeDaySummary({
   todayTasks = [],
   overdueTasks = [],
@@ -54,6 +56,7 @@ export function homeBadgeCount({
       (habit.status || 'active') === 'active'
       && Array.isArray(habit.days)
       && habit.days.includes(weekday)
+      && habitStartedOnOrBefore(habit, day)
       && !isComplete(habit, day)
       && !isSkipped(habit, day)
     )).length

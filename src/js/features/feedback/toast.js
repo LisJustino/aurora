@@ -7,12 +7,15 @@ export function createToastController({ readToast, writeToast, getContext, getOv
   let timeoutId = null;
   let expiresAt = 0;
   let duration = 0;
+  // A posição (topo ou base) é decidida quando o aviso aparece e não muda até ele sumir, para ele não pular de lugar quando um diálogo ou menu fecha.
+  let placedTop = null;
 
   function render() {
     let element = document.getElementById('toast');
     const toast = readToast();
     if (!toast) {
       element?.remove();
+      placedTop = null;
       return;
     }
     if (!element) {
@@ -22,8 +25,8 @@ export function createToastController({ readToast, writeToast, getContext, getOv
       document.body.appendChild(element);
     }
     const icons = { success: 'check', warning: 'alert', error: 'alert', action: 'repeat', info: 'info' };
-    const context = getContext();
-    element.className = `toast toast-${toast.tone}${context.top ? ' toast-top' : ''}`;
+    if (placedTop === null) placedTop = Boolean(getContext().top);
+    element.className = `toast toast-${toast.tone}${placedTop ? ' toast-top' : ''}`;
     element.setAttribute('role', toast.tone === 'error' ? 'alert' : 'status');
     const message = typeof toast.msg === 'string' ? normalizeMessage(toast.msg) : toast.msg;
     element.innerHTML = h`<span class="toast-icon" aria-hidden="true">${icon(icons[toast.tone], 18)}</span><span class="toast-content"><span class="toast-message">${message}</span>${toast.details ? h`<details><summary>Ver detalhes</summary><span>${toast.details}</span></details>` : ''}</span>${toast.undo ? h`<button data-action="undo">Desfazer</button>` : ''}<i class="toast-timer" aria-hidden="true"></i>`.s;
@@ -51,6 +54,7 @@ export function createToastController({ readToast, writeToast, getContext, getOv
       undo = null;
     }
     clearTimeout(timeoutId);
+    placedTop = null;
     duration = undo ? 9000 : 5000;
     expiresAt = Date.now() + duration;
     writeToast({ msg, undo, tone, details });

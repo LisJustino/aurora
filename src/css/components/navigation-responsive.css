@@ -168,8 +168,11 @@
     font-size: var(--text-xs);
     line-height: 1.15;
   }
-  .topbar .nav .profile-menu-trigger:hover,
-  .topbar .nav a:hover { background: var(--surface-soft); }
+  /* Só com mouse: no toque o :hover fica grudado no último item tocado e parece que ele está selecionado. */
+  @media (hover: hover) {
+    .topbar .nav .profile-menu-trigger:hover,
+    .topbar .nav a:hover { background: var(--surface-soft); }
+  }
   .topbar .nav .profile-menu-control[open] > .profile-menu-trigger { background: var(--soft); color: var(--accent); }
   .topbar .profile-menu-panel {
     position: fixed;
@@ -198,7 +201,7 @@
     color: var(--accent);
   }
   .topbar .nav .nav-item[aria-current="page"] { border-color: color-mix(in srgb, var(--accent) 18%, transparent); }
-  /* Áreas além das 3 primeiras ficam dentro do Mais. */
+  /* Áreas além das cinco primeiras (se houver) ficam dentro do Mais. */
   .topbar .nav .nav-item[data-overflow] { display: none; }
   .topbar .nav .profile-menu-trigger .ni-account { display: none; }
   .topbar .nav .profile-menu-trigger .ni-more { display: grid; }

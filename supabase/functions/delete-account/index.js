@@ -5,10 +5,7 @@ import {
   importEncryptionKey,
   revokeGoogleToken,
 } from '../_shared/google-calendar-tokens.js';
-import {
-  parseAllowedOrigins,
-  removeRemotePushSubscriptions,
-} from './push-cleanup.js';
+import { parseAllowedOrigins } from './allowed-origins.js';
 
 const corsHeaders = (origin) => ({
   'Access-Control-Allow-Origin': origin,
@@ -61,32 +58,6 @@ Deno.serve(async (request) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const pushSubscriptions = [];
-  const pageSize = 100;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await adminClient
-      .from('push_subscriptions')
-      .select('worker_client_id,worker_capability')
-      .eq('user_id', userData.user.id)
-      .range(offset, offset + pageSize - 1);
-    if (error) {
-      console.error('delete-account: Push credentials could not be loaded.');
-      return jsonResponse({ error: 'account-deletion-unavailable' }, 503, requestOrigin || undefined);
-    }
-    pushSubscriptions.push(...(data || []));
-    if (!data || data.length < pageSize) break;
-  }
-
-  try {
-    await removeRemotePushSubscriptions(pushSubscriptions, {
-      apiUrl: Deno.env.get('POMODORO_PUSH_API_URL'),
-      origin: requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : '',
-    });
-  } catch (error) {
-    console.error('delete-account: remote Push cleanup was not confirmed.', error);
-    return jsonResponse({ error: 'push-cleanup-unavailable' }, 503, requestOrigin || undefined);
-  }
-
   // Revoga no Google as conexões do Agenda antes de apagar a conta (a linha some por cascade).
   const googleSecret = Deno.env.get('GOOGLE_TOKEN_ENCRYPTION_KEY');
   const { data: googleRows, error: googleError } = await adminClient

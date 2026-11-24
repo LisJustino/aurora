@@ -566,3 +566,18 @@
 @media (prefers-reduced-motion: reduce) {
   .main[data-route="config"] .appearance-preset { transition: none; }
 }
+
+/* Menu dos Ajustes no celular: faixa horizontal com ícone e nome; a descrição ficava por cima do item seguinte. */
+@media (width <= 700px) {
+  .main[data-route="config"] .settings-link {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    flex: none;
+    grid-template-columns: 24px auto;
+    padding-inline: 10px 14px;
+  }
+  .main[data-route="config"] .settings-link-copy { min-width: 0; }
+  .main[data-route="config"] .settings-link-copy b { white-space: nowrap; }
+  .main[data-route="config"] .settings-link-copy small { display: none; }
+}

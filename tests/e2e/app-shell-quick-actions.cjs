@@ -227,9 +227,9 @@ const check = (passed, name, detail = '') => {
         const items = [...nav.children].filter((child) => getComputedStyle(child).display !== 'none');
         const profile = nav.querySelector('.profile-menu-control');
         const shownLinks = links.filter((link) => getComputedStyle(link).display !== 'none');
-        const moreLabel = profile?.querySelector('.mobile-nav-label')?.textContent.replace('.', '').trim();
-        return links.length === 5 && shownLinks.length === 3 && items.length === 4 && !nav.querySelector('.mobile-nav-create-trigger')
-          && items[3] === profile && profile.parentElement === nav && moreLabel === 'Mais';
+        const profileHidden = !profile || getComputedStyle(profile).display === 'none';
+        return links.length === 5 && shownLinks.length === 5 && items.length === 5 && !nav.querySelector('.mobile-nav-create-trigger')
+          && items.every((item) => item.matches('a.nav-item')) && profileHidden;
       })(),
       headerGap: parseFloat(getComputedStyle(document.querySelector('.app > .topbar .header-actions')).gap),
     })));
@@ -240,7 +240,7 @@ const check = (passed, name, detail = '') => {
     'atalhos do dock ficam dentro do fundo entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ labelsFit }) => labelsFit), 'nomes do dock móvel não são cortados entre 320 e 430 px', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ directNavigation }) => directNavigation),
-    'dock mostra três áreas, o botão de criação centralizado e o Mais', JSON.stringify(mobileNavLabels));
+    'dock mostra as cinco áreas direto, sem o Mais', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ brandVisible }) => brandVisible),
     'nome da marca permanece visível no cabeçalho móvel', JSON.stringify(mobileNavLabels));
   check(mobileNavLabels.every(({ collapseToggleHidden }) => collapseToggleHidden),
@@ -490,7 +490,7 @@ const check = (passed, name, detail = '') => {
       breakpoints.push(await page.evaluate(() => {
         const nav = document.querySelector('.topbar .nav');
         const links = [...nav.querySelectorAll(':scope > a.nav-item')];
-        // No celular só as três primeiras áreas ficam na barra; as demais vão para o Mais.
+        // No celular as cinco áreas ficam direto na barra, sem o Mais.
         const shown = links.filter((link) => link.getClientRects().length);
         const active = nav.querySelector('[aria-current="page"]');
         const areaBounds = {
@@ -576,40 +576,23 @@ const check = (passed, name, detail = '') => {
   const mobileShownLinks = await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').evaluateAll((links) => (
     links.map((link) => link.getAttribute('href'))
   ));
-  check(mobileShownLinks.join(',') === '/inicio,/planejar,/habitos',
-    'dock móvel mostra as três primeiras áreas na ordem escolhida');
-  check(await page.locator('.topbar .nav .profile-menu-trigger').isVisible()
-    && (await page.locator('.topbar .nav .profile-menu-trigger .mobile-nav-label').innerText()).includes('Mais'),
-  'menu Mais fica acessível no dock móvel');
-  await page.locator('.profile-menu-trigger').click();
+  check(mobileShownLinks.join(',') === '/inicio,/planejar,/habitos,/financas,/ciclo',
+    'dock móvel mostra as cinco áreas na ordem escolhida');
+  check(!await page.locator('.topbar .nav .profile-menu-trigger').isVisible(),
+    'dock móvel não tem o botão Mais quando todas as áreas cabem');
+  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
   const profileMenu = page.locator('#profile-menu');
-  const overflowHrefs = await profileMenu.locator('.nav-overflow-item').evaluateAll((links) => (
-    links.map((link) => link.getAttribute('href'))
-  ));
-  check(overflowHrefs.join(',') === '/financas,/ciclo', 'menu Mais lista as demais áreas na ordem escolhida');
-  check(await profileMenu.locator('.profile-menu-account-item').evaluate((item) => getComputedStyle(item).display) === 'none',
-    'menu Mais do dock não repete o acesso à conta');
-  const profileMenuBounds = await profileMenu.evaluate((menu) => {
-    const { left, right, bottom } = menu.getBoundingClientRect();
-    return { left, right, bottom, viewport: innerWidth, navTop: document.querySelector('.topbar .nav').getBoundingClientRect().top };
-  });
-  check(profileMenuBounds.left >= 0 && profileMenuBounds.right <= profileMenuBounds.viewport,
-    'menu da conta cabe na largura do celular');
-  check(profileMenuBounds.bottom <= profileMenuBounds.navTop,
-    'menu da conta abre acima do dock móvel');
+  check(await profileMenu.locator('a[href="/ajustes"]').isVisible(),
+    'cabeçalho móvel mantém o acesso a Perfil e ajustes');
+  check(await profileMenu.locator('.nav-overflow-group').count() === 0,
+    'menu da conta não lista áreas, porque todas estão no dock');
   await page.keyboard.press('Escape');
   check(await page.locator('.profile-menu-control').getAttribute('open') === null,
     'Escape fecha o menu da conta');
-  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  check(await profileMenu.locator('a[href="/ajustes"]').isVisible(),
-    'cabeçalho móvel mantém o acesso a Perfil e ajustes');
-  check(await profileMenu.locator('.nav-overflow-group').evaluate((group) => getComputedStyle(group).display) === 'none',
-    'menu da conta no cabeçalho não repete as áreas do Mais');
-  await page.keyboard.press('Escape');
   await cycleMenuToggle.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 4);
-  check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 3,
-    'dock mostra três áreas e Finanças vai para o Mais quando Ciclo não está no menu');
+  check(await page.locator('.topbar .nav > a:not(.nav-enable-areas):visible').count() === 4,
+    'dock mostra as quatro áreas restantes quando Ciclo não está no menu');
   await cycleMenuToggle.check();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 5);
   await page.setViewportSize({ width: 1440, height: 900 });

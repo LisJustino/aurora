@@ -1153,3 +1153,24 @@
 .finance-report-account { display: block; margin-top: var(--space-3); }
 .finance-category-trend .category-bars { margin-top: var(--space-3); }
 .finance-category-trend .category-bars li { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Gráficos da visão geral: rosca por categoria e comparativo dos últimos meses */
+.category-donut { position: relative; display: grid; width: min(100%, 176px); margin: 0 auto var(--space-4); aspect-ratio: 1; place-items: center; }
+.category-donut-ring { position: absolute; inset: 0; border-radius: 50%; mask: radial-gradient(circle, transparent 57%, #000 58%); }
+.category-donut-center { position: relative; display: grid; max-width: 62%; gap: 2px; text-align: center; }
+.category-donut-center small { color: var(--muted); font-size: var(--text-xs); }
+.category-donut-center b { font-size: var(--text-lg); font-variant-numeric: tabular-nums; line-height: var(--leading-tight); overflow-wrap: anywhere; }
+.finance-flow-chart { display: grid; gap: var(--space-4); }
+.finance-flow-chart > .head { align-items: flex-start; }
+.flow-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--muted); font-size: var(--text-xs); }
+.flow-legend span::before { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; background: var(--ok); content: ""; }
+.flow-legend .is-expense::before { background: var(--accent); }
+.flow-columns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.flow-columns li { display: grid; gap: var(--space-2); justify-items: center; }
+.flow-bars { display: flex; width: 100%; height: 120px; align-items: flex-end; justify-content: center; gap: 4px; }
+.flow-bars i { display: block; width: min(40%, 22px); min-height: 3px; border-radius: 6px 6px 2px 2px; background: var(--ok); opacity: .55; transition: height var(--duration-base) var(--ease-standard); }
+.flow-bars i.is-expense { background: var(--accent); }
+.flow-columns .is-current .flow-bars i { opacity: 1; }
+.flow-label { color: var(--muted); font-size: var(--text-xs); text-transform: capitalize; }
+.flow-columns .is-current .flow-label { color: var(--ink); font-weight: var(--weight-bold); }
+@media (prefers-reduced-motion: reduce) { .flow-bars i { transition: none; } }

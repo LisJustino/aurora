@@ -8,9 +8,11 @@ export const AREA_GUIDES = {
     summary: 'Acompanhe o dia e encontre atalhos para suas áreas.',
     video: tutorialAsset('inicio.mp4'),
     poster: tutorialAsset('inicio.webp'),
+    mobileVideo: tutorialAsset('inicio-mobile.mp4'),
+    mobilePoster: tutorialAsset('inicio-mobile.webp'),
     steps: [
       { title: 'Comece pelo que importa', text: 'Confira as tarefas de hoje e os avisos que pedem sua atenção. Abra uma tarefa para ver detalhes ou atualizar o andamento.' },
-      { title: 'Use os atalhos do painel', text: 'Crie uma tarefa sem sair de Início. Os atalhos levam você direto à ação.' },
+      { title: 'Consulte seus hábitos', text: 'Veja o que está agendado para hoje e marque apenas o que você concluiu.' },
       { title: 'Deixe a tela com a sua cara', text: 'Em Ajustes, escolha quais áreas aparecem e organize os blocos do painel para destacar o que você mais usa.' },
     ],
   },
@@ -19,6 +21,8 @@ export const AREA_GUIDES = {
     summary: 'Organize tarefas por prazo e escolha a visualização que ajuda você.',
     video: tutorialAsset('planejar.mp4'),
     poster: tutorialAsset('planejar.webp'),
+    mobileVideo: tutorialAsset('planejar-mobile.mp4'),
+    mobilePoster: tutorialAsset('planejar-mobile.webp'),
     steps: [
       { title: 'Transforme planos em tarefas', text: 'Adicione um título e, se ajudar, escolha prazo, prioridade e lista. Você pode começar sem preencher tudo.' },
       { title: 'Escolha como visualizar', text: 'Use a lista para acompanhar itens, o calendário ou a semana para ver datas e a revisão para retomar o que ficou pendente.' },
@@ -31,6 +35,8 @@ export const AREA_GUIDES = {
     summary: 'Monte um retrato financeiro manual: você decide quais contas e lançamentos registrar.',
     video: tutorialAsset('financas.mp4'),
     poster: tutorialAsset('financas.webp'),
+    mobileVideo: tutorialAsset('financas-mobile.mp4'),
+    mobilePoster: tutorialAsset('financas-mobile.webp'),
     steps: [
       { title: 'Comece pelas contas', text: 'Cadastre manualmente uma conta ou carteira e informe o saldo inicial que deseja acompanhar. O Aurora não importa saldos bancários por conta própria.' },
       { title: 'Registre cada movimentação', text: 'Adicione receitas e despesas com valor, data, categoria e conta. Os valores são aqueles que você informar.' },
@@ -44,6 +50,8 @@ export const AREA_GUIDES = {
     summary: 'Monte rotinas possíveis e acompanhe os registros dia a dia.',
     video: tutorialAsset('habitos.mp4'),
     poster: tutorialAsset('habitos.webp'),
+    mobileVideo: tutorialAsset('habitos-mobile.mp4'),
+    mobilePoster: tutorialAsset('habitos-mobile.webp'),
     steps: [
       { title: 'Escolha algo possível', text: 'Crie um hábito com um nome claro e selecione os dias em que pretende praticá-lo. Você pode ajustar a rotina depois.' },
       { title: 'Registre sem cobrança', text: 'Marque os dias em que concluiu. Se não aconteceu, registre como pulado quando quiser manter esse contexto no histórico.' },
@@ -56,6 +64,8 @@ export const AREA_GUIDES = {
     summary: 'Registre períodos e, se quiser, sintomas e outras observações.',
     video: tutorialAsset('ciclo.mp4'),
     poster: tutorialAsset('ciclo.webp'),
+    mobileVideo: tutorialAsset('ciclo-mobile.mp4'),
+    mobilePoster: tutorialAsset('ciclo-mobile.webp'),
     steps: [
       { title: 'Registre o que aconteceu', text: 'Adicione o início e o fim do período conforme seus registros. Você pode corrigir datas quando precisar.' },
       { title: 'Use o calendário', text: 'Selecione um dia para consultar ou adicionar sintomas e observações. Compartilhe apenas o que se sentir confortável em registrar.' },

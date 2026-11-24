@@ -16,7 +16,7 @@ export const HOME_SHORTCUTS = [
 export const HOME_MODES = Object.freeze({
   overview: Object.freeze({
     label: 'Visão geral',
-    description: 'Todos os blocos e atalhos disponíveis.',
+    description: 'Todos os blocos disponíveis.',
     layout: Object.freeze({ order: HOME_BLOCKS.map(([id]) => id), visible: HOME_BLOCKS.map(([id]) => id) }),
     shortcuts: HOME_SHORTCUTS.map(({ id }) => id),
   }),
@@ -28,7 +28,7 @@ export const HOME_MODES = Object.freeze({
   }),
   routine: Object.freeze({
     label: 'Rotina',
-    description: 'Hábitos, plano do dia e atalhos do cotidiano.',
+    description: 'Hábitos e plano do dia.',
     layout: Object.freeze({ order: ['habits', 'today', 'summary', 'quick'], visible: ['habits', 'today', 'summary'] }),
     shortcuts: ['task', 'habit', 'finance'],
   }),
