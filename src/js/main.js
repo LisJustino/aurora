@@ -29,7 +29,6 @@ import {
   accountBalanceOn,
   byCategory as summarizeByCategory,
   cardInfo as calculateCardInfo,
-  invoiceMonth,
   isCreditAccount,
   isPaid as transactionIsPaid,
   monthStats as summarizeMonth,
@@ -38,7 +37,6 @@ import {
   reportMonthStats,
   linkedGoalProgressCents,
   projectedNetAccountBalance,
-  signedAmount,
   expenseBudgetByCategory,
   dailyBudgetRoom,
   cardInvoice as calculateCardInvoice,
@@ -87,7 +85,6 @@ import {
   markReleaseNotesSeen,
   shouldShowReleaseNotes,
 } from './features/release-notes.js';
-import { normalizeLegacyTimerHistory } from './data/legacy-timer.js';
 import { matchCategoryRule, normalizeCategoryRules } from './features/finance/category-rules.js';
 import {
   BUDGET_ALERT_OPTIONS,
@@ -529,7 +526,6 @@ function saveActiveHomeMode(settings) {
 const defaults = () => ({
   tasks: [],
   habits: [],
-  pomodoro: { elapsedSeconds: 0, startedAt: null, phase: 'focus', phaseElapsedSeconds: 0, completedPomodoros: 0, dailyCompletedPomodoros: 0, dailyCompletedOn: '', focusTaskId: '' },
   settings: { profile: { name: '', preferredName: '', sex: '', age: null, weightKg: null, heightCm: null }, areas: { finances: false, gym: false, water: false, cycle: false, habits: false }, theme: 'rose', look: { ...LOOK_DEFAULT }, lists: DEF_LISTS.map((x) => ({ ...x })), cats: defCats(), weightTracking: false, onboardingComplete: false, introSeen: false, prefs: { waterGoalMl: 2000, financeValuesHidden: false, cycleDiscreet: false, backupReminderSnoozedUntil: null, birthday: null, birthdayCorrectionUsed: false, areaTutorialsSeen: [], firstStepsDismissed: false, firstStepsStarted: false, menuOrder: [...DEFAULT_MENU_ORDER], visibleMenuItems: [...DEFAULT_VISIBLE_MENU_ITEMS], homeLayout: defaultHomeLayout(), homeMode: 'overview', homeModes: defaultHomeModes(), homeShortcuts: defaultHomeShortcuts(), homeMessage: '', areaColors: {}, profileAppearance: { ...PROFILE_APPEARANCE_DEFAULT }, annualPlans: {}, financeCategoryRules: [], financeBudgetSettings: {}, lastBackup: null, feedbackPromptNextAt: null, sample: false, weeklyReviewReminder: false, weeklyReflection: null, trash: [] } },
   water: [], gym: { templates: [], logs: [] }, finance: { accounts: [], tx: [], budgets: {}, goals: [], recurring: [] }, cycle: [], cycleLog: {}, weight: [],
 });
@@ -1084,47 +1080,6 @@ function normalizeSlice(k, v) {
   if (v == null) return { value: d, invalidCount: 0 };
   if (k === 'settings') {
     return { value: normalizeSettings(v), invalidCount: settingsIssueCount(v) };
-  }
-  if (k === 'pomodoro') {
-    let invalidCount = 0;
-    if (!isPlainObject(v)) return { value: d, invalidCount: 1 };
-    const timer = { ...d, ...v };
-    if (!isFiniteValue(timer.elapsedSeconds) || timer.elapsedSeconds < 0) { timer.elapsedSeconds = d.elapsedSeconds; invalidCount++; }
-    if (timer.startedAt !== null && !isFiniteValue(timer.startedAt)) { timer.startedAt = d.startedAt; invalidCount++; }
-    if (!Object.hasOwn(v, 'phase')) {
-      timer.phase = 'focus';
-      timer.phaseElapsedSeconds = 0;
-      timer.completedPomodoros = 0;
-      if (timer.startedAt !== null) timer.startedAt = Date.now();
-    } else if (!['focus', 'short-break', 'long-break'].includes(timer.phase)) {
-      timer.phase = 'focus';
-      invalidCount++;
-    }
-    if (!Number.isInteger(timer.phaseElapsedSeconds) || timer.phaseElapsedSeconds < 0 || timer.phaseElapsedSeconds > 7200) {
-      timer.phaseElapsedSeconds = 0;
-      invalidCount++;
-    }
-    if (!Number.isSafeInteger(timer.completedPomodoros) || timer.completedPomodoros < 0) {
-      timer.completedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!Number.isSafeInteger(timer.dailyCompletedPomodoros) || timer.dailyCompletedPomodoros < 0) {
-      timer.dailyCompletedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!Object.hasOwn(v, 'dailyCompletedOn')) {
-      timer.dailyCompletedOn = '';
-      timer.dailyCompletedPomodoros = 0;
-    } else if (timer.dailyCompletedOn !== '' && !isDay(timer.dailyCompletedOn)) {
-      timer.dailyCompletedOn = '';
-      timer.dailyCompletedPomodoros = 0;
-      invalidCount++;
-    }
-    if (!timer.dailyCompletedOn) timer.dailyCompletedPomodoros = 0;
-    timer.history = normalizeLegacyTimerHistory(v.history);
-    if (typeof timer.focusTaskId !== 'string') { timer.focusTaskId = ''; invalidCount++; }
-    if (typeof timer.focusLabel === 'string' && timer.focusLabel.trim()) timer.focusLabel = timer.focusLabel.trim().slice(0, 40); else delete timer.focusLabel;
-    return { value: timer, invalidCount };
   }
   if (k === 'gym') {
     if (!isPlainObject(v)) return { value: d, invalidCount: 1 };
@@ -4044,7 +3999,7 @@ function dataSettings(p) {
 function relationalDataWipeScope() {
   return h`<ul class="settings-data-scope" aria-label="Dados que serão apagados">
     <li>Tarefas, listas, etiquetas, registros diários e revisões semanais.</li>
-    <li>Hábitos, registros de água, treinos, cronômetros e sessões de Pomodoro.</li>
+    <li>Hábitos, registros de água e treinos.</li>
     <li>Finanças: contas, lançamentos, orçamentos, metas e recorrências.</li>
     <li>Registros do Ciclo, pesagens e itens da lixeira.</li>
     <li>Perfil, preferências e configuração de notificações.</li>
@@ -5146,7 +5101,7 @@ function buildBackup() {
     },
     tasks: S.tasks.map((t) => ({ id: t.id, title: t.title, done: t.done, tag: t.tag, dueDate: t.dueDate, priority: t.priority, icon: t.icon, groupId: t.groupId, groupTitle: t.groupTitle, doneAt: t.doneAt, createdAt: t.createdAt, repeat: t.repeat, time: t.time, subtasks: t.subtasks, tags: t.tags, notes: t.notes, order: t.order, focusSeconds: t.focusSeconds })),
     areas: s.areas, theme: s.theme, weightTracking: s.weightTracking, onboardingComplete: s.onboardingComplete, introSeen: s.introSeen },
-    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, pomodoroTimer: S.pomodoro, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
+    extras: { themeFull: s.theme, look: s.look, lists: s.lists, cats: s.cats, water: S.water, gym: S.gym, finance: S.finance, cycle: S.cycle, cycleLog: S.cycleLog, weight: S.weight, habits: S.habits, prefs: backupPreferences, about: { sex: s.profile.sex, age: s.profile.age, weightKg: s.profile.weightKg, heightCm: s.profile.heightCm } } }, null, 2);
 }
 async function doExport() {
   if (Object.keys(ui.integrityIssues).length) {
@@ -5242,11 +5197,9 @@ function parseBackup(text) {
     Object.assign(settings.profile, { sex: SEX[a.sex] ? a.sex : '', age: Number.isFinite(a.age) ? a.age : null, weightKg: Number.isFinite(a.weightKg) ? a.weightKg : null, heightCm: Number.isFinite(a.heightCm) ? a.heightCm : null });
   }
   settings.prefs.sample = false;
-  const pomodoro = validatedBackupSlice('pomodoro', Object.hasOwn(ex, 'pomodoroTimer') ? ex.pomodoroTimer : defaults().pomodoro);
   const habits = backupRecords(ex.habits, isValidHabit, 'hábitos');
   return {
     tasks: validatedBackupSlice('tasks', tasks),
-    pomodoro,
     habits: validatedBackupSlice('habits', habits),
     settings,
     water: validatedBackupSlice('water', ex.water),

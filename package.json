@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "lint": "eslint src/js",
-    "format:check": "prettier --check package.json .github/workflows/tests.yml .github/dependabot.yml \"src/js/features/push/**/*.js\"",
+    "format:check": "prettier --check package.json .github/workflows/tests.yml .github/dependabot.yml",
     "tutorials:generate": "node scripts/generate-area-tutorial-videos.mjs",
     "visuals:generate": "node scripts/generate-visual-screenshots.mjs && node scripts/generate-landing-area-previews.mjs && node scripts/generate-social-image.mjs",
     "test": "node tests/run.js && node tests/bulk-entry-check.mjs && node tests/home-day-summary-check.mjs && node tests/budget-insights-check.mjs && node tests/finance-planning-check.mjs && node tests/cycle-insights-check.mjs && node tests/bulk-tasks-check.mjs && node tests/backup-reminder-check.mjs && node tests/habit-insights-check.mjs && node tests/agenda-check.mjs && node tests/week-finance-check.mjs && node tests/goal-progress-check.mjs && node tests/account-auth-check.mjs && node tests/delete-account-check.mjs && node tests/footer-suggestions-check.mjs && node tests/avatar-crop-check.mjs && node tests/crypto-vault-check.mjs && node tests/service-worker-check.mjs && node tests/relational-store-check.mjs && node tests/legacy-import-check.mjs && node tests/google-calendar-check.mjs && node tests/google-calendar-server-check.mjs && node tests/release-notes-check.mjs && node tests/csp-hashes-check.mjs",

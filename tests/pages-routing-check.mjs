@@ -25,7 +25,6 @@ const redirectTargets = {
   '/perfil': '/ajustes/perfil',
   '/pessoal': '/inicio',
   '/academia': '/inicio',
-  '/pomodoro': '/inicio',
   '/pages/inicio.html': '/inicio',
   '/pages/planejar.html': '/planejar',
   '/pages/financas.html': '/financas',

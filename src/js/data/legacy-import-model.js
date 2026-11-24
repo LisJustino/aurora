@@ -246,7 +246,7 @@ function containsExpected(expected, actual) {
 
 export function hasAllExpectedRecords(expected, actual) {
   const slices = [
-    'settings', 'tasks', 'pomodoro',
+    'settings', 'tasks',
     'habits', 'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight',
   ];
   for (const slice of slices) {

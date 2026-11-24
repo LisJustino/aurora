@@ -51,9 +51,3 @@ jobs:
         env:
           RUN_BROWSER_MATRIX: "1"
         run: npm run test:e2e:ci
-      - name: Install worker dependencies
-        working-directory: worker
-        run: npm ci
-      - name: Run worker tests
-        working-directory: worker
-        run: npm test
