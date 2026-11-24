@@ -195,8 +195,6 @@ import {
   HOME_BLOCK_IDS,
   HOME_MESSAGE_MAX_LENGTH,
   HOME_MODES,
-  HOME_SHORTCUTS,
-  HOME_SHORTCUT_IDS,
   normalizeHomeAreaColors,
   normalizeHomeLayout,
   normalizeHomeMessage,
@@ -236,6 +234,11 @@ import {
   habitIconKey,
   habitColor,
   habitIsSkipped,
+  isWeightHabit,
+  HABIT_ENTRY_TYPES,
+  habitEntryType,
+  habitEntryOptions,
+  habitEntryForDay,
 } from './features/habits/model.js';
 import {
   estimateWaterGoal,
@@ -247,6 +250,7 @@ import {
   waterMlForDay,
   waterWeekProgress,
 } from './features/habits/water-goal.js';
+import { weightChange } from './features/habits/weight-tracking.js';
 import { APPEARANCE_PRESETS, hexOk, LOOK_DEFAULT, PALETTES, paletteColors } from './features/appearance/palettes.js';
 import {
   DEFAULT_VISIBLE_MENU_ITEMS,
@@ -2595,20 +2599,25 @@ function homeUpcomingTasks() {
 
 function homeHabitCheckins(highlightNext = false, onlyNext = false) {
   if (!areaOn('habits')) return '';
-  const scheduled = S.habits.filter((habit) => (
-    (habit.status || 'active') === 'active'
-    && habit.days.includes(pk(today()).getDay())
+  const day = today();
+  const overview = habitDayOverview(
+    S.habits,
+    day,
+    habitCompletedFor,
+    (habit, targetDay) => habitIsSkipped(habit, targetDay, day),
+  );
+  const pending = overview.scheduled.filter((habit) => (
+    !habitCompletedFor(habit, day)
+    && !habitIsSkipped(habit, day, day)
   ));
-  if (!scheduled.length) return '';
-  const nextHabit = highlightNext ? scheduled.find((habit) => (
-    !habitCompletedFor(habit, today()) && !habitIsSkipped(habit, today(), today())
-  )) : null;
+  if (!pending.length) return '';
+  const nextHabit = highlightNext ? pending[0] : null;
   if (onlyNext && !nextHabit) return '';
   return h`<section class="card home-habit-checkins" aria-label="${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}">
     <div class="head"><h2>${onlyNext ? 'Próximo passo' : 'Hábitos de hoje'}</h2><a class="btn ghost sm" href="/habitos">Ver hábitos</a></div>
-    <ul class="list">${(onlyNext ? [nextHabit] : scheduled).map((habit) => {
-      const completed = habitCompletedFor(habit, today());
-      const skipped = habitIsSkipped(habit, today(), today());
+    <ul class="list">${(onlyNext ? [nextHabit] : pending).map((habit) => {
+      const completed = habitCompletedFor(habit, day);
+      const skipped = habitIsSkipped(habit, day, day);
       return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
         <span class="grow"><b>${habit.name}</b><span class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span>${habit.id === nextHabit?.id ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
@@ -2717,11 +2726,6 @@ function viewInicio() {
   const sundayReview = pk(todayKey).getDay() === 0;
   const showHomeBlock = (id) => homeLayout.visible.includes(id);
   const homeBlockStyle = (id) => `style="order:${homeLayout.order.indexOf(id)}"`;
-  const homeShortcuts = HOME_SHORTCUTS.filter(({ id, area }) => (
-    homePrefs.homeShortcuts.includes(id)
-    && (!area || areaOn(area))
-    && !(id === 'task' && showHomeBlock('quick'))
-  ));
   const emptyWorkspace = !S.tasks.length
     && !S.habits.some((habit) => (habit.status || 'active') === 'active')
     && !S.finance.accounts.length;
@@ -2803,7 +2807,6 @@ function viewInicio() {
     completed,
     nextTask,
     inbox,
-    homeShortcuts,
     emptyWorkspace,
     openCompleted: ui.openDetails['home-completed'],
     financeAccountsCount: S.finance.accounts.length,
@@ -3370,9 +3373,18 @@ function habitRow(habit) {
   const target = stats.weeklyTarget ?? stats.scheduledThisWeek;
   const waterTotal = isWaterHabit(habit) ? waterMlForDay(S.water, today()) : 0;
   const waterTarget = isWaterHabit(habit) ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
+  const weightEntry = isWeightHabit(habit) ? S.weight.find((entry) => entry.date === today()) : null;
   const sub = status === 'paused' ? 'Pausado' : skipped ? 'Dia pulado' : isWaterHabit(habit)
     ? `${waterTotal.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL hoje`
-    : habitDaysLabel(habit);
+    : isWeightHabit(habit)
+      ? weightEntry
+        ? `Peso registrado: ${weightEntry.kg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`
+        : 'Informe o peso de hoje'
+      : habitEntryType(habit) !== 'check'
+        ? habitEntryForDay(habit, today())
+          ? `${habitEntryType(habit) === 'select' ? 'Escolha de hoje' : 'Registro de hoje'}: ${habitEntryForDay(habit, today())}`
+          : habitEntryType(habit) === 'select' ? 'Escolha uma opção hoje' : 'Escreva o registro de hoje'
+        : habitDaysLabel(habit);
   const orderList = S.habits.filter((item) => item.status !== 'archived');
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
@@ -3704,7 +3716,7 @@ const settingsTabId = (id) => LEGACY_SETTINGS_TABS[id] || id;
 const SETTINGS_SECTIONS = [
   ['profile', 'Seu perfil', 'user', 'Nome, saudação e idade'],
   ['personalization', 'Aparência e leitura', 'sun', 'Tema, cores e acessibilidade'],
-  ['home', 'Tela inicial', 'home', 'Modo, blocos e ações rápidas'],
+  ['home', 'Tela inicial', 'home', 'Modo e blocos da tela inicial'],
   ['areas-navigation', 'Áreas e menu', 'grid', 'Ativar áreas e organizar o menu'],
   ['data', 'Dados e recuperação', 'archive', 'Gerenciar a lixeira e a recuperação de dados'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
@@ -3720,13 +3732,11 @@ function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
   const modeDefaults = defaultHomeModes()[activeMode];
   const layout = s.prefs.homeLayout;
-  const shortcuts = s.prefs.homeShortcuts;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
-  const isDefault = sameJsonValue(layout, modeDefaults.layout) && sameJsonValue(shortcuts, modeDefaults.shortcuts);
+  const isDefault = sameJsonValue(layout, modeDefaults.layout);
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos e ações da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
+    <div class="settings-section-heading"><div><h3 id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos da tela inicial.</p></div><button type="button" class="btn sm" data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group" aria-label="Modos da tela inicial">${Object.entries(HOME_MODES).map(([id, mode]) => h`<button type="button" class="home-mode-option" data-action="home-mode" data-home-mode="${id}" aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`)}</div>
-    <fieldset class="home-shortcut-settings"><legend>Ações favoritas</legend><p class="small muted">Escolha quais ações rápidas aparecem na Home. O atalho Nova tarefa fica oculto quando o formulário rápido está visível; áreas desativadas ficam guardadas e aparecem quando você as ativar.</p><div class="home-shortcut-options">${HOME_SHORTCUTS.map(({ id, label, description, area }) => h`<label class="home-layout-toggle"><input type="checkbox" data-change="home-shortcut-visible" data-home-shortcut="${id}" aria-label="${shortcuts.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na Home" ${shortcuts.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${area && !s.areas[area] ? 'Ative esta área para exibir. ' : ''}${description}</small></span></label>`)}</div></fieldset>
     <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2" placeholder="Ex.: Um passo de cada vez." aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count" class="home-message-count" aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(([id, label, description], index) => h`<li class="home-layout-item">
       <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}" aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
@@ -4456,18 +4466,38 @@ function dlgCycleReport() {
 function dlgHabitEdit() {
   const d = ui.dlg.d, edit = Boolean(d.id), habit = edit ? S.habits.find((item) => item.id === d.id) : null;
   const waterHabit = Boolean(d.waterSuggestion || d.tracking === 'water' || isWaterHabit(habit));
+  const weightHabit = Boolean(d.weightEntry || d.tracking === 'weight' || isWeightHabit(habit));
+  const entryType = d.entryType || habitEntryType(habit) || 'check';
+  const entryOptions = d.entryOptions || habitEntryOptions(habit);
+  const entryValue = d.entryValue || habitEntryForDay(habit, today()) || '';
   const waterGoal = d.waterGoalMl ?? (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl);
   return dlgWrap(h`<div class="head head-nowrap"><div><h2 id="dt">${d.recordWaterAfterSave ? 'Criar acompanhamento de água' : edit ? 'Editar hábito' : 'Novo hábito'}</h2><p class="small muted">${d.recordWaterAfterSave ? 'Ao criar o hábito, 250 mL serão registrados.' : edit ? 'Ajuste os dias deste hábito.' : 'Escolha um nome e os dias em que quer acompanhar.'}</p></div>${closeBtn}</div>
     ${d.enableHabits ? h`<p class="fine">A área Hábitos será ativada para mostrar seu acompanhamento.</p>` : ''}
     ${d.suggestionDescription ? h`<p class="habit-idea-detail fine">${d.suggestionDescription}</p>` : ''}
     <form id="dlgform" class="form" data-form="habit-edit" novalidate>
       <label class="f full">Nome<input id="f0" name="name" type="text" data-dlg="name" value="${d.name}" maxlength="60" required autocomplete="off" placeholder="Ex.: Ler por 10 minutos"></label>
-      ${waterHabit ? h`${d.waterSuggestion ? h`<label class="f full">Peso para estimativa
+      ${waterHabit ? h`${d.waterSuggestion || d.waterWeightPersistent ? h`<label class="f full">Peso para estimativa
         <span class="water-weight-input"><input id="water-weight-kg" name="waterWeightKg" type="text" data-dlg="waterWeightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.waterWeightKg || ''}" aria-describedby="water-weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
-        <span class="profile-field-help" id="water-weight-help">De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.</span></label>
+        <span class="profile-field-help" id="water-weight-help">${d.waterWeightPersistent ? 'De 20 a 400 kg. Esse peso atualiza o perfil e recalcula automaticamente a meta de água.' : 'De 20 a 400 kg. Esse peso será usado somente para calcular uma sugestão e não será salvo no perfil.'}</span></label>
         <p class="fine full" id="water-goal-preview" aria-live="polite">${waterSuggestionPreview(d.waterWeightKg || '')}</p>` : ''}
         <label class="f full" for="water-goal-ml">Meta diária de água (mL)<input id="water-goal-ml" name="waterGoalMl" type="number" data-dlg="waterGoalMl" min="500" max="10000" step="50" value="${waterGoal}" required aria-describedby="water-goal-help"><span class="profile-field-help" id="water-goal-help">É uma referência ajustável, não uma recomendação médica. Registre os volumes para acompanhar o dia.</span></label>
         ${d.waterSuggestion ? h`<p class="fine full">A estimativa considera a idade informada em Ajustes (ou uma referência adulta) e o peso informado acima. Você pode ajustar a meta. Ao atingir o volume, o check-in do dia é concluído.</p>` : ''}` : ''}
+      ${weightHabit ? h`<label class="f full">Peso de hoje
+        <span class="water-weight-input"><input id="weight-kg" name="weightKg" type="text" data-dlg="weightKg" inputmode="decimal" autocomplete="off" maxlength="6" value="${d.weightKg || ''}" aria-describedby="weight-help" placeholder="Ex.: 65,5"><span aria-hidden="true">kg</span></span>
+        <span class="profile-field-help" id="weight-help">De 20 a 400 kg. A medição será comparada com a última registrada.</span></label>` : ''}
+      ${d.entryPrompt ? h`<label class="f full">${d.entryPrompt}
+        ${entryType === 'select'
+          ? h`<select name="entryValue" data-dlg="entryValue"><option value="">Escolha uma opção</option>${entryOptions.map((option) => h`<option value="${option}" ${entryValue === option ? raw('selected') : ''}>${option}</option>`)}</select>`
+          : h`<textarea name="entryValue" data-dlg="entryValue" rows="3" maxlength="500" placeholder="Escreva o registro de hoje">${entryValue}</textarea>`}
+      </label>` : ''}
+      ${!waterHabit && !weightHabit ? h`<fieldset class="habit-look full"><legend>Como registrar?</legend>
+        <label class="f"><select name="entryType" data-dlg="entryType">
+          <option value="check" ${entryType === 'check' ? raw('selected') : ''}>Só marcar concluído</option>
+          <option value="text" ${entryType === 'text' ? raw('selected') : ''}>Escrever uma anotação</option>
+          <option value="select" ${entryType === 'select' ? raw('selected') : ''}>Escolher uma opção</option>
+        </select></label>
+        ${entryType === 'select' ? h`<label class="f">Opções (uma por linha)<textarea name="entryOptions" data-dlg="entryOptions" rows="4" maxlength="1200" placeholder="Ex.: Fácil&#10;Moderado&#10;Difícil">${entryOptions.join('\n')}</textarea></label>` : ''}
+      </fieldset>` : ''}
       <fieldset class="habit-look full"><legend>Ícone</legend><div class="habit-icon-picker">${HABIT_ICONS.map(([key, label]) => h`<label title="${label}"><input type="radio" name="icon" value="${key}" data-dlg="icon" ${(d.icon || DEFAULT_HABIT_ICON) === key ? raw('checked') : ''}><span>${icon(key, 20)}<i class="sr">${label}</i></span></label>`)}</div></fieldset>
       <fieldset class="habit-look full"><legend>Cor</legend><div class="habit-color-picker">${HABIT_COLORS.map((color, index) => h`<label title="${HABIT_COLOR_NAMES[index]}"><input type="radio" name="color" value="${color}" data-dlg="color" ${(d.color || DEFAULT_HABIT_COLOR).toLowerCase() === color ? raw('checked') : ''}><span style="--c:${color}"><i class="sr">${HABIT_COLOR_NAMES[index]}</i>${icon('check', 16)}</span></label>`)}</div></fieldset>
       <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div class="habit-weekday-picker">${DIAS.map((day, index) => h`<label class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days" value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`)}</div></fieldset>
@@ -4713,10 +4743,13 @@ function dlgAreaTutorial() {
   const guide = AREA_GUIDES[ui.dlg.d.route];
   if (!guide) return dlgWrap(h`<div class="head"><h2 id="dt">Tutorial indisponível</h2>${closeBtn}</div><p role="alert">Não foi possível localizar o tutorial desta área.</p>`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button>`);
+  const mobileTutorial = window.matchMedia('(width <= 700px)').matches;
+  const tutorialVideo = mobileTutorial && guide.mobileVideo ? guide.mobileVideo : guide.video;
+  const tutorialPoster = mobileTutorial && guide.mobilePoster ? guide.mobilePoster : guide.poster;
   return dlgWrap(h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2 id="dt">Como usar ${guide.title}</h2></div>${closeBtn}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
-    <video class="area-tutorial-video" controls playsinline preload="metadata" poster="${guide.poster}" width="1280" height="720" aria-label="Tutorial em vídeo: ${guide.title}">
-      <source src="${guide.video}" type="video/mp4">
+    <video class="area-tutorial-video${mobileTutorial ? ' is-mobile' : ''}" controls playsinline preload="metadata" poster="${tutorialPoster}" width="${mobileTutorial ? '780' : '1280'}" height="${mobileTutorial ? '1688' : '720'}" aria-label="Tutorial em vídeo: ${guide.title}">
+      <source src="${tutorialVideo}" type="video/mp4">
       Seu navegador não consegue reproduzir este vídeo.
     </video>
     <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
@@ -5939,6 +5972,7 @@ const ACTIONS = {
       icon: idea.icon,
       color: idea.color,
       ...(idea.id === 'water' ? { waterSuggestion: true, waterWeightKg: '', waterGoalMl: S.settings.prefs.waterGoalMl, waterGoalEdited: false } : {}),
+      ...(idea.id === 'weight' ? { tracking: 'weight', weightEntry: true, weightKg: '' } : {}),
     });
   },
   'habit-ideas-clear': () => {
@@ -5977,6 +6011,37 @@ const ACTIONS = {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
     if (!habit || (habit.status || 'active') !== 'active' || !habit.days.includes(pk(today()).getDay())) return;
     const day = today();
+    if (isWeightHabit(habit)) {
+      const todayEntry = S.weight.find((entry) => entry.date === day);
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        tracking: 'weight',
+        weightEntry: true,
+        weightKg: todayEntry ? String(todayEntry.kg).replace('.', ',') : '',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    const entryType = habitEntryType(habit);
+    if (entryType !== 'check' && !habit.completions.includes(day)) {
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        entryType,
+        entryOptions: habitEntryOptions(habit),
+        entryValue: habitEntryForDay(habit, day),
+        entryPrompt: entryType === 'text' ? 'Registro de hoje' : 'Escolha o registro de hoje',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
     if (habitIsSkipped(habit, day, day)) return;
     const completing = !habit.completions.includes(day);
     const previousCelebrationDay = ui.habitCelebrationDay;
@@ -6080,7 +6145,51 @@ const ACTIONS = {
   },
   'habit-edit-open': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
-    if (habit) dlgOpen('habit-edit', { id: habit.id, name: habit.name, days: [...habit.days], weeklyGoal: habit.weeklyGoal || '', ...(isWaterHabit(habit) ? { waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) } : {}), icon: habit.icon || DEFAULT_HABIT_ICON, color: habit.color || DEFAULT_HABIT_COLOR });
+    if (habit && !isWaterHabit(habit) && !isWeightHabit(habit)) {
+      const entryType = habitEntryType(habit);
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        entryType,
+        entryOptions: habitEntryOptions(habit),
+        entryValue: habitEntryForDay(habit, today()),
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    if (habit && isWeightHabit(habit)) {
+      const todayEntry = S.weight.find((entry) => entry.date === today());
+      dlgOpen('habit-edit', {
+        id: habit.id,
+        name: habit.name,
+        days: [...habit.days],
+        weeklyGoal: habit.weeklyGoal || '',
+        tracking: 'weight',
+        weightEntry: true,
+        weightKg: todayEntry ? String(todayEntry.kg).replace('.', ',') : '',
+        icon: habit.icon || DEFAULT_HABIT_ICON,
+        color: habit.color || DEFAULT_HABIT_COLOR,
+      });
+      return;
+    }
+    if (habit) dlgOpen('habit-edit', {
+      id: habit.id,
+      name: habit.name,
+      days: [...habit.days],
+      weeklyGoal: habit.weeklyGoal || '',
+      ...(isWaterHabit(habit) ? {
+        waterSuggestion: true,
+        waterWeightPersistent: true,
+        waterWeightKg: S.settings.profile.weightKg ? String(S.settings.profile.weightKg).replace('.', ',') : '',
+        waterGoalMl: waterGoalForHabit(habit, S.settings.prefs.waterGoalMl),
+        waterGoalEdited: false,
+      } : {}),
+      icon: habit.icon || DEFAULT_HABIT_ICON,
+      color: habit.color || DEFAULT_HABIT_COLOR,
+    });
   },
   'habit-toggle-pause': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -6235,17 +6344,15 @@ const ACTIONS = {
       settings.prefs.homeMode = mode;
       const saved = settings.prefs.homeModes[mode];
       settings.prefs.homeLayout = { order: [...saved.layout.order], visible: [...saved.layout.visible] };
-      settings.prefs.homeShortcuts = [...saved.shortcuts];
     });
   },
   'home-layout-reset': () => {
     const mode = settingsView().prefs.homeMode;
     const defaults = defaultHomeModes()[mode];
     const prefs = settingsView().prefs;
-    if (sameJsonValue(prefs.homeLayout, defaults.layout) && sameJsonValue(prefs.homeShortcuts, defaults.shortcuts)) return;
+    if (sameJsonValue(prefs.homeLayout, defaults.layout)) return;
     updateSettingsDraft((settings) => {
       settings.prefs.homeLayout = { order: [...defaults.layout.order], visible: [...defaults.layout.visible] };
-      settings.prefs.homeShortcuts = [...defaults.shortcuts];
       saveActiveHomeMode(settings);
     });
     toast('Modo inicial restaurado. Será salvo automaticamente.', 'success');
@@ -6950,6 +7057,71 @@ const FORMS = {
   'habit-edit': (f, d) => {
     const draft = ui.dlg?.d;
     let habit = S.habits.find((item) => item.id === draft?.id);
+    if (draft?.entryPrompt) {
+      const entryType = HABIT_ENTRY_TYPES.includes(d.get('entryType')) ? d.get('entryType') : habitEntryType(habit);
+      const entryValue = String(d.get('entryValue') || '').trim();
+      if (!entryValue) return fieldError(entryType === 'text' ? 'Escreva o registro de hoje.' : 'Escolha uma opção.', '[data-dlg="entryValue"]');
+      if (entryType === 'select' && !habitEntryOptions(habit).includes(entryValue)) {
+        return fieldError('Escolha uma opção válida.', '[data-dlg="entryValue"]');
+      }
+      const day = today();
+      const snapshot = snapshotSlices(['habits']);
+      const entries = (habit.entries || []).filter((entry) => entry.day !== day);
+      entries.push({ day, value: entryValue });
+      habit.entries = entries.sort((a, b) => a.day.localeCompare(b.day));
+      if (!habit.completions.includes(day)) habit.completions = [...habit.completions, day].sort();
+      if (!saveSlicesWithRollback(['habits'], snapshot, false, 'o registro do hábito')) return;
+      ui.dlg = null;
+      render();
+      toast(`${entryValue}`, 'success');
+      return;
+    }
+    if (draft?.weightEntry) {
+      const weightKg = parseWaterWeightKg(d.get('weightKg'));
+      if (weightKg === null) return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="weightKg"]');
+      const day = today();
+      const name = String(d.get('name') || '').trim();
+      if (!name) return fieldError('Dê um nome ao hábito.', '[data-dlg="name"]');
+      const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
+      if (!days.length || days.some((value) => !Number.isInteger(value) || value < 0 || value > 6)) {
+        return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
+      }
+      if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) {
+        return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
+      }
+      const change = weightChange(S.weight, day, weightKg);
+      const snapshot = snapshotSlices(['habits', 'weight', 'settings']);
+      if (habit) {
+        habit.name = name.slice(0, 60);
+        habit.days = days;
+        habit.tracking = 'weight';
+        if (!habit.completions.includes(day)) habit.completions = [...habit.completions, day].sort();
+      } else {
+        habit = {
+          id: newId(),
+          name: name.slice(0, 60),
+          days,
+          completions: [day],
+          createdAt: Date.now(),
+          status: 'active',
+          tracking: 'weight',
+        };
+        S.habits.push(habit);
+      }
+      const existing = S.weight.find((entry) => entry.date === day);
+      if (existing) existing.kg = weightKg;
+      else S.weight.push({ id: newId(), date: day, kg: weightKg });
+      S.weight.sort((a, b) => a.date.localeCompare(b.date));
+      S.settings.profile.weightKg = weightKg;
+      if (!saveSlicesWithRollback(['habits', 'weight', 'settings'], snapshot, false, 'a pesagem')) return;
+      ui.dlg = null;
+      render();
+      if (!change) toast(`Peso registrado: ${weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg.`, 'success');
+      else if (change.direction === 'loss') toast(`Você perdeu ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`, 'success');
+      else if (change.direction === 'gain') toast(`Você ganhou ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`, 'success');
+      else toast('Seu peso permaneceu igual à última medição.', 'success');
+      return;
+    }
     const name = String(d.get('name') || '').trim();
     const days = [...new Set(d.getAll('days').map(Number))].sort((a, b) => a - b);
     const weeklyGoal = Number(d.get('weeklyGoal') || 0);
@@ -6961,31 +7133,84 @@ const FORMS = {
     };
     if (!name) return fieldError('Dê um nome ao hábito.', '[data-dlg="name"]');
     const waterWeightInput = String(d.get('waterWeightKg') || '').trim();
-    if (draft?.waterSuggestion && waterWeightInput && parseWaterWeightKg(waterWeightInput) === null) {
+    if ((draft?.waterSuggestion || draft?.waterWeightPersistent) && waterWeightInput && parseWaterWeightKg(waterWeightInput) === null) {
       return fieldError('O peso deve estar entre 20 e 400 kg.', '[data-dlg="waterWeightKg"]');
     }
     if (!days.length || days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) return fieldError('Selecione pelo menos um dia válido.', '[name="days"]');
     if (weeklyGoal && (!Number.isInteger(weeklyGoal) || weeklyGoal < 1 || weeklyGoal > days.length)) return toast('A meta semanal não pode passar do número de dias escolhidos.', 'error');
     if (S.habits.some((item) => item.id !== draft?.id && norm(item.name) === norm(name))) return fieldError('Você já acompanha um hábito com esse nome.', '[data-dlg="name"]');
     if (draft?.id && !habit) return dlgClose();
+    let configuredEntryType = habit ? habitEntryType(habit) : 'check';
+    let configuredEntryOptions = habit ? habitEntryOptions(habit) : [];
+    if (!draft?.weightEntry && !draft?.entryPrompt) {
+      const entryType = HABIT_ENTRY_TYPES.includes(d.get('entryType'))
+        ? d.get('entryType')
+        : 'check';
+      const entryOptions = entryType === 'select'
+        ? String(d.get('entryOptions') || '').split('\n').map((option) => option.trim()).filter(Boolean).slice(0, 20)
+        : [];
+      if (entryType === 'select' && entryOptions.length < 2) {
+        return fieldError('Informe pelo menos duas opções, uma por linha.', '[data-dlg="entryOptions"]');
+      }
+      configuredEntryType = entryType;
+      configuredEntryOptions = entryOptions;
+    }
     const tracksWater = Boolean(draft?.tracking === 'water' || draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }));
-    const waterGoalMl = tracksWater
+    let waterGoalMl = tracksWater
       ? Number(d.has('waterGoalMl') ? d.get('waterGoalMl') : (habit ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : S.settings.prefs.waterGoalMl))
       : null;
     if (tracksWater && !isValidWaterGoalMl(waterGoalMl)) {
       return fieldError('A meta deve ser um valor inteiro entre 500 e 10.000 mL.', '[data-dlg="waterGoalMl"]');
     }
+    const persistentWeight = draft?.waterWeightPersistent
+      ? parseWaterWeightKg(waterWeightInput)
+      : null;
+    const weightSnapshot = draft?.waterWeightPersistent && waterWeightInput && persistentWeight !== null
+      ? snapshotSlices(['habits', 'settings'])
+      : null;
+    if (draft?.waterWeightPersistent && waterWeightInput && persistentWeight !== null) {
+      S.settings.profile.weightKg = persistentWeight;
+      if (!draft.waterGoalEdited) {
+        const estimate = estimateWaterGoal({ weightKg: persistentWeight, age: currentProfileAge(S.settings) });
+        if (estimate) waterGoalMl = estimate.ml;
+      }
+    }
     const recordWaterAfterSave = !draft?.id && draft?.recordWaterAfterSave === true;
     const enableHabits = recordWaterAfterSave && draft.enableHabits && !areaOn('habits');
-    const slices = ['habits', ...(enableHabits ? ['settings'] : [])];
-    const snapshot = recordWaterAfterSave ? snapshotSlices(slices) : null;
+    const slices = [
+      'habits',
+      ...((enableHabits || draft?.waterWeightPersistent) ? ['settings'] : []),
+    ];
+    const snapshot = recordWaterAfterSave
+      ? snapshotSlices(slices)
+      : weightSnapshot;
     if (habit) {
-      Object.assign(habit, { name: name.slice(0, 60), days, ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}) });
+      Object.assign(habit, {
+        name: name.slice(0, 60),
+        days,
+        ...look,
+        entryType: configuredEntryType,
+        ...(configuredEntryType === 'select' ? { entryOptions: configuredEntryOptions } : { entryOptions: [] }),
+        ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}),
+      });
       delete habit.remind;
       if (weeklyGoal) habit.weeklyGoal = weeklyGoal;
       else delete habit.weeklyGoal;
     } else {
-      habit = { id: newId(), name: name.slice(0, 60), days, completions: [], createdAt: Date.now(), status: 'active', ...look, ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}), ...(weeklyGoal ? { weeklyGoal } : {}) };
+      habit = {
+        id: newId(),
+        name: name.slice(0, 60),
+        days,
+        completions: [],
+        entries: [],
+        createdAt: Date.now(),
+        status: 'active',
+        entryType: configuredEntryType,
+        ...(configuredEntryType === 'select' ? { entryOptions: configuredEntryOptions } : {}),
+        ...look,
+        ...(tracksWater ? { tracking: 'water', waterGoalMl } : {}),
+        ...(weeklyGoal ? { weeklyGoal } : {}),
+      };
       S.habits.push(habit);
     }
     if (recordWaterAfterSave) {
@@ -7002,7 +7227,9 @@ const FORMS = {
       return;
     }
     ui.dlg = null;
-    const saved = saveSlices('habits');
+    const saved = snapshot
+      ? saveSlicesWithRollback(slices, snapshot, false, 'o peso e a meta de água')
+      : saveSlices('habits');
     render();
     if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
   },
@@ -7178,16 +7405,6 @@ const CHANGES = {
       const visible = new Set(settings.prefs.homeLayout.visible);
       if (el.checked) visible.add(id); else visible.delete(id);
       settings.prefs.homeLayout.visible = HOME_BLOCK_IDS.filter((blockId) => visible.has(blockId));
-      saveActiveHomeMode(settings);
-    });
-  },
-  'home-shortcut-visible': (el) => {
-    const id = el.dataset.homeShortcut;
-    if (!HOME_SHORTCUT_IDS.includes(id)) return;
-    updateSettingsDraft((settings) => {
-      const selected = new Set(settings.prefs.homeShortcuts);
-      if (el.checked) selected.add(id); else selected.delete(id);
-      settings.prefs.homeShortcuts = HOME_SHORTCUT_IDS.filter((shortcutId) => selected.has(shortcutId));
       saveActiveHomeMode(settings);
     });
   },
@@ -7498,7 +7715,7 @@ document.addEventListener('input', (e) => {
       }
     }
   }
-  if (el.matches('[data-dlg="log.weightKg"]')) {
+  if (el.matches('[data-dlg="log.weightKg"], [data-dlg="weightKg"]')) {
     const value = el.value;
     const cursor = el.selectionStart;
     const filteredValue = filterWeightInput(value);
@@ -7509,6 +7726,9 @@ document.addEventListener('input', (e) => {
         el.setSelectionRange(filteredCursor, filteredCursor);
       }
     }
+  }
+  if (el.matches('[data-dlg="entryOptions"]') && ui.dlg?.d) {
+    ui.dlg.d.entryOptions = el.value.split('\n').map((option) => option.trim()).filter(Boolean);
   }
   const changeKey = el.dataset && el.dataset.change;
   if (SETTINGS_INPUT_CHANGES.has(changeKey) && CHANGES[changeKey]) CHANGES[changeKey](el);
@@ -7650,6 +7870,12 @@ document.addEventListener('focusin', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, key = el.dataset && el.dataset.change;
+  if (el.matches('[data-dlg="entryType"]') && ui.dlg?.d) {
+    ui.dlg.d.entryType = el.value;
+    ui.dlg.d.entryOptions = habitEntryOptions({ entryOptions: ui.dlg.d.entryOptions });
+    render();
+    return;
+  }
   if (el instanceof HTMLInputElement && el.matches('[data-profile-avatar-file]')) {
     const file = el.files?.[0] || null;
     el.value = '';

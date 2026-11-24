@@ -5,6 +5,7 @@ export const HABIT_COLORS = Object.freeze([
 
 export const SUGGESTED_HABITS = [
   { id: 'water', category: 'personal-care', name: 'Beber água', description: 'Registre os mL consumidos e acompanhe a meta diária.', icon: 'droplet', color: HABIT_COLORS[5] },
+  { id: 'weight', category: 'personal-care', name: 'Medir o peso', description: 'Registre seu peso e compare com a última pesagem.', icon: 'scale', color: HABIT_COLORS[11] },
   { id: 'skincare', category: 'personal-care', name: 'Fazer skincare', description: 'Lave o rosto, aplique hidratante ou siga uma etapa da sua rotina de pele.', icon: 'flower', color: HABIT_COLORS[0] },
   { id: 'hair-care', category: 'personal-care', name: 'Cuidar do cabelo', description: 'Escove ou hidrate o cabelo de acordo com o cuidado que você costuma fazer.', icon: 'hair', color: HABIT_COLORS[11] },
   { id: 'sleep', category: 'personal-care', name: 'Dormir no horário', description: 'Vá para a cama sem estender a noite.', icon: 'moon', color: HABIT_COLORS[7] },

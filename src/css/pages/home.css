@@ -159,6 +159,41 @@
   gap: var(--space-4);
 }
 .home-today-block { display: grid; min-width: 0; gap: var(--space-4); }
+@media (width >= 900px) {
+  .home-today-block {
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
+    align-items: start;
+  }
+  .home-today-block > .home-today-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .home-today-block > .home-upcoming-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .home-today-block > .home-week-progress {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .main[data-route="inicio"] .home-day-summary {
+    grid-template-columns: minmax(0, .38fr) minmax(0, .62fr);
+    align-items: center;
+  }
+  .main[data-route="inicio"] .home-day-summary h2 {
+    grid-column: 1 / -1;
+  }
+  .main[data-route="inicio"] .home-day-next-task {
+    grid-column: 1;
+  }
+  .main[data-route="inicio"] .home-day-chips {
+    grid-column: 2;
+    justify-content: flex-end;
+  }
+  .main[data-route="inicio"] .home-day-upcoming {
+    grid-column: 1 / -1;
+  }
+}
 .home-habits-block:empty { display: none; }
 .home-dashboard .card { min-width: 0; }
 .home-quick-card {
@@ -234,6 +269,7 @@
 .home-week-progress-copy span,
 .home-week-progress-empty { color: var(--muted); font-size: var(--text-sm); }
 .home-week-progress-empty { margin: 0; }
+.home-week-progress > .btn { justify-self: start; }
 .home-week-progress-track {
   height: 8px;
   overflow: hidden;

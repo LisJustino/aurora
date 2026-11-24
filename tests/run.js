@@ -90,6 +90,9 @@ import {
   SUGGESTED_HABIT_TAGS,
   habitStats,
   habitDayOverview,
+  habitEntryType,
+  habitEntryOptions,
+  habitEntryForDay,
   habitMonthStats,
   habitWeekDailyProgress,
   habitWeekReview,
@@ -110,6 +113,7 @@ import {
   waterMlForDay,
   waterWeekProgress,
 } from '../src/js/features/habits/water-goal.js';
+import { weightChange } from '../src/js/features/habits/weight-tracking.js';
 import { filterWeightInput } from '../src/js/features/profile/weight.js';
 import {
   ageFromBirthdayReference,
@@ -1021,6 +1025,31 @@ test('campo de peso aceita números e um separador decimal, removendo letras', (
   equal(filterWeightInput('72.5kg'), '72.5');
   equal(filterWeightInput('7a2,5'), '72,5');
   equal(filterWeightInput('70,2.3'), '70,23');
+});
+
+test('hábito de peso compara a medição atual com a última medição anterior', () => {
+  const entries = [
+    { id: 'a', date: '2026-11-20', kg: 70 },
+    { id: 'b', date: '2026-11-22', kg: 69.5 },
+  ];
+  const loss = weightChange(entries, '2026-11-23', 69);
+  equal(loss.direction, 'loss');
+  equal(loss.difference, 0.5);
+  const gain = weightChange(entries, '2026-11-23', 70.2);
+  equal(gain.direction, 'gain');
+  equal(gain.difference, 0.7);
+  const same = weightChange(entries, '2026-11-23', 69.5);
+  equal(same.direction, 'same');
+  equal(same.difference, 0);
+  equal(weightChange([], '2026-11-23', 69.5), null);
+});
+
+test('hábitos podem usar marcação, texto ou seleção', () => {
+  equal(habitEntryType({}), 'check');
+  equal(habitEntryType({ entryType: 'text' }), 'text');
+  equal(habitEntryType({ entryType: 'select' }), 'select');
+  equal(habitEntryOptions({ entryOptions: ['Fácil', 'Fácil', '', 'Difícil'] }).join(','), 'Fácil,Difícil');
+  equal(habitEntryForDay({ entries: [{ day: '2026-11-23', value: 'Moderado' }] }, '2026-11-23'), 'Moderado');
 });
 
 
@@ -2131,7 +2160,7 @@ test('ícone e cor de exibição têm padrão seguro', () => {
 });
 
 test('catálogo de ideias tem ids únicos, ícones e cores válidos', () => {
-  equal(SUGGESTED_HABITS.length, 98);
+  equal(SUGGESTED_HABITS.length, 99);
   equal(new Set(SUGGESTED_HABITS.map((item) => item.id)).size, SUGGESTED_HABITS.length);
   for (const id of ['water', 'reading', 'training', 'pause', 'dental-care', 'active-break', 'study', 'connect', 'mindful-meal', 'make-bed', 'five-minute-tidy', 'plan-rest', 'walk-with-dog', 'learn-language', 'weekly-reflection', 'try-new-recipe', 'clear-desk', 'weekly-reset', 'wash-face', 'yoga-at-home', 'brain-dump', 'prepare-lunch', 'check-daily-budget']) {
     ok(SUGGESTED_HABITS.some((item) => item.id === id), id);

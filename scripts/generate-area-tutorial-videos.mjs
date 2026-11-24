@@ -13,17 +13,21 @@ const outputDirectory = process.env.AURORA_TUTORIAL_OUTPUT_DIR
   : join(rootDirectory, 'src', 'assets', 'tutorials');
 const VIDEO_FRAME_RATE = 30;
 const VIDEO_BITRATE = 6_000_000;
-const VIDEO_WIDTH = 1280;
-const VIDEO_HEIGHT = 720;
+const MOBILE_MODE = process.env.AURORA_TUTORIAL_MOBILE === '1';
+const MOBILE_SUFFIX = MOBILE_MODE ? '-mobile' : '';
+const VIDEO_WIDTH = MOBILE_MODE ? 780 : 1280;
+const VIDEO_HEIGHT = MOBILE_MODE ? 1688 : 720;
+const APP_VIEWPORT_WIDTH = MOBILE_MODE ? 390 : VIDEO_WIDTH;
+const APP_VIEWPORT_HEIGHT = MOBILE_MODE ? 844 : VIDEO_HEIGHT;
 const MAX_POSTER_BYTES = 180_000;
-const FOCUS_SAFE_MARGIN = 32;
-const FOCUS_HORIZONTAL_MARGIN = 16;
-const CAPTION_HEIGHT = 176;
+const FOCUS_SAFE_MARGIN = MOBILE_MODE ? 16 : 32;
+const FOCUS_HORIZONTAL_MARGIN = MOBILE_MODE ? 8 : 16;
+const CAPTION_HEIGHT = MOBILE_MODE ? 320 : 176;
 const focusSteps = {
   inicio: ['.home-today-card > .head', '.home-head-actions', '.header-account-trigger:visible, .profile-link:visible'],
   planejar: [
     '.plan-view-segments',
-    { open: '[data-action="plan-view"][data-v="semana"]', target: '[data-action="plan-view"][data-v="semana"]' },
+    { open: '[data-action="plan-view"][data-v="calendario"]', target: '[data-action="plan-view"][data-v="calendario"]' },
     { open: '[data-action="plan-view"][data-v="lista"]', target: '.grp .gh' },
     '.task',
   ],
@@ -90,7 +94,7 @@ try {
     acceptDownloads: true,
     colorScheme: 'light',
     reducedMotion: 'reduce',
-    viewport: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT },
+    viewport: { width: APP_VIEWPORT_WIDTH, height: APP_VIEWPORT_HEIGHT },
   });
   const appPage = await context.newPage();
   const videoPage = await context.newPage();
@@ -102,6 +106,7 @@ try {
   await videoPage.evaluate(() => document.fonts.load('400 20px "DM Sans"'));
 
   for (const [id, guide] of guides) {
+    const fileId = `${id}${MOBILE_SUFFIX}`;
     const steps = focusSteps[id];
     if (!steps || steps.length !== guide.steps.length) {
       throw new Error(`Tutorial ${id} is missing one or more matching screen highlights.`);
@@ -132,7 +137,7 @@ try {
         const { x, y, width, height } = element.getBoundingClientRect();
         return { x, y, width, height };
       });
-      if (selector !== '.main' && rect.height <= VIDEO_HEIGHT - FOCUS_SAFE_MARGIN * 2) {
+      if (selector !== '.main' && rect.height <= APP_VIEWPORT_HEIGHT - FOCUS_SAFE_MARGIN * 2) {
         await locator.evaluate((element, margin) => {
           const bounds = element.getBoundingClientRect();
           const offset = bounds.top < margin
@@ -149,9 +154,9 @@ try {
       });
       if (selector !== '.main' && (
         focus.x < FOCUS_HORIZONTAL_MARGIN
-        || focus.x + focus.width > VIDEO_WIDTH - FOCUS_HORIZONTAL_MARGIN
-        || focus.y < 8
-        || focus.y + focus.height > VIDEO_HEIGHT - FOCUS_SAFE_MARGIN
+        || focus.x + focus.width > APP_VIEWPORT_WIDTH - FOCUS_HORIZONTAL_MARGIN
+        || focus.y < (MOBILE_MODE ? 4 : 8)
+        || focus.y + focus.height > APP_VIEWPORT_HEIGHT - FOCUS_SAFE_MARGIN
       )) {
         throw new Error(`Tutorial ${id} target ${selector} does not fit inside the video frame: ${JSON.stringify(focus)}.`);
       }
@@ -226,6 +231,7 @@ try {
       slideDurationMs,
       captionHeight,
       maxPosterBytes,
+      mobileMode,
     }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -280,9 +286,30 @@ try {
           const slide = videoSlides[slideIndex];
           const screen = screens[slideIndex];
           context.clearRect(0, 0, width, height);
-          context.drawImage(screen, 0, 0, width, height);
+          if (mobileMode) {
+            const scale = Math.min(width / 390, height / 844);
+            const renderedWidth = 390 * scale;
+            const renderedHeight = 844 * scale;
+            const offsetX = (width - renderedWidth) / 2;
+            const offsetY = (height - renderedHeight) / 2;
+            context.drawImage(screen, offsetX, offsetY, renderedWidth, renderedHeight);
+          } else {
+            context.drawImage(screen, 0, 0, width, height);
+          }
 
-          const focus = slide.focus;
+          let focus = slide.focus;
+          if (mobileMode && focus.width > 0 && focus.height > 0) {
+            const scale = Math.min(width / 390, height / 844);
+            const renderedWidth = 390 * scale;
+            const offsetX = (width - renderedWidth) / 2;
+            const offsetY = (height - 844 * scale) / 2;
+            focus = {
+              x: offsetX + focus.x * scale,
+              y: offsetY + focus.y * scale,
+              width: focus.width * scale,
+              height: focus.height * scale,
+            };
+          }
           if (slideIndex > 0 && focus.width > 0 && focus.height > 0) {
             const x = Math.max(8, focus.x - 7);
             const y = Math.max(8, focus.y - 7);
@@ -303,6 +330,10 @@ try {
             context.restore();
           }
 
+          const captionScale = mobileMode ? 2 : 1;
+          const captionFontScale = mobileMode ? 1.5 : 1;
+          const captionX = 66 * captionScale;
+          const captionMaxWidth = width - 132 * captionScale;
           const gradient = context.createLinearGradient(0, height - captionHeight, 0, height);
           gradient.addColorStop(0, 'rgba(24, 19, 26, 0)');
           gradient.addColorStop(0.42, 'rgba(24, 19, 26, .76)');
@@ -311,18 +342,43 @@ try {
           context.fillRect(0, height - captionHeight, width, captionHeight);
           context.textAlign = 'left';
           context.fillStyle = '#ffffff';
-          context.font = '700 16px "DM Sans", Arial, sans-serif';
-          context.fillText(slide.label, 66, height - 126);
-          context.font = '700 34px "DM Sans", Arial, sans-serif';
-          context.fillText(slide.title, 66, height - 88, width - 132);
+          context.font = `700 ${16 * captionFontScale}px "DM Sans", Arial, sans-serif`;
+          context.fillText(slide.label, captionX, height - (mobileMode ? 276 : 126));
+          context.font = `700 ${34 * captionFontScale}px "DM Sans", Arial, sans-serif`;
+          const titleLines = [];
+          let titleLine = '';
+          for (const word of slide.title.split(/\s+/)) {
+            const next = titleLine ? `${titleLine} ${word}` : word;
+            if (context.measureText(next).width > captionMaxWidth && titleLine) {
+              titleLines.push(titleLine);
+              titleLine = word;
+            } else {
+              titleLine = next;
+            }
+          }
+          if (titleLine) titleLines.push(titleLine);
+          const visibleTitleLines = titleLines.slice(0, mobileMode ? 2 : 1);
+          if (titleLines.length > visibleTitleLines.length) {
+            const lastIndex = visibleTitleLines.length - 1;
+            let lastLine = visibleTitleLines[lastIndex];
+            while (lastLine && context.measureText(`${lastLine}…`).width > captionMaxWidth) {
+              lastLine = lastLine.slice(0, lastLine.lastIndexOf(' '));
+            }
+            visibleTitleLines[lastIndex] = `${lastLine}…`;
+          }
+          visibleTitleLines.forEach((value, index) => context.fillText(
+            value,
+            captionX,
+            height - (mobileMode ? 208 : 88) + index * (mobileMode ? 58 : 40),
+          ));
           context.fillStyle = 'rgba(255,255,255,.88)';
-          context.font = '400 20px "DM Sans", Arial, sans-serif';
+          context.font = `400 ${20 * captionFontScale}px "DM Sans", Arial, sans-serif`;
           const words = slide.text.split(/\s+/);
           const lines = [];
           let line = '';
           for (const word of words) {
             const next = line ? `${line} ${word}` : word;
-            if (context.measureText(next).width > width - 132 && line) {
+            if (context.measureText(next).width > captionMaxWidth && line) {
               lines.push(line);
               line = word;
             } else {
@@ -331,14 +387,24 @@ try {
           }
           if (line) lines.push(line);
           const visibleLines = lines.slice(0, 2);
-          if (lines.length > 2) visibleLines[1] = `${visibleLines[1].slice(0, -1)}…`;
-          visibleLines.forEach((value, index) => context.fillText(value, 66, height - 50 + index * 24));
+          if (lines.length > 2) {
+            let lastLine = visibleLines[1];
+            while (lastLine && context.measureText(`${lastLine}…`).width > captionMaxWidth) {
+              lastLine = lastLine.slice(0, lastLine.lastIndexOf(' '));
+            }
+            visibleLines[1] = `${lastLine}…`;
+          }
+          visibleLines.forEach((value, index) => context.fillText(
+            value,
+            captionX,
+            height - (mobileMode ? 103 : 50) + index * (mobileMode ? 38 : 24),
+          ));
 
-          const progressWidth = (width - 132) * Math.min(1, elapsed / duration);
+          const progressWidth = (width - 132 * captionScale) * Math.min(1, elapsed / duration);
           context.fillStyle = 'rgba(255,255,255,.34)';
-          context.fillRect(66, height - 12, width - 132, 3);
+          context.fillRect(66 * captionScale, height - 12 * captionScale, width - 132 * captionScale, 3 * captionScale);
           context.fillStyle = accent;
-          context.fillRect(66, height - 12, progressWidth, 3);
+          context.fillRect(66 * captionScale, height - 12 * captionScale, progressWidth, 3 * captionScale);
           if (slideIndex === 1 && !posterPromise) {
             const posterCanvas = document.createElement('canvas');
             posterCanvas.width = width;
@@ -376,7 +442,7 @@ try {
       }
       return { files, poster: await posterPromise };
     }, {
-      id,
+      id: fileId,
       accent,
       videoSlides: slides,
       frameRate: VIDEO_FRAME_RATE,
@@ -386,6 +452,7 @@ try {
       slideDurationMs: slideDuration,
       captionHeight: CAPTION_HEIGHT,
       maxPosterBytes: MAX_POSTER_BYTES,
+      mobileMode: MOBILE_MODE,
     });
 
     const [report, downloads] = await Promise.all([reportPromise, Promise.all(downloadEvents)]);
@@ -395,8 +462,8 @@ try {
     ];
     for (const file of generatedFiles) {
       const { format, download, result } = file;
-      const output = join(outputDirectory, `${id}.${format}`);
-      const tempOutput = join(tempDirectory, `${id}.${format}`);
+      const output = join(outputDirectory, `${fileId}.${format}`);
+      const tempOutput = join(tempDirectory, `${fileId}.${format}`);
       await download.saveAs(tempOutput);
       if (!result || (format === 'mp4' && (result.size < 10_000 || result.frames < slides.length * 2))
         || (format === 'webp' && (result.size < 1_000 || result.size > MAX_POSTER_BYTES))) {

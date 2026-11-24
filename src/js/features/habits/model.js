@@ -32,6 +32,23 @@ const normalizeHabitText = (value) => String(value ?? '')
 export const isWaterHabit = (habit) => (
   habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitText(habit?.name))
 );
+export const isWeightHabit = (habit) => (
+  habit?.tracking === 'weight' || /^medir peso(?:\s|$)/.test(normalizeHabitText(habit?.name))
+);
+export const HABIT_ENTRY_TYPES = Object.freeze(['check', 'text', 'select']);
+export function habitEntryType(habit) {
+  return HABIT_ENTRY_TYPES.includes(habit?.entryType) ? habit.entryType : 'check';
+}
+export function habitEntryOptions(habit) {
+  if (!Array.isArray(habit?.entryOptions)) return [];
+  return [...new Set(habit.entryOptions
+    .filter((option) => typeof option === 'string')
+    .map((option) => option.trim())
+    .filter(Boolean))].slice(0, 20);
+}
+export function habitEntryForDay(habit, day) {
+  return habit?.entries?.find((entry) => entry.day === day)?.value ?? '';
+}
 export const habitIconKey = (habit) => (
   HABIT_ICON_KEYS.includes(habit?.icon) ? habit.icon : DEFAULT_HABIT_ICON
 );
@@ -57,7 +74,7 @@ export const SUGGESTED_HABIT_TAGS = Object.freeze([
 
 const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
   quick: Object.freeze([
-    'stretch', 'reading', 'meditate', 'journal', 'gratitude', 'pause', 'fruit',
+    'stretch', 'reading', 'meditate', 'journal', 'gratitude', 'pause', 'fruit', 'weight',
     'active-break', 'mobility', 'check-in-with-yourself', 'prepare-snack',
     'make-bed', 'five-minute-tidy', 'make-grocery-list', 'clear-desk',
     'set-out-clothes', 'keys-in-place',
@@ -69,7 +86,7 @@ const SUGGESTED_HABIT_TAGGED_IDS = Object.freeze({
     'learn-language', 'practice-instrument',
   ]),
   home: Object.freeze([
-    'water', 'skincare', 'hair-care', 'sleep', 'medication',
+    'water', 'weight', 'skincare', 'hair-care', 'sleep', 'medication',
     'reading', 'meditate', 'journal', 'gratitude', 'screens', 'pause', 'fruit',
     'cook', 'meal-plan', 'tidy', 'morning-plan', 'evening-routine', 'dental-care',
     'creative-time', 'mindful-meal', 'prepare-snack', 'make-bed', 'review-calendar',
@@ -173,7 +190,15 @@ export function isValidHabit(habit) {
     && optionalDates(habit, 'skipped')
     && (habit.pausedFrom === undefined || isDay(habit.pausedFrom))
     && optionalWeekdays(habit, 'pausedDays')
-    && (habit.tracking === undefined || habit.tracking === 'water')
+    && (habit.tracking === undefined || ['water', 'weight'].includes(habit.tracking))
+    && (habit.entryType === undefined || HABIT_ENTRY_TYPES.includes(habit.entryType))
+    && (habit.entryOptions === undefined || (Array.isArray(habit.entryOptions)
+      && habit.entryOptions.length <= 20
+      && habit.entryOptions.every((option) => typeof option === 'string' && option.trim().length > 0 && option.length <= 60)))
+    && (habit.entries === undefined || (Array.isArray(habit.entries)
+      && habit.entries.length <= 10000
+      && habit.entries.every((entry) => isPlainObject(entry) && isDay(entry.day)
+        && typeof entry.value === 'string' && entry.value.length <= 500)))
     && (habit.icon === undefined || (typeof habit.icon === 'string' && /^[A-Za-z]{2,20}$/.test(habit.icon)))
     && (habit.color === undefined || (typeof habit.color === 'string' && HEX_COLOR.test(habit.color)))
     && (habit.weeklyGoal === undefined || (Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1 && habit.weeklyGoal <= 7))
@@ -249,6 +274,7 @@ export function createSuggestedHabits(selectedIds, existingHabits, createId) {
       createdAt: Date.now(),
       status: 'active',
       ...(suggestion.id === 'water' ? { tracking: 'water' } : {}),
+      ...(suggestion.id === 'weight' ? { tracking: 'weight' } : {}),
       icon: suggestion.icon,
       color: suggestion.color,
     }));
