@@ -1,17 +1,17 @@
 import { isNativeApp } from '../utils/platform.js';
 
 export function isAppInstalled() {
-  return navigator.standalone === true
-    || (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches);
+  return (
+    navigator.standalone === true ||
+    (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
+  );
 }
 
 function isIosSafari() {
   const userAgent = navigator.userAgent || '';
-  const isAppleMobile = /iPhone|iPad|iPod/.test(userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  return isAppleMobile
-    && /Safari/.test(userAgent)
-    && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/.test(userAgent);
+  const isAppleMobile =
+    /iPhone|iPad|iPod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return isAppleMobile && /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/.test(userAgent);
 }
 
 function createNotice(messageText, actionText, onAction, onDismiss) {
@@ -30,10 +30,14 @@ function createNotice(messageText, actionText, onAction, onDismiss) {
   dismiss.type = 'button';
   dismiss.className = 'btn back';
   dismiss.textContent = 'Agora não';
-  dismiss.addEventListener('click', () => {
-    notice.remove();
-    onDismiss();
-  }, { once: true });
+  dismiss.addEventListener(
+    'click',
+    () => {
+      notice.remove();
+      onDismiss();
+    },
+    { once: true },
+  );
 
   actions.append(dismiss);
   if (actionText && onAction) {
@@ -56,25 +60,27 @@ let installNotice = null;
 function showInstallNotice(messageText, canInstall) {
   if (installNotice?.isConnected || document.getElementById('pwa-update-notice')) return;
   let notice;
-  const onAction = canInstall ? async () => {
-    if (!deferredPrompt) return;
-    const prompt = deferredPrompt;
-    deferredPrompt = null;
-    const button = notice.querySelector('button.btn.primary');
-    if (button) {
-      button.disabled = true;
-      button.setAttribute('aria-busy', 'true');
-    }
-    try {
-      await prompt.prompt();
-      await prompt.userChoice;
-    } catch (error) {
-      console.warn('O Aurora não conseguiu iniciar a instalação.', error);
-    } finally {
-      notice.remove();
-      if (installNotice === notice) installNotice = null;
-    }
-  } : null;
+  const onAction = canInstall
+    ? async () => {
+        if (!deferredPrompt) return;
+        const prompt = deferredPrompt;
+        deferredPrompt = null;
+        const button = notice.querySelector('button.btn.primary');
+        if (button) {
+          button.disabled = true;
+          button.setAttribute('aria-busy', 'true');
+        }
+        try {
+          await prompt.prompt();
+          await prompt.userChoice;
+        } catch (error) {
+          console.warn('O Aurora não conseguiu iniciar a instalação.', error);
+        } finally {
+          notice.remove();
+          if (installNotice === notice) installNotice = null;
+        }
+      }
+    : null;
   notice = createNotice(messageText, canInstall ? 'Instalar' : null, onAction, () => {
     if (installNotice === notice) installNotice = null;
   });

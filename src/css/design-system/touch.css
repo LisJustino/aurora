@@ -3,7 +3,7 @@
    a hierarquia do Início, a conclusão de itens e a separação dos cartões no tema escuro.
    Nada aqui muda dados; só apresentação. */
 
-/* ---- Áreas de toque: o desenho continua pequeno, a área clicável cresce ---- */
+/* Áreas de toque: o desenho continua pequeno, a área clicável cresce */
 .pk, button.habit-dot, button.habit-month-day { position: relative; }
 .pk::after, button.habit-dot::after { content: ""; position: absolute; inset: -5px; }
 a.inline-link { position: relative; }
@@ -21,7 +21,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 }
 .fin-hero { border-inline-start-width: 1px; }
 
-/* ---- Início: o plano de hoje é o foco; o resto fica mais leve ---- */
+/* Início: o plano de hoje é o foco; o resto fica mais leve */
 .home-today-card {
   border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
   box-shadow: none;
@@ -34,7 +34,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   .home-quick-card { gap: var(--space-3); padding-block: 16px; }
 }
 
-/* ---- Conclusão: o círculo marcado dá um pulo curto, além do anel verde ---- */
+/* Conclusão: o círculo marcado dá um pulo curto, além do anel verde */
 @keyframes check-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
 .habit-circle.completion-feedback, button.habit-dot.completion-feedback, .task.completion-feedback .chk span { animation: check-pop .42s var(--ease-standard); }
 @media (prefers-reduced-motion: reduce) {
@@ -42,25 +42,25 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
-/* ---- Calendário anual: células maiores e fim da fileira sempre à vista ---- */
+/* Calendário anual: células maiores e fim da fileira sempre à vista */
 .habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: var(--space-1); }
 .habit-year-cell { width: 14px; height: 14px; }
 
-/* ---- Finanças: valores alinhados à direita, tabulares ---- */
+/* Finanças: valores alinhados à direita, tabulares */
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
-/* ---- Tema escuro: cartões se destacam pelo contorno ---- */
+/* Tema escuro: cartões se destacam pelo contorno */
 :root[data-theme="dark"] .card:not(.surface-open) {
   border-color: color-mix(in srgb, var(--ink) 16%, transparent);
   box-shadow: var(--elev-1);
 }
 
-/* ---- Erro ao lado do campo ---- */
+/* Erro ao lado do campo */
 .field-err { display: block; margin-top: 2px; }
 .f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
 .f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
 
-/* ---- Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas ---- */
+/* Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas */
 /* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
 .dlg-body { padding-inline: 20px; padding-bottom: 24px; }
 .dlg-foot { position: relative; padding-inline: 20px; padding-bottom: 14px; }

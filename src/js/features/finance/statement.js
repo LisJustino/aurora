@@ -2,21 +2,25 @@ import { parseMoney } from '../../utils/currency.js';
 
 const MAX_STATEMENT_ROWS = 500;
 
-const normalizeDescription = (value) => String(value || '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, ' ')
-  .trim();
+const normalizeDescription = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 export function statementDuplicateStatus(candidate, transactions) {
   const description = normalizeDescription(candidate.desc);
-  const matches = transactions.filter((transaction) => transaction.accountId === candidate.accountId
-    && transaction.date === candidate.date
-    && transaction.cents === candidate.cents
-    && transaction.type === candidate.type);
-  const duplicate = description
-    && matches.some((transaction) => normalizeDescription(transaction.desc) === description);
+  const matches = transactions.filter(
+    (transaction) =>
+      transaction.accountId === candidate.accountId &&
+      transaction.date === candidate.date &&
+      transaction.cents === candidate.cents &&
+      transaction.type === candidate.type,
+  );
+  const duplicate =
+    description && matches.some((transaction) => normalizeDescription(transaction.desc) === description);
   return {
     duplicate: Boolean(duplicate),
     possible: matches.length > 0 && !duplicate,
@@ -25,9 +29,7 @@ export function statementDuplicateStatus(candidate, transactions) {
 
 const normDate = (year, month, day) => {
   const date = new Date(Number(year), Number(month) - 1, Number(day));
-  return date.getFullYear() === Number(year)
-    && date.getMonth() === Number(month) - 1
-    && date.getDate() === Number(day)
+  return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day)
     ? `${year}-${String(Number(month)).padStart(2, '0')}-${String(Number(day)).padStart(2, '0')}`
     : null;
 };
@@ -35,8 +37,7 @@ const normDate = (year, month, day) => {
 function parseDateAny(value) {
   const text = String(value || '').trim();
   let match;
-  if ((match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text))
-    || (match = /^(\d{4})(\d{2})(\d{2})/.exec(text))) {
+  if ((match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text)) || (match = /^(\d{4})(\d{2})(\d{2})/.exec(text))) {
     return normDate(match[1], match[2], match[3]);
   }
   if ((match = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4}|\d{2})\b/.exec(text))) {
@@ -129,8 +130,11 @@ export function parseStatement(text, name = '') {
 
   const rows = csvRows(source);
   if (rows.length < 2) return { transactions, truncated: false };
-  const headerIndex = rows.findIndex((row) => row.some((cell) => /^(data|date)/i.test(cell.trim()))
-    && row.some((cell) => /valor|value|amount|d[ée]bito|cr[ée]dito|quantia/i.test(cell)));
+  const headerIndex = rows.findIndex(
+    (row) =>
+      row.some((cell) => /^(data|date)/i.test(cell.trim())) &&
+      row.some((cell) => /valor|value|amount|d[ée]bito|cr[ée]dito|quantia/i.test(cell)),
+  );
   let dateIndex;
   let descriptionIndex;
   let valueIndex;
@@ -150,10 +154,12 @@ export function parseStatement(text, name = '') {
   } else {
     const first = rows[0];
     dateIndex = first.findIndex((cell) => parseDateAny(cell));
-    valueIndex = first.findIndex((cell, index) => index !== dateIndex
-      && !Number.isNaN(moneyAny(cell)) && /\d/.test(cell));
-    descriptionIndex = first.findIndex((cell, index) => index !== dateIndex
-      && index !== valueIndex && cell.trim().length > 2);
+    valueIndex = first.findIndex(
+      (cell, index) => index !== dateIndex && !Number.isNaN(moneyAny(cell)) && /\d/.test(cell),
+    );
+    descriptionIndex = first.findIndex(
+      (cell, index) => index !== dateIndex && index !== valueIndex && cell.trim().length > 2,
+    );
     startIndex = 0;
   }
 
@@ -162,9 +168,9 @@ export function parseStatement(text, name = '') {
   }
   if (descriptionIndex < 0) {
     descriptionIndex = rows[startIndex]
-      ? rows[startIndex].findIndex((cell, index) => (
-        index !== dateIndex && index !== valueIndex && index !== debitIndex && index !== creditIndex
-      ))
+      ? rows[startIndex].findIndex(
+          (cell, index) => index !== dateIndex && index !== valueIndex && index !== debitIndex && index !== creditIndex,
+        )
       : -1;
   }
 
@@ -179,16 +185,17 @@ export function parseStatement(text, name = '') {
     } else {
       const debit = moneyAny(row[debitIndex]);
       const credit = moneyAny(row[creditIndex]);
-      amount = (Number.isNaN(credit) ? 0 : Math.abs(credit))
-        - (Number.isNaN(debit) ? 0 : Math.abs(debit));
+      amount = (Number.isNaN(credit) ? 0 : Math.abs(credit)) - (Number.isNaN(debit) ? 0 : Math.abs(debit));
     }
     const cents = amount;
     if (!Number.isSafeInteger(cents) || cents === 0) continue;
 
     transactions.push({
       date,
-      desc: String(descriptionIndex >= 0 ? row[descriptionIndex] : '').trim().slice(0, 80)
-        || 'Lançamento',
+      desc:
+        String(descriptionIndex >= 0 ? row[descriptionIndex] : '')
+          .trim()
+          .slice(0, 80) || 'Lançamento',
       cents,
     });
     if (transactions.length > MAX_STATEMENT_ROWS) break;

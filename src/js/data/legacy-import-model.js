@@ -7,14 +7,19 @@ function sameValue(left, right) {
   if (left === right) return true;
   if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
   if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right)
-      && left.length === right.length
-      && left.every((value, index) => sameValue(value, right[index]));
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameValue(value, right[index]))
+    );
   }
   const leftKeys = Object.keys(left).sort();
   const rightKeys = Object.keys(right).sort();
-  return leftKeys.length === rightKeys.length
-    && leftKeys.every((key, index) => key === rightKeys[index] && sameValue(left[key], right[key]));
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) => key === rightKeys[index] && sameValue(left[key], right[key]))
+  );
 }
 
 function mergeRecord(slice, previous, incoming, incomingWins) {
@@ -62,12 +67,7 @@ function mergeRecords(slice, base, incoming, incomingWins) {
     const targetIndex = indexes.get(key);
     const previous = merged[targetIndex];
     const fromIncoming = index >= records.length;
-    merged[targetIndex] = mergeRecord(
-      slice,
-      previous,
-      record,
-      fromIncoming ? incomingWins : !incomingWins,
-    );
+    merged[targetIndex] = mergeRecord(slice, previous, record, fromIncoming ? incomingWins : !incomingWins);
   });
   return merged;
 }
@@ -79,8 +79,14 @@ function mergeObject(base, incoming, incomingWins) {
       result[key] = value;
       return;
     }
-    if (result[key] && value && typeof result[key] === 'object' && typeof value === 'object'
-      && !Array.isArray(result[key]) && !Array.isArray(value)) {
+    if (
+      result[key] &&
+      value &&
+      typeof result[key] === 'object' &&
+      typeof value === 'object' &&
+      !Array.isArray(result[key]) &&
+      !Array.isArray(value)
+    ) {
       result[key] = mergeObject(result[key], value, incomingWins);
       return;
     }
@@ -92,8 +98,14 @@ function mergeObject(base, incoming, incomingWins) {
 function mergeSettings(base, incoming, defaults, incomingWins) {
   const mergeValue = (current, older, fallback) => {
     if (sameValue(current, fallback)) return clone(older);
-    if (current && older && typeof current === 'object' && typeof older === 'object'
-      && !Array.isArray(current) && !Array.isArray(older)) {
+    if (
+      current &&
+      older &&
+      typeof current === 'object' &&
+      typeof older === 'object' &&
+      !Array.isArray(current) &&
+      !Array.isArray(older)
+    ) {
       const merged = { ...current };
       new Set([...Object.keys(current), ...Object.keys(older)]).forEach((key) => {
         merged[key] = mergeValue(current[key], older[key], fallback?.[key]);
@@ -112,10 +124,11 @@ function mergeSettings(base, incoming, defaults, incomingWins) {
   const merged = mergeValue(base || {}, incoming || {}, defaults);
   const mergeNamed = (current, old, key) => {
     const items = new Map();
-    const add = (list, overwrite) => (list || []).forEach((item) => {
-      if (!item || typeof item[key] !== 'string') return;
-      if (!items.has(item[key]) || overwrite) items.set(item[key], item);
-    });
+    const add = (list, overwrite) =>
+      (list || []).forEach((item) => {
+        if (!item || typeof item[key] !== 'string') return;
+        if (!items.has(item[key]) || overwrite) items.set(item[key], item);
+      });
     if (incomingWins) {
       add(current, false);
       add(old, true);
@@ -132,12 +145,7 @@ function mergeSettings(base, incoming, defaults, incomingWins) {
     in: mergeNamed(base?.cats?.in, incoming?.cats?.in, 'name'),
   };
   merged.prefs = { ...(merged.prefs || {}) };
-  merged.prefs.trash = mergeRecords(
-    'trash',
-    base?.prefs?.trash || [],
-    incoming?.prefs?.trash || [],
-    incomingWins,
-  );
+  merged.prefs.trash = mergeRecords('trash', base?.prefs?.trash || [], incoming?.prefs?.trash || [], incomingWins);
   return merged;
 }
 
@@ -177,8 +185,12 @@ function stateCounts(state) {
     habitLogs: habits.reduce((count, item) => count + (item.completions?.length || 0) + (item.skipped?.length || 0), 0),
     water: state.water?.length || 0,
     gym: (gym.templates?.length || 0) + (gym.logs?.length || 0),
-    finance: (finance.accounts?.length || 0) + (finance.tx?.length || 0)
-      + Object.keys(finance.budgets || {}).length + (finance.goals?.length || 0) + (finance.recurring?.length || 0),
+    finance:
+      (finance.accounts?.length || 0) +
+      (finance.tx?.length || 0) +
+      Object.keys(finance.budgets || {}).length +
+      (finance.goals?.length || 0) +
+      (finance.recurring?.length || 0),
     cycle: (state.cycle?.length || 0) + Object.keys(state.cycleLog || {}).length,
     weight: state.weight?.length || 0,
   };
@@ -187,10 +199,9 @@ function stateCounts(state) {
 function countAdded(current, merged) {
   const currentCounts = stateCounts(current);
   const mergedCounts = stateCounts(merged);
-  return Object.fromEntries(Object.keys(currentCounts).map((key) => [
-    key,
-    Math.max(0, mergedCounts[key] - currentCounts[key]),
-  ]));
+  return Object.fromEntries(
+    Object.keys(currentCounts).map((key) => [key, Math.max(0, mergedCounts[key] - currentCounts[key])]),
+  );
 }
 
 export function prepareLegacyImport({ currentState, sources, defaults, normalizeSlice }) {
@@ -200,27 +211,17 @@ export function prepareLegacyImport({ currentState, sources, defaults, normalize
   for (const source of orderedSources) {
     const normalized = normalizeSlice(source.slice, source.value);
     if (normalized.invalidCount) {
-      throw new Error(`A cópia antiga contém ${normalized.invalidCount} dado(s) inválido(s) em ${source.slice}. Nada foi importado; os originais foram preservados.`);
+      throw new Error(
+        `A cópia antiga contém ${normalized.invalidCount} dado(s) inválido(s) em ${source.slice}. Nada foi importado; os originais foram preservados.`,
+      );
     }
-    legacyState[source.slice] = mergeSlice(
-      legacyState[source.slice],
-      normalized.value,
-      source.slice,
-      defaults,
-      true,
-    );
+    legacyState[source.slice] = mergeSlice(legacyState[source.slice], normalized.value, source.slice, defaults, true);
     presentSlices.add(source.slice);
   }
 
   const mergedState = clone(currentState);
   presentSlices.forEach((slice) => {
-    mergedState[slice] = mergeSlice(
-      currentState[slice],
-      legacyState[slice],
-      slice,
-      defaults,
-      false,
-    );
+    mergedState[slice] = mergeSlice(currentState[slice], legacyState[slice], slice, defaults, false);
   });
 
   return {
@@ -234,21 +235,23 @@ export function prepareLegacyImport({ currentState, sources, defaults, normalize
 
 function containsExpected(expected, actual) {
   if (Array.isArray(expected)) {
-    return Array.isArray(actual)
-      && expected.every((item) => actual.some((candidate) => containsExpected(item, candidate)));
+    return (
+      Array.isArray(actual) && expected.every((item) => actual.some((candidate) => containsExpected(item, candidate)))
+    );
   }
   if (expected && typeof expected === 'object') {
-    return actual && typeof actual === 'object' && !Array.isArray(actual)
-      && Object.entries(expected).every(([key, value]) => containsExpected(value, actual[key]));
+    return (
+      actual &&
+      typeof actual === 'object' &&
+      !Array.isArray(actual) &&
+      Object.entries(expected).every(([key, value]) => containsExpected(value, actual[key]))
+    );
   }
   return Object.is(expected, actual);
 }
 
 export function hasAllExpectedRecords(expected, actual) {
-  const slices = [
-    'settings', 'tasks',
-    'habits', 'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight',
-  ];
+  const slices = ['settings', 'tasks', 'habits', 'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight'];
   for (const slice of slices) {
     if (!containsExpected(expected?.[slice], actual?.[slice])) return slice;
   }

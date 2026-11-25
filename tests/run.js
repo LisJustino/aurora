@@ -182,6 +182,11 @@ import {
   renderFeedbackPrompt,
 } from '../src/js/features/feedback/prompt.js';
 import { IC, ICON_SIZES, icon, iconSvg } from '../src/js/utils/icons.js';
+import { readAppSource } from './app-source.mjs';
+
+// Compara HTML e código sem depender de quebras de linha e vírgulas finais
+const flatHtml = (value) => String(value).replace(/\s+/g, ' ');
+const flatCode = (value) => String(value).replace(/\s+/g, '').replace(/,(?=[)\]}])/g, '');
 import { emptyState } from '../src/js/utils/empty-state.js';
 import { h } from '../src/js/utils/dom.js';
 
@@ -333,6 +338,18 @@ test('aviso de conexão de Finanças aparece apenas na visão geral e no acesso 
   }
 });
 
+test('Movimentações financeiras oferece apenas a lista de lançamentos', () => {
+  const source = readAppSource();
+  if (
+    source.includes('data-action="fin-view"') ||
+    source.includes('data-action="fin-day"') ||
+    source.includes('data-action="tx-new-day"') ||
+    source.includes('export function finCal()')
+  ) {
+    throw new Error('Movimentações financeiras não deve oferecer a antiga visão de calendário.');
+  }
+});
+
 test('Planejar mantém Calendário acessível junto às outras visualizações', () => {
   const html = renderPlanningView({
     S: { settings: { prefs: { annualPlans: {} } } },
@@ -348,8 +365,12 @@ test('Planejar mantém Calendário acessível junto às outras visualizações',
     taskListHtml: () => '<ul></ul>',
   }).s;
   const expectedViews = ['lista', 'calendario', 'revisao', 'anual'];
+  const taskTabIndex = html.indexOf('id="plan-tab-lista"');
+  const annualTabIndex = html.indexOf('id="plan-tab-anual"');
+  const calendarTabIndex = html.indexOf('id="plan-tab-calendario"');
   if (!expectedViews.every((view) => html.includes(`id="plan-tab-${view}"`))
     || html.includes('id="plan-tab-semana"')
+    || !(taskTabIndex < annualTabIndex && annualTabIndex < calendarTabIndex)
     || !html.includes('aria-labelledby="plan-tab-revisao"')
     || !html.includes('Revisão semanal')
     || !html.includes('data-action="task-new"')
@@ -414,7 +435,7 @@ test('Início aplica visibilidade e ordem dos blocos sem duplicar a ação princ
     sampleBanner: () => '',
     taskRow: () => '',
   };
-  const html = renderHomeView(model, renderers).s;
+  const html = flatHtml(renderHomeView(model, renderers).s);
   const quickIndex = html.indexOf('class="card surface-open home-quick-card"');
   const todayIndex = html.indexOf('class="home-today-card"');
   const habitsIndex = html.indexOf('HABITS');
@@ -460,10 +481,10 @@ test('Início aplica visibilidade e ordem dos blocos sem duplicar a ação princ
       throw new Error('Ocultar Hoje também deve ocultar os próximos compromissos e o progresso semanal.');
     }
   }
-  const cycleHtml = renderHomeView({
+  const cycleHtml = flatHtml(renderHomeView({
     ...model,
     daySummary: { ...model.daySummary, cycle: { day: 12 } },
-  }, renderers).s;
+  }, renderers).s);
   if (!cycleHtml.includes('href="/ciclo" aria-label="Ciclo, dia 12 do ciclo"')
     || !cycleHtml.includes('home-day-chip-count" aria-hidden="true">12')) {
     throw new Error('A faixa deve exibir o dia de Ciclo recebido do modelo.');
@@ -590,7 +611,7 @@ test('catálogo do Plano anual tem ideias por categoria e busca sem acentos', ()
 });
 
 test('inicia os alertas antes de aguardar o service worker', () => {
-  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const source = readAppSource();
   const start = source.indexOf('async function continueAuthenticatedAurora(');
   const end = source.indexOf('\nexport async function startAuthenticatedAurora', start);
   if (start < 0 || end <= start) throw new Error('Não foi possível localizar a inicialização dos dados autenticados.');
@@ -601,7 +622,7 @@ test('inicia os alertas antes de aguardar o service worker', () => {
 });
 
 test('falha ao carregar dados oferece tentar novamente e sair', () => {
-  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const source = readAppSource();
   const start = source.indexOf('function showAccountDataLoadError(');
   const end = source.indexOf('\nasync function continueAuthenticatedAurora', start);
   const continuation = source.slice(end, source.indexOf('\nexport async function startAuthenticatedAurora', end));
@@ -614,14 +635,21 @@ test('falha ao carregar dados oferece tentar novamente e sair', () => {
   }
 });
 
-test('confirmações nativas foram substituídas e o feedback de persistência não exibe horários salvos', () => {
-  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+test('indicador só aparece durante a gravação ou quando requer atenção', () => {
+  const source = readAppSource();
   if (source.includes('window.confirm')) throw new Error('Ainda há confirmação nativa no app.');
   if (source.includes('Salvo às')
-    || !source.includes('Salvando…')
-    || !source.includes('Falha ao salvar; tente novamente')
-    || !source.includes('Alterações feitas offline não serão salvas')) {
-    throw new Error('O shell não deve exibir horários de salvamento e deve manter avisos de erro e conexão.');
+    || source.includes('Tudo salvo e sincronizado')
+    || source.includes('data-status="saved"')
+    || !source.includes('Salvando alterações…')
+    || !source.includes('Não foi possível sincronizar.')
+    || !source.includes('Sua conta mudou em outro dispositivo')
+    || !source.includes('Sem conexão. Alterações não serão salvas.')
+    || !source.includes('Alterações feitas offline não serão salvas')
+    || !source.includes('class="sync-status"')
+    || source.includes('persistenceNotice()')
+    || source.includes('class="save-indicator')) {
+    throw new Error('O shell não deve mostrar confirmação de sucesso; só deve avisar durante gravação ou quando há algo a resolver.');
   }
 });
 
@@ -743,7 +771,7 @@ test('cabeçalho de autenticação compartilha navegação e ação principal da
 });
 
 test('modal de cartão organiza identificação, pagamento e limite em seções claras', () => {
-  const mainJs = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const mainJs = readAppSource();
   const financeCss = readFileSync(new URL('../src/css/pages/finance.css', import.meta.url), 'utf8');
   if (!mainJs.includes('Identificação')
     || !mainJs.includes('Pagamento da fatura')
@@ -1086,7 +1114,7 @@ test('a lixeira prioriza os itens que vencem primeiro sem alterar a lista origin
 });
 
 test('o backup preserva o tema personalizado em vez de reverter para a paleta base', () => {
-  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const source = readAppSource();
   ok(source.includes("theme: s.theme"), 'o backup precisa manter a seleção de tema atual');
   ok(!source.includes("theme: s.theme === 'custom' ? 'rose' : s.theme"), 'não pode forçar a cor personalizada de volta para a paleta rosé');
 });
@@ -2355,9 +2383,9 @@ test('Ciclo só é acessível para mulheres, exceto na demonstração fictícia'
 });
 
 test('Home só oferece Ciclo nas áreas opcionais para perfis elegíveis', () => {
-  const source = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+  const source = readAppSource();
   const start = source.indexOf('function areaTiles() {');
-  const end = source.indexOf('\n/* ---------- Ciclo ---------- */', start);
+  const end = source.indexOf('\n}\n', start);
   if (start < 0 || end <= start) throw new Error('Não foi possível localizar as áreas opcionais da Home.');
   const areaTiles = source.slice(start, end);
   if (!areaTiles.includes('canAccessCycle(S.settings.profile, ui.preview)')) {
@@ -2367,8 +2395,9 @@ test('Home só oferece Ciclo nas áreas opcionais para perfis elegíveis', () =>
   const onboardingEnd = source.indexOf('\nfunction dlgExport()', onboardingStart);
   if (onboardingStart < 0 || onboardingEnd <= onboardingStart) throw new Error('Não foi possível localizar o onboarding.');
   const onboarding = source.slice(onboardingStart, onboardingEnd);
-  equal(onboarding.includes("ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))"), true);
-  equal(onboarding.includes("ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))"), true);
+  const flatOnboarding = flatCode(onboarding);
+  equal(flatOnboarding.includes(flatCode("ONBOARDING_NEEDS.filter((need) => need.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))")), true);
+  equal(flatOnboarding.includes(flatCode("ONBOARDING_AREAS.filter((area) => area.id !== 'cycle' || canAccessCycle(S.settings.profile, ui.preview))")), true);
 });
 
 test('progresso dos primeiros passos segue a ordem tarefa, hábito e cor', () => {

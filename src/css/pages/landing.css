@@ -1242,13 +1242,13 @@ html:has(.landing-marketing) {
 
 .landing-footer-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr);
-  gap: var(--space-5);
+  grid-template-columns: minmax(240px, .8fr) minmax(420px, 1.2fr);
+  gap: var(--space-6);
   padding: clamp(var(--space-5), 4vw, var(--space-7));
   border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--line));
   border-radius: var(--r-hero);
   background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 30%),
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%),
     var(--surface-raised);
   box-shadow: var(--elev-1);
 }
@@ -1268,10 +1268,36 @@ html:has(.landing-marketing) {
   font-size: var(--text-base);
   line-height: var(--leading-relaxed);
 }
+.landing-footer-cta {
+  width: fit-content;
+  min-height: var(--control-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-inline: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: var(--r-control);
+  background: var(--brand-surface);
+  color: var(--brand-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+}
+.landing-footer-cta:hover,
+.landing-footer-cta:focus-visible {
+  background: color-mix(in srgb, var(--brand-surface) 84%, var(--accent));
+  transform: translateY(-1px);
+}
+.landing-footer-cta svg {
+  flex: none;
+}
 .landing-footer-nav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: var(--space-5);
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  gap: var(--space-4);
 }
 .landing-footer-link-group {
   display: grid;
@@ -1377,9 +1403,19 @@ html:has(.landing-marketing) {
   .landing-marketing .landing-faq { grid-template-columns: minmax(0, 1fr); }
   .landing-footer { padding-inline: var(--gut-l); }
   .landing-footer-card { grid-template-columns: minmax(0, 1fr); border-radius: var(--r-card); }
-  .landing-footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-footer-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .landing-footer-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-3); }
+  .landing-footer-primary > p { grid-column: 1; }
+  .landing-footer-cta { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
   .landing-final-actions { width: 100%; align-items: stretch; flex-direction: column; }
   .landing-marketing .landing-final-actions .btn { width: 100%; justify-content: center; }
+}
+
+@media (width <= 480px) {
+  .landing-footer-primary { grid-template-columns: minmax(0, 1fr); }
+  .landing-footer-primary > p { grid-column: 1; }
+  .landing-footer-cta { grid-column: 1; grid-row: auto; width: 100%; margin-top: var(--space-2); }
+  .landing-footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (width <= 360px) {

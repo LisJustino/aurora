@@ -50,12 +50,14 @@ const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabaseConfig({
   targetEnvironment: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_TARGET,
   localUrl: isDevelopment ? import.meta.env?.VITE_SUPABASE_LOCAL_URL : '',
   localAnonKey: isDevelopment ? import.meta.env?.VITE_SUPABASE_LOCAL_ANON_KEY : '',
-  previewUrl: isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'development'
-    ? ''
-    : import.meta.env?.VITE_SUPABASE_PREVIEW_URL,
-  previewAnonKey: isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'development'
-    ? ''
-    : import.meta.env?.VITE_SUPABASE_PREVIEW_ANON_KEY,
+  previewUrl:
+    isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'development'
+      ? ''
+      : import.meta.env?.VITE_SUPABASE_PREVIEW_URL,
+  previewAnonKey:
+    isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'development'
+      ? ''
+      : import.meta.env?.VITE_SUPABASE_PREVIEW_ANON_KEY,
   productionUrl: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_URL,
   productionAnonKey: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_ANON_KEY,
 });
@@ -64,8 +66,7 @@ const isSafeSupabaseConfig = () => {
   if (!supabaseUrl || !supabaseAnonKey || /service[_-]?role/i.test(supabaseAnonKey)) return false;
   try {
     const url = new URL(supabaseUrl);
-    return url.protocol === 'https:'
-      && url.hostname === `${PROJECT_REFS[supabaseEnvironment]}.supabase.co`;
+    return url.protocol === 'https:' && url.hostname === `${PROJECT_REFS[supabaseEnvironment]}.supabase.co`;
   } catch {
     return false;
   }
@@ -119,25 +120,31 @@ export async function getSupabaseClient() {
         : supabaseEnvironment === 'production'
           ? 'VITE_SUPABASE_TARGET=production, VITE_SUPABASE_PRODUCTION_URL e VITE_SUPABASE_PRODUCTION_ANON_KEY do projeto aurora-prod'
           : 'VITE_SUPABASE_TARGET como development ou production';
-    throw new Error(`Configuração Supabase inválida. Configure ${variables}. O Aurora bloqueia qualquer projeto diferente do ambiente esperado.`);
+    throw new Error(
+      `Configuração Supabase inválida. Configure ${variables}. O Aurora bloqueia qualquer projeto diferente do ambiente esperado.`,
+    );
   }
   if (!clientPromise) {
-    clientPromise = import('@supabase/supabase-js').then(({ createClient }) => createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-        persistSession: true,
-        storageKey: authStorageKey(supabaseUrl),
-        storage: createAuthSessionStorage({
-          localStorage: window.localStorage,
-          sessionStorage: window.sessionStorage,
+    clientPromise = import('@supabase/supabase-js')
+      .then(({ createClient }) =>
+        createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: 'pkce',
+            persistSession: true,
+            storageKey: authStorageKey(supabaseUrl),
+            storage: createAuthSessionStorage({
+              localStorage: window.localStorage,
+              sessionStorage: window.sessionStorage,
+            }),
+          },
         }),
-      },
-    })).catch((error) => {
-      clientPromise = undefined;
-      throw error;
-    });
+      )
+      .catch((error) => {
+        clientPromise = undefined;
+        throw error;
+      });
   }
   return clientPromise;
 }

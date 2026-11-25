@@ -9,12 +9,13 @@
 export const MAX_BULK_LINES = 100;
 export const MAX_BULK_INSTALLMENTS = 120;
 
-const normalizeText = (value) => String(value ?? '')
-  .normalize('NFD')
-  .replace(/[̀-ͯ]/g, '')
-  .toLocaleLowerCase('pt-BR')
-  .replace(/\s+/g, ' ')
-  .trim();
+const normalizeText = (value) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -43,9 +44,13 @@ function daysInMonth(year, month) {
 // Aceita "dia 04/12", "04/12", "04/12/2026", "dia 4" e "4".
 // Sem ano, usa o ano de `todayKey`. Sem mês, usa o mês de `todayKey`.
 export function parseBulkDate(text, todayKey) {
-  const value = normalizeText(text).replace(/^dia\s+/, '').replace(/^em\s+/, '');
+  const value = normalizeText(text)
+    .replace(/^dia\s+/, '')
+    .replace(/^em\s+/, '');
   const [todayYear, todayMonth] = todayKey.split('-').map(Number);
-  let year = todayYear, month = todayMonth, day;
+  let year = todayYear,
+    month = todayMonth,
+    day;
   let match = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(value);
   if (match) {
     day = Number(match[1]);
@@ -61,14 +66,27 @@ export function parseBulkDate(text, todayKey) {
 }
 
 const TYPE_WORDS = new Map([
-  ['fixa', 'fixed'], ['fixa mensal', 'fixed'], ['fixo', 'fixed'], ['mensal', 'fixed'], ['recorrente', 'fixed'],
-  ['parcelado', 'parcel'], ['parcelada', 'parcel'], ['parcelamento', 'parcel'],
-  ['avulso', 'single'], ['avulsa', 'single'], ['unica', 'single'], ['unico', 'single'],
-  ['a vista', 'single'], ['unica vez', 'single'],
+  ['fixa', 'fixed'],
+  ['fixa mensal', 'fixed'],
+  ['fixo', 'fixed'],
+  ['mensal', 'fixed'],
+  ['recorrente', 'fixed'],
+  ['parcelado', 'parcel'],
+  ['parcelada', 'parcel'],
+  ['parcelamento', 'parcel'],
+  ['avulso', 'single'],
+  ['avulsa', 'single'],
+  ['unica', 'single'],
+  ['unico', 'single'],
+  ['a vista', 'single'],
+  ['unica vez', 'single'],
 ]);
 const KIND_WORDS = new Map([
-  ['despesa', 'out'], ['saida', 'out'], ['gasto', 'out'],
-  ['receita', 'in'], ['entrada', 'in'],
+  ['despesa', 'out'],
+  ['saida', 'out'],
+  ['gasto', 'out'],
+  ['receita', 'in'],
+  ['entrada', 'in'],
 ]);
 
 // Interpreta uma linha já separada em campos. Retorna { row } ou { error }.
@@ -98,14 +116,21 @@ function parseFields(fields, context) {
     let match;
     if (TYPE_WORDS.has(text)) row.repeat = TYPE_WORDS.get(text);
     else if (KIND_WORDS.has(text)) row.kind = KIND_WORDS.get(text);
-    else if ((match = /^sub-?categoria\s*:?\s*(.+)$/.exec(text))) row.subcategoryText = field.slice(field.length - match[1].length).trim();
-    else if ((match = /^categoria\s*:?\s*(.+)$/.exec(text))) row.categoryText = field.slice(field.length - match[1].length).trim();
-    else if ((match = /^(?:conta|cartao)\s*:?\s*(.+)$/.exec(text))) row.accountText = field.slice(field.length - match[1].length).trim();
-    else if (/^valor (?:da|de cada|por) parcela$|^valor parcela$|^valor da prestacao$/.test(text)) row.amountMode = 'installment';
+    else if ((match = /^sub-?categoria\s*:?\s*(.+)$/.exec(text)))
+      row.subcategoryText = field.slice(field.length - match[1].length).trim();
+    else if ((match = /^categoria\s*:?\s*(.+)$/.exec(text)))
+      row.categoryText = field.slice(field.length - match[1].length).trim();
+    else if ((match = /^(?:conta|cartao)\s*:?\s*(.+)$/.exec(text)))
+      row.accountText = field.slice(field.length - match[1].length).trim();
+    else if (/^valor (?:da|de cada|por) parcela$|^valor parcela$|^valor da prestacao$/.test(text))
+      row.amountMode = 'installment';
     else if (/^valor total$|^total da compra$|^valor da compra$/.test(text)) row.amountMode = 'total';
     else if (text === 'pago' || text === 'paga' || text === 'recebido') row.paidFlag = 'paid';
     else if (text === 'pendente' || text === 'a pagar' || text === 'a receber') row.paidFlag = 'pending';
-    else if ((match = /^parcela\s+(\d{1,3})\s*(?:\/|de)\s*(\d{1,3})$/.exec(text)) || (match = /^(\d{1,3})\s+de\s+(\d{1,3})$/.exec(text))) {
+    else if (
+      (match = /^parcela\s+(\d{1,3})\s*(?:\/|de)\s*(\d{1,3})$/.exec(text)) ||
+      (match = /^(\d{1,3})\s+de\s+(\d{1,3})$/.exec(text))
+    ) {
       row.currentInstallment = Number(match[1]);
       row.totalInstallments = Number(match[2]);
       row.repeat = 'parcel';
@@ -113,7 +138,11 @@ function parseFields(fields, context) {
     } else if ((match = /^(?:em\s+)?(\d{1,3})\s*x$/.exec(text))) {
       row.totalInstallments = Number(match[1]);
       row.repeat = 'parcel';
-    } else if (text.startsWith('dia ') || text.includes('/') || (/^\d{1,2}$/.test(text) && Number.isFinite(row.amountCents))) {
+    } else if (
+      text.startsWith('dia ') ||
+      text.includes('/') ||
+      (/^\d{1,2}$/.test(text) && Number.isFinite(row.amountCents))
+    ) {
       const date = parseBulkDate(text, context.today);
       if (!date) return { error: `Data inválida: "${field}".` };
       row.date = date;
@@ -126,7 +155,8 @@ function parseFields(fields, context) {
   if (!row.date) return { error: 'Falta a data (ex.: dia 10/12).' };
   if (row.repeat === 'parcel') {
     const { currentInstallment: current, totalInstallments: total } = row;
-    if (total < 2 || total > MAX_BULK_INSTALLMENTS) return { error: `O total de parcelas deve ficar entre 2 e ${MAX_BULK_INSTALLMENTS}.` };
+    if (total < 2 || total > MAX_BULK_INSTALLMENTS)
+      return { error: `O total de parcelas deve ficar entre 2 e ${MAX_BULK_INSTALLMENTS}.` };
     if (current < 1 || current > total) return { error: 'A parcela atual deve estar entre 1 e o total.' };
     // Quem informa "parcela 2/90" costuma estar digitando o valor que paga a cada mês.
     if (!row.amountMode) row.amountMode = row.installmentLabeled ? 'installment' : 'total';
@@ -144,11 +174,17 @@ export function parseBulkText(text, context) {
     const source = rawLine.replace(LINE_BULLET, '').trim();
     if (!source) continue;
     if (rows.length >= MAX_BULK_LINES) {
-      rows.push({ line: lineNumber, source, error: `Limite de ${MAX_BULK_LINES} linhas por vez. Cadastre o restante depois.` });
+      rows.push({
+        line: lineNumber,
+        source,
+        error: `Limite de ${MAX_BULK_LINES} linhas por vez. Cadastre o restante depois.`,
+      });
       break;
     }
     const result = parseFields(source.split(FIELD_SEPARATOR), context);
-    rows.push(result.error ? { line: lineNumber, source, error: result.error } : { line: lineNumber, source, ...result.row });
+    rows.push(
+      result.error ? { line: lineNumber, source, error: result.error } : { line: lineNumber, source, ...result.row },
+    );
   }
   return rows;
 }
@@ -180,12 +216,23 @@ export function resolveBulkCategory(row, { categories, leafName, fallback }) {
     // Só subcategoria: procura em qualquer categoria.
     for (const category of kindCategories) {
       child = findSubcategory(category, row.subcategoryText, leafName);
-      if (child) { parent = category; break; }
+      if (child) {
+        parent = category;
+        break;
+      }
     }
   } else if (parent && row.subcategoryText) child = findSubcategory(parent, row.subcategoryText, leafName);
   const parentName = parent ? parent.name : (row.categoryText || '').trim().slice(0, 30);
   const childName = child ? leafName(child) : (row.subcategoryText || '').trim().slice(0, 30);
-  if (!parentName) return { path: '', parent: '', child: '', createParent: false, createChild: false, error: 'Informe a categoria da subcategoria.' };
+  if (!parentName)
+    return {
+      path: '',
+      parent: '',
+      child: '',
+      createParent: false,
+      createChild: false,
+      error: 'Informe a categoria da subcategoria.',
+    };
   return {
     path: childName ? `${parentName} > ${childName}` : parentName,
     parent: parentName,
@@ -198,9 +245,11 @@ export function resolveBulkCategory(row, { categories, leafName, fallback }) {
 export function findBulkAccount(accounts, text, accountLabel) {
   const target = normalizeText(text);
   if (!target) return null;
-  return accounts.find((account) => normalizeText(accountLabel(account)) === target)
-    || accounts.find((account) => normalizeText(accountLabel(account)).includes(target))
-    || null;
+  return (
+    accounts.find((account) => normalizeText(accountLabel(account)) === target) ||
+    accounts.find((account) => normalizeText(accountLabel(account)).includes(target)) ||
+    null
+  );
 }
 
 // Monta os registros finais de uma linha. `ctx` traz as dependências do app,
@@ -216,7 +265,13 @@ export function buildBulkRecords(row, ctx) {
     return {
       transactions: [],
       recurring: {
-        id: newId(), ...base, cents: row.amountCents, day, startYM: row.date.slice(0, 7), lastYM: null, firstPaid: paid,
+        id: newId(),
+        ...base,
+        cents: row.amountCents,
+        day,
+        startYM: row.date.slice(0, 7),
+        lastYM: null,
+        firstPaid: paid,
       },
     };
   }
@@ -228,9 +283,10 @@ export function buildBulkRecords(row, ctx) {
   const transactions = [];
   for (let offset = 0; offset < count; offset += 1) {
     const number = first + offset;
-    const cents = row.repeat === 'parcel' && row.amountMode !== 'installment'
-      ? perInstallment + (number === 1 ? row.amountCents - perInstallment * total : 0)
-      : row.amountCents;
+    const cents =
+      row.repeat === 'parcel' && row.amountMode !== 'installment'
+        ? perInstallment + (number === 1 ? row.amountCents - perInstallment * total : 0)
+        : row.amountCents;
     const date = addMonths(row.date, offset);
     const installmentPaid = credit ? true : offset === 0 ? paid : false;
     transactions.push({

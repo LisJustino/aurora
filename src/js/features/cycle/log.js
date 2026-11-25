@@ -35,16 +35,23 @@ const exclusiveMethods = new Set(['none', 'undisclosed']);
 export function isValidCycleSocialLog(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
   if (!Object.hasOwn(record, 'social')) return true;
-  return Array.isArray(record.social)
-    && record.social.every((option) => typeof option === 'string' && socialOptionIds.has(option))
-    && new Set(record.social).size === record.social.length;
+  return (
+    Array.isArray(record.social) &&
+    record.social.every((option) => typeof option === 'string' && socialOptionIds.has(option)) &&
+    new Set(record.social).size === record.social.length
+  );
 }
 
 export function isValidCycleTrackingLog(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
-  if (Object.hasOwn(record, 'weightKg')
-    && (!Number.isFinite(record.weightKg) || record.weightKg < 20 || record.weightKg > 400
-      || !Number.isInteger(record.weightKg * 10))) return false;
+  if (
+    Object.hasOwn(record, 'weightKg') &&
+    (!Number.isFinite(record.weightKg) ||
+      record.weightKg < 20 ||
+      record.weightKg > 400 ||
+      !Number.isInteger(record.weightKg * 10))
+  )
+    return false;
   if (Object.hasOwn(record, 'ovulationTestResult') && !testResultIds.has(record.ovulationTestResult)) return false;
   if (Object.hasOwn(record, 'pregnancyTestResult') && !testResultIds.has(record.pregnancyTestResult)) return false;
   if (Object.hasOwn(record, 'medicationTaken') && typeof record.medicationTaken !== 'boolean') return false;
@@ -58,15 +65,21 @@ export function isValidCycleSexualLog(record) {
   if (Object.hasOwn(record, 'sexToysUsed') && typeof record.sexToysUsed !== 'boolean') return false;
   if (Object.hasOwn(record, 'orgasmOccurred') && typeof record.orgasmOccurred !== 'boolean') return false;
   if (Object.hasOwn(record, 'libido') && !['high', 'low'].includes(record.libido)) return false;
-  if (Object.hasOwn(record, 'orgasmCount')
-    && (!Number.isInteger(record.orgasmCount) || record.orgasmCount < 0 || record.orgasmCount > 99)) return false;
+  if (
+    Object.hasOwn(record, 'orgasmCount') &&
+    (!Number.isInteger(record.orgasmCount) || record.orgasmCount < 0 || record.orgasmCount > 99)
+  )
+    return false;
   if (!Object.hasOwn(record, 'contraceptionMethods')) return true;
 
   const methods = record.contraceptionMethods;
-  if (!Array.isArray(methods)
-    || !methods.every((method) => typeof method === 'string' && methodIds.has(method))
-    || new Set(methods).size !== methods.length
-    || (methods.length > 0 && record.sexualActivity !== true)) return false;
+  if (
+    !Array.isArray(methods) ||
+    !methods.every((method) => typeof method === 'string' && methodIds.has(method)) ||
+    new Set(methods).size !== methods.length ||
+    (methods.length > 0 && record.sexualActivity !== true)
+  )
+    return false;
 
   return methods.filter((method) => exclusiveMethods.has(method)).length === 0 || methods.length === 1;
 }

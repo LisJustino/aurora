@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { CONTACT_EMAIL, normalizeSuggestionMessage, submitSuggestion } from '../src/js/features/footer/suggestions.js';
 import { renderFooterContent, renderSuggestionForm } from '../src/js/features/footer/view.js';
 
-const publicFooter = renderFooterContent({ demoAvailable: true });
+const publicFooter = renderFooterContent({ demoAvailable: true }).replace(/\s+/g, ' ');
 const authenticatedFooter = renderFooterContent({ authenticated: true });
 const footerWithSuggestions = renderFooterContent({ suggestionForm: true });
 const suggestionForms = [...footerWithSuggestions.matchAll(/<form class="footer-suggestion-form"[\s\S]*?<\/form>/g)]

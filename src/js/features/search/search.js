@@ -1,8 +1,9 @@
-const normalize = (value) => String(value || '')
-  .toLocaleLowerCase('pt-BR')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .trim();
+const normalize = (value) =>
+  String(value || '')
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 
 function rankFields(fields, term) {
   let best = null;
@@ -11,21 +12,18 @@ function rankFields(fields, term) {
     const normalized = normalize(text);
     const index = normalized.indexOf(term);
     if (index < 0) continue;
-    const score = normalized === term ? 100 : index === 0 ? 80 : index > 0 && /\s/.test(normalized[index - 1]) ? 70 : 55;
+    const score =
+      normalized === term ? 100 : index === 0 ? 80 : index > 0 && /\s/.test(normalized[index - 1]) ? 70 : 55;
     if (!best || score > best.score) best = { score, matchText: text };
   }
   return best;
 }
 
-export function searchRecords({
-  tasks = [],
-  transactions = [],
-  accounts = [],
-  habits = [],
-  water = [],
-  cycleLogs = {},
-  actions = [],
-}, query, limit = 30) {
+export function searchRecords(
+  { tasks = [], transactions = [], accounts = [], habits = [], water = [], cycleLogs = {}, actions = [] },
+  query,
+  limit = 30,
+) {
   const term = normalize(query);
   if (term.length < 2 || !Number.isInteger(limit) || limit < 1) return [];
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));

@@ -1,9 +1,5 @@
 import { lockPageScroll } from '../../utils/scroll-lock.js';
-import {
-  PROFILE_AVATAR_MAX_ZOOM,
-  computeAvatarCrop,
-  cropProfileAvatar,
-} from './avatar-image.js';
+import { PROFILE_AVATAR_MAX_ZOOM, computeAvatarCrop, cropProfileAvatar } from './avatar-image.js';
 
 const KEY_STEP = 0.04;
 
@@ -18,15 +14,22 @@ export function adjustProfileAvatar(bitmap, { title = 'Ajustar foto' } = {}) {
     dialog.setAttribute('aria-labelledby', 'avatar-cropper-title');
     dialog.innerHTML = `
       <div class="dlg avatar-cropper">
-        <div class="head"><div><h2 id="avatar-cropper-title"></h2><p>Arraste a foto para posicionar e use o controle para aproximar.</p></div></div>
+        <div class="head"><div><h2
+          id="avatar-cropper-title"></h2><p>Arraste a foto para posicionar e use o controle para aproximar.</p></div></div>
         <div class="dlg-body avatar-cropper-body">
-          <div class="avatar-cropper-stage" tabindex="0" role="group" aria-label="Área da foto. Use as setas do teclado para mover e + ou - para aproximar.">
+          <div class="avatar-cropper-stage" tabindex="0" role="group"
+            aria-label="Área da foto. Use as setas do teclado para mover e + ou - para aproximar.">
             <canvas class="avatar-cropper-canvas" width="320" height="320"></canvas>
           </div>
-          <label class="avatar-cropper-zoom"><span>Zoom</span><input type="range" min="1" max="${PROFILE_AVATAR_MAX_ZOOM}" step="0.01" value="1" aria-label="Zoom da foto"></label>
-          <div class="avatar-cropper-previews" aria-hidden="true"><span class="avatar-cropper-preview is-lg"><canvas width="112" height="112"></canvas></span><span class="avatar-cropper-preview is-sm"><canvas width="52" height="52"></canvas></span><small>Assim aparece no Início e no menu</small></div>
+          <label class="avatar-cropper-zoom"><span>Zoom</span><input type="range" min="1"
+            max="${PROFILE_AVATAR_MAX_ZOOM}" step="0.01" value="1" aria-label="Zoom da foto"></label>
+          <div class="avatar-cropper-previews" aria-hidden="true"><span class="avatar-cropper-preview is-lg"><canvas
+            width="112" height="112"></canvas></span><span class="avatar-cropper-preview is-sm"><canvas width="52"
+            height="52"></canvas></span><small>Assim aparece no Início e no menu</small></div>
         </div>
-        <div class="dlg-foot"><button type="button" class="btn back" data-cropper="cancel">Cancelar</button><button type="button" class="btn" data-cropper="reset">Centralizar</button><button type="button" class="btn primary" data-cropper="apply">Usar esta foto</button></div>
+        <div class="dlg-foot"><button type="button" class="btn back" data-cropper="cancel">Cancelar</button><button
+          type="button" class="btn" data-cropper="reset">Centralizar</button><button type="button" class="btn primary"
+          data-cropper="apply">Usar esta foto</button></div>
       </div>`;
     dialog.querySelector('#avatar-cropper-title').textContent = title;
 
@@ -100,12 +103,21 @@ export function adjustProfileAvatar(bitmap, { title = 'Ajustar foto' } = {}) {
     };
     stage.addEventListener('pointerup', endDrag);
     stage.addEventListener('pointercancel', endDrag);
-    stage.addEventListener('wheel', (event) => {
-      event.preventDefault();
-      setZoom(state.zoom * (event.deltaY < 0 ? 1.08 : 1 / 1.08));
-    }, { passive: false });
+    stage.addEventListener(
+      'wheel',
+      (event) => {
+        event.preventDefault();
+        setZoom(state.zoom * (event.deltaY < 0 ? 1.08 : 1 / 1.08));
+      },
+      { passive: false },
+    );
     stage.addEventListener('keydown', (event) => {
-      const moves = { ArrowLeft: [-KEY_STEP, 0], ArrowRight: [KEY_STEP, 0], ArrowUp: [0, -KEY_STEP], ArrowDown: [0, KEY_STEP] };
+      const moves = {
+        ArrowLeft: [-KEY_STEP, 0],
+        ArrowRight: [KEY_STEP, 0],
+        ArrowUp: [0, -KEY_STEP],
+        ArrowDown: [0, KEY_STEP],
+      };
       if (moves[event.key]) {
         event.preventDefault();
         move(...moves[event.key]);

@@ -1556,7 +1556,7 @@
 
 .main[data-route="inicio"] .home-day-summary {
   display: grid;
-  grid-template-columns: minmax(60px, .18fr) minmax(220px, .82fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr);
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) 0;

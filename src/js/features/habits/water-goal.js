@@ -39,16 +39,12 @@ export function isValidWaterGoalMl(value) {
 }
 
 export function waterGoalForHabit(habit, fallback = 2000) {
-  return isValidWaterGoalMl(habit?.waterGoalMl)
-    ? habit.waterGoalMl
-    : waterGoalFromName(habit?.name, fallback);
+  return isValidWaterGoalMl(habit?.waterGoalMl) ? habit.waterGoalMl : waterGoalFromName(habit?.name, fallback);
 }
 
 export function normalizeWaterHabit(habit) {
   const legacyGoal = String(habit.name).match(/(?:\s*[·-]\s*)?(\d[\d. ]*)\s*mL\/dia\s*$/i);
-  const parsedGoal = legacyGoal
-    ? Number(legacyGoal[1].replace(/\D/g, ''))
-    : null;
+  const parsedGoal = legacyGoal ? Number(legacyGoal[1].replace(/\D/g, '')) : null;
   const normalized = {
     ...habit,
     name: legacyGoal ? habit.name.replace(legacyGoal[0], '').trim() : habit.name,
@@ -62,16 +58,26 @@ export function normalizeWaterHabit(habit) {
 export function waterMlForDay(entries, day) {
   if (!Array.isArray(entries) || !isDay(day)) return 0;
   return entries.reduce((total, entry) => {
-    if (!Number.isFinite(entry?.ml) || entry.ml <= 0
-      || typeof entry.at !== 'string' || !Number.isFinite(Date.parse(entry.at))) return total;
+    if (
+      !Number.isFinite(entry?.ml) ||
+      entry.ml <= 0 ||
+      typeof entry.at !== 'string' ||
+      !Number.isFinite(Date.parse(entry.at))
+    )
+      return total;
     return isoDay(entry.at) === day ? total + Math.round(entry.ml) : total;
   }, 0);
 }
 
 export function waterGoalReached(total, target) {
-  return Number.isFinite(total) && total >= 0
-    && Number.isInteger(target) && target >= 500 && target <= 10000
-    && total >= target;
+  return (
+    Number.isFinite(total) &&
+    total >= 0 &&
+    Number.isInteger(target) &&
+    target >= 500 &&
+    target <= 10000 &&
+    total >= target
+  );
 }
 
 export function waterWeekProgress(entries, target, day, weekStart = 1) {

@@ -14,15 +14,18 @@ function setOwn(target, key, value) {
 export function normalizeBudgetSettings(value) {
   if (!isPlainObject(value)) return {};
   const settings = {};
-  Object.entries(value).slice(0, MAX_BUDGET_SETTINGS).forEach(([category, raw]) => {
-    if (!category || category.length > MAX_CATEGORY_LENGTH || !isPlainObject(raw)) return;
-    const alertPct = Number.isInteger(raw.alertPct) && BUDGET_ALERT_OPTIONS.includes(raw.alertPct)
-      ? raw.alertPct
-      : BUDGET_ALERT_DEFAULT;
-    const pinned = raw.pinned === true;
-    if (alertPct === BUDGET_ALERT_DEFAULT && !pinned) return;
-    setOwn(settings, category, { alertPct, pinned });
-  });
+  Object.entries(value)
+    .slice(0, MAX_BUDGET_SETTINGS)
+    .forEach(([category, raw]) => {
+      if (!category || category.length > MAX_CATEGORY_LENGTH || !isPlainObject(raw)) return;
+      const alertPct =
+        Number.isInteger(raw.alertPct) && BUDGET_ALERT_OPTIONS.includes(raw.alertPct)
+          ? raw.alertPct
+          : BUDGET_ALERT_DEFAULT;
+      const pinned = raw.pinned === true;
+      if (alertPct === BUDGET_ALERT_DEFAULT && !pinned) return;
+      setOwn(settings, category, { alertPct, pinned });
+    });
   return settings;
 }
 
@@ -38,9 +41,10 @@ export function budgetHistory(transactions, category, month, count, shiftMonth) 
   return Array.from({ length: count }, (_, index) => {
     const target = shiftMonth(month, index - count);
     const cents = transactions
-      .filter((transaction) => transaction.type === 'out'
-        && transaction.category === category
-        && transaction.date.startsWith(target))
+      .filter(
+        (transaction) =>
+          transaction.type === 'out' && transaction.category === category && transaction.date.startsWith(target),
+      )
       .reduce((sum, transaction) => sum + transaction.cents, 0);
     return { month: target, cents };
   });
@@ -91,13 +95,17 @@ export function budgetReport({
   const previousCutoff = throughDay
     ? `${previousMonth}-${pad(Math.min(throughDay, daysInMonth(previousMonth)))}`
     : `${previousMonth}-31`;
-  const currentOut = current.tx.filter((transaction) => transaction.type === 'out' && transaction.date <= currentCutoff);
-  const previousOut = previous.tx.filter((transaction) => transaction.type === 'out' && transaction.date <= previousCutoff);
+  const currentOut = current.tx.filter(
+    (transaction) => transaction.type === 'out' && transaction.date <= currentCutoff,
+  );
+  const previousOut = previous.tx.filter(
+    (transaction) => transaction.type === 'out' && transaction.date <= previousCutoff,
+  );
   const currentTotal = currentOut.reduce((sum, transaction) => sum + transaction.cents, 0);
   const previousTotal = previousOut.reduce((sum, transaction) => sum + transaction.cents, 0);
   const period = throughDay ? 'no mesmo período do mês anterior' : 'em relação ao mês anterior';
   if (previousTotal > 0 && currentTotal > 0) {
-    const percent = Math.round((currentTotal - previousTotal) / previousTotal * 100);
+    const percent = Math.round(((currentTotal - previousTotal) / previousTotal) * 100);
     if (percent >= 10) items.push({ tone: 'warn', text: `Despesas ${percent}% maiores ${period}.` });
     else if (percent <= -10) items.push({ tone: 'ok', text: `Despesas ${Math.abs(percent)}% menores ${period}.` });
     else items.push({ tone: 'info', text: `Despesas parecidas ${period}.` });
@@ -108,7 +116,10 @@ export function budgetReport({
       .filter((entry) => entry.diff > 0 && entry.diff >= currentTotal * 0.1)
       .sort((a, b) => b.diff - a.diff);
     if (risers[0]) {
-      items.push({ tone: 'info', text: `A categoria que mais subiu foi ${risers[0].category}, com ${formatMoney(risers[0].diff)} a mais.` });
+      items.push({
+        tone: 'info',
+        text: `A categoria que mais subiu foi ${risers[0].category}, com ${formatMoney(risers[0].diff)} a mais.`,
+      });
     }
   }
 
@@ -119,7 +130,7 @@ export function budgetReport({
   entries.forEach(([category, budget]) => {
     const spent = spentByCategory.get(category) || 0;
     if (spent > budget.cents) over.push(category);
-    else if (spent / budget.cents * 100 >= budgetSettingsFor(settings, category).alertPct) near.push(category);
+    else if ((spent / budget.cents) * 100 >= budgetSettingsFor(settings, category).alertPct) near.push(category);
   });
   if (over.length) items.push({ tone: 'warn', text: `Acima do limite: ${joinNames(over)}.` });
   if (near.length) items.push({ tone: 'warn', text: `Perto do limite: ${joinNames(near)}.` });
@@ -134,7 +145,7 @@ export function budgetReport({
       if (Object.hasOwn(budgets, category) || cents < current.outAll * 0.15) continue;
       const suggestion = suggestBudgetCents(budgetHistory(transactions, category, month, 3, shiftMonth));
       if (!suggestion) continue;
-      const share = Math.round(cents / current.outAll * 100);
+      const share = Math.round((cents / current.outAll) * 100);
       suggestions.push({
         tone: 'info',
         text: `${category} pesa ${share}% das despesas e não tem limite. Sugestão: ${formatMoney(suggestion.cents)} por mês.`,

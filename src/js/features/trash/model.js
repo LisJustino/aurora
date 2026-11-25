@@ -3,26 +3,29 @@ export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export function isValidTrashEntry(entry, isValidRecord) {
   if (typeof isValidRecord !== 'function') return false;
   const recordKeys = new Set();
-  const validRecords = Array.isArray(entry?.records)
-    && entry.records.every((record) => {
+  const validRecords =
+    Array.isArray(entry?.records) &&
+    entry.records.every((record) => {
       if (!isValidRecord(record)) return false;
       const key = `${record.collection}:${record.key}`;
       if (recordKeys.has(key)) return false;
       recordKeys.add(key);
       return true;
     });
-  return entry !== null
-    && typeof entry === 'object'
-    && !Array.isArray(entry)
-    && typeof entry.id === 'string'
-    && entry.id.trim().length > 0
-    && Number.isSafeInteger(entry.deletedAt)
-    && entry.deletedAt > 0
-    && typeof entry.label === 'string'
-    && entry.label.trim().length > 0
-    && entry.label.length <= 120
-    && validRecords
-    && entry.records.length > 0;
+  return (
+    entry !== null &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    typeof entry.id === 'string' &&
+    entry.id.trim().length > 0 &&
+    Number.isSafeInteger(entry.deletedAt) &&
+    entry.deletedAt > 0 &&
+    typeof entry.label === 'string' &&
+    entry.label.trim().length > 0 &&
+    entry.label.length <= 120 &&
+    validRecords &&
+    entry.records.length > 0
+  );
 }
 
 export function normalizeTrash(value, isValidEntry) {

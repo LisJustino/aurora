@@ -15,17 +15,26 @@ export function agendaForMonth(ym, { bills = [], invoices = [], cycleRange = nul
   bills.forEach((item) => add(item.date, { kind: 'bill', label: item.label, amount: item.amount ?? '' }));
   if (cycleRange?.from && cycleRange?.to && cycleRange.from <= cycleRange.to) {
     const single = cycleRange.from === cycleRange.to;
-    for (let day = cycleRange.from, guard = 0; day <= cycleRange.to && guard < MAX_RANGE_DAYS; day = addDays(day, 1), guard++) {
-      add(day, { kind: 'cycle', label: single ? 'Previsão da menstruação' : 'Janela prevista da menstruação', amount: '' });
+    for (
+      let day = cycleRange.from, guard = 0;
+      day <= cycleRange.to && guard < MAX_RANGE_DAYS;
+      day = addDays(day, 1), guard++
+    ) {
+      add(day, {
+        kind: 'cycle',
+        label: single ? 'Previsão da menstruação' : 'Janela prevista da menstruação',
+        amount: '',
+      });
     }
   }
   return byDay;
 }
 
-export const agendaMarker = (items) => [
-  items.some((item) => item.kind === 'bill' || item.kind === 'invoice') ? '<u class="agenda-bill"></u>' : '',
-  items.some((item) => item.kind === 'cycle') ? '<u class="agenda-cycle"></u>' : '',
-].join('');
+export const agendaMarker = (items) =>
+  [
+    items.some((item) => item.kind === 'bill' || item.kind === 'invoice') ? '<u class="agenda-bill"></u>' : '',
+    items.some((item) => item.kind === 'cycle') ? '<u class="agenda-cycle"></u>' : '',
+  ].join('');
 
 export const agendaLabel = (items) => {
   const money = items.filter((item) => item.kind === 'bill' || item.kind === 'invoice').length;

@@ -7,12 +7,14 @@ const summary = createHomeDaySummary({
   todayTasks: [{ done: true }, todayTask],
   overdueTasks: [overdue],
   dueTodayTasks: [todayTask],
+  calendarEvents: [{ done: false }, { done: true }],
   habits: { completed: 1, planned: 3 },
   water: { total: 2500, goal: 2000 },
   balance: { cents: 12345, hidden: true },
 });
 
 assert.deepEqual(summary.tasks, { done: 1, total: 2, next: overdue });
+assert.deepEqual(summary.calendarEvents, { done: 1, total: 2, pending: 1 });
 assert.deepEqual(summary.habits, { done: 1, total: 3, remaining: 2 });
 assert.deepEqual(summary.water, { total: 2500, goal: 2000, percent: 100 });
 assert.deepEqual(summary.balance, { cents: 12345, hidden: true });
@@ -20,9 +22,11 @@ assert.deepEqual(summary.balance, { cents: 12345, hidden: true });
 const fallback = createHomeDaySummary({
   overdueTasks: [],
   dueTodayTasks: [todayTask],
+  calendarEvents: [{ done: false }],
   habits: { completed: 2, planned: 1 },
 });
 assert.equal(fallback.tasks.next, todayTask);
+assert.deepEqual(fallback.calendarEvents, { done: 0, total: 1, pending: 1 });
 assert.deepEqual(fallback.habits, { done: 2, total: 1, remaining: 0 });
 assert.equal(fallback.water, null);
 assert.equal(fallback.balance, null);

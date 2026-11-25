@@ -21,8 +21,9 @@ export function weekSpending(tx, weekStartKey, today, countable = () => true) {
 // Limites do mês para a revisão semanal: soma o gasto só nas categorias que têm limite
 // e lista as que já passaram dele. month: 'AAAA-MM'. budgets: { categoria: { cents } }.
 export function monthBudgetProgress(tx, budgets, month, countable = () => true) {
-  const entries = Object.entries(budgets && typeof budgets === 'object' ? budgets : {})
-    .filter(([, budget]) => Number.isFinite(budget?.cents) && budget.cents > 0);
+  const entries = Object.entries(budgets && typeof budgets === 'object' ? budgets : {}).filter(
+    ([, budget]) => Number.isFinite(budget?.cents) && budget.cents > 0,
+  );
   if (!entries.length) return null;
   const spentBy = new Map();
   for (const item of Array.isArray(tx) ? tx : []) {

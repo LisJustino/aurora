@@ -104,7 +104,6 @@
   .areas-navigation-item { gap: var(--space-2); padding: var(--space-2); }
   .areas-navigation-controls { grid-column: 1 / -1; justify-content: space-between; gap: var(--space-1); }
   .areas-navigation-controls .menu-visibility { white-space: normal; }
-  .settings-storage-notice { align-items: flex-start; flex-direction: column; }
   .appearance-settings-controls { grid-template-columns: minmax(0, 1fr); }
   .appearance-settings-heading { grid-template-columns: minmax(0, 1fr); }
   .appearance-settings-group > .seg {

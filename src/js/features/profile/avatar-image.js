@@ -1,41 +1,53 @@
 export const PROFILE_AVATAR_MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const PROFILE_AVATAR_MAX_BYTES = 240 * 1024;
-const PROFILE_AVATAR_MAX_DATA_URL_LENGTH = Math.ceil(PROFILE_AVATAR_MAX_BYTES / 3) * 4
-  + 'data:image/jpeg;base64,'.length;
+const PROFILE_AVATAR_MAX_DATA_URL_LENGTH =
+  Math.ceil(PROFILE_AVATAR_MAX_BYTES / 3) * 4 + 'data:image/jpeg;base64,'.length;
 const PROFILE_AVATAR_DATA_URL_PREFIX = 'data:image/jpeg;base64,';
 
 export function isProfileAvatarImageData(value) {
-  if (typeof value !== 'string' || value.length > PROFILE_AVATAR_MAX_DATA_URL_LENGTH
-    || !value.startsWith(PROFILE_AVATAR_DATA_URL_PREFIX)) return false;
+  if (
+    typeof value !== 'string' ||
+    value.length > PROFILE_AVATAR_MAX_DATA_URL_LENGTH ||
+    !value.startsWith(PROFILE_AVATAR_DATA_URL_PREFIX)
+  )
+    return false;
   const payload = value.slice(PROFILE_AVATAR_DATA_URL_PREFIX.length);
   if (!payload.startsWith('/9j/') || payload.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) return false;
   const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
-  return payload.length / 4 * 3 - padding <= PROFILE_AVATAR_MAX_BYTES;
+  return (payload.length / 4) * 3 - padding <= PROFILE_AVATAR_MAX_BYTES;
 }
 
 function canvasToJpegBlob(canvas, quality) {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('Não foi possível preparar a foto neste navegador.'));
-        return;
-      }
-      if (blob.type !== 'image/jpeg') {
-        reject(new Error('Este navegador não conseguiu converter a foto para um formato compatível.'));
-        return;
-      }
-      resolve(blob);
-    }, 'image/jpeg', quality);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Não foi possível preparar a foto neste navegador.'));
+          return;
+        }
+        if (blob.type !== 'image/jpeg') {
+          reject(new Error('Este navegador não conseguiu converter a foto para um formato compatível.'));
+          return;
+        }
+        resolve(blob);
+      },
+      'image/jpeg',
+      quality,
+    );
   });
 }
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      if (isProfileAvatarImageData(reader.result)) resolve(reader.result);
-      else reject(new Error('A foto preparada excedeu o limite permitido.'));
-    }, { once: true });
+    reader.addEventListener(
+      'load',
+      () => {
+        if (isProfileAvatarImageData(reader.result)) resolve(reader.result);
+        else reject(new Error('A foto preparada excedeu o limite permitido.'));
+      },
+      { once: true },
+    );
     reader.addEventListener('error', () => reject(new Error('Não foi possível ler a foto preparada.')), { once: true });
     reader.readAsDataURL(blob);
   });
@@ -92,7 +104,8 @@ export async function openProfileAvatarData(dataUrl) {
 export function computeAvatarCrop(width, height, { zoom = 1, focusX = width / 2, focusY = height / 2 } = {}) {
   const safeZoom = Math.min(PROFILE_AVATAR_MAX_ZOOM, Math.max(1, Number.isFinite(zoom) ? zoom : 1));
   const size = Math.min(width, height) / safeZoom;
-  const clamp = (value, total) => Math.min(total - size / 2, Math.max(size / 2, Number.isFinite(value) ? value : total / 2));
+  const clamp = (value, total) =>
+    Math.min(total - size / 2, Math.max(size / 2, Number.isFinite(value) ? value : total / 2));
   const x = clamp(focusX, width);
   const y = clamp(focusY, height);
   return { zoom: safeZoom, size, focusX: x, focusY: y, sx: x - size / 2, sy: y - size / 2 };

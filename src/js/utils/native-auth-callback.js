@@ -8,9 +8,7 @@ export function parseNativeAuthCallback(value) {
     return null;
   }
 
-  if (url.protocol !== 'br.com.aurora.rotinas:'
-    || url.hostname !== 'auth'
-    || url.pathname !== '/callback') return null;
+  if (url.protocol !== 'br.com.aurora.rotinas:' || url.hostname !== 'auth' || url.pathname !== '/callback') return null;
 
   const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
   const code = url.searchParams.get('code') || hash.get('code') || '';

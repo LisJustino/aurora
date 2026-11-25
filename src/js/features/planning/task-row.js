@@ -15,10 +15,22 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
   const taskIcon = taskIconKey(t.icon);
   const metadata = [];
   if (t.dueDate) {
-    const dateLabel = !t.done && d < 0 ? `Atrasada · ${shortDate(t.dueDate)}${tm}`
-      : d === 0 ? (isHomeNextStep ? t.time || '' : `Hoje${tm}`)
-        : d === 1 ? `Amanhã${tm}` : `${shortDate(t.dueDate)}${tm}`;
-    if (dateLabel) metadata.push({ icon: t.time ? 'clock' : 'calendar', label: dateLabel, tone: !t.done && d < 0 ? 'm-bad' : d === 0 && !isHomeNextStep ? 'm-warn' : '' });
+    const dateLabel =
+      !t.done && d < 0
+        ? `Atrasada · ${shortDate(t.dueDate)}${tm}`
+        : d === 0
+          ? isHomeNextStep
+            ? t.time || ''
+            : `Hoje${tm}`
+          : d === 1
+            ? `Amanhã${tm}`
+            : `${shortDate(t.dueDate)}${tm}`;
+    if (dateLabel)
+      metadata.push({
+        icon: t.time ? 'clock' : 'calendar',
+        label: dateLabel,
+        tone: !t.done && d < 0 ? 'm-bad' : d === 0 && !isHomeNextStep ? 'm-warn' : '',
+      });
   }
   if (t.priority === 'high') metadata.push({ icon: 'flag', label: 'Alta', tone: 'm-hi' });
   else if (t.priority === 'low') metadata.push({ icon: 'flag', label: 'Baixa', tone: '' });
@@ -31,11 +43,46 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
   const shownMetadata = metadata.slice(0, 3);
   const extraMetadata = metadata.length - shownMetadata.length;
 
-  return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}" data-k="${t.id}" ${manual ? raw('draggable="true"') : ''}>${manual ? h`<span class="mvc"><button type="button" class="ibtn mv" data-action="mv-up" data-id="${t.id}" aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv" data-action="mv-down" data-id="${t.id}" aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>` : ''}
-    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}" aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle" data-id="${t.id}"><span>${icon('check', 15)}</span></button>
-    <button class="tt" data-action="edit-task" data-id="${t.id}" aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span class="ttl">${t.title}</span>${isHomeNextStep ? h`<span class="home-next-step-label">Próximo passo</span>` : ''}</span>
-      <span class="meta">${shownMetadata.map(({ icon: iconName, label, tone }) => h`<span class="meta-chip ${tone}" title="${label}">${icon(iconName, 12)}${label}</span>`)}${extraMetadata ? h`<span class="meta-chip meta-overflow" aria-label="${extraMetadata} metadados adicionais">+${extraMetadata}</span>` : ''}</span></button>
-    <button class="ibtn" data-action="del-task" data-id="${t.id}" aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
-    ${isReviewNextWeek ? h`<div class="weekly-plan-actions" role="group" aria-label="Ações para ${t.title}"><button type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button" class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>` : ''}
+  return h`<li class="task ${t.done ? 'done' : ''}${isReviewNextWeek ? ' weekly-plan-task' : ''}${isHomeNextStep ? ' home-next-task' : ''}"
+    data-k="${t.id}" ${manual ? raw('draggable="true"') : ''}>${
+      manual
+        ? h`<span class="mvc"><button type="button"
+    class="ibtn mv" data-action="mv-up" data-id="${t.id}"
+    aria-label="Mover para cima: ${t.title}">${icon('arrowUp', 16)}</button><button type="button" class="ibtn mv"
+    data-action="mv-down" data-id="${t.id}"
+    aria-label="Mover para baixo: ${t.title}">${icon('arrowDown', 16)}</button></span>`
+        : ''
+    }
+    <button class="chk p-${t.priority}" role="checkbox" aria-checked="${String(t.done)}"
+      aria-label="${t.done ? 'Reabrir' : 'Concluir'}: ${t.title}" data-action="toggle"
+      data-id="${t.id}"><span>${icon('check', 15)}</span></button>
+    <button class="tt" data-action="edit-task" data-id="${t.id}"
+      aria-label="${isHomeNextStep ? 'Próximo passo. ' : ''}Editar: ${t.title}"><span
+      class="task-title-line">${taskIcon ? icon(taskIcon, 17, 'task-title-icon') : ''}<span
+      class="ttl">${t.title}</span>${
+        isHomeNextStep
+          ? h`<span
+      class="home-next-step-label">Próximo passo</span>`
+          : ''
+      }</span>
+      <span class="meta">${shownMetadata.map(
+        ({ icon: iconName, label, tone }) => h`<span class="meta-chip ${tone}"
+        title="${label}">${icon(iconName, 12)}${label}</span>`,
+      )}${
+        extraMetadata
+          ? h`<span
+        class="meta-chip meta-overflow"
+        aria-label="${extraMetadata} metadados adicionais">+${extraMetadata}</span>`
+          : ''
+      }</span></button>
+    <button class="ibtn" data-action="del-task" data-id="${t.id}"
+      aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
+    ${
+      isReviewNextWeek
+        ? h`<div class="weekly-plan-actions" role="group" aria-label="Ações para ${t.title}"><button
+      type="button" class="btn ghost sm" data-action="edit-task" data-id="${t.id}">Ajustar</button><button type="button"
+      class="btn ghost sm" data-action="weekly-defer-task" data-id="${t.id}">Adiar uma semana</button></div>`
+        : ''
+    }
   </li>`;
 }

@@ -70,26 +70,32 @@ export function topSymptoms(cycleLog, asOfDate, getLabel) {
       counts[key] = (counts[key] || 0) + 1;
     });
   });
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key, count]) => {
-    const [category, value] = key.split(':');
-    return { category, value, label: getLabel(category, value), count };
-  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([key, count]) => {
+      const [category, value] = key.split(':');
+      return { category, value, label: getLabel(category, value), count };
+    });
 }
 
 export function cycleHistory(starts, periodSet, limit = 12) {
   const sorted = [...(Array.isArray(starts) ? starts : [])].sort();
   const set = periodSet instanceof Set ? periodSet : new Set();
-  return sorted.map((start, index) => {
-    let periodLength = 0;
-    while (set.has(addDays(start, periodLength))) periodLength += 1;
-    const nextStart = sorted[index + 1] || null;
-    return {
-      start,
-      periodLength,
-      length: nextStart ? dayDiff(nextStart, start) : null,
-      ongoing: !nextStart,
-    };
-  }).reverse().slice(0, limit);
+  return sorted
+    .map((start, index) => {
+      let periodLength = 0;
+      while (set.has(addDays(start, periodLength))) periodLength += 1;
+      const nextStart = sorted[index + 1] || null;
+      return {
+        start,
+        periodLength,
+        length: nextStart ? dayDiff(nextStart, start) : null,
+        ongoing: !nextStart,
+      };
+    })
+    .reverse()
+    .slice(0, limit);
 }
 
 export function nextPeriodRange(stats) {

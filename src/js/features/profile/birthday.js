@@ -14,20 +14,32 @@ function parseCivilDate(value) {
 
 export function calculateAge(birthDate, today = new Date()) {
   const date = parseCivilDate(birthDate);
-  if (!date || date.getFullYear() < 1900 || !(today instanceof Date) || Number.isNaN(today.getTime())
-    || date > today) return null;
-  const age = today.getFullYear() - date.getFullYear()
-    - (today.getMonth() < date.getMonth()
-      || (today.getMonth() === date.getMonth() && today.getDate() < date.getDate()) ? 1 : 0);
+  if (!date || date.getFullYear() < 1900 || !(today instanceof Date) || Number.isNaN(today.getTime()) || date > today)
+    return null;
+  const age =
+    today.getFullYear() -
+    date.getFullYear() -
+    (today.getMonth() < date.getMonth() || (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
+      ? 1
+      : 0);
   return age >= 0 && age <= 120 ? age : null;
 }
 
 export function isValidBirthdayReference(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const { month, day, ageAtReference, referenceDate } = value;
-  if (!Number.isInteger(month) || month < 1 || month > 12
-    || !Number.isInteger(day) || day < 1 || day > new Date(2000, month, 0).getDate()
-    || !Number.isInteger(ageAtReference) || ageAtReference < 0 || ageAtReference > 120) return false;
+  if (
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12 ||
+    !Number.isInteger(day) ||
+    day < 1 ||
+    day > new Date(2000, month, 0).getDate() ||
+    !Number.isInteger(ageAtReference) ||
+    ageAtReference < 0 ||
+    ageAtReference > 120
+  )
+    return false;
   const reference = parseCivilDate(referenceDate);
   return Boolean(reference && reference.getFullYear() >= 1900 && reference <= new Date());
 }
@@ -40,8 +52,13 @@ export function createBirthdayReferenceFromParts({ month, day, ageAtReference, r
 export function createBirthdayReference(birthDate, referenceDate = new Date()) {
   const ageAtReference = calculateAge(birthDate, referenceDate);
   const parsedBirthDate = parseCivilDate(birthDate);
-  if (ageAtReference === null || !parsedBirthDate
-    || !(referenceDate instanceof Date) || Number.isNaN(referenceDate.getTime())) return null;
+  if (
+    ageAtReference === null ||
+    !parsedBirthDate ||
+    !(referenceDate instanceof Date) ||
+    Number.isNaN(referenceDate.getTime())
+  )
+    return null;
   return {
     month: parsedBirthDate.getMonth() + 1,
     day: parsedBirthDate.getDate(),

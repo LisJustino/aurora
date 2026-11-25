@@ -6,7 +6,11 @@ import {
   isPublicAccountLocation,
   isPublicLandingLocation,
 } from './core/router.js';
-import { initializePublicAppearance, handlePublicControl, handlePublicKeydown } from './features/appearance/public-controls.js';
+import {
+  initializePublicAppearance,
+  handlePublicControl,
+  handlePublicKeydown,
+} from './features/appearance/public-controls.js';
 import { renderLanding, renderLandingDemo } from './features/landing/view.js';
 import { stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
@@ -45,13 +49,17 @@ function setupKeyboardViewportSafety() {
 
   window.visualViewport.addEventListener('resize', updateKeyboardInset);
   window.visualViewport.addEventListener('scroll', updateKeyboardInset);
-  document.addEventListener('focusin', (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
-    if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
-    if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
-    target.scrollIntoView({ block: 'center', inline: 'nearest' });
-  }, true);
+  document.addEventListener(
+    'focusin',
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || target.closest('#dlg')) return;
+      if (!target.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (!window.visualViewport || window.visualViewport.height >= window.innerHeight) return;
+      target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    },
+    true,
+  );
 
   window.__auroraKeyboardViewportSafety = true;
 }
@@ -70,7 +78,8 @@ function updatePublicConnectionNotice() {
   notice.id = 'public-offline-notice';
   notice.className = 'notice warn offline-banner';
   notice.setAttribute('role', 'status');
-  notice.textContent = 'Sem conexão com a internet. A demonstração continua disponível, mas entrar e sincronizar dados exigem conexão.';
+  notice.textContent =
+    'Sem conexão com a internet. A demonstração continua disponível, mas entrar e sincronizar dados exigem conexão.';
   const content = container.querySelector('.public-main, .demo-main');
   if (content) content.before(notice);
   else container.prepend(notice);
@@ -162,10 +171,13 @@ async function loadApplication(mode = 'login') {
 }
 
 function startPublicPwaSupport() {
-  if (!import.meta.env.PROD
-    || import.meta.env.VITE_PWA_ENABLED === 'false'
-    || isNativeApp()
-    || !('serviceWorker' in navigator)) return;
+  if (
+    !import.meta.env.PROD ||
+    import.meta.env.VITE_PWA_ENABLED === 'false' ||
+    isNativeApp() ||
+    !('serviceWorker' in navigator)
+  )
+    return;
   let active = true;
   let cleanupRegistration = () => {};
   publicPwaCleanup = () => {
@@ -173,64 +185,73 @@ function startPublicPwaSupport() {
     cleanupRegistration();
   };
 
-  void navigator.serviceWorker.register('/service-worker.js').then((registration) => {
-    if (!active) return;
-    let announcedWorker = null;
-    const installingWorkers = [];
-    const prepareOfflineStyles = () => {
-      const stylesheet = document.querySelector('meta[name="aurora-app-css"]')?.content;
-      if (!stylesheet || !active) return;
-      void navigator.serviceWorker.ready.then((readyRegistration) => {
-        if (active) readyRegistration.active?.postMessage({ type: 'CACHE_PUBLIC_STYLES', url: stylesheet });
-      }).catch((error) => {
-        console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
-      });
-    };
-
-    const activateWaitingWorker = () => {
-      const waiting = registration.waiting;
-      if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
-      announcedWorker = waiting;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      }, { once: true });
-      waiting.postMessage({ type: 'SKIP_WAITING' });
-    };
-
-    const onUpdateFound = () => {
-      const installing = registration.installing;
-      if (!installing) return;
-      const onStateChange = () => {
-        if (active && installing.state === 'installed') activateWaitingWorker();
+  void navigator.serviceWorker
+    .register('/service-worker.js')
+    .then((registration) => {
+      if (!active) return;
+      let announcedWorker = null;
+      const installingWorkers = [];
+      const prepareOfflineStyles = () => {
+        const stylesheet = document.querySelector('meta[name="aurora-app-css"]')?.content;
+        if (!stylesheet || !active) return;
+        void navigator.serviceWorker.ready
+          .then((readyRegistration) => {
+            if (active) readyRegistration.active?.postMessage({ type: 'CACHE_PUBLIC_STYLES', url: stylesheet });
+          })
+          .catch((error) => {
+            console.warn('O Aurora não conseguiu preparar os estilos offline.', error);
+          });
       };
-      installing.addEventListener('statechange', onStateChange);
-      installingWorkers.push([installing, onStateChange]);
-    };
-    const checkForUpdate = () => {
-      if (document.visibilityState !== 'hidden') {
-        void registration.update().catch((error) => {
-          console.warn('O Aurora não conseguiu verificar se há uma atualização disponível.', error);
-        });
-      }
-    };
 
-    registration.addEventListener('updatefound', onUpdateFound);
-    window.addEventListener('focus', checkForUpdate);
-    window.addEventListener('online', prepareOfflineStyles);
-    document.addEventListener('visibilitychange', checkForUpdate);
-    cleanupRegistration = () => {
-      registration.removeEventListener('updatefound', onUpdateFound);
-      window.removeEventListener('focus', checkForUpdate);
-      window.removeEventListener('online', prepareOfflineStyles);
-      document.removeEventListener('visibilitychange', checkForUpdate);
-      installingWorkers.forEach(([worker, listener]) => worker.removeEventListener('statechange', listener));
-      document.getElementById('pwa-update-notice')?.remove();
-    };
-    prepareOfflineStyles();
-    activateWaitingWorker();
-  }).catch((error) => {
-    if (active) console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
-  });
+      const activateWaitingWorker = () => {
+        const waiting = registration.waiting;
+        if (!waiting || !navigator.serviceWorker.controller || waiting === announcedWorker) return;
+        announcedWorker = waiting;
+        navigator.serviceWorker.addEventListener(
+          'controllerchange',
+          () => {
+            window.location.reload();
+          },
+          { once: true },
+        );
+        waiting.postMessage({ type: 'SKIP_WAITING' });
+      };
+
+      const onUpdateFound = () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        const onStateChange = () => {
+          if (active && installing.state === 'installed') activateWaitingWorker();
+        };
+        installing.addEventListener('statechange', onStateChange);
+        installingWorkers.push([installing, onStateChange]);
+      };
+      const checkForUpdate = () => {
+        if (document.visibilityState !== 'hidden') {
+          void registration.update().catch((error) => {
+            console.warn('O Aurora não conseguiu verificar se há uma atualização disponível.', error);
+          });
+        }
+      };
+
+      registration.addEventListener('updatefound', onUpdateFound);
+      window.addEventListener('focus', checkForUpdate);
+      window.addEventListener('online', prepareOfflineStyles);
+      document.addEventListener('visibilitychange', checkForUpdate);
+      cleanupRegistration = () => {
+        registration.removeEventListener('updatefound', onUpdateFound);
+        window.removeEventListener('focus', checkForUpdate);
+        window.removeEventListener('online', prepareOfflineStyles);
+        document.removeEventListener('visibilitychange', checkForUpdate);
+        installingWorkers.forEach(([worker, listener]) => worker.removeEventListener('statechange', listener));
+        document.getElementById('pwa-update-notice')?.remove();
+      };
+      prepareOfflineStyles();
+      activateWaitingWorker();
+    })
+    .catch((error) => {
+      if (active) console.error('O Aurora não conseguiu iniciar o suporte offline.', error);
+    });
 }
 
 if (!(root instanceof HTMLElement)) {
@@ -253,22 +274,25 @@ function hasSavedAccountSession() {
 }
 
 // O app instalado só pula a landing quando há sessão salva; sem sessão, mostra a landing.
-const installedLanding = routeMeta
-  && !isDemoLocation(location)
-  && document.documentElement.dataset.auroraAuthCallback !== 'true'
-  && isAppInstalled()
-  && hasSavedAccountSession()
-  && isPublicLandingLocation(location);
+const installedLanding =
+  routeMeta &&
+  !isDemoLocation(location) &&
+  document.documentElement.dataset.auroraAuthCallback !== 'true' &&
+  isAppInstalled() &&
+  hasSavedAccountSession() &&
+  isPublicLandingLocation(location);
 if (installedLanding) {
   history.replaceState(null, '', `/inicio${location.search}`);
 }
 
-const publicEntryRoute = routeMeta && (
-  isPublicLandingLocation(location)
-  || isPublicAccountLocation(location)
-);
+const publicEntryRoute = routeMeta && (isPublicLandingLocation(location) || isPublicAccountLocation(location));
 
-if (localPreview || !publicEntryRoute || installedLanding || document.documentElement.dataset.auroraAuthCallback === 'true') {
+if (
+  localPreview ||
+  !publicEntryRoute ||
+  installedLanding ||
+  document.documentElement.dataset.auroraAuthCallback === 'true'
+) {
   import('./main.js').catch((error) => {
     console.error('Aurora: não foi possível carregar a aplicação.', error);
     showEntryError(root);
@@ -283,18 +307,20 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
       mobileCtaCleanup();
       root.setAttribute('aria-busy', 'true');
       const requestedPath = renderedPublicPath;
-      void import('../css/main.css').then(() => {
-        if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
-        renderLandingDemo(root);
-        root.removeAttribute('aria-busy');
-        document.title = 'Demonstração | aurora.';
-        updatePublicConnectionNotice();
-      }).catch((error) => {
-        if (`${location.pathname}${location.search}` !== requestedPath) return;
-        console.error('Aurora: não foi possível carregar os estilos da demonstração.', error);
-        root.removeAttribute('aria-busy');
-        showEntryError(root);
-      });
+      void import('../css/main.css')
+        .then(() => {
+          if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
+          renderLandingDemo(root);
+          root.removeAttribute('aria-busy');
+          document.title = 'Demonstração | aurora.';
+          updatePublicConnectionNotice();
+        })
+        .catch((error) => {
+          if (`${location.pathname}${location.search}` !== requestedPath) return;
+          console.error('Aurora: não foi possível carregar os estilos da demonstração.', error);
+          root.removeAttribute('aria-busy');
+          showEntryError(root);
+        });
       return;
     } else {
       root.removeAttribute('aria-busy');
@@ -310,26 +336,34 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
   };
   if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
-    import('./account-entry.js').then(({ startAccountEntry }) => startAccountEntry(
-      root,
-      accountModeFromLocation(location) || 'login',
-      {
-        allowPublicReturn: true,
-        onPublicReturn: returnToPublicLanding,
-      },
-    )).catch((error) => {
-      console.error('Aurora: não foi possível carregar a tela da conta.', error);
-      showEntryError(root);
-    });
+    import('./account-entry.js')
+      .then(({ startAccountEntry }) =>
+        startAccountEntry(root, accountModeFromLocation(location) || 'login', {
+          allowPublicReturn: true,
+          onPublicReturn: returnToPublicLanding,
+        }),
+      )
+      .catch((error) => {
+        console.error('Aurora: não foi possível carregar a tela da conta.', error);
+        showEntryError(root);
+      });
   }
 
   if (isPublicLandingLocation(location) && !isDemoLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
     ['focusin', 'touchstart'].forEach((type) => {
-      root.addEventListener(type, (event) => {
-        if (event.target instanceof Element && event.target.closest('[data-public-action="login"], [data-public-action="signup"]')) warmAccountEntry();
-      }, { passive: true });
+      root.addEventListener(
+        type,
+        (event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest('[data-public-action="login"], [data-public-action="signup"]')
+          )
+            warmAccountEntry();
+        },
+        { passive: true },
+      );
     });
     window.addEventListener('online', updatePublicConnectionNotice);
     window.addEventListener('offline', updatePublicConnectionNotice);
@@ -341,31 +375,36 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     updatePublicConnectionNotice();
   }
 
-  const sessionRestore = isPublicLandingLocation(location) && !isDemoLocation(location) ? (async () => {
-    try {
-      const { hasSupabaseConfig, hasStoredAuthSession } = await import('./data/supabase-client.js');
-      const query = new URLSearchParams(location.search);
-      const hash = new URLSearchParams(location.hash.slice(1));
-      const hasAuthCallback = [query, hash].some((params) => params.has('access_token') || params.has('error_description'));
-      if (!hasSupabaseConfig() || (!hasAuthCallback && !hasStoredAuthSession(window))) return false;
-      const { getAccountClient } = await import('./services/account-auth.js');
-      const client = await getAccountClient();
-      const { data, error } = await client.auth.getSession();
-      if (error) throw error;
-      if (!data.session?.user) return false;
-      if (!isPublicLandingLocation(location) || isDemoLocation(location)) return false;
-      try {
-        await loadApplication();
-      } catch (error) {
-        console.error('Aurora: a sessão existente não pôde ser restaurada.', error);
-        showEntryError(root);
-      }
-      return true;
-    } catch (error) {
-      console.error('Aurora: não foi possível verificar a sessão salva.', error);
-      return false;
-    }
-  })() : Promise.resolve(false);
+  const sessionRestore =
+    isPublicLandingLocation(location) && !isDemoLocation(location)
+      ? (async () => {
+          try {
+            const { hasSupabaseConfig, hasStoredAuthSession } = await import('./data/supabase-client.js');
+            const query = new URLSearchParams(location.search);
+            const hash = new URLSearchParams(location.hash.slice(1));
+            const hasAuthCallback = [query, hash].some(
+              (params) => params.has('access_token') || params.has('error_description'),
+            );
+            if (!hasSupabaseConfig() || (!hasAuthCallback && !hasStoredAuthSession(window))) return false;
+            const { getAccountClient } = await import('./services/account-auth.js');
+            const client = await getAccountClient();
+            const { data, error } = await client.auth.getSession();
+            if (error) throw error;
+            if (!data.session?.user) return false;
+            if (!isPublicLandingLocation(location) || isDemoLocation(location)) return false;
+            try {
+              await loadApplication();
+            } catch (error) {
+              console.error('Aurora: a sessão existente não pôde ser restaurada.', error);
+              showEntryError(root);
+            }
+            return true;
+          } catch (error) {
+            console.error('Aurora: não foi possível verificar a sessão salva.', error);
+            return false;
+          }
+        })()
+      : Promise.resolve(false);
 
   const onPublicNavigation = () => {
     normalizeLegacyRoute();
@@ -395,9 +434,7 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
 
   root.addEventListener('click', async (event) => {
     if (handlePublicControl(event, root)) return;
-    const installAction = event.target instanceof Element
-      ? event.target.closest('[data-action="pwa-install"]')
-      : null;
+    const installAction = event.target instanceof Element ? event.target.closest('[data-action="pwa-install"]') : null;
     if (installAction) {
       showPwaInstallPrompt();
       return;
@@ -448,7 +485,8 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     trigger.setAttribute('aria-busy', 'true');
     const label = trigger.textContent?.trim();
     if (label && !trigger.dataset.defaultLabel) trigger.dataset.defaultLabel = label;
-    if (trigger.dataset.defaultLabel) trigger.textContent = trigger.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
+    if (trigger.dataset.defaultLabel)
+      trigger.textContent = trigger.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
 
     try {
       const sessionReady = await sessionRestore;
@@ -504,9 +542,10 @@ if (localPreview || !publicEntryRoute || installedLanding || document.documentEl
     } catch (error) {
       console.error('Aurora: não foi possível enviar a sugestão.', error);
       if (errorMessage) {
-        errorMessage.textContent = error instanceof TypeError
-          ? error.message
-          : 'Não foi possível enviar agora. Confira sua conexão e tente novamente.';
+        errorMessage.textContent =
+          error instanceof TypeError
+            ? error.message
+            : 'Não foi possível enviar agora. Confira sua conexão e tente novamente.';
         errorMessage.hidden = false;
       }
       if (status) status.textContent = '';

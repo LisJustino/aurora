@@ -13,25 +13,61 @@ const LINE_PREFIX = /^\s*(?:[-–—•*]\s+(?:\[[ xX]?\]\s*)?|\d+[.)]\s+|\[[ xX
 const SEPARATOR = /\s[-–—]\s|\s*[:|]\s*/;
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
-const normalize = (value) => String(value ?? '')
-  .normalize('NFD')
-  .replace(/[̀-ͯ]/g, '')
-  .toLocaleLowerCase('pt-BR')
-  .replace(/\s+/g, ' ')
-  .trim();
+const normalize = (value) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const DAY_WORDS = {
-  dom: 0, domingo: 0, domingos: 0,
-  seg: 1, segunda: 1, segundas: 1,
-  ter: 2, terca: 2, tercas: 2,
-  qua: 3, quarta: 3, quartas: 3,
-  qui: 4, quinta: 4, quintas: 4,
-  sex: 5, sexta: 5, sextas: 5,
-  sab: 6, sabado: 6, sabados: 6,
+  dom: 0,
+  domingo: 0,
+  domingos: 0,
+  seg: 1,
+  segunda: 1,
+  segundas: 1,
+  ter: 2,
+  terca: 2,
+  tercas: 2,
+  qua: 3,
+  quarta: 3,
+  quartas: 3,
+  qui: 4,
+  quinta: 4,
+  quintas: 4,
+  sex: 5,
+  sexta: 5,
+  sextas: 5,
+  sab: 6,
+  sabado: 6,
+  sabados: 6,
 };
 const FILLER = new Set([
-  'e', 'a', 'ate', 'de', 'da', 'do', 'das', 'dos', 'as', 'os', 'nas', 'nos', 'na', 'no',
-  'por', 'semana', 'vez', 'vezes', 'x', 'todas', 'todos', 'dias', 'dia',
+  'e',
+  'a',
+  'ate',
+  'de',
+  'da',
+  'do',
+  'das',
+  'dos',
+  'as',
+  'os',
+  'nas',
+  'nos',
+  'na',
+  'no',
+  'por',
+  'semana',
+  'vez',
+  'vezes',
+  'x',
+  'todas',
+  'todos',
+  'dias',
+  'dia',
 ]);
 
 function range(from, to) {
@@ -93,25 +129,35 @@ export function parseBulkHabits(text, existingHabits = []) {
   const taken = new Set((Array.isArray(existingHabits) ? existingHabits : []).map((habit) => normalize(habit.name)));
   const seen = new Set();
   const rows = [];
-  String(text ?? '').split(/\r?\n/).forEach((rawLine, index) => {
-    const source = rawLine.trim();
-    if (!source) return;
-    const line = index + 1;
-    const fail = (error) => rows.push({ line, source, error });
-    if (rows.length >= MAX_BULK_HABITS) return fail(`Limite de ${MAX_BULK_HABITS} hábitos por vez.`);
-    const stripped = source.replace(LINE_PREFIX, '').trim();
-    const match = stripped.match(SEPARATOR);
-    const name = (match ? stripped.slice(0, match.index) : stripped).trim();
-    const scheduleText = match ? stripped.slice(match.index + match[0].length) : '';
-    if (!/[\p{L}\d]/u.test(name)) return fail('Escreva o nome do hábito.');
-    if (name.length > MAX_HABIT_NAME) return fail(`O nome passa de ${MAX_HABIT_NAME} caracteres.`);
-    if (isWaterHabit({ name })) return fail('O hábito de água tem meta própria. Crie-o por “Novo hábito”.');
-    const schedule = parseHabitSchedule(scheduleText);
-    if (schedule.error) return fail(schedule.error);
-    const key = normalize(name);
-    const duplicate = taken.has(key) || seen.has(key);
-    seen.add(key);
-    rows.push({ line, source, name, days: schedule.days, weeklyGoal: schedule.weeklyGoal, duplicate, on: !duplicate });
-  });
+  String(text ?? '')
+    .split(/\r?\n/)
+    .forEach((rawLine, index) => {
+      const source = rawLine.trim();
+      if (!source) return;
+      const line = index + 1;
+      const fail = (error) => rows.push({ line, source, error });
+      if (rows.length >= MAX_BULK_HABITS) return fail(`Limite de ${MAX_BULK_HABITS} hábitos por vez.`);
+      const stripped = source.replace(LINE_PREFIX, '').trim();
+      const match = stripped.match(SEPARATOR);
+      const name = (match ? stripped.slice(0, match.index) : stripped).trim();
+      const scheduleText = match ? stripped.slice(match.index + match[0].length) : '';
+      if (!/[\p{L}\d]/u.test(name)) return fail('Escreva o nome do hábito.');
+      if (name.length > MAX_HABIT_NAME) return fail(`O nome passa de ${MAX_HABIT_NAME} caracteres.`);
+      if (isWaterHabit({ name })) return fail('O hábito de água tem meta própria. Crie-o por “Novo hábito”.');
+      const schedule = parseHabitSchedule(scheduleText);
+      if (schedule.error) return fail(schedule.error);
+      const key = normalize(name);
+      const duplicate = taken.has(key) || seen.has(key);
+      seen.add(key);
+      rows.push({
+        line,
+        source,
+        name,
+        days: schedule.days,
+        weeklyGoal: schedule.weeklyGoal,
+        duplicate,
+        on: !duplicate,
+      });
+    });
   return rows;
 }

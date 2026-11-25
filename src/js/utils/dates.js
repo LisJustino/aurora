@@ -27,7 +27,20 @@ export const weekStart = (key, startDay = 1) => {
 };
 export const isoDay = (iso) => dk(new Date(iso));
 export const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-export const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+export const MESES_L = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
 export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export const shortDate = (key) => {
   const date = pk(key);
@@ -44,7 +57,8 @@ export const clock = (seconds) => {
 export const dur = (seconds) => {
   const minutes = Math.round(seconds / 60);
   if (minutes < 1) return seconds > 0 ? '<1 min' : '0 min';
-  const hours = Math.floor(minutes / 60), remainder = minutes % 60;
+  const hours = Math.floor(minutes / 60),
+    remainder = minutes % 60;
   return hours ? (remainder ? `${hours} h ${remainder} min` : `${hours} h`) : `${minutes} min`;
 };
 export const normalizeDay = (value) => {
@@ -55,11 +69,7 @@ export const normalizeDay = (value) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [year, month, day] = trimmed.split('-').map(Number);
     const date = new Date(year, month - 1, day);
-    return date.getFullYear() === year
-      && date.getMonth() === month - 1
-      && date.getDate() === day
-      ? trimmed
-      : '';
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? trimmed : '';
   }
 
   const cleaned = trimmed.replace(/[^\d]/g, '-').replace(/-+/g, '-');
@@ -80,7 +90,5 @@ export const isDay = (value) => {
   if (!match) return false;
   const [, year, month, day] = match;
   const date = new Date(Number(year), Number(month) - 1, Number(day));
-  return date.getFullYear() === Number(year)
-    && date.getMonth() === Number(month) - 1
-    && date.getDate() === Number(day);
+  return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day);
 };

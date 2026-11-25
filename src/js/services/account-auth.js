@@ -1,16 +1,8 @@
-import {
-  getSupabaseClient,
-  hasSupabaseConfig,
-  setRememberSession,
-} from '../data/supabase-client.js';
+import { getSupabaseClient, hasSupabaseConfig, setRememberSession } from '../data/supabase-client.js';
 import { renderPublicHeader } from '../features/appearance/public-controls.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { calculateAge, isValidBirthdayReference } from '../features/profile/birthday.js';
-import {
-  accountModeFromLocation,
-  accountPathForMode,
-  isPublicLandingLocation,
-} from '../core/router.js';
+import { accountModeFromLocation, accountPathForMode, isPublicLandingLocation } from '../core/router.js';
 import { iconSvg } from '../utils/icons.js';
 import { isNativeApp } from '../utils/platform.js';
 import { NATIVE_AUTH_REDIRECT_URL } from '../utils/native-auth-callback.js';
@@ -43,11 +35,13 @@ export function createLegalConsentMetadata(acceptedAt = new Date()) {
 
 export function hasCurrentLegalConsent(user) {
   const metadata = user?.user_metadata;
-  return Boolean(metadata
-    && metadata.terms_version === TERMS_DOCUMENT_VERSION
-    && metadata.privacy_policy_version === PRIVACY_POLICY_VERSION
-    && typeof metadata.terms_accepted_at === 'string'
-    && Number.isFinite(Date.parse(metadata.terms_accepted_at)));
+  return Boolean(
+    metadata &&
+    metadata.terms_version === TERMS_DOCUMENT_VERSION &&
+    metadata.privacy_policy_version === PRIVACY_POLICY_VERSION &&
+    typeof metadata.terms_accepted_at === 'string' &&
+    Number.isFinite(Date.parse(metadata.terms_accepted_at)),
+  );
 }
 
 export function createCycleDataConsentMetadata(acceptedAt = new Date()) {
@@ -70,26 +64,31 @@ export function createCycleDataConsentRevocationMetadata(revokedAt = new Date())
 
 export function hasCurrentCycleDataConsent(user) {
   const metadata = user?.user_metadata;
-  return Boolean(metadata
-    && metadata.cycle_data_consent_version === CYCLE_DATA_CONSENT_VERSION
-    && typeof metadata.cycle_data_consent_at === 'string'
-    && Number.isFinite(Date.parse(metadata.cycle_data_consent_at))
-    && !metadata.cycle_data_consent_revoked_at);
+  return Boolean(
+    metadata &&
+    metadata.cycle_data_consent_version === CYCLE_DATA_CONSENT_VERSION &&
+    typeof metadata.cycle_data_consent_at === 'string' &&
+    Number.isFinite(Date.parse(metadata.cycle_data_consent_at)) &&
+    !metadata.cycle_data_consent_revoked_at,
+  );
 }
 
 export function hasCompleteProfile(user) {
   const metadata = user?.user_metadata;
-  return Boolean(metadata
-    && typeof metadata.name === 'string'
-    && metadata.name.trim()
-    && typeof metadata.preferred_name === 'string'
-    && metadata.preferred_name.trim()
-    && (metadata.age_confirmed === true || isValidBirthdayReference({
-      month: metadata.birthday_month,
-      day: metadata.birthday_day,
-      ageAtReference: metadata.age,
-      referenceDate: metadata.birthday_reference_date,
-    })));
+  return Boolean(
+    metadata &&
+    typeof metadata.name === 'string' &&
+    metadata.name.trim() &&
+    typeof metadata.preferred_name === 'string' &&
+    metadata.preferred_name.trim() &&
+    (metadata.age_confirmed === true ||
+      isValidBirthdayReference({
+        month: metadata.birthday_month,
+        day: metadata.birthday_day,
+        ageAtReference: metadata.age,
+        referenceDate: metadata.birthday_reference_date,
+      })),
+  );
 }
 
 export function hasSocialIdentity(user) {
@@ -105,10 +104,7 @@ export function getOAuthRedirectUrl(origin) {
   return new URL('/', origin).href;
 }
 
-const SLICES = new Set([
-  'tasks', 'settings',
-  'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits',
-]);
+const SLICES = new Set(['tasks', 'settings', 'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits']);
 
 let clientPromise;
 const EMAIL_DOMAINS = [
@@ -133,9 +129,9 @@ export function getEmailDomainSuggestions(value) {
   if (separator <= 0 || value.indexOf('@') !== separator) return [];
   const localPart = value.slice(0, separator);
   const domainPrefix = value.slice(separator + 1).toLowerCase();
-  return EMAIL_DOMAINS
-    .filter((domain) => domain.startsWith(domainPrefix) && domain !== domainPrefix)
-    .map((domain) => `${localPart}@${domain}`);
+  return EMAIL_DOMAINS.filter((domain) => domain.startsWith(domainPrefix) && domain !== domainPrefix).map(
+    (domain) => `${localPart}@${domain}`,
+  );
 }
 
 export function passwordRecoveryErrorMessage(error) {
@@ -167,17 +163,20 @@ function loginErrorMessage(error) {
     .filter((value) => typeof value === 'string')
     .join(' ')
     .toLowerCase();
-  if ((typeof navigator !== 'undefined' && navigator.onLine === false)
-    || name === 'AuthRetryableFetchError'
-    || error instanceof TypeError) {
+  if (
+    (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+    name === 'AuthRetryableFetchError' ||
+    error instanceof TypeError
+  ) {
     return 'Sem conexão com a internet. Confira sua conexão e tente entrar novamente.';
   }
-  if (['user_not_found', 'email_not_found'].includes(code)
-    || /(?:user|email) not found/.test(providerMessage)) {
+  if (['user_not_found', 'email_not_found'].includes(code) || /(?:user|email) not found/.test(providerMessage)) {
     return 'Não encontramos uma conta com esse e-mail. Confira o endereço ou crie uma conta.';
   }
-  if (['invalid_password', 'password_incorrect'].includes(code)
-    || /(?:invalid|incorrect) password/.test(providerMessage)) {
+  if (
+    ['invalid_password', 'password_incorrect'].includes(code) ||
+    /(?:invalid|incorrect) password/.test(providerMessage)
+  ) {
     return 'A senha está incorreta. Confira e tente novamente.';
   }
   if (code === 'invalid_credentials' || /invalid login credentials|invalid credentials/.test(providerMessage)) {
@@ -216,7 +215,8 @@ export async function getAccountClient() {
     throw new Error('O projeto de contas não está configurado com uma URL HTTPS e uma chave pública.');
   }
   if (!clientPromise) {
-    clientPromise = Promise.resolve().then(() => getSupabaseClient())
+    clientPromise = Promise.resolve()
+      .then(() => getSupabaseClient())
       .catch((error) => {
         clientPromise = null;
         throw error;
@@ -238,10 +238,13 @@ function setAccountFieldError(input, message) {
   let error = field.querySelector('.account-field-error');
   if (!message) {
     if (error) {
-      input.setAttribute('aria-describedby', (input.getAttribute('aria-describedby') || '')
-        .split(/\s+/)
-        .filter((id) => id && id !== error.id)
-        .join(' '));
+      input.setAttribute(
+        'aria-describedby',
+        (input.getAttribute('aria-describedby') || '')
+          .split(/\s+/)
+          .filter((id) => id && id !== error.id)
+          .join(' '),
+      );
       error.remove();
     }
     input.removeAttribute('aria-invalid');
@@ -340,9 +343,12 @@ function attachEmailSuggestions(input) {
       if (popup.hidden) refresh();
       if (suggestions.length) {
         event.preventDefault();
-        const nextIndex = activeIndex < 0
-          ? (event.key === 'ArrowDown' ? 0 : suggestions.length - 1)
-          : activeIndex + (event.key === 'ArrowDown' ? 1 : -1);
+        const nextIndex =
+          activeIndex < 0
+            ? event.key === 'ArrowDown'
+              ? 0
+              : suggestions.length - 1
+            : activeIndex + (event.key === 'ArrowDown' ? 1 : -1);
         setActive(nextIndex);
       }
     } else if (event.key === 'Enter' && activeIndex >= 0) {
@@ -441,7 +447,6 @@ function setSubmitPending(button, pending) {
   button.disabled = false;
 }
 
-
 const SUCCESS_ART = `<svg class="account-success-svg" viewBox="0 0 120 96" role="presentation" focusable="false">
     <circle class="ok-halo" cx="60" cy="50" r="38"/>
     <circle class="ok-disc" cx="60" cy="50" r="28"/>
@@ -480,7 +485,8 @@ const ACCOUNT_ART = {
       </ul>
     </div>
     <div class="account-preview-card is-habits">
-      <svg viewBox="0 0 44 44" role="presentation" focusable="false"><circle class="ring-bg" cx="22" cy="22" r="17"/><circle class="ring-fg" cx="22" cy="22" r="17"/></svg>
+      <svg viewBox="0 0 44 44" role="presentation" focusable="false"><circle class="ring-bg" cx="22" cy="22"
+        r="17"/><circle class="ring-fg" cx="22" cy="22" r="17"/></svg>
       <p><b>5 de 7</b>hábitos na semana</p>
     </div>
     <div class="account-preview-card is-money">
@@ -501,7 +507,7 @@ function createAccountArt(mode) {
 
 function createAccountIntro(mode = '', brandLink = null) {
   const intro = create('aside', 'account-intro');
-  const eyebrow = create('p', 'account-intro-eyebrow', 'SUA ROTINA, NO SEU RITMO');
+  const eyebrow = create('p', 'account-intro-eyebrow', 'TAREFAS, HÁBITOS, FINANÇAS E CICLO');
   const introCopies = {
     login: {
       heading: 'Bem-vinda de volta!',
@@ -530,11 +536,7 @@ function createAccountIntro(mode = '', brandLink = null) {
     description: 'Planeje seus dias, acompanhe hábitos e cuide das suas finanças em um só lugar.',
   };
   const heading = create('h2', 'type-editorial-display', copy.heading);
-  const description = create(
-    'p',
-    'account-intro-description',
-    copy.description,
-  );
+  const description = create('p', 'account-intro-description', copy.description);
   if (brandLink) intro.append(brandLink);
   if (!introCopy) {
     const topics = create('ul', 'account-intro-topics');
@@ -573,11 +575,10 @@ export function appendLegalConsent(form, { updatedDocuments = false } = {}) {
   accepted.name = 'termsAccepted';
   accepted.required = true;
   const consent = create('label', 'account-terms-consent');
-  consent.append(accepted, create(
-    'span',
-    'account-terms-label',
-    'Li e aceito os Termos de Uso e a Política de Privacidade.',
-  ));
+  consent.append(
+    accepted,
+    create('span', 'account-terms-label', 'Li e aceito os Termos de Uso e a Política de Privacidade.'),
+  );
 
   const termsLink = create('a', '', 'Termos de Uso');
   termsLink.href = '/terms.html';
@@ -620,17 +621,20 @@ export function appendLegalConsent(form, { updatedDocuments = false } = {}) {
   return accepted;
 }
 
-export function createAccountForm(root, {
-  title,
-  description,
-  mode,
-  recoveryKey,
-  email,
-  signupProfile,
-  links = [],
-  includePublicHeader = false,
-  noticeTone = '',
-}) {
+export function createAccountForm(
+  root,
+  {
+    title,
+    description,
+    mode,
+    recoveryKey,
+    email,
+    signupProfile,
+    links = [],
+    includePublicHeader = false,
+    noticeTone = '',
+  },
+) {
   root.replaceChildren();
   document.title = `${title} | aurora.`;
   const { layout, page } = createAccountPageLayout();
@@ -658,9 +662,7 @@ export function createAccountForm(root, {
   heading.id = 'account-title';
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', description);
-  const legalEyebrow = mode === 'legal-consent'
-    ? create('p', 'account-legal-eyebrow', 'DOCUMENTOS ATUALIZADOS')
-    : null;
+  const legalEyebrow = mode === 'legal-consent' ? create('p', 'account-legal-eyebrow', 'DOCUMENTOS ATUALIZADOS') : null;
   if (mode === 'login') {
     detail.classList.add('account-security-note');
     const icon = document.createElement('span');
@@ -674,9 +676,15 @@ export function createAccountForm(root, {
   if (activeStage) {
     const steps = create('ol', 'account-steps');
     steps.setAttribute('aria-label', 'Etapas para criar uma conta');
-    const signupSteps = [['seus dados', 1], ['acesso', 2]];
+    const signupSteps = [
+      ['seus dados', 1],
+      ['acesso', 2],
+    ];
     signupSteps.forEach(([label, index]) => {
-      const item = create('li', `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`);
+      const item = create(
+        'li',
+        `account-step${index === activeStage ? ' is-current' : index < activeStage ? ' is-complete' : ''}`,
+      );
       item.dataset.step = String(index);
       if (index === activeStage) item.setAttribute('aria-current', 'step');
       const number = create('span', 'account-step-number', index < activeStage ? '' : String(index));
@@ -697,7 +705,11 @@ export function createAccountForm(root, {
   else card.append(brand, heading, detail);
 
   if (recoveryKey) {
-    const instructions = create('p', 'account-security-note', 'Guarde esta chave fora do Aurora. Ela só é exibida nesta etapa; você pode copiá-la ou baixar um arquivo para consultar depois. Ela será necessária para recuperar os dados se você redefinir a senha ou usar outro dispositivo.');
+    const instructions = create(
+      'p',
+      'account-security-note',
+      'Guarde esta chave fora do Aurora. Ela só é exibida nesta etapa; você pode copiá-la ou baixar um arquivo para consultar depois. Ela será necessária para recuperar os dados se você redefinir a senha ou usar outro dispositivo.',
+    );
     const key = create('code', 'account-secret', recoveryKey);
     const keyActions = create('div', 'account-recovery-key-actions');
     const copyKey = create('button', 'btn sm', 'Copiar chave');
@@ -746,7 +758,9 @@ export function createAccountForm(root, {
     preferredNameInput.maxLength = 50;
     preferredNameInput.required = false;
     let preferredNameEdited = Boolean(signupProfile?.preferredName);
-    preferredNameInput.addEventListener('input', () => { preferredNameEdited = true; });
+    preferredNameInput.addEventListener('input', () => {
+      preferredNameEdited = true;
+    });
     nameInput.addEventListener('input', () => {
       if (!preferredNameEdited) {
         preferredNameInput.value = nameInput.value.trim().split(/\s+/)[0].slice(0, 50);
@@ -758,11 +772,10 @@ export function createAccountForm(root, {
     ageConfirmed.name = 'ageConfirmed';
     ageConfirmed.required = true;
     ageConfirmed.checked = signupProfile?.ageConfirmed === true;
-    ageConfirmation.append(ageConfirmed, create(
-      'span',
-      '',
-      `Confirmo que tenho pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`,
-    ));
+    ageConfirmation.append(
+      ageConfirmed,
+      create('span', '', `Confirmo que tenho pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`),
+    );
     form.append(ageConfirmation);
     ageStatus = create('p', 'account-age-status');
     ageStatus.id = 'account-age-status';
@@ -808,7 +821,13 @@ export function createAccountForm(root, {
     appendLegalConsent(form, { updatedDocuments: mode === 'legal-consent' });
   }
   if (mode === 'delete-account') {
-    form.append(create('p', 'account-delete-warning', 'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os arquivos de backup que você baixou não são apagados pelo Aurora.'));
+    form.append(
+      create(
+        'p',
+        'account-delete-warning',
+        'A exclusão é permanente: sua conta e os dados associados serão apagados e não poderão ser recuperados. Os arquivos de backup que você baixou não são apagados pelo Aurora.',
+      ),
+    );
     const confirmation = createField(
       form,
       'Digite EXCLUIR para confirmar',
@@ -822,15 +841,7 @@ export function createAccountForm(root, {
     confirmation.setAttribute('pattern', 'EXCLUIR');
   }
   if (mode === 'login') {
-    createField(
-      form,
-      'Senha',
-      'password',
-      'password',
-      'current-password',
-      '',
-      '',
-    );
+    createField(form, 'Senha', 'password', 'password', 'current-password', '', '');
     form.elements.password.minLength = LEGACY_PASSWORD_MIN_LENGTH;
     const rememberSession = create('input');
     rememberSession.type = 'checkbox';
@@ -843,7 +854,8 @@ export function createAccountForm(root, {
   }
   if (mode === 'setup-vault') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
   if (mode === 'unlock-password') createField(form, 'Senha da conta', 'password', 'password', 'current-password');
-  if (mode === 'setup-vault' || mode === 'unlock-password') form.elements.password.minLength = LEGACY_PASSWORD_MIN_LENGTH;
+  if (mode === 'setup-vault' || mode === 'unlock-password')
+    form.elements.password.minLength = LEGACY_PASSWORD_MIN_LENGTH;
   if (mode === 'unlock-recovery') createField(form, 'Chave de recuperação', 'recoveryKey', 'text', 'off');
   if (mode === 'confirm-recovery') {
     const acknowledgement = create('label', 'account-recovery-acknowledgement');
@@ -855,15 +867,7 @@ export function createAccountForm(root, {
     form.append(acknowledgement);
   }
   if (mode === 'update-password') {
-    createField(
-      form,
-      'Nova senha',
-      'password',
-      'password',
-      'new-password',
-      '',
-      PASSWORD_REQUIREMENTS_MESSAGE,
-    );
+    createField(form, 'Nova senha', 'password', 'password', 'new-password', '', PASSWORD_REQUIREMENTS_MESSAGE);
     form.elements.password.minLength = PASSWORD_MIN_LENGTH;
     form.elements.password.maxLength = PASSWORD_MAX_LENGTH;
     createField(form, 'Confirmar nova senha', 'confirmPassword', 'password', 'new-password');
@@ -880,7 +884,29 @@ export function createAccountForm(root, {
     message.setAttribute('aria-live', 'polite');
   }
   const actions = create('div', 'account-actions');
-  const submit = create('button', `btn primary${mode === 'delete-account' ? ' danger' : ''}`, mode === 'login' ? 'Entrar' : mode === 'signup-profile' ? 'Continuar' : mode === 'signup-access' ? 'Criar conta' : mode === 'legal-consent' || mode === 'oauth-profile' ? 'Aceitar e continuar' : mode === 'delete-account' ? 'Excluir minha conta e meus dados' : mode === 'recovery' ? 'Enviar instruções' : mode === 'update-password' ? 'Atualizar senha' : mode === 'setup-vault' ? 'Criar cofre criptografado' : mode === 'confirm-recovery' ? 'Confirmei que guardei' : 'Confirmar');
+  const submit = create(
+    'button',
+    `btn primary${mode === 'delete-account' ? ' danger' : ''}`,
+    mode === 'login'
+      ? 'Entrar'
+      : mode === 'signup-profile'
+        ? 'Continuar'
+        : mode === 'signup-access'
+          ? 'Criar conta'
+          : mode === 'legal-consent' || mode === 'oauth-profile'
+            ? 'Aceitar e continuar'
+            : mode === 'delete-account'
+              ? 'Excluir minha conta e meus dados'
+              : mode === 'recovery'
+                ? 'Enviar instruções'
+                : mode === 'update-password'
+                  ? 'Atualizar senha'
+                  : mode === 'setup-vault'
+                    ? 'Criar cofre criptografado'
+                    : mode === 'confirm-recovery'
+                      ? 'Confirmei que guardei'
+                      : 'Confirmar',
+  );
   submit.type = 'submit';
   actions.append(submit);
   if (mode === 'legal-consent') {
@@ -900,7 +926,13 @@ export function createAccountForm(root, {
       if (!isSuccess) return;
       hero.innerHTML = `${SUCCESS_ART}<strong>${mode === 'recovery' ? 'Link enviado' : 'Senha atualizada'}</strong>`;
     };
-    new MutationObserver(syncHero).observe(message, { attributes: true, attributeFilter: ['data-tone'], childList: true, characterData: true, subtree: true });
+    new MutationObserver(syncHero).observe(message, {
+      attributes: true,
+      attributeFilter: ['data-tone'],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
     form.prepend(hero);
     syncHero();
   }
@@ -914,21 +946,16 @@ export function createAccountForm(root, {
     googleIcon.classList.add('account-google-icon');
     googleIcon.setAttribute('viewBox', '0 0 24 24');
     googleIcon.setAttribute('aria-hidden', 'true');
-    googleIcon.innerHTML = '<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.75 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.43.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.78.43 3.46 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.37c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.03 14.97 1 12 1a11 11 0 0 0-9.82 6.06L5.84 9.9C6.71 7.3 9.14 5.37 12 5.37z"/>';
-    const googleLabel = create(
-      'span',
-      '',
-      mode === 'login' ? 'Entrar com Google' : 'Criar conta com Google',
-    );
+    googleIcon.innerHTML =
+      '<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.75 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.43.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.78.43 3.46 1.18 4.94l3.66-2.84z"/><path fill="#EA4335" d="M12 5.37c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.03 14.97 1 12 1a11 11 0 0 0-9.82 6.06L5.84 9.9C6.71 7.3 9.14 5.37 12 5.37z"/>';
+    const googleLabel = create('span', '', mode === 'login' ? 'Entrar com Google' : 'Criar conta com Google');
     googleButton.append(googleIcon, googleLabel);
     googleButton.setAttribute('aria-label', googleLabel.textContent);
     providers.append(googleButton);
     if (mode === 'signup-profile') {
-      providers.append(create(
-        'p',
-        'account-oauth-note',
-        'Sua conta Google pode criar uma conta Aurora ou acessar uma já vinculada.',
-      ));
+      providers.append(
+        create('p', 'account-oauth-note', 'Sua conta Google pode criar uma conta Aurora ou acessar uma já vinculada.'),
+      );
       form.prepend(providers);
     } else {
       form.append(providers);
@@ -948,19 +975,23 @@ export function createAccountForm(root, {
     const updateSignupValidity = () => {
       const passwordValidation = validatePassword(password.value);
       const confirmationMatches = confirmPassword.value.length > 0 && confirmPassword.value === password.value;
-      confirmPassword.setCustomValidity(confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '');
+      confirmPassword.setCustomValidity(
+        confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '',
+      );
       const emailIsValid = emailInput.validity.valid;
-      setAccountFieldError(emailInput, emailInput.value && !emailIsValid && emailWasBlurred
-        ? 'Digite um e-mail válido.'
-        : '');
-      setAccountFieldError(confirmPassword, confirmPassword.value && !confirmationMatches
-        ? 'As senhas não coincidem.'
-        : '');
+      setAccountFieldError(
+        emailInput,
+        emailInput.value && !emailIsValid && emailWasBlurred ? 'Digite um e-mail válido.' : '',
+      );
+      setAccountFieldError(
+        confirmPassword,
+        confirmPassword.value && !confirmationMatches ? 'As senhas não coincidem.' : '',
+      );
       submit.disabled = !(
-        emailIsValid
-        && passwordValidation.valid
-        && confirmationMatches
-        && form.elements.termsAccepted.checked
+        emailIsValid &&
+        passwordValidation.valid &&
+        confirmationMatches &&
+        form.elements.termsAccepted.checked
       );
     };
     emailInput.addEventListener('blur', () => {
@@ -975,12 +1006,8 @@ export function createAccountForm(root, {
     const confirmPassword = form.elements.confirmPassword;
     const updatePasswordValidity = () => {
       const passwordsMatch = confirmPassword.value.length > 0 && confirmPassword.value === password.value;
-      confirmPassword.setCustomValidity(confirmPassword.value && !passwordsMatch
-        ? 'As senhas não coincidem.'
-        : '');
-      setAccountFieldError(confirmPassword, confirmPassword.value && !passwordsMatch
-        ? 'As senhas não coincidem.'
-        : '');
+      confirmPassword.setCustomValidity(confirmPassword.value && !passwordsMatch ? 'As senhas não coincidem.' : '');
+      setAccountFieldError(confirmPassword, confirmPassword.value && !passwordsMatch ? 'As senhas não coincidem.' : '');
       submit.disabled = !validatePassword(password.value).valid || !passwordsMatch;
     };
     form.addEventListener('input', updatePasswordValidity);
@@ -991,14 +1018,15 @@ export function createAccountForm(root, {
     const updateProfileValidity = () => {
       const ageConfirmed = form.elements.ageConfirmed.checked;
       ageStatus.hidden = ageConfirmed || !ageConfirmationTouched;
-      ageStatus.textContent = ageConfirmed || !ageConfirmationTouched
-        ? ''
-        : `É necessário confirmar que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`;
+      ageStatus.textContent =
+        ageConfirmed || !ageConfirmationTouched
+          ? ''
+          : `É necessário confirmar que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos.`;
       ageStatus.dataset.state = ageConfirmed ? 'eligible' : ageConfirmationTouched ? 'invalid' : 'pristine';
       submit.disabled = !(
-        form.elements.name.value.trim()
-        && ageConfirmed
-        && (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
+        form.elements.name.value.trim() &&
+        ageConfirmed &&
+        (mode !== 'oauth-profile' || form.elements.termsAccepted.checked)
       );
     };
     form.addEventListener('input', updateProfileValidity);
@@ -1023,8 +1051,7 @@ export function createAccountForm(root, {
     updateDeleteValidity();
   } else if (form.querySelector('input[required]')) {
     const updateFormValidity = () => {
-      submit.disabled = Array.from(form.elements)
-        .some((field) => field.willValidate && !field.validity.valid);
+      submit.disabled = Array.from(form.elements).some((field) => field.willValidate && !field.validity.valid);
     };
     form.addEventListener('input', updateFormValidity);
     form.addEventListener('change', updateFormValidity);
@@ -1067,7 +1094,13 @@ export function createAccountForm(root, {
   return { form, message, submit };
 }
 
-function showConfigurationError(root, message, title = 'A conta ainda não está configurada', includePublicHeader = false, configGuide = false) {
+function showConfigurationError(
+  root,
+  message,
+  title = 'A conta ainda não está configurada',
+  includePublicHeader = false,
+  configGuide = false,
+) {
   root.replaceChildren();
   const { layout, page } = createAccountPageLayout();
   if (includePublicHeader) {
@@ -1084,7 +1117,11 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   heading.tabIndex = -1;
   const detail = create('p', 'account-description', message);
   detail.setAttribute('role', 'alert');
-  const security = create('p', 'account-security-note', 'Por segurança, seus dados aparecem somente depois que você entra na conta.');
+  const security = create(
+    'p',
+    'account-security-note',
+    'Por segurança, seus dados aparecem somente depois que você entra na conta.',
+  );
   const showConfigGuide = configGuide && import.meta.env?.DEV === true;
   const retry = create('button', 'btn primary', showConfigGuide ? 'Recarregar após configurar' : 'Tentar novamente');
   retry.type = 'button';
@@ -1093,15 +1130,31 @@ function showConfigurationError(root, message, title = 'A conta ainda não está
   actions.append(retry);
   if (showConfigGuide) {
     const guide = create('div', 'account-config-guide');
-    const intro = create('p', '', 'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores do projeto de teste local:');
+    const intro = create(
+      'p',
+      '',
+      'No VS Code, na pasta raiz do Aurora, crie o arquivo .env.local. Você pode copiar o .env.example e preencher os dois valores do projeto de teste local:',
+    );
     const example = create(
       'pre',
       'account-config-code',
       'VITE_SUPABASE_LOCAL_URL=https://SEU-PROJETO-DE-TESTE.supabase.co\nVITE_SUPABASE_LOCAL_ANON_KEY=SUA_CHAVE_PUBLICA_ANON_OU_PUBLISHABLE',
     );
-    const source = create('p', '', 'Busque a Project URL e a chave publicável (anon) em Supabase → Project Settings → API / API Keys.');
-    const restart = create('p', '', 'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.');
-    const warning = create('p', 'account-config-warning', 'Use somente a chave pública anon/publishable. Nunca use service_role/secret e não envie esses valores pelo chat.');
+    const source = create(
+      'p',
+      '',
+      'Busque a Project URL e a chave publicável (anon) em Supabase → Project Settings → API / API Keys.',
+    );
+    const restart = create(
+      'p',
+      '',
+      'Depois salve, pare o servidor Vite com Ctrl+C, execute npm run dev novamente e recarregue esta página.',
+    );
+    const warning = create(
+      'p',
+      'account-config-warning',
+      'Use somente a chave pública anon/publishable. Nunca use service_role/secret e não envie esses valores pelo chat.',
+    );
     const separation = create(
       'p',
       'account-config-warning',
@@ -1127,17 +1180,18 @@ function genericAuthError() {
 
 function isRejectedAccountSession(error) {
   const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
-  return error?.status === 401
-    || ['session_not_found', 'refresh_token_not_found', 'user_not_found'].includes(code);
+  return error?.status === 401 || ['session_not_found', 'refresh_token_not_found', 'user_not_found'].includes(code);
 }
 
 export function isExistingAccountSignup(error, data = {}) {
   const code = typeof error?.code === 'string' ? error.code.toLowerCase() : '';
   const message = typeof error?.message === 'string' ? error.message : '';
   const identities = data.user?.identities;
-  return Boolean(['email_exists', 'user_already_exists'].includes(code)
-    || /\b(?:user|email)(?: address)?\s+(?:already\s+)?(?:registered|exists)\b/i.test(message)
-    || (!data.session && data.user && Array.isArray(identities) && identities.length === 0));
+  return Boolean(
+    ['email_exists', 'user_already_exists'].includes(code) ||
+    /\b(?:user|email)(?: address)?\s+(?:already\s+)?(?:registered|exists)\b/i.test(message) ||
+    (!data.session && data.user && Array.isArray(identities) && identities.length === 0),
+  );
 }
 
 export function isAccountDeletionConfirmed(error, data) {
@@ -1178,18 +1232,24 @@ function sameJsonValue(a, b) {
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
   const keysA = Object.keys(a).sort();
   const keysB = Object.keys(b).sort();
-  return keysA.length === keysB.length
-    && keysA.every((key, index) => keysA[index] === keysB[index] && sameJsonValue(a[key], b[key]));
+  return (
+    keysA.length === keysB.length &&
+    keysA.every((key, index) => keysA[index] === keysB[index] && sameJsonValue(a[key], b[key]))
+  );
 }
 
-export async function requireAccount(root, initialMode = 'login', {
-  allowPublicReturn = false,
-  onPublicReturn,
-  onAccountDeleted,
-  initialNotice = '',
-  initialNoticeTone = '',
-  authStylesReady = Promise.resolve(),
-} = {}) {
+export async function requireAccount(
+  root,
+  initialMode = 'login',
+  {
+    allowPublicReturn = false,
+    onPublicReturn,
+    onAccountDeleted,
+    initialNotice = '',
+    initialNoticeTone = '',
+    authStylesReady = Promise.resolve(),
+  } = {},
+) {
   const callbackErrorMessage = authCallbackErrorMessage(location);
   if (callbackErrorMessage) {
     const callbackUrl = new URL(location.href);
@@ -1198,8 +1258,7 @@ export async function requireAccount(root, initialMode = 'login', {
     callbackUrl.searchParams.delete('error_description');
     history.replaceState(null, '', `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
   }
-  const passwordRecoveryRequested = isPasswordRecoveryCallback(location)
-    || initialMode === 'update-password';
+  const passwordRecoveryRequested = isPasswordRecoveryCallback(location) || initialMode === 'update-password';
   if (!hasSupabaseConfig()) {
     const isDevelopment = import.meta.env?.DEV === true;
     showConfigurationError(
@@ -1219,21 +1278,64 @@ export async function requireAccount(root, initialMode = 'login', {
     client = await getAccountClient();
   } catch (error) {
     console.error('Aurora: o cliente de contas não pôde ser inicializado.', error);
-    showConfigurationError(root, 'Não foi possível carregar o serviço seguro de contas. Verifique a conexão e tente novamente.', 'A conta ainda não está configurada', allowPublicReturn);
+    showConfigurationError(
+      root,
+      'Não foi possível carregar o serviço seguro de contas. Verifique a conexão e tente novamente.',
+      'A conta ainda não está configurada',
+      allowPublicReturn,
+    );
     return null;
   }
 
   const authPage = async (mode, email = '', notice = '', signupProfile = null, noticeTone = '') => {
     await authStylesReady;
     const copy = {
-      login: ['Entrar na sua conta', 'Entre para continuar com seus registros.', [{ prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' }, { label: 'Esqueci minha senha', target: 'recovery' }]],
-      'signup-profile': ['Seu perfil', 'Comece com seus dados básicos.', [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
-      'signup-access': ['Crie seu acesso', 'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.', [{ label: 'Voltar aos seus dados', target: 'signup-profile' }, { prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }]],
-      'oauth-profile': ['Complete seu perfil', 'Para criar sua conta, informe seus dados e aceite os documentos.', [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }]],
-      recovery: ['Recuperar acesso', 'Enviaremos instruções para redefinir sua senha ao e-mail informado.', [{ label: 'Voltar para entrar', target: 'login' }]],
-      'update-password': ['Atualizar senha', 'Escolha uma senha forte e exclusiva para sua conta. A redefinição não altera a senha do cofre antigo; para importar dados cifrados, use a senha original do cofre.', [{ label: 'Solicitar outro link', target: 'recovery' }]],
-      'legal-consent': ['Termos atualizados', 'Para continuar usando o Aurora, leia e aceite a versão atualizada dos documentos. Se preferir recusar, você poderá revisar as etapas para confirmar a exclusão permanente da conta.', []],
-      'delete-account': ['Confirmar exclusão da conta', 'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; essa ação não pode ser desfeita.', [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }]],
+      login: [
+        'Entrar na sua conta',
+        'Entre para continuar com seus registros.',
+        [
+          { prompt: 'Ainda não tem uma conta?', label: 'Criar conta', target: 'signup' },
+          { label: 'Esqueci minha senha', target: 'recovery' },
+        ],
+      ],
+      'signup-profile': [
+        'Seu perfil',
+        'Comece com seus dados básicos.',
+        [{ prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' }],
+      ],
+      'signup-access': [
+        'Crie seu acesso',
+        'Informe um e-mail que você acessa, escolha uma senha e aceite os documentos. Você poderá entrar assim que criar a conta.',
+        [
+          { label: 'Voltar aos seus dados', target: 'signup-profile' },
+          { prompt: 'Já tem uma conta?', label: 'Entrar', target: 'login' },
+        ],
+      ],
+      'oauth-profile': [
+        'Complete seu perfil',
+        'Para criar sua conta, informe seus dados e aceite os documentos.',
+        [{ label: 'Cancelar e sair', target: 'oauth-profile-cancel' }],
+      ],
+      recovery: [
+        'Recuperar acesso',
+        'Enviaremos instruções para redefinir sua senha ao e-mail informado.',
+        [{ label: 'Voltar para entrar', target: 'login' }],
+      ],
+      'update-password': [
+        'Atualizar senha',
+        'Escolha uma senha forte e exclusiva para sua conta. A redefinição não altera a senha do cofre antigo; para importar dados cifrados, use a senha original do cofre.',
+        [{ label: 'Solicitar outro link', target: 'recovery' }],
+      ],
+      'legal-consent': [
+        'Termos atualizados',
+        'Para continuar usando o Aurora, leia e aceite a versão atualizada dos documentos. Se preferir recusar, você poderá revisar as etapas para confirmar a exclusão permanente da conta.',
+        [],
+      ],
+      'delete-account': [
+        'Confirmar exclusão da conta',
+        'Você recusou os documentos. A conta e todos os dados associados serão excluídos permanentemente. Digite EXCLUIR abaixo para confirmar; essa ação não pode ser desfeita.',
+        [{ label: 'Voltar e aceitar os termos', target: 'legal-consent' }],
+      ],
     }[mode];
     if (accountPathForMode(mode)) {
       navigateToAccountMode(mode, {
@@ -1260,8 +1362,7 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode !== 'signup-profile' && mode !== 'oauth-profile') return null;
       return {
         name: form.elements.name.value.trim(),
-        preferredName: form.elements.preferredName.value.trim()
-          || form.elements.name.value.trim().split(/\s+/)[0],
+        preferredName: form.elements.preferredName.value.trim() || form.elements.name.value.trim().split(/\s+/)[0],
         ageConfirmed: form.elements.ageConfirmed.checked,
       };
     };
@@ -1283,45 +1384,63 @@ export async function requireAccount(root, initialMode = 'login', {
         }
       };
       window.addEventListener('popstate', onPopState);
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const profile = readSignupProfile();
-        finish({
-          email: form.elements.email?.value.trim() || email,
-          password: form.elements.password?.value || '',
-          confirmPassword: form.elements.confirmPassword?.value || '',
-          rememberSession: form.elements.rememberSession?.checked === true,
-          signupProfile: profile,
-          termsAccepted: mode === 'signup-access' || mode === 'legal-consent' || mode === 'oauth-profile'
-            ? form.elements.termsAccepted.checked
-            : false,
-          deleteConfirmation: mode === 'delete-account' ? form.elements.deleteConfirmation.value : '',
-          submit,
-          message,
-        });
-      }, { once: true });
-      root.querySelector('[data-account-refuse-terms]')?.addEventListener('click', () => {
-        finish({ nextMode: 'delete-account' });
-      }, { once: true });
-      root.querySelectorAll('button[data-account-mode], a[data-account-mode]').forEach((control) => {
-        control.addEventListener('click', () => {
-          const nextMode = control.dataset.accountMode;
-          if (accountPathForMode(nextMode)) navigateToAccountMode(nextMode);
+      form.addEventListener(
+        'submit',
+        (event) => {
+          event.preventDefault();
+          const profile = readSignupProfile();
           finish({
-            nextMode,
             email: form.elements.email?.value.trim() || email,
-            signupProfile: readSignupProfile(),
+            password: form.elements.password?.value || '',
+            confirmPassword: form.elements.confirmPassword?.value || '',
+            rememberSession: form.elements.rememberSession?.checked === true,
+            signupProfile: profile,
+            termsAccepted:
+              mode === 'signup-access' || mode === 'legal-consent' || mode === 'oauth-profile'
+                ? form.elements.termsAccepted.checked
+                : false,
+            deleteConfirmation: mode === 'delete-account' ? form.elements.deleteConfirmation.value : '',
+            submit,
+            message,
           });
-        }, { once: true });
+        },
+        { once: true },
+      );
+      root.querySelector('[data-account-refuse-terms]')?.addEventListener(
+        'click',
+        () => {
+          finish({ nextMode: 'delete-account' });
+        },
+        { once: true },
+      );
+      root.querySelectorAll('button[data-account-mode], a[data-account-mode]').forEach((control) => {
+        control.addEventListener(
+          'click',
+          () => {
+            const nextMode = control.dataset.accountMode;
+            if (accountPathForMode(nextMode)) navigateToAccountMode(nextMode);
+            finish({
+              nextMode,
+              email: form.elements.email?.value.trim() || email,
+              signupProfile: readSignupProfile(),
+            });
+          },
+          { once: true },
+        );
       });
       form.querySelectorAll('button[data-oauth-provider]').forEach((control) => {
-        control.addEventListener('click', () => finish({
-          oauthProvider: control.dataset.oauthProvider,
-          rememberSession: form.elements.rememberSession?.checked === true,
-          submit,
-          message,
-          providerButtons: Array.from(form.querySelectorAll('button[data-oauth-provider]')),
-        }), { once: true });
+        control.addEventListener(
+          'click',
+          () =>
+            finish({
+              oauthProvider: control.dataset.oauthProvider,
+              rememberSession: form.elements.rememberSession?.checked === true,
+              submit,
+              message,
+              providerButtons: Array.from(form.querySelectorAll('button[data-oauth-provider]')),
+            }),
+          { once: true },
+        );
       });
     });
     return result;
@@ -1337,14 +1456,16 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       setSubmitPending(result.submit, true);
-      if (!await requestAccountDeletion(client)) {
+      if (!(await requestAccountDeletion(client))) {
         setSubmitPending(result.submit, false);
-        message = 'A exclusão da conta não foi confirmada. Você poderá criar uma conta nova com este e-mail assim que a exclusão for concluída. Tente novamente ou volte para aceitar os termos.';
+        message =
+          'A exclusão da conta não foi confirmada. Você poderá criar uma conta nova com este e-mail assim que a exclusão for concluída. Tente novamente ou volte para aceitar os termos.';
         continue;
       }
 
       const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
-      if (signOutError) console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', signOutError);
+      if (signOutError)
+        console.error('Aurora: a conta foi excluída, mas a sessão local não foi encerrada.', signOutError);
       onAccountDeleted?.();
       return true;
     }
@@ -1363,7 +1484,10 @@ export async function requireAccount(root, initialMode = 'login', {
       const result = await authPage('oauth-profile', user.email, message, profileDraft);
       if (result.nextMode === 'oauth-profile-cancel') {
         const { error } = await client.auth.signOut({ scope: 'local' });
-        if (error) throw new Error('Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.');
+        if (error)
+          throw new Error(
+            'Não foi possível encerrar a sessão. Tente novamente antes de compartilhar este dispositivo.',
+          );
         if (allowPublicReturn) onPublicReturn?.();
         else location.reload();
         return null;
@@ -1426,10 +1550,16 @@ export async function requireAccount(root, initialMode = 'login', {
   };
 
   try {
-    const { data: { session }, error } = await client.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await client.auth.getSession();
     if (error) throw error;
     if (session?.user) {
-      const { data: { user }, error: userError } = await client.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error(genericAuthError());
       if (passwordRecoveryRequested) {
@@ -1448,9 +1578,8 @@ export async function requireAccount(root, initialMode = 'login', {
           const { error: updateError } = await client.auth.updateUser({ password: result.password });
           if (updateError) {
             setSubmitPending(result.submit, false);
-            result.message.textContent = updateError.code === 'weak_password'
-              ? PASSWORD_REJECTED_MESSAGE
-              : genericAuthError();
+            result.message.textContent =
+              updateError.code === 'weak_password' ? PASSWORD_REJECTED_MESSAGE : genericAuthError();
             continue;
           }
           const callbackUrl = new URL(location.href);
@@ -1460,7 +1589,9 @@ export async function requireAccount(root, initialMode = 'login', {
           history.replaceState(null, '', `${callbackUrl.pathname}${callbackUrl.search}`);
           const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
           if (signOutError) {
-            throw new Error('Sua senha foi atualizada, mas não foi possível encerrar a sessão. Atualize a página e entre com a nova senha.');
+            throw new Error(
+              'Sua senha foi atualizada, mas não foi possível encerrar a sessão. Atualize a página e entre com a nova senha.',
+            );
           }
           return requireAccount(root, 'login', {
             allowPublicReturn,
@@ -1479,11 +1610,12 @@ export async function requireAccount(root, initialMode = 'login', {
       };
     }
 
-    let mode = initialMode === 'signup'
-      ? 'signup-profile'
-      : ['signup-profile', 'signup-access', 'recovery', 'update-password'].includes(initialMode)
-        ? initialMode
-        : 'login';
+    let mode =
+      initialMode === 'signup'
+        ? 'signup-profile'
+        : ['signup-profile', 'signup-access', 'recovery', 'update-password'].includes(initialMode)
+          ? initialMode
+          : 'login';
     let email = '';
     let message = callbackErrorMessage || initialNotice;
     if (!callbackErrorMessage && mode === 'update-password' && !passwordRecoveryRequested) {
@@ -1513,7 +1645,9 @@ export async function requireAccount(root, initialMode = 'login', {
         }
         setRememberSession(result.rememberSession);
         setSubmitPending(result.submit, true);
-        result.providerButtons.forEach((button) => { button.disabled = true; });
+        result.providerButtons.forEach((button) => {
+          button.disabled = true;
+        });
         let oauthError;
         try {
           if (isNativeApp()) {
@@ -1532,8 +1666,11 @@ export async function requireAccount(root, initialMode = 'login', {
         if (oauthError) {
           console.error(`Aurora: não foi possível iniciar o acesso por ${result.oauthProvider}.`, oauthError);
           setSubmitPending(result.submit, false);
-          result.providerButtons.forEach((button) => { button.disabled = false; });
-          message = 'Não foi possível iniciar o acesso. Verifique se o provedor está habilitado em Authentication → Sign In / Providers no Supabase.';
+          result.providerButtons.forEach((button) => {
+            button.disabled = false;
+          });
+          message =
+            'Não foi possível iniciar o acesso. Verifique se o provedor está habilitado em Authentication → Sign In / Providers no Supabase.';
           continue;
         }
         return null;
@@ -1541,9 +1678,7 @@ export async function requireAccount(root, initialMode = 'login', {
       if (mode === 'recovery') {
         setSubmitPending(result.submit, true);
         const { error: recoveryError } = await client.auth.resetPasswordForEmail(email, {
-          redirectTo: isNativeApp()
-            ? NATIVE_AUTH_REDIRECT_URL
-            : `${location.origin}${location.pathname}`,
+          redirectTo: isNativeApp() ? NATIVE_AUTH_REDIRECT_URL : `${location.origin}${location.pathname}`,
         });
         message = recoveryError
           ? passwordRecoveryErrorMessage(recoveryError)
@@ -1562,8 +1697,7 @@ export async function requireAccount(root, initialMode = 'login', {
         continue;
       }
       if (mode === 'signup-profile') {
-        if (!result.signupProfile || !result.signupProfile.name
-          || !result.signupProfile.ageConfirmed) {
+        if (!result.signupProfile || !result.signupProfile.name || !result.signupProfile.ageConfirmed) {
           message = `Preencha seus dados e confirme que você tem pelo menos ${MINIMUM_ACCOUNT_AGE} anos para criar uma conta.`;
           continue;
         }
@@ -1614,7 +1748,8 @@ export async function requireAccount(root, initialMode = 'login', {
           const { error: signOutError } = await client.auth.signOut({ scope: 'local' });
           if (signOutError) throw new Error(genericAuthError());
           setSubmitPending(result.submit, false);
-          message = 'Este projeto Supabase está exigindo confirmação de e-mail. No projeto de desenvolvimento, desative Authentication → Providers → Email → Confirm email e tente novamente. Esta tentativa pode ter criado uma conta pendente; confira-a no painel antes de repetir o cadastro.';
+          message =
+            'Este projeto Supabase está exigindo confirmação de e-mail. No projeto de desenvolvimento, desative Authentication → Providers → Email → Confirm email e tente novamente. Esta tentativa pode ter criado uma conta pendente; confira-a no painel antes de repetir o cadastro.';
           continue;
         }
         authenticatedUser = data.user;
@@ -1628,7 +1763,8 @@ export async function requireAccount(root, initialMode = 'login', {
         if (loginError || !data.user) {
           setSubmitPending(result.submit, false);
           if (loginError?.code === 'email_not_confirmed') {
-            message = 'Esta conta foi criada quando a confirmação de e-mail estava ativa. Para entrar sem receber link, confirme-a manualmente em Authentication → Users no projeto Supabase; depois, entre novamente. Novos cadastros não exigem confirmação.';
+            message =
+              'Esta conta foi criada quando a confirmação de e-mail estava ativa. Para entrar sem receber link, confirme-a manualmente em Authentication → Users no projeto Supabase; depois, entre novamente. Novos cadastros não exigem confirmação.';
             messageTone = '';
             continue;
           }
@@ -1639,9 +1775,10 @@ export async function requireAccount(root, initialMode = 'login', {
         authenticatedUser = data.user;
       }
 
-      const { data: { user }, error: userError } = authenticatedUser
-        ? { data: { user: authenticatedUser }, error: null }
-        : await client.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = authenticatedUser ? { data: { user: authenticatedUser }, error: null } : await client.auth.getUser();
       if (userError || !user) {
         message = genericAuthError();
         continue;
@@ -1675,11 +1812,11 @@ export async function requireAccount(root, initialMode = 'login', {
 }
 
 export async function loadAccountSlices(client, userId) {
-  const { data, error } = await client
-    .from('user_data')
-    .select('slice,data,revision')
-    .eq('user_id', userId);
-  if (error) throw new Error('Não foi possível carregar os dados sincronizados. Os dados locais não serão usados como substituto.');
+  const { data, error } = await client.from('user_data').select('slice,data,revision').eq('user_id', userId);
+  if (error)
+    throw new Error(
+      'Não foi possível carregar os dados sincronizados. Os dados locais não serão usados como substituto.',
+    );
   return new Map((data || []).map((row) => [row.slice, row]));
 }
 
@@ -1729,7 +1866,10 @@ export async function importAccountSlices(client, slices) {
   });
   const { error } = await client.rpc('import_user_slices', { p_slices: slices });
   if (error) throw new Error('A importação não foi concluída. Os dados locais foram preservados.');
-  const { data: { user }, error: userError } = await client.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await client.auth.getUser();
   if (userError || !user) throw new Error('A sessão expirou; entre novamente para carregar os dados.');
   const rows = await loadAccountSlices(client, user.id);
   if (Object.keys(slices).some((slice) => !rows.has(slice))) {
@@ -1739,20 +1879,28 @@ export async function importAccountSlices(client, slices) {
 }
 
 function isEncryptedEnvelope(data) {
-  return Boolean(data && typeof data === 'object' && data.v === 1
-    && Object.keys(data).length === 3
-    && typeof data.iv === 'string' && /^[A-Za-z0-9_-]{16}$/.test(data.iv)
-    && typeof data.ciphertext === 'string' && /^[A-Za-z0-9_-]{22,}$/.test(data.ciphertext)
-    && new TextEncoder().encode(JSON.stringify(data)).byteLength <= 2_000_000);
+  return Boolean(
+    data &&
+    typeof data === 'object' &&
+    data.v === 1 &&
+    Object.keys(data).length === 3 &&
+    typeof data.iv === 'string' &&
+    /^[A-Za-z0-9_-]{16}$/.test(data.iv) &&
+    typeof data.ciphertext === 'string' &&
+    /^[A-Za-z0-9_-]{22,}$/.test(data.ciphertext) &&
+    new TextEncoder().encode(JSON.stringify(data)).byteLength <= 2_000_000,
+  );
 }
 
 export async function replaceAccountSlices(client, slices, expectedRevisions) {
   const sliceNames = Object.keys(slices);
-  if (sliceNames.length !== SLICES.size
-    || sliceNames.some((slice) => !SLICES.has(slice) || !isEncryptedEnvelope(slices[slice]))
-    || Object.keys(expectedRevisions).length !== sliceNames.length
-    || Object.keys(expectedRevisions).some((slice) => !Object.hasOwn(slices, slice))
-    || sliceNames.some((slice) => !Number.isSafeInteger(expectedRevisions[slice]) || expectedRevisions[slice] < 0)) {
+  if (
+    sliceNames.length !== SLICES.size ||
+    sliceNames.some((slice) => !SLICES.has(slice) || !isEncryptedEnvelope(slices[slice])) ||
+    Object.keys(expectedRevisions).length !== sliceNames.length ||
+    Object.keys(expectedRevisions).some((slice) => !Object.hasOwn(slices, slice)) ||
+    sliceNames.some((slice) => !Number.isSafeInteger(expectedRevisions[slice]) || expectedRevisions[slice] < 0)
+  ) {
     throw new Error('O backup contém áreas ou revisões criptografadas inválidas.');
   }
   const { data, error } = await client.rpc('replace_user_slices', {
@@ -1767,7 +1915,10 @@ export async function replaceAccountSlices(client, slices, expectedRevisions) {
       if (authError || !authData.user) throw new Error('A sessão expirou.');
       remote = await loadAccountSlices(client, authData.user.id);
     } catch (verificationError) {
-      throw new Error('Não foi possível confirmar se a restauração foi concluída; os dados remotos foram preservados.', { cause: verificationError });
+      throw new Error(
+        'Não foi possível confirmar se a restauração foi concluída; os dados remotos foram preservados.',
+        { cause: verificationError },
+      );
     }
     if (sliceNames.every((slice) => sameJsonValue(remote.get(slice)?.data, slices[slice]))) return remote;
     throw new Error('A restauração não foi concluída. Os dados atuais foram preservados.');

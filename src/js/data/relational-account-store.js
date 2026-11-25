@@ -2,20 +2,35 @@ import { normalizeAccountType } from '../features/finance/accounts.js';
 import { isTaskIconKey, taskIconKey } from '../features/planning/task-icons.js';
 
 const TABLES = [
-  'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-  'task_tag_assignments', 'weekly_reflections', 'daily_checkins',
-  'habits', 'habit_logs', 'water_logs',
-  'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
-  'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
-  'cycle_periods', 'cycle_days', 'weight_logs', 'trash_records',
+  'profiles',
+  'user_settings',
+  'task_lists',
+  'tags',
+  'tasks',
+  'subtasks',
+  'task_tag_assignments',
+  'weekly_reflections',
+  'daily_checkins',
+  'habits',
+  'habit_logs',
+  'water_logs',
+  'gym_templates',
+  'gym_template_exercises',
+  'gym_logs',
+  'finance_accounts',
+  'finance_recurrences',
+  'finance_transactions',
+  'finance_budgets',
+  'finance_goals',
+  'cycle_periods',
+  'cycle_days',
+  'weight_logs',
+  'trash_records',
 ];
 const MANAGED_TABLES = [...TABLES];
-const VERSION_CONFIRMATION_ERROR = 'O Supabase não confirmou as versões salvas. Verifique se a migration 20261030100000_relational_version_conflict.sql foi aplicada no projeto correto e se apply_relational_changes(jsonb) retorna jsonb. A gravação pode ter sido concluída; recarregue os dados da conta antes de tentar novamente.';
-const versionId = (table, row) => (
-  table === 'profiles' || table === 'user_settings'
-    ? row.user_id
-    : row.id
-);
+const VERSION_CONFIRMATION_ERROR =
+  'O Supabase não confirmou as versões salvas. Verifique se a migration 20261030100000_relational_version_conflict.sql foi aplicada no projeto correto e se apply_relational_changes(jsonb) retorna jsonb. A gravação pode ter sido concluída; recarregue os dados da conta antes de tentar novamente.';
+const versionId = (table, row) => (table === 'profiles' || table === 'user_settings' ? row.user_id : row.id);
 let snapshotFallbackWarned = false;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,12 +40,16 @@ const localDate = (timestamp) => {
   const pad = (part) => String(part).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
-const toIso = (value) => value == null ? null : new Date(value).toISOString();
-const fromIso = (value) => value == null ? null : Date.parse(value);
+const toIso = (value) => (value == null ? null : new Date(value).toISOString());
+const fromIso = (value) => (value == null ? null : Date.parse(value));
 const sortObject = (value) => {
   if (Array.isArray(value)) return value.map((item) => sortObject(item));
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, sortObject(item)]));
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, sortObject(item)]),
+    );
   }
   return value;
 };
@@ -42,8 +61,8 @@ const rowSignature = (row) => {
 };
 const includeActive = (row) => !row.deleted_at;
 const dateMonth = (month) => `${month}-01`;
-const timeOnly = (time) => time ? String(time).slice(0, 5) : '';
-const monthFromDate = (value) => value ? String(value).slice(0, 7) : '';
+const timeOnly = (time) => (time ? String(time).slice(0, 5) : '');
+const monthFromDate = (value) => (value ? String(value).slice(0, 7) : '');
 const numeric = (value) => {
   const number = Number(value);
   if (!Number.isSafeInteger(number)) throw new Error('O banco retornou um valor numérico fora do limite seguro.');
@@ -110,14 +129,18 @@ function databaseId(idMap, table, appId) {
 
 function queryError(table, error) {
   console.error(`Aurora: a leitura relacional de ${table} falhou.`, error);
-  throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+  throw new Error(
+    'Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.',
+  );
 }
 
 async function legacyLoad(client, includeCycle) {
-  const result = await Promise.all(TABLES.map(async (table) => {
-    if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
-    return [table, await selectAll(client, table, { excludeCycleTrash: !includeCycle })];
-  }));
+  const result = await Promise.all(
+    TABLES.map(async (table) => {
+      if (!includeCycle && ['cycle_periods', 'cycle_days'].includes(table)) return [table, []];
+      return [table, await selectAll(client, table, { excludeCycleTrash: !includeCycle })];
+    }),
+  );
   return Object.fromEntries(result);
 }
 
@@ -130,7 +153,9 @@ async function loadTables(client, includeCycle) {
   if (error) {
     if (error.code !== 'PGRST202') {
       console.error('Aurora: a leitura relacional agrupada falhou.', error);
-      throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+      throw new Error(
+        'Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.',
+      );
     }
     if (!snapshotFallbackWarned) {
       snapshotFallbackWarned = true;
@@ -141,13 +166,17 @@ async function loadTables(client, includeCycle) {
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     console.error('Aurora: a leitura relacional agrupada retornou um formato inválido.');
-    throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+    throw new Error(
+      'Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.',
+    );
   }
   const tables = {};
   for (const table of TABLES) {
     if (!Array.isArray(data[table])) {
       console.error(`Aurora: a leitura relacional agrupada não retornou a tabela ${table}.`);
-      throw new Error('Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.');
+      throw new Error(
+        'Não foi possível carregar todos os dados da conta. Tente novamente quando a conexão estiver estável.',
+      );
     }
     tables[table] = data[table];
   }
@@ -185,18 +214,20 @@ function activeTrashRows(settings, userId, idMap, lookupEntityId) {
       const entity = trashEntity(record);
       if (!entity) return;
       const id = lookupEntityId(entity.table, entity.sourceId);
-      rows.push(rowId(idMap, 'trash_records', userId, `${entry.id}|${index}|${record.collection}|${record.key}`, {
-        entry_legacy_id: entry.id,
-        collection: record.collection,
-        record_key: String(record.key),
-        record_index: index,
-        label: String(entry.label || 'Registro removido').slice(0, 160),
-        entity_table: entity.table,
-        entity_id: id,
-        removed_at: toIso(entry.deletedAt),
-        is_test_data: false,
-        deleted_at: null,
-      }));
+      rows.push(
+        rowId(idMap, 'trash_records', userId, `${entry.id}|${index}|${record.collection}|${record.key}`, {
+          entry_legacy_id: entry.id,
+          collection: record.collection,
+          record_key: String(record.key),
+          record_index: index,
+          label: String(entry.label || 'Registro removido').slice(0, 160),
+          entity_table: entity.table,
+          entity_id: id,
+          removed_at: toIso(entry.deletedAt),
+          is_test_data: false,
+          deleted_at: null,
+        }),
+      );
     });
   });
   return rows;
@@ -260,14 +291,18 @@ function buildRows(userId, state, idMap) {
   taskLists.forEach((list, index) => {
     const listId = idFor(idMap, 'task_lists', list.name);
     listIds.set(list.name, listId);
-    pushRow(rows, 'task_lists', rowId(idMap, 'task_lists', userId, list.name, {
-      name: list.name,
-      color: list.color || '#c97994',
-      folder: list.folder || null,
-      sort_order: index,
-      is_test_data: false,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'task_lists',
+      rowId(idMap, 'task_lists', userId, list.name, {
+        name: list.name,
+        color: list.color || '#c97994',
+        folder: list.folder || null,
+        sort_order: index,
+        is_test_data: false,
+        deleted_at: null,
+      }),
+    );
   });
 
   const profile = settings.profile || {};
@@ -309,23 +344,31 @@ function buildRows(userId, state, idMap) {
   });
   if (settings.prefs?.weeklyReflection?.weekOf) {
     const reflection = settings.prefs.weeklyReflection;
-    pushRow(rows, 'weekly_reflections', rowId(idMap, 'weekly_reflections', userId, reflection.weekOf, {
-      week_of: reflection.weekOf,
-      reflection: reflection.text || '',
-      is_test_data: false,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'weekly_reflections',
+      rowId(idMap, 'weekly_reflections', userId, reflection.weekOf, {
+        week_of: reflection.weekOf,
+        reflection: reflection.text || '',
+        is_test_data: false,
+        deleted_at: null,
+      }),
+    );
   }
   for (const checkin of state.checkins || []) {
-    pushRow(rows, 'daily_checkins', rowId(idMap, 'daily_checkins', userId, checkin.date, {
-      checkin_date: checkin.date,
-      energy: checkin.energy || null,
-      available_time: checkin.time || null,
-      dismissed: checkin.dismissed === true,
-      deferred_task_ids: Array.isArray(checkin.deferred) ? checkin.deferred : [],
-      is_test_data: checkin.sample === true,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'daily_checkins',
+      rowId(idMap, 'daily_checkins', userId, checkin.date, {
+        checkin_date: checkin.date,
+        energy: checkin.energy || null,
+        available_time: checkin.time || null,
+        dismissed: checkin.dismissed === true,
+        deferred_task_ids: Array.isArray(checkin.deferred) ? checkin.deferred : [],
+        is_test_data: checkin.sample === true,
+        deleted_at: null,
+      }),
+    );
   }
 
   const tasks = [...(state.tasks || [])];
@@ -339,11 +382,15 @@ function buildRows(userId, state, idMap) {
   for (const tag of taskTags) {
     const id = idFor(idMap, 'tags', tag);
     tagIds.set(tag, id);
-    pushRow(rows, 'tags', rowId(idMap, 'tags', userId, tag, {
-      name: tag,
-      is_test_data: false,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'tags',
+      rowId(idMap, 'tags', userId, tag, {
+        name: tag,
+        is_test_data: false,
+        deleted_at: null,
+      }),
+    );
   }
   for (const task of tasks) {
     if (task.icon != null && !isTaskIconKey(task.icon)) {
@@ -351,75 +398,100 @@ function buildRows(userId, state, idMap) {
     }
     const removedAt = deletedAtFor(settings, 'tasks', task.id);
     const taskId = idFor(idMap, 'tasks', task.id);
-    pushRow(rows, 'tasks', rowId(idMap, 'tasks', userId, task.id, {
-      title: task.title,
-      is_completed: task.done === true,
-      tag: task.tag || null,
-      list_id: task.list ? listIds.get(task.list) || null : null,
-      group_key: task.groupId || null,
-      group_title: task.groupTitle || null,
-      due_date: task.dueDate || null,
-      priority: task.priority || 'normal',
-      task_created_at: Number.isFinite(task.createdAt) ? toIso(task.createdAt) : null,
-      completed_at: task.doneAt || null,
-      planned_time: task.time || null,
-      repeat_rule: task.repeat || 'none',
-      notes: task.notes || null,
-      sort_order: Number.isFinite(task.order) ? task.order : 0,
-      focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
-      icon_key: taskIconKey(task.icon) || null,
-      is_test_data: task.sample === true,
-      deleted_at: removedAt,
-    }));
-    (task.subtasks || []).forEach((subtask, index) => {
-      const subId = subtask.id || `${task.id}:subtask:${index}`;
-      pushRow(rows, 'subtasks', rowId(idMap, 'subtasks', userId, subId, {
-        task_id: taskId,
-        title: subtask.title,
-        is_completed: subtask.done === true,
-        sort_order: index,
+    pushRow(
+      rows,
+      'tasks',
+      rowId(idMap, 'tasks', userId, task.id, {
+        title: task.title,
+        is_completed: task.done === true,
+        tag: task.tag || null,
+        list_id: task.list ? listIds.get(task.list) || null : null,
+        group_key: task.groupId || null,
+        group_title: task.groupTitle || null,
+        due_date: task.dueDate || null,
+        priority: task.priority || 'normal',
+        task_created_at: Number.isFinite(task.createdAt) ? toIso(task.createdAt) : null,
+        completed_at: task.doneAt || null,
+        planned_time: task.time || null,
+        repeat_rule: task.repeat || 'none',
+        notes: task.notes || null,
+        sort_order: Number.isFinite(task.order) ? task.order : 0,
+        focus_seconds: Number.isSafeInteger(task.focusSeconds) ? task.focusSeconds : 0,
+        icon_key: taskIconKey(task.icon) || null,
         is_test_data: task.sample === true,
         deleted_at: removedAt,
-      }));
+      }),
+    );
+    (task.subtasks || []).forEach((subtask, index) => {
+      const subId = subtask.id || `${task.id}:subtask:${index}`;
+      pushRow(
+        rows,
+        'subtasks',
+        rowId(idMap, 'subtasks', userId, subId, {
+          task_id: taskId,
+          title: subtask.title,
+          is_completed: subtask.done === true,
+          sort_order: index,
+          is_test_data: task.sample === true,
+          deleted_at: removedAt,
+        }),
+      );
     });
     (task.tags || []).forEach((tag) => {
       const key = `${task.id}|${tag}`;
-      pushRow(rows, 'task_tag_assignments', rowId(idMap, 'task_tag_assignments', userId, key, {
-        task_id: taskId,
-        tag_id: tagIds.get(tag),
-        is_test_data: task.sample === true,
-        deleted_at: removedAt,
-      }));
+      pushRow(
+        rows,
+        'task_tag_assignments',
+        rowId(idMap, 'task_tag_assignments', userId, key, {
+          task_id: taskId,
+          tag_id: tagIds.get(tag),
+          is_test_data: task.sample === true,
+          deleted_at: removedAt,
+        }),
+      );
     });
   }
 
   for (const habit of habits) {
     const removedAt = deletedAtFor(settings, 'habits', habit.id);
     const habitId = idFor(idMap, 'habits', habit.id);
-    pushRow(rows, 'habits', rowId(idMap, 'habits', userId, habit.id, {
-      name: habit.name,
-      scheduled_days: habit.days,
-      status: habit.status || 'active',
-      skipped_dates: habit.skipped || [],
-      paused_from: habit.pausedFrom || null,
-      paused_days: habit.pausedDays || null,
-      tracking: habit.tracking || null,
-      icon: habit.icon || null,
-      color: habit.color || null,
-      weekly_goal: habit.weeklyGoal || null,
-      is_test_data: habit.sample === true,
-      deleted_at: removedAt,
-      ...(Number.isFinite(habit.createdAt) ? { created_at: toIso(habit.createdAt) } : {}),
-    }));
-    for (const [status, days] of [['completed', habit.completions || []], ['skipped', habit.skipped || []]]) {
-      days.forEach((day) => pushRow(rows, 'habit_logs', rowId(idMap, 'habit_logs', userId, `${habit.id}|${status}|${day}`, {
-        habit_id: habitId,
-        log_date: day,
-        status,
-        note: null,
+    pushRow(
+      rows,
+      'habits',
+      rowId(idMap, 'habits', userId, habit.id, {
+        name: habit.name,
+        scheduled_days: habit.days,
+        status: habit.status || 'active',
+        skipped_dates: habit.skipped || [],
+        paused_from: habit.pausedFrom || null,
+        paused_days: habit.pausedDays || null,
+        tracking: habit.tracking || null,
+        icon: habit.icon || null,
+        color: habit.color || null,
+        weekly_goal: habit.weeklyGoal || null,
         is_test_data: habit.sample === true,
         deleted_at: removedAt,
-      })));
+        ...(Number.isFinite(habit.createdAt) ? { created_at: toIso(habit.createdAt) } : {}),
+      }),
+    );
+    for (const [status, days] of [
+      ['completed', habit.completions || []],
+      ['skipped', habit.skipped || []],
+    ]) {
+      days.forEach((day) =>
+        pushRow(
+          rows,
+          'habit_logs',
+          rowId(idMap, 'habit_logs', userId, `${habit.id}|${status}|${day}`, {
+            habit_id: habitId,
+            log_date: day,
+            status,
+            note: null,
+            is_test_data: habit.sample === true,
+            deleted_at: removedAt,
+          }),
+        ),
+      );
     }
   }
 
@@ -428,46 +500,58 @@ function buildRows(userId, state, idMap) {
     if (!water.some((item) => item.id === record.value.id)) water.push(record.value);
   });
   for (const entry of water) {
-    pushRow(rows, 'water_logs', rowId(idMap, 'water_logs', userId, entry.id, {
-      log_date: localDate(entry.at),
-      recorded_at: entry.at,
-      amount_ml: Math.round(entry.ml),
-      is_test_data: entry.sample === true,
-      deleted_at: deletedAtFor(settings, 'water', entry.id),
-    }));
+    pushRow(
+      rows,
+      'water_logs',
+      rowId(idMap, 'water_logs', userId, entry.id, {
+        log_date: localDate(entry.at),
+        recorded_at: entry.at,
+        amount_ml: Math.round(entry.ml),
+        is_test_data: entry.sample === true,
+        deleted_at: deletedAtFor(settings, 'water', entry.id),
+      }),
+    );
   }
 
   const templates = state.gym?.templates || [];
   for (const template of templates) {
     const templateId = idFor(idMap, 'gym_templates', template.id);
-    pushRow(rows, 'gym_templates', rowId(idMap, 'gym_templates', userId, template.id, {
-      name: template.name,
-      is_test_data: template.sample === true,
-      deleted_at: null,
-    }));
-    (template.exercises || []).forEach((name, index) => pushRow(rows, 'gym_template_exercises', rowId(
-      idMap,
-      'gym_template_exercises',
-      userId,
-      `${template.id}|${index}|${name}`,
-      {
-        template_id: templateId,
-        name,
-        sort_order: index,
+    pushRow(
+      rows,
+      'gym_templates',
+      rowId(idMap, 'gym_templates', userId, template.id, {
+        name: template.name,
         is_test_data: template.sample === true,
         deleted_at: null,
-      },
-    )));
+      }),
+    );
+    (template.exercises || []).forEach((name, index) =>
+      pushRow(
+        rows,
+        'gym_template_exercises',
+        rowId(idMap, 'gym_template_exercises', userId, `${template.id}|${index}|${name}`, {
+          template_id: templateId,
+          name,
+          sort_order: index,
+          is_test_data: template.sample === true,
+          deleted_at: null,
+        }),
+      ),
+    );
   }
   for (const log of state.gym?.logs || []) {
-    pushRow(rows, 'gym_logs', rowId(idMap, 'gym_logs', userId, log.id, {
-      log_date: log.date,
-      name: log.name || null,
-      minutes: log.minutes ?? null,
-      notes: log.notes || null,
-      is_test_data: log.sample === true,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'gym_logs',
+      rowId(idMap, 'gym_logs', userId, log.id, {
+        log_date: log.date,
+        name: log.name || null,
+        minutes: log.minutes ?? null,
+        notes: log.notes || null,
+        is_test_data: log.sample === true,
+        deleted_at: null,
+      }),
+    );
   }
 
   const accounts = [...(state.finance?.accounts || [])];
@@ -489,156 +573,199 @@ function buildRows(userId, state, idMap) {
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   for (const account of accounts) {
     const linkedAccount = accountsById.get(account.linkedAccountId);
-    const linkedAccountId = account.type === 'credit'
-      && linkedAccount
-      && normalizeAccountType(linkedAccount.type) !== 'credit'
-      ? databaseId(idMap, 'finance_accounts', linkedAccount.id)
-      : null;
-    pushRow(rows, 'finance_accounts', rowId(idMap, 'finance_accounts', userId, account.id, {
-      name: account.name,
-      account_type: normalizeAccountType(account.type),
-      initial_cents: account.initialCents,
-      bank: account.bank || null,
-      linked_account_id: linkedAccountId,
-      limit_cents: account.limitCents ?? null,
-      closing_day: account.closingDay ?? null,
-      due_day: account.dueDay ?? null,
-      is_test_data: account.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.accounts', account.id),
-    }));
+    const linkedAccountId =
+      account.type === 'credit' && linkedAccount && normalizeAccountType(linkedAccount.type) !== 'credit'
+        ? databaseId(idMap, 'finance_accounts', linkedAccount.id)
+        : null;
+    pushRow(
+      rows,
+      'finance_accounts',
+      rowId(idMap, 'finance_accounts', userId, account.id, {
+        name: account.name,
+        account_type: normalizeAccountType(account.type),
+        initial_cents: account.initialCents,
+        bank: account.bank || null,
+        linked_account_id: linkedAccountId,
+        limit_cents: account.limitCents ?? null,
+        closing_day: account.closingDay ?? null,
+        due_day: account.dueDay ?? null,
+        is_test_data: account.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.accounts', account.id),
+      }),
+    );
   }
   for (const recurrence of recurring) {
-    pushRow(rows, 'finance_recurrences', rowId(idMap, 'finance_recurrences', userId, recurrence.id, {
-      transaction_type: recurrence.type,
-      account_id: databaseId(idMap, 'finance_accounts', recurrence.accountId),
-      category: recurrence.category,
-      amount_cents: recurrence.cents,
-      day_of_month: recurrence.day,
-      start_month: dateMonth(recurrence.startYM),
-      last_month: recurrence.lastYM ? dateMonth(recurrence.lastYM) : null,
-      description: recurrence.desc || null,
-      first_paid: recurrence.firstPaid === true,
-      is_paused: recurrence.paused === true,
-      is_test_data: recurrence.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.recurring', recurrence.id),
-    }));
+    pushRow(
+      rows,
+      'finance_recurrences',
+      rowId(idMap, 'finance_recurrences', userId, recurrence.id, {
+        transaction_type: recurrence.type,
+        account_id: databaseId(idMap, 'finance_accounts', recurrence.accountId),
+        category: recurrence.category,
+        amount_cents: recurrence.cents,
+        day_of_month: recurrence.day,
+        start_month: dateMonth(recurrence.startYM),
+        last_month: recurrence.lastYM ? dateMonth(recurrence.lastYM) : null,
+        description: recurrence.desc || null,
+        first_paid: recurrence.firstPaid === true,
+        is_paused: recurrence.paused === true,
+        is_test_data: recurrence.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.recurring', recurrence.id),
+      }),
+    );
   }
   for (const transaction of tx) {
-    pushRow(rows, 'finance_transactions', rowId(idMap, 'finance_transactions', userId, transaction.id, {
-      transaction_type: transaction.type,
-      account_id: databaseId(idMap, 'finance_accounts', transaction.accountId),
-      to_account_id: databaseId(idMap, 'finance_accounts', transaction.toAccountId),
-      amount_cents: transaction.cents,
-      transaction_date: transaction.date,
-      settled_date: transaction.settledDate || null,
-      interest_cents: transaction.interestCents ?? null,
-      anticipated_date: transaction.anticipatedDate || null,
-      invoice_installment: transaction.invoiceInstallment === true,
-      entered_at: Number.isFinite(transaction.createdAt) ? toIso(transaction.createdAt) : null,
-      category: transaction.category || null,
-      description: transaction.desc || null,
-      is_paid: transaction.paid === true,
-      group_key: transaction.groupId || null,
-      recurrence_id: databaseId(idMap, 'finance_recurrences', transaction.recId),
-      is_test_data: transaction.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.tx', transaction.id),
-    }));
+    pushRow(
+      rows,
+      'finance_transactions',
+      rowId(idMap, 'finance_transactions', userId, transaction.id, {
+        transaction_type: transaction.type,
+        account_id: databaseId(idMap, 'finance_accounts', transaction.accountId),
+        to_account_id: databaseId(idMap, 'finance_accounts', transaction.toAccountId),
+        amount_cents: transaction.cents,
+        transaction_date: transaction.date,
+        settled_date: transaction.settledDate || null,
+        interest_cents: transaction.interestCents ?? null,
+        anticipated_date: transaction.anticipatedDate || null,
+        invoice_installment: transaction.invoiceInstallment === true,
+        entered_at: Number.isFinite(transaction.createdAt) ? toIso(transaction.createdAt) : null,
+        category: transaction.category || null,
+        description: transaction.desc || null,
+        is_paid: transaction.paid === true,
+        group_key: transaction.groupId || null,
+        recurrence_id: databaseId(idMap, 'finance_recurrences', transaction.recId),
+        is_test_data: transaction.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.tx', transaction.id),
+      }),
+    );
   }
   Object.entries(state.finance?.budgets || {}).forEach(([category, budget]) => {
-    pushRow(rows, 'finance_budgets', rowId(idMap, 'finance_budgets', userId, category, {
-      category,
-      amount_cents: budget.cents,
-      is_test_data: budget.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.budgets', category),
-    }));
+    pushRow(
+      rows,
+      'finance_budgets',
+      rowId(idMap, 'finance_budgets', userId, category, {
+        category,
+        amount_cents: budget.cents,
+        is_test_data: budget.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.budgets', category),
+      }),
+    );
   });
   indexForTrash(settings, 'finance.budgets').forEach((record, category) => {
     if (Object.hasOwn(state.finance?.budgets || {}, category)) return;
-    pushRow(rows, 'finance_budgets', rowId(idMap, 'finance_budgets', userId, category, {
-      category,
-      amount_cents: record.value.cents,
-      is_test_data: record.value.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.budgets', category),
-    }));
+    pushRow(
+      rows,
+      'finance_budgets',
+      rowId(idMap, 'finance_budgets', userId, category, {
+        category,
+        amount_cents: record.value.cents,
+        is_test_data: record.value.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.budgets', category),
+      }),
+    );
   });
-  for (const record of [...goals, ...indexForTrash(settings, 'finance.goals').values()].map((item) => item.value || item)) {
+  for (const record of [...goals, ...indexForTrash(settings, 'finance.goals').values()].map(
+    (item) => item.value || item,
+  )) {
     if (rows.get('finance_goals')?.some((row) => row.id === idFor(idMap, 'finance_goals', record.id))) continue;
-    pushRow(rows, 'finance_goals', rowId(idMap, 'finance_goals', userId, record.id, {
-      name: record.name,
-      target_cents: record.targetCents,
-      saved_cents: record.savedCents,
-      deadline: record.deadline || null,
-      linked_account_id: record.linkedAccountId
-        ? databaseId(idMap, 'finance_accounts', record.linkedAccountId)
-        : null,
-      is_test_data: record.sample === true,
-      deleted_at: deletedAtFor(settings, 'finance.goals', record.id),
-    }));
+    pushRow(
+      rows,
+      'finance_goals',
+      rowId(idMap, 'finance_goals', userId, record.id, {
+        name: record.name,
+        target_cents: record.targetCents,
+        saved_cents: record.savedCents,
+        deadline: record.deadline || null,
+        linked_account_id: record.linkedAccountId
+          ? databaseId(idMap, 'finance_accounts', record.linkedAccountId)
+          : null,
+        is_test_data: record.sample === true,
+        deleted_at: deletedAtFor(settings, 'finance.goals', record.id),
+      }),
+    );
   }
 
   const activePeriods = [...(state.cycle || [])];
   const activePeriodKeys = new Set(activePeriods.map((period) => `${period.start}|${period.end || ''}`));
-  const trashedPeriods = [...indexForTrash(settings, 'cycle').entries()]
-    .filter(([key]) => !activePeriodKeys.has(key));
+  const trashedPeriods = [...indexForTrash(settings, 'cycle').entries()].filter(([key]) => !activePeriodKeys.has(key));
   for (const period of activePeriods) {
     const key = `${period.start}|${period.end || ''}`;
-    pushRow(rows, 'cycle_periods', rowId(idMap, 'cycle_periods', userId, key, {
-      start_date: period.start,
-      end_date: period.end || null,
-      is_test_data: period.sample === true,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'cycle_periods',
+      rowId(idMap, 'cycle_periods', userId, key, {
+        start_date: period.start,
+        end_date: period.end || null,
+        is_test_data: period.sample === true,
+        deleted_at: null,
+      }),
+    );
   }
   for (const [key, record] of trashedPeriods) {
     const period = record.value;
-    pushRow(rows, 'cycle_periods', rowId(idMap, 'cycle_periods', userId, key, {
-      start_date: period.start,
-      end_date: period.end || null,
-      is_test_data: period.sample === true,
-      deleted_at: deletedAtFor(settings, 'cycle', key),
-    }));
+    pushRow(
+      rows,
+      'cycle_periods',
+      rowId(idMap, 'cycle_periods', userId, key, {
+        start_date: period.start,
+        end_date: period.end || null,
+        is_test_data: period.sample === true,
+        deleted_at: deletedAtFor(settings, 'cycle', key),
+      }),
+    );
   }
   const cycleDays = { ...(state.cycleLog || {}) };
   indexForTrash(settings, 'cycleLog').forEach((record) => {
     if (!Object.hasOwn(cycleDays, record.key)) cycleDays[record.key] = record.value;
   });
-  Object.entries(cycleDays).forEach(([day, log]) => pushRow(rows, 'cycle_days', rowId(idMap, 'cycle_days', userId, day, {
-    log_date: day,
-    flow: log.flow || null,
-    energy: log.energy || null,
-    sleep: log.sleep || null,
-    discharge: log.discharge || null,
-    note: log.note || null,
-    pain: log.pain || [],
-    mood: log.mood || [],
-    social: log.social || [],
-    weight_kg: log.weightKg ?? null,
-    ovulation_test_result: log.ovulationTestResult || null,
-    pregnancy_test_result: log.pregnancyTestResult || null,
-    medication_taken: log.medicationTaken ?? null,
-    digestion: log.digestion || [],
-    skin: log.skin || [],
-    sexual_activity: log.sexualActivity ?? null,
-    contraception_methods: log.contraceptionMethods || [],
-    masturbation_activity: log.masturbationActivity ?? null,
-    sex_toys_used: log.sexToysUsed ?? null,
-    libido_level: log.libido || null,
-    orgasm_occurred: log.orgasmOccurred ?? null,
-    orgasm_count: log.orgasmCount ?? null,
-    is_test_data: log.sample === true,
-    deleted_at: deletedAtFor(settings, 'cycleLog', day),
-  })));
+  Object.entries(cycleDays).forEach(([day, log]) =>
+    pushRow(
+      rows,
+      'cycle_days',
+      rowId(idMap, 'cycle_days', userId, day, {
+        log_date: day,
+        flow: log.flow || null,
+        energy: log.energy || null,
+        sleep: log.sleep || null,
+        discharge: log.discharge || null,
+        note: log.note || null,
+        pain: log.pain || [],
+        mood: log.mood || [],
+        social: log.social || [],
+        weight_kg: log.weightKg ?? null,
+        ovulation_test_result: log.ovulationTestResult || null,
+        pregnancy_test_result: log.pregnancyTestResult || null,
+        medication_taken: log.medicationTaken ?? null,
+        digestion: log.digestion || [],
+        skin: log.skin || [],
+        sexual_activity: log.sexualActivity ?? null,
+        contraception_methods: log.contraceptionMethods || [],
+        masturbation_activity: log.masturbationActivity ?? null,
+        sex_toys_used: log.sexToysUsed ?? null,
+        libido_level: log.libido || null,
+        orgasm_occurred: log.orgasmOccurred ?? null,
+        orgasm_count: log.orgasmCount ?? null,
+        is_test_data: log.sample === true,
+        deleted_at: deletedAtFor(settings, 'cycleLog', day),
+      }),
+    ),
+  );
   for (const item of state.weight || []) {
-    pushRow(rows, 'weight_logs', rowId(idMap, 'weight_logs', userId, item.id, {
-      log_date: item.date,
-      weight_kg: item.kg,
-      is_test_data: item.sample === true,
-      deleted_at: null,
-    }));
+    pushRow(
+      rows,
+      'weight_logs',
+      rowId(idMap, 'weight_logs', userId, item.id, {
+        log_date: item.date,
+        weight_kg: item.kg,
+        is_test_data: item.sample === true,
+        deleted_at: null,
+      }),
+    );
   }
 
-  activeTrashRows(settings, userId, idMap, (table, source) => databaseId(idMap, table, source))
-    .forEach((row) => pushRow(rows, 'trash_records', row));
+  activeTrashRows(settings, userId, idMap, (table, source) => databaseId(idMap, table, source)).forEach((row) =>
+    pushRow(rows, 'trash_records', row),
+  );
   return rows;
 }
 
@@ -689,48 +816,64 @@ function taskFromRow(row, tables, idMap, includeDeleted = false) {
 
 function financeRecordFromRow(row, table, idMap) {
   const id = sourceId(idMap, table, row.id);
-  if (table === 'finance_accounts') return {
-    id, name: row.name, type: normalizeAccountType(row.account_type), initialCents: numeric(row.initial_cents),
-    ...(row.bank ? { bank: row.bank } : {}),
-    ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
-    ...(row.limit_cents == null ? {} : { limitCents: numeric(row.limit_cents) }),
-    ...(row.closing_day == null ? {} : { closingDay: row.closing_day }),
-    ...(row.due_day == null ? {} : { dueDay: row.due_day }),
-    sample: row.is_test_data || undefined,
-  };
-  if (table === 'finance_transactions') return {
-    id, type: row.transaction_type,
-    accountId: sourceId(idMap, 'finance_accounts', row.account_id),
-    ...(row.to_account_id ? { toAccountId: sourceId(idMap, 'finance_accounts', row.to_account_id) } : {}),
-    cents: numeric(row.amount_cents), date: row.transaction_date,
-    ...(row.settled_date ? { settledDate: row.settled_date } : {}),
-    ...(row.interest_cents != null ? { interestCents: numeric(row.interest_cents) } : {}),
-    ...(row.anticipated_date ? { anticipatedDate: row.anticipated_date } : {}),
-    ...(row.invoice_installment ? { invoiceInstallment: true } : {}),
-    ...(row.category ? { category: row.category } : {}),
-    ...(row.description ? { desc: row.description } : {}),
-    paid: row.is_paid,
-    ...(row.entered_at ? { createdAt: fromIso(row.entered_at) } : {}),
-    ...(row.group_key ? { groupId: row.group_key } : {}),
-    ...(row.recurrence_id ? { recId: sourceId(idMap, 'finance_recurrences', row.recurrence_id) } : {}),
-    sample: row.is_test_data || undefined,
-  };
-  if (table === 'finance_goals') return {
-    id, name: row.name, targetCents: numeric(row.target_cents),
-    savedCents: numeric(row.saved_cents), deadline: row.deadline,
-    ...(row.linked_account_id
-      ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) }
-      : {}),
-    sample: row.is_test_data || undefined,
-  };
-  if (table === 'finance_recurrences') return {
-    id, type: row.transaction_type,
-    accountId: sourceId(idMap, 'finance_accounts', row.account_id),
-    category: row.category, cents: numeric(row.amount_cents),
-    day: row.day_of_month, startYM: monthFromDate(row.start_month),
-    lastYM: monthFromDate(row.last_month), desc: row.description || undefined,
-    firstPaid: row.first_paid, paused: row.is_paused, sample: row.is_test_data || undefined,
-  };
+  if (table === 'finance_accounts')
+    return {
+      id,
+      name: row.name,
+      type: normalizeAccountType(row.account_type),
+      initialCents: numeric(row.initial_cents),
+      ...(row.bank ? { bank: row.bank } : {}),
+      ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
+      ...(row.limit_cents == null ? {} : { limitCents: numeric(row.limit_cents) }),
+      ...(row.closing_day == null ? {} : { closingDay: row.closing_day }),
+      ...(row.due_day == null ? {} : { dueDay: row.due_day }),
+      sample: row.is_test_data || undefined,
+    };
+  if (table === 'finance_transactions')
+    return {
+      id,
+      type: row.transaction_type,
+      accountId: sourceId(idMap, 'finance_accounts', row.account_id),
+      ...(row.to_account_id ? { toAccountId: sourceId(idMap, 'finance_accounts', row.to_account_id) } : {}),
+      cents: numeric(row.amount_cents),
+      date: row.transaction_date,
+      ...(row.settled_date ? { settledDate: row.settled_date } : {}),
+      ...(row.interest_cents != null ? { interestCents: numeric(row.interest_cents) } : {}),
+      ...(row.anticipated_date ? { anticipatedDate: row.anticipated_date } : {}),
+      ...(row.invoice_installment ? { invoiceInstallment: true } : {}),
+      ...(row.category ? { category: row.category } : {}),
+      ...(row.description ? { desc: row.description } : {}),
+      paid: row.is_paid,
+      ...(row.entered_at ? { createdAt: fromIso(row.entered_at) } : {}),
+      ...(row.group_key ? { groupId: row.group_key } : {}),
+      ...(row.recurrence_id ? { recId: sourceId(idMap, 'finance_recurrences', row.recurrence_id) } : {}),
+      sample: row.is_test_data || undefined,
+    };
+  if (table === 'finance_goals')
+    return {
+      id,
+      name: row.name,
+      targetCents: numeric(row.target_cents),
+      savedCents: numeric(row.saved_cents),
+      deadline: row.deadline,
+      ...(row.linked_account_id ? { linkedAccountId: sourceId(idMap, 'finance_accounts', row.linked_account_id) } : {}),
+      sample: row.is_test_data || undefined,
+    };
+  if (table === 'finance_recurrences')
+    return {
+      id,
+      type: row.transaction_type,
+      accountId: sourceId(idMap, 'finance_accounts', row.account_id),
+      category: row.category,
+      cents: numeric(row.amount_cents),
+      day: row.day_of_month,
+      startYM: monthFromDate(row.start_month),
+      lastYM: monthFromDate(row.last_month),
+      desc: row.description || undefined,
+      firstPaid: row.first_paid,
+      paused: row.is_paused,
+      sample: row.is_test_data || undefined,
+    };
   return { cents: numeric(row.amount_cents), sample: row.is_test_data || undefined };
 }
 
@@ -759,18 +902,23 @@ function loadTrash(tables, idMap) {
     }
     let value;
     const row = (entityRows[stored.entity_table] || []).find((item) => item.id === stored.entity_id);
-    if (!row) throw new Error('Um item da lixeira perdeu seu registro relacional; a conta foi bloqueada para evitar perda.');
+    if (!row)
+      throw new Error('Um item da lixeira perdeu seu registro relacional; a conta foi bloqueada para evitar perda.');
     if (stored.collection === 'tasks') value = taskFromRow(row, tables, idMap, true);
     else if (stored.collection === 'habits') value = habitFromRow(row, tables, idMap, true);
-    else if (stored.collection === 'water') value = {
-      id: sourceId(idMap, 'water_logs', row.id), ml: row.amount_ml, at: row.recorded_at,
-    };
+    else if (stored.collection === 'water')
+      value = {
+        id: sourceId(idMap, 'water_logs', row.id),
+        ml: row.amount_ml,
+        at: row.recorded_at,
+      };
     else if (stored.collection === 'cycleLog') value = cycleLogFromRow(row);
-    else if (stored.collection === 'cycle') value = {
-      start: row.start_date,
-      end: row.end_date,
-      sample: row.is_test_data || undefined,
-    };
+    else if (stored.collection === 'cycle')
+      value = {
+        start: row.start_date,
+        end: row.end_date,
+        sample: row.is_test_data || undefined,
+      };
     else if (stored.collection.startsWith('finance.')) {
       const table = {
         'finance.accounts': 'finance_accounts',
@@ -866,18 +1014,23 @@ function buildState(tables, idMap) {
     areas: userSettings.enabled_areas || {},
     theme: profile.theme || 'rose',
     look: profile.appearance || {},
-    lists: active('task_lists').sort((a, b) => a.sort_order - b.sort_order).map((row) => ({
-      name: row.name, color: row.color, ...(row.folder ? { folder: row.folder } : {}),
-    })),
+    lists: active('task_lists')
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((row) => ({
+        name: row.name,
+        color: row.color,
+        ...(row.folder ? { folder: row.folder } : {}),
+      })),
     cats: preferences.cats || { out: [], in: [] },
     weightTracking: preferences.weightTracking === true,
     onboardingComplete: preferences.onboardingComplete === true,
     introSeen: preferences.introSeen === true,
     prefs: {
       ...preferences,
-      weeklyReflection: active('weekly_reflections')
-        .sort((a, b) => b.week_of.localeCompare(a.week_of))
-        .map((row) => ({ weekOf: row.week_of, text: row.reflection }))[0] || null,
+      weeklyReflection:
+        active('weekly_reflections')
+          .sort((a, b) => b.week_of.localeCompare(a.week_of))
+          .map((row) => ({ weekOf: row.week_of, text: row.reflection }))[0] || null,
       trash: loadTrash(tables, idMap),
     },
   };
@@ -887,14 +1040,15 @@ function buildState(tables, idMap) {
   delete settings.prefs.introSeen;
 
   const financeAccounts = active('finance_accounts').map((row) => financeRecordFromRow(row, 'finance_accounts', idMap));
-  const financeRecurring = active('finance_recurrences').map((row) => financeRecordFromRow(row, 'finance_recurrences', idMap));
+  const financeRecurring = active('finance_recurrences').map((row) =>
+    financeRecordFromRow(row, 'finance_recurrences', idMap),
+  );
   const finance = {
     accounts: financeAccounts,
     tx: active('finance_transactions').map((row) => financeRecordFromRow(row, 'finance_transactions', idMap)),
-    budgets: Object.fromEntries(active('finance_budgets').map((row) => [
-      row.category,
-      financeRecordFromRow(row, 'finance_budgets', idMap),
-    ])),
+    budgets: Object.fromEntries(
+      active('finance_budgets').map((row) => [row.category, financeRecordFromRow(row, 'finance_budgets', idMap)]),
+    ),
     goals: active('finance_goals').map((row) => financeRecordFromRow(row, 'finance_goals', idMap)),
     recurring: financeRecurring,
   };
@@ -944,10 +1098,7 @@ function buildState(tables, idMap) {
       end: row.end_date,
       sample: row.is_test_data || undefined,
     })),
-    cycleLog: Object.fromEntries(active('cycle_days').map((row) => [
-      row.log_date,
-      cycleLogFromRow(row),
-    ])),
+    cycleLog: Object.fromEntries(active('cycle_days').map((row) => [row.log_date, cycleLogFromRow(row)])),
     weight: active('weight_logs').map((row) => ({
       id: sourceId(idMap, 'weight_logs', row.id),
       date: row.log_date,
@@ -999,10 +1150,10 @@ export class RelationalAccountStore {
         replace_missing: replaceMissing,
         expected_versions: replaceMissing
           ? [...versions].map(([id, updatedAt]) => ({
-            id,
-            user_id: this.userId,
-            expected_updated_at: updatedAt,
-          }))
+              id,
+              user_id: this.userId,
+              expected_updated_at: updatedAt,
+            }))
           : [],
         rows: changedRows.map((row) => ({
           ...row,
@@ -1013,21 +1164,27 @@ export class RelationalAccountStore {
     const { data, error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
     if (error) {
       const conflictMessage = typeof error.message === 'string' ? error.message : '';
-      const isVersionConflict = /version_conflict|recarregue os dados da conta|atualizada em outro dispositivo/i.test(conflictMessage)
-        || String(error.code || '').toLowerCase() === 'version_conflict';
+      const isVersionConflict =
+        /version_conflict|recarregue os dados da conta|atualizada em outro dispositivo/i.test(conflictMessage) ||
+        String(error.code || '').toLowerCase() === 'version_conflict';
       if (isVersionConflict) {
-        const friendlyMessage = conflictMessage || 'A linha foi atualizada em outro dispositivo. Recarregue os dados da conta e tente novamente.';
+        const friendlyMessage =
+          conflictMessage ||
+          'A linha foi atualizada em outro dispositivo. Recarregue os dados da conta e tente novamente.';
         const versionError = new Error(friendlyMessage);
         versionError.code = 'version_conflict';
         throw versionError;
       }
       console.error('Aurora: a gravação relacional da conta falhou.', error);
-      const code = typeof error.code === 'string' && /^[\w-]{1,32}$/.test(error.code)
-        ? `Código ${error.code}. `
-        : '';
-      const message = typeof error.message === 'string'
-        ? error.message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
-        : '';
+      const code = typeof error.code === 'string' && /^[\w-]{1,32}$/.test(error.code) ? `Código ${error.code}. ` : '';
+      const message =
+        typeof error.message === 'string'
+          ? error.message
+              .replace(/[\u0000-\u001f\u007f]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 180)
+          : '';
       throw new Error(`Não foi possível salvar as alterações na conta. ${code}${message}`.trim());
     }
     if (!Array.isArray(data)) {
@@ -1040,7 +1197,11 @@ export class RelationalAccountStore {
       }
       for (const row of change.rows) {
         const key = versionId(change.table, row);
-        if (!savedTable.rows.some((saved) => versionId(change.table, saved) === key && typeof saved.updated_at === 'string')) {
+        if (
+          !savedTable.rows.some(
+            (saved) => versionId(change.table, saved) === key && typeof saved.updated_at === 'string',
+          )
+        ) {
           throw new Error(VERSION_CONFIRMATION_ERROR);
         }
       }
@@ -1056,7 +1217,6 @@ export class RelationalAccountStore {
       }
     }
   }
-
 
   async clear() {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {

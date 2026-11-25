@@ -487,7 +487,7 @@ async function main() {
         await page.locator('.main[data-route="inicio"] > .home-head h1').waitFor();
         const onboarding = page.locator('#dlg[data-dialog-type="onboard"]');
         await onboarding.waitFor({ state: 'visible' });
-        assert.match(await onboarding.innerText(), /Um espaço para organizar a vida do seu jeito/,
+        assert.match(await onboarding.innerText(), /Tarefas, hábitos, dinheiro e ciclo num lugar só/,
           'primeiro acesso apresenta o que dá para fazer no Aurora');
         for (const area of ['Início', 'Planejar', 'Hábitos', 'Finanças']) {
           assert.ok(await onboarding.getByText(area, { exact: true }).count() > 0,
@@ -520,7 +520,7 @@ async function main() {
           'tutorial escolhido não inicia automaticamente');
         await onboardingGuide.locator('[data-action="dlg-close"]').first().click();
         await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
-        await page.waitForFunction(() => !document.querySelector('.save-indicator'));
+        await page.waitForFunction(() => !document.querySelector('.sync-status'));
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }

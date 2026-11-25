@@ -8,9 +8,29 @@ export const HOME_BLOCKS = [
 ];
 
 export const HOME_SHORTCUTS = [
-  { id: 'task', label: 'Nova tarefa', icon: 'calendarCheck', description: 'Criar uma tarefa para hoje.', action: 'quick-action-task' },
-  { id: 'habit', label: 'Novo hábito', icon: 'check', description: 'Adicionar um hábito à rotina.', action: 'quick-action-habit', area: 'habits' },
-  { id: 'finance', label: 'Finanças', icon: 'wallet', description: 'Criar uma conta ou lançamento.', action: 'quick-action-finance', area: 'finances' },
+  {
+    id: 'task',
+    label: 'Nova tarefa',
+    icon: 'calendarCheck',
+    description: 'Criar uma tarefa para hoje.',
+    action: 'quick-action-task',
+  },
+  {
+    id: 'habit',
+    label: 'Novo hábito',
+    icon: 'check',
+    description: 'Adicionar um hábito à rotina.',
+    action: 'quick-action-habit',
+    area: 'habits',
+  },
+  {
+    id: 'finance',
+    label: 'Finanças',
+    icon: 'wallet',
+    description: 'Criar uma conta ou lançamento.',
+    action: 'quick-action-finance',
+    area: 'finances',
+  },
 ];
 
 export const HOME_MODES = Object.freeze({
@@ -51,9 +71,7 @@ export function homeFirstStepsProgress(value = {}) {
   const { theme, tasks, habits } = value && typeof value === 'object' ? value : {};
   return [
     Array.isArray(tasks) && tasks.length > 0,
-    Array.isArray(habits) && habits.some((habit) => (
-      Array.isArray(habit?.completions) && habit.completions.length > 0
-    )),
+    Array.isArray(habits) && habits.some((habit) => Array.isArray(habit?.completions) && habit.completions.length > 0),
     typeof theme === 'string' && theme !== 'rose',
   ];
 }
@@ -65,9 +83,15 @@ export function defaultHomeLayout() {
 export function normalizeHomeLayout(value) {
   const layout = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const order = Array.isArray(layout.order) ? layout.order.filter((id) => HOME_BLOCK_IDS.includes(id)) : [];
-  const visible = Array.isArray(layout.visible) ? layout.visible.filter((id) => HOME_BLOCK_IDS.includes(id)) : HOME_BLOCK_IDS;
+  const visible = Array.isArray(layout.visible)
+    ? layout.visible.filter((id) => HOME_BLOCK_IDS.includes(id))
+    : HOME_BLOCK_IDS;
   return {
-    order: ['today', ...new Set(order.filter((id) => id !== 'today')), ...HOME_BLOCK_IDS.filter((id) => !order.includes(id) && id !== 'today')],
+    order: [
+      'today',
+      ...new Set(order.filter((id) => id !== 'today')),
+      ...HOME_BLOCK_IDS.filter((id) => !order.includes(id) && id !== 'today'),
+    ],
     visible: [...new Set(visible)],
   };
 }
@@ -82,22 +106,32 @@ export function normalizeHomeShortcuts(value) {
 }
 
 export function defaultHomeModes() {
-  return Object.fromEntries(Object.entries(HOME_MODES).map(([id, mode]) => [id, {
-    layout: normalizeHomeLayout(mode.layout),
-    shortcuts: normalizeHomeShortcuts(mode.shortcuts),
-  }]));
+  return Object.fromEntries(
+    Object.entries(HOME_MODES).map(([id, mode]) => [
+      id,
+      {
+        layout: normalizeHomeLayout(mode.layout),
+        shortcuts: normalizeHomeShortcuts(mode.shortcuts),
+      },
+    ]),
+  );
 }
 
 export function normalizeHomeModes(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const defaults = defaultHomeModes();
-  return Object.fromEntries(Object.entries(HOME_MODES).map(([id]) => {
-    const saved = source[id] && typeof source[id] === 'object' && !Array.isArray(source[id]) ? source[id] : {};
-    return [id, {
-      layout: normalizeHomeLayout(saved.layout ?? defaults[id].layout),
-      shortcuts: normalizeHomeShortcuts(saved.shortcuts ?? defaults[id].shortcuts),
-    }];
-  }));
+  return Object.fromEntries(
+    Object.entries(HOME_MODES).map(([id]) => {
+      const saved = source[id] && typeof source[id] === 'object' && !Array.isArray(source[id]) ? source[id] : {};
+      return [
+        id,
+        {
+          layout: normalizeHomeLayout(saved.layout ?? defaults[id].layout),
+          shortcuts: normalizeHomeShortcuts(saved.shortcuts ?? defaults[id].shortcuts),
+        },
+      ];
+    }),
+  );
 }
 
 export function normalizeHomeMode(value) {
@@ -110,12 +144,14 @@ export function normalizeHomeMessage(value) {
 
 export function normalizeHomeAreaColors(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  return Object.fromEntries(Object.entries(source)
-    .filter(([id, color]) => HOME_AREA_COLOR_IDS.includes(id) && Object.hasOwn(PALETTES, color)));
+  return Object.fromEntries(
+    Object.entries(source).filter(([id, color]) => HOME_AREA_COLOR_IDS.includes(id) && Object.hasOwn(PALETTES, color)),
+  );
 }
 
 function luminance(hex) {
-  const channels = [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255)
+  const channels = [1, 3, 5]
+    .map((index) => parseInt(hex.slice(index, index + 2), 16) / 255)
     .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
@@ -136,8 +172,13 @@ export function homeAreaColorValue(paletteId, mode) {
 
   const rgb = [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
   for (let amount = 0.08; amount <= 1; amount += 0.04) {
-    const candidate = `#${rgb.map((channel) => Math.round(channel + (255 - channel) * amount)
-      .toString(16).padStart(2, '0')).join('')}`;
+    const candidate = `#${rgb
+      .map((channel) =>
+        Math.round(channel + (255 - channel) * amount)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')}`;
     if (contrastRatio(candidate, background) >= 4.5) return candidate;
   }
   return '#ffffff';

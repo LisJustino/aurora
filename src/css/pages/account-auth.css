@@ -463,10 +463,6 @@
   white-space: nowrap;
 }
 
-[data-status="pending"].save-indicator::before {
-  background: var(--warn);
-}
-
 @media (width <= 480px) {
   .account-gate {
     --account-page-gutter: var(--space-4);

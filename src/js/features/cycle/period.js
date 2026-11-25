@@ -5,9 +5,15 @@ export const MAX_CYCLE_LOG_RANGE_DAYS = 31;
 const BATCH_SYMPTOM_CATEGORIES = Object.freeze(['pain', 'mood', 'digestion', 'skin']);
 
 export function createCyclePeriod(start, end, today) {
-  if (!isDay(start) || !isDay(end) || !isDay(today)
-    || start > end || end > today
-    || dayDiff(end, start) + 1 > MAX_CYCLE_PERIOD_DAYS) return null;
+  if (
+    !isDay(start) ||
+    !isDay(end) ||
+    !isDay(today) ||
+    start > end ||
+    end > today ||
+    dayDiff(end, start) + 1 > MAX_CYCLE_PERIOD_DAYS
+  )
+    return null;
 
   return { start, end };
 }
@@ -25,18 +31,23 @@ export function cyclePeriodDays(start, end, today) {
 }
 
 export function cycleLogDays(start, end, today) {
-  if (!isDay(start) || !isDay(end) || !isDay(today)
-    || start > end || end > today
-    || dayDiff(end, start) + 1 > MAX_CYCLE_LOG_RANGE_DAYS) return null;
+  if (
+    !isDay(start) ||
+    !isDay(end) ||
+    !isDay(today) ||
+    start > end ||
+    end > today ||
+    dayDiff(end, start) + 1 > MAX_CYCLE_LOG_RANGE_DAYS
+  )
+    return null;
 
   return Array.from({ length: dayDiff(end, start) + 1 }, (_, index) => addDays(start, index));
 }
 
 export function mergeCycleLogSymptoms(existing, selected) {
-  const result = Object.fromEntries(Object.entries(existing || {}).map(([key, value]) => [
-    key,
-    Array.isArray(value) ? [...value] : value,
-  ]));
+  const result = Object.fromEntries(
+    Object.entries(existing || {}).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]),
+  );
   BATCH_SYMPTOM_CATEGORIES.forEach((category) => {
     const additions = Array.isArray(selected?.[category]) ? selected[category] : [];
     if (!additions.length) return;

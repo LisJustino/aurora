@@ -17,12 +17,22 @@ export const isValidGoalTrack = (track) => {
   if (track === undefined) return true;
   if (!track || typeof track !== 'object' || Array.isArray(track)) return false;
   if (track.kind === 'habit') {
-    return typeof track.habitId === 'string' && track.habitId.length > 0 && track.habitId.length <= 200
-      && HABIT_TARGETS.includes(track.targetPct);
+    return (
+      typeof track.habitId === 'string' &&
+      track.habitId.length > 0 &&
+      track.habitId.length <= 200 &&
+      HABIT_TARGETS.includes(track.targetPct)
+    );
   }
   if (track.kind === 'count') {
-    return Number.isInteger(track.target) && track.target >= 1 && track.target <= MAX_COUNT_TARGET
-      && Number.isInteger(track.current) && track.current >= 0 && track.current <= MAX_COUNT_TARGET * 10;
+    return (
+      Number.isInteger(track.target) &&
+      track.target >= 1 &&
+      track.target <= MAX_COUNT_TARGET &&
+      Number.isInteger(track.current) &&
+      track.current >= 0 &&
+      track.current <= MAX_COUNT_TARGET * 10
+    );
   }
   return false;
 };
@@ -42,17 +52,24 @@ export function goalProgress(goal, { today, year, habits = [] }) {
   if (kind === 'habit') {
     const habit = habits.find((item) => item.id === track.habitId);
     if (!habit) {
-      return { kind, status: goal.done ? 'done' : ended ? 'missed' : 'open', pct: null, detail: 'O hábito acompanhado não existe mais.' };
+      return {
+        kind,
+        status: goal.done ? 'done' : ended ? 'missed' : 'open',
+        pct: null,
+        detail: 'O hábito acompanhado não existe mais.',
+      };
     }
     const to = today < yearEnd ? today : yearEnd;
     const done = new Set(habit.completions);
-    const days = notStarted ? [] : habitExpectedDays(habit, yearStart, to)
-      .filter((day) => day !== today || done.has(day));
+    const days = notStarted
+      ? []
+      : habitExpectedDays(habit, yearStart, to).filter((day) => day !== today || done.has(day));
     const completed = days.filter((day) => done.has(day)).length;
     const rate = days.length ? completed / days.length : null;
-    const detail = rate === null
-      ? `Ainda sem dias para contar · meta ${track.targetPct}%`
-      : `${completed} de ${days.length} dias (${pct(rate)}%) · meta ${track.targetPct}%`;
+    const detail =
+      rate === null
+        ? `Ainda sem dias para contar · meta ${track.targetPct}%`
+        : `${completed} de ${days.length} dias (${pct(rate)}%) · meta ${track.targetPct}%`;
     const met = rate !== null && pct(rate) >= track.targetPct;
     let status;
     if (goal.done) status = 'done';

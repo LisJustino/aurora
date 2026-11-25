@@ -5,13 +5,15 @@ let activeLocks = 0;
 let originalState = null;
 
 function captureProperties(element, properties) {
-  return Object.fromEntries(properties.map((property) => [
-    property,
-    {
-      value: element.style.getPropertyValue(property),
-      priority: element.style.getPropertyPriority(property),
-    },
-  ]));
+  return Object.fromEntries(
+    properties.map((property) => [
+      property,
+      {
+        value: element.style.getPropertyValue(property),
+        priority: element.style.getPropertyPriority(property),
+      },
+    ]),
+  );
 }
 
 function restoreProperties(element, properties) {

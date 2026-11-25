@@ -163,6 +163,7 @@
   line-height: 1.45;
 }
 #fin-panel, #fin-view-panel { display: flex; min-width: 0; flex-direction: column; gap: var(--space-4); }
+.main[data-route="financas"] #fin-view-panel .tcal-wrap { width: min(100%, 760px); align-self: center; }
 .mnav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .mlabel {
   display: flex;

@@ -39,11 +39,13 @@ export function isDefaultMenuPreferences(value) {
   if (!Array.isArray(value?.menuOrder) || !Array.isArray(value.visibleMenuItems)) return false;
   const defaults = defaultMenuPreferences();
   const visible = new Set(value.visibleMenuItems);
-  return value.menuOrder.length === defaults.menuOrder.length
-    && value.menuOrder.every((id, index) => id === defaults.menuOrder[index])
-    && value.visibleMenuItems.length === defaults.visibleMenuItems.length
-    && visible.size === defaults.visibleMenuItems.length
-    && value.visibleMenuItems.every((id) => defaults.visibleMenuItems.includes(id));
+  return (
+    value.menuOrder.length === defaults.menuOrder.length &&
+    value.menuOrder.every((id, index) => id === defaults.menuOrder[index]) &&
+    value.visibleMenuItems.length === defaults.visibleMenuItems.length &&
+    visible.size === defaults.visibleMenuItems.length &&
+    value.visibleMenuItems.every((id) => defaults.visibleMenuItems.includes(id))
+  );
 }
 
 const menuIds = new Set(DEFAULT_MENU_ORDER);
@@ -53,7 +55,12 @@ export function normalizeMenuOrder(value) {
   if (Array.isArray(value)) {
     for (const valueId of value) {
       const normalizedId = normalizeMenuId(valueId);
-      if (normalizedId && menuIds.has(normalizedId) && !FIXED_MENU_IDS.includes(normalizedId) && !order.includes(normalizedId)) {
+      if (
+        normalizedId &&
+        menuIds.has(normalizedId) &&
+        !FIXED_MENU_IDS.includes(normalizedId) &&
+        !order.includes(normalizedId)
+      ) {
         order.push(normalizedId);
       }
     }
@@ -65,44 +72,54 @@ export function normalizeMenuOrder(value) {
 }
 
 export function isValidMenuOrder(value) {
-  if (!Array.isArray(value) || new Set(value).size !== value.length
-    || !value.every((id) => typeof id === 'string')) return false;
-  const recognizedIds = new Set(value
-    .map((id) => normalizeMenuId(id))
-    .filter((id) => menuIds.has(id)));
-  return recognizedIds.size === MENU_ITEMS.length
-    && DEFAULT_MENU_ORDER.every((id) => recognizedIds.has(id));
+  if (!Array.isArray(value) || new Set(value).size !== value.length || !value.every((id) => typeof id === 'string'))
+    return false;
+  const recognizedIds = new Set(value.map((id) => normalizeMenuId(id)).filter((id) => menuIds.has(id)));
+  return recognizedIds.size === MENU_ITEMS.length && DEFAULT_MENU_ORDER.every((id) => recognizedIds.has(id));
 }
 
 export function normalizeVisibleMenuItems(value) {
   if (!Array.isArray(value)) return [...OPTIONAL_MENU_IDS];
-  const visible = new Set(value
-    .map((id) => normalizeMenuId(id))
-    .filter((id) => OPTIONAL_MENU_IDS.includes(id)));
+  const visible = new Set(value.map((id) => normalizeMenuId(id)).filter((id) => OPTIONAL_MENU_IDS.includes(id)));
   return OPTIONAL_MENU_IDS.filter((id) => visible.has(id));
 }
 
 export function isValidVisibleMenuItems(value) {
   if (!Array.isArray(value)) return false;
   const ids = value.map((id) => normalizeMenuId(id)).filter(Boolean);
-  return ids.length === value.length
-    && ids.every((id) => typeof id === 'string')
-    && new Set(ids).size === ids.length;
+  return ids.length === value.length && ids.every((id) => typeof id === 'string') && new Set(ids).size === ids.length;
 }
 
-export function orderMenuItems(order, areas, includeDisabled = false, visibleMenuItems = OPTIONAL_MENU_IDS, hiddenMenuItems = []) {
+export function orderMenuItems(
+  order,
+  areas,
+  includeDisabled = false,
+  visibleMenuItems = OPTIONAL_MENU_IDS,
+  hiddenMenuItems = [],
+) {
   const visible = new Set(normalizeVisibleMenuItems(visibleMenuItems));
   const hidden = new Set(hiddenMenuItems);
   return normalizeMenuOrder(order)
     .map((id) => menuItemsById.get(id))
-    .filter((item) => !hidden.has(item.id) && (!item.area || (visible.has(item.id) && (includeDisabled || areas?.[item.area] === true))));
+    .filter(
+      (item) =>
+        !hidden.has(item.id) &&
+        (!item.area || (visible.has(item.id) && (includeDisabled || areas?.[item.area] === true))),
+    );
 }
 
 export function moveMenuItem(order, id, direction, hiddenMenuItems = []) {
   const normalized = normalizeMenuOrder(order);
   const hidden = new Set(hiddenMenuItems);
   const canonicalId = normalizeMenuId(id);
-  if (!canonicalId || !menuIds.has(canonicalId) || hidden.has(canonicalId) || FIXED_MENU_IDS.includes(canonicalId) || ![-1, 1].includes(direction)) return normalized;
+  if (
+    !canonicalId ||
+    !menuIds.has(canonicalId) ||
+    hidden.has(canonicalId) ||
+    FIXED_MENU_IDS.includes(canonicalId) ||
+    ![-1, 1].includes(direction)
+  )
+    return normalized;
   const from = normalized.indexOf(canonicalId);
   let to = from + direction;
   while (to > 0 && to < normalized.length && hidden.has(normalized[to])) to += direction;

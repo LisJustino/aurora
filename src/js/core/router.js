@@ -1,6 +1,4 @@
-const APP_ROUTES = new Set([
-  'inicio', 'planejar', 'financas', 'habitos', 'ciclo', 'config',
-]);
+const APP_ROUTES = new Set(['inicio', 'planejar', 'financas', 'habitos', 'ciclo', 'config']);
 const ACCOUNT_ROUTES = new Set(['entrar', 'criar-conta', 'esqueci-senha', 'nova-senha']);
 const SETTINGS_SECTION_PATHS = Object.freeze({
   profile: 'perfil',
@@ -56,11 +54,12 @@ function settingsPathForLocation(url) {
 function locationHashRoute(locationLike) {
   const { route, query } = routeParts(String(locationLike.hash || '').replace(/^#/, ''));
   if (!route) return null;
-  const isKnownRoute = APP_ROUTES.has(canonicalRoute(route))
-    || route === 'agua'
-    || route === 'perfil'
-    || route === 'pessoal'
-    || route === 'academia';
+  const isKnownRoute =
+    APP_ROUTES.has(canonicalRoute(route)) ||
+    route === 'agua' ||
+    route === 'perfil' ||
+    route === 'pessoal' ||
+    route === 'academia';
   const isPublicRoute = route === 'landing' || route === 'demonstracao';
   if (!isKnownRoute && !ACCOUNT_ROUTES.has(route) && !isPublicRoute) return null;
   return { route, query };
@@ -104,16 +103,13 @@ export function routeFromLocation(locationLike, availableRoutes, fallbackRoute =
 
   const resolved = resolveRoute(routeValue, availableRoutes);
   const canonicalPath = routePathFor(`${resolved.route}${query ? `?${query}` : ''}`);
-  const needsCanonicalPath = Boolean(hashRoute)
-    || `${url.pathname}${url.search}` !== canonicalPath
-    || (!hashRoute && resolved.replaceHash);
+  const needsCanonicalPath =
+    Boolean(hashRoute) || `${url.pathname}${url.search}` !== canonicalPath || (!hashRoute && resolved.replaceHash);
 
   return {
     ...resolved,
     query,
-    replacePath: needsCanonicalPath
-      ? `${canonicalPath}${hashRoute ? '' : url.hash}`
-      : null,
+    replacePath: needsCanonicalPath ? `${canonicalPath}${hashRoute ? '' : url.hash}` : null,
   };
 }
 
@@ -137,17 +133,15 @@ export function canonicalPublicPath(locationLike) {
 
 export function isDemoLocation(locationLike) {
   const url = new URL(locationLike.href);
-  return locationPathRoute(url) === 'demonstracao'
-    || locationHashRoute(url)?.route === 'demonstracao';
+  return locationPathRoute(url) === 'demonstracao' || locationHashRoute(url)?.route === 'demonstracao';
 }
 
 export function isPublicAccountLocation(locationLike) {
   const url = new URL(locationLike.href);
   const hashRoute = locationHashRoute(url);
-  return accountModeForRoute(
-    hashRoute?.route || locationPathRoute(url),
-    hashRoute?.query || url.search.slice(1),
-  ) !== null;
+  return (
+    accountModeForRoute(hashRoute?.route || locationPathRoute(url), hashRoute?.query || url.search.slice(1)) !== null
+  );
 }
 
 export function isPublicLandingLocation(locationLike) {
@@ -195,18 +189,28 @@ export function resolveRoute(value, availableRoutes) {
   const route = canonicalRoute(routeValue);
   return {
     route: availableRoutes.has(route) ? route : 'inicio',
-    replaceHash: legacyWater ? 'habitos' : value === 'pessoal' || legacyGym ? 'inicio' : legacyProfile ? 'config' : null,
+    replaceHash: legacyWater
+      ? 'habitos'
+      : value === 'pessoal' || legacyGym
+        ? 'inicio'
+        : legacyProfile
+          ? 'config'
+          : null,
     query: queryString,
   };
 }
 
 export function isPublicLandingHash(hash) {
-  const value = String(hash || '').replace(/^#/, '').split('?')[0];
+  const value = String(hash || '')
+    .replace(/^#/, '')
+    .split('?')[0];
   return ['', 'landing', 'landing-main', 'demonstracao'].includes(value);
 }
 
 export function accountModeFromHash(hash) {
-  const [route, queryString = ''] = String(hash || '').replace(/^#/, '').split('?');
+  const [route, queryString = ''] = String(hash || '')
+    .replace(/^#/, '')
+    .split('?');
   return accountModeForRoute(route, queryString);
 }
 
@@ -235,8 +239,7 @@ export function postSignOutPath(locationLike) {
 export function settingsRootPath(locationLike) {
   const url = new URL(locationLike.href);
   const settingsPath = settingsPathForLocation(url);
-  if (canonicalRoute(locationPathRoute(url)) !== 'config'
-    && !settingsPath) return null;
+  if (canonicalRoute(locationPathRoute(url)) !== 'config' && !settingsPath) return null;
   if (!settingsPath?.section && !url.searchParams.has('section') && !url.searchParams.has('weight')) return null;
   url.pathname = '/ajustes';
   url.searchParams.delete('section');

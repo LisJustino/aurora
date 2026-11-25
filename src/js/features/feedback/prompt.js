@@ -27,7 +27,8 @@ export function feedbackSuggestionHref() {
 
 export function renderFeedbackPrompt() {
   return h`<section class="notice feedback-prompt" aria-labelledby="feedback-prompt-title">
-    <div class="feedback-prompt-copy"><b id="feedback-prompt-title">Está gostando do Aurora?</b><p>Tem uma ideia ou sentiu falta de algo? Conte para quem desenvolve o Aurora.</p></div>
+    <div class="feedback-prompt-copy"><b
+      id="feedback-prompt-title">Está gostando do Aurora?</b><p>Tem uma ideia ou sentiu falta de algo? Conte para quem desenvolve o Aurora.</p></div>
     <div class="row feedback-prompt-actions">
       <button type="button" class="btn primary" data-action="feedback-prompt-dismiss">Sim, estou gostando</button>
       <a class="btn ghost" href="${feedbackSuggestionHref()}">Sugerir uma melhoria</a>

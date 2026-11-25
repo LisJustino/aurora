@@ -11,7 +11,8 @@ const MESSAGES = {
   'reauthorization-required': 'O Google revogou ou expirou o acesso desta conta. Conecte novamente.',
   'no-refresh-token': 'O Google não liberou o acesso contínuo. Conecte novamente e aceite todas as permissões.',
   'authorization-rejected': 'O Google recusou a autorização. Tente conectar novamente.',
-  'calendar-scope-missing': 'O Google não concedeu acesso de leitura aos calendários. Conecte novamente e aceite essa permissão.',
+  'calendar-scope-missing':
+    'O Google não concedeu acesso de leitura aos calendários. Conecte novamente e aceite essa permissão.',
   'calendar-api-not-enabled': 'A API do Google Calendar não está habilitada para este projeto.',
 };
 
@@ -19,7 +20,9 @@ async function errorCode(error) {
   try {
     const body = await error?.context?.json?.();
     if (typeof body?.error === 'string') return body.error;
-  } catch { /* corpo ilegível */ }
+  } catch {
+    /* corpo ilegível */
+  }
   return 'service-unavailable';
 }
 
@@ -28,7 +31,10 @@ export function createGoogleConnections(client) {
     const { data, error } = await client.functions.invoke('google-calendar', { body });
     if (error) {
       const code = await errorCode(error);
-      throw new GoogleConnectionError(code, MESSAGES[code] || 'Não foi possível falar com o servidor do Google Agenda. Tente novamente.');
+      throw new GoogleConnectionError(
+        code,
+        MESSAGES[code] || 'Não foi possível falar com o servidor do Google Agenda. Tente novamente.',
+      );
     }
     return data;
   };

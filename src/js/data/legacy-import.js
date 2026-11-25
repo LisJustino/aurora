@@ -2,10 +2,7 @@ import { decryptAccountSlice, unlockVaultWithPassword } from '../services/crypto
 export { containsRemovedStudyData } from '../features/backup/validation.js';
 export { purgeRemovedStudyDataFromBrowserStorage } from '../features/backup/removed-study-data.js';
 
-export const LEGACY_SLICES = [
-  'tasks', 'settings',
-  'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits',
-];
+export const LEGACY_SLICES = ['tasks', 'settings', 'water', 'gym', 'finance', 'cycle', 'cycleLog', 'weight', 'habits'];
 
 const LEGACY_SLICE_SET = new Set(LEGACY_SLICES);
 function parseLocalEnvelope(raw, key) {
@@ -15,18 +12,26 @@ function parseLocalEnvelope(raw, key) {
   } catch {
     throw new Error(`O dado antigo "${key}" está em um formato inválido. Ele foi preservado; nada foi importado.`);
   }
-  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
-    || !Object.hasOwn(envelope, 'v')
-    || (envelope.t !== undefined && !Number.isFinite(envelope.t))) {
+  if (
+    !envelope ||
+    typeof envelope !== 'object' ||
+    Array.isArray(envelope) ||
+    !Object.hasOwn(envelope, 'v') ||
+    (envelope.t !== undefined && !Number.isFinite(envelope.t))
+  ) {
     throw new Error(`O dado antigo "${key}" tem um envelope incompatível. Ele foi preservado; nada foi importado.`);
   }
   return { value: envelope.v, savedAt: Number.isFinite(envelope.t) ? envelope.t : 0 };
 }
 
 function validateEnvelope(envelope, label) {
-  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
-    || !Object.hasOwn(envelope, 'v')
-    || (envelope.t !== undefined && !Number.isFinite(envelope.t))) {
+  if (
+    !envelope ||
+    typeof envelope !== 'object' ||
+    Array.isArray(envelope) ||
+    !Object.hasOwn(envelope, 'v') ||
+    (envelope.t !== undefined && !Number.isFinite(envelope.t))
+  ) {
     throw new Error(`O envelope antigo de ${label} é incompatível. Os dados originais foram preservados.`);
   }
   return { value: envelope.v, savedAt: Number.isFinite(envelope.t) ? envelope.t : 0 };
@@ -88,11 +93,14 @@ export function scanLegacyBrowserStorage(storage, userId) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error(`O cache cifrado antigo "${key}" tem formato incompatível. Ele foi preservado.`);
     }
-    const wrapped = value.t !== undefined
-      && Number.isFinite(value.t)
-      && value.v && typeof value.v === 'object' && !Array.isArray(value.v)
-      ? value.v
-      : value;
+    const wrapped =
+      value.t !== undefined &&
+      Number.isFinite(value.t) &&
+      value.v &&
+      typeof value.v === 'object' &&
+      !Array.isArray(value.v)
+        ? value.v
+        : value;
     encrypted[slice] = wrapped;
     snapshot[key] = raw;
   }
@@ -114,10 +122,7 @@ async function loadVaultRecord(client, userId) {
 }
 
 async function loadVaultRows(client, userId) {
-  const { data, error } = await client
-    .from('user_data')
-    .select('slice,data')
-    .eq('user_id', userId);
+  const { data, error } = await client.from('user_data').select('slice,data').eq('user_id', userId);
   if (error) {
     console.error('Aurora: não foi possível ler as áreas antigas da conta.', error);
     throw new Error('Não foi possível acessar os dados cifrados da conta. Nada foi alterado.');
@@ -134,8 +139,7 @@ export async function inspectLegacySources({ client, userId, browserData }) {
     value: entry.value,
   }));
   const vaultRows = await loadVaultRows(client, userId);
-  const needsVault = vaultRows.length > 0
-    || Object.keys(browserData.encrypted).length > 0;
+  const needsVault = vaultRows.length > 0 || Object.keys(browserData.encrypted).length > 0;
   if (!needsVault) {
     return {
       requiresUnlock: false,
@@ -180,7 +184,9 @@ export async function unlockLegacySources({ discovery, userId, password }) {
   try {
     dataKey = await unlockVaultWithPassword(password, discovery.vaultRecord, userId);
   } catch {
-    throw new Error('Essa senha não desbloqueou o cofre. Confira a senha usada quando ele foi criado e tente novamente.');
+    throw new Error(
+      'Essa senha não desbloqueou o cofre. Confira a senha usada quando ele foi criado e tente novamente.',
+    );
   }
 
   const encryptedSources = [];

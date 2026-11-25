@@ -40,13 +40,17 @@ function showLegalDocumentFallback(dialog, names) {
   });
   status.replaceChildren(
     document.createTextNode('Não foi possível carregar o documento no modal. '),
-    ...links.flatMap((link, index) => index ? [document.createTextNode(' '), link] : [link]),
+    ...links.flatMap((link, index) => (index ? [document.createTextNode(' '), link] : [link])),
   );
   status.hidden = false;
   content.setAttribute('aria-busy', 'false');
 }
 
-export async function showLegalDocument(dialog, name, savedScrollPosition = { left: window.scrollX, top: window.scrollY }) {
+export async function showLegalDocument(
+  dialog,
+  name,
+  savedScrollPosition = { left: window.scrollX, top: window.scrollY },
+) {
   const documentInfo = LEGAL_DOCUMENTS[name];
   if (!documentInfo || !(dialog instanceof HTMLDialogElement)) return false;
   const title = dialog.querySelector('[data-legal-dialog-title]');
@@ -134,19 +138,21 @@ export function initializeLegalDialogEvents() {
     }
     if (dialog && target === dialog) {
       const bounds = dialog.getBoundingClientRect();
-      const isBackdrop = event.clientX < bounds.left || event.clientX > bounds.right
-        || event.clientY < bounds.top || event.clientY > bounds.bottom;
+      const isBackdrop =
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom;
       if (isBackdrop) dialog.close();
       return;
     }
 
     const trigger = target.closest('[data-legal-document]');
-    const linkedDocument = dialog && !target.closest('[data-legal-direct]')
-      ? target.closest('a[href]')
-      : null;
+    const linkedDocument = dialog && !target.closest('[data-legal-direct]') ? target.closest('a[href]') : null;
     const linkedPath = linkedDocument ? new URL(linkedDocument.href, location.href).pathname : '';
-    const documentName = trigger?.dataset.legalDocument
-      || (linkedPath === '/terms.html' ? 'terms' : linkedPath === '/privacy.html' ? 'privacy' : '');
+    const documentName =
+      trigger?.dataset.legalDocument ||
+      (linkedPath === '/terms.html' ? 'terms' : linkedPath === '/privacy.html' ? 'privacy' : '');
     if (!documentName) return;
 
     const modal = document.querySelector('dialog[data-legal-modal]');
@@ -168,9 +174,11 @@ export function initializeLegalDialogEvents() {
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = [...dialog.querySelectorAll(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )].filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
+    const focusable = [
+      ...dialog.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true');
     if (!focusable.length) {
       event.preventDefault();
       dialog.focus();

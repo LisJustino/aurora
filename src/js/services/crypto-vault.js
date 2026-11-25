@@ -19,7 +19,7 @@ function decodeBytes(value, expectedLength = null) {
     throw new Error('A chave criptográfica tem um formato inválido.');
   }
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(base64 + '='.repeat((4 - base64.length % 4) % 4));
+  const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
   if (expectedLength !== null && bytes.length !== expectedLength) {
     throw new Error('A chave criptográfica tem um tamanho inválido.');
@@ -34,13 +34,7 @@ function associatedData(userId, purpose) {
 async function derivePasswordKey(password, salt) {
   const passwordBytes = encoder.encode(password);
   try {
-    const source = await crypto.subtle.importKey(
-      'raw',
-      passwordBytes,
-      'PBKDF2',
-      false,
-      ['deriveKey'],
-    );
+    const source = await crypto.subtle.importKey('raw', passwordBytes, 'PBKDF2', false, ['deriveKey']);
     return await crypto.subtle.deriveKey(
       { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERATIONS },
       source,
@@ -171,10 +165,13 @@ export async function encryptAccountSlice(dataKey, userId, slice, envelope) {
 
 export async function decryptAccountSlice(dataKey, userId, slice, encrypted) {
   requireCrypto();
-  if (!encrypted || encrypted.v !== KEY_VERSION
-    || Object.keys(encrypted).length !== 3
-    || typeof encrypted.iv !== 'string'
-    || typeof encrypted.ciphertext !== 'string') {
+  if (
+    !encrypted ||
+    encrypted.v !== KEY_VERSION ||
+    Object.keys(encrypted).length !== 3 ||
+    typeof encrypted.iv !== 'string' ||
+    typeof encrypted.ciphertext !== 'string'
+  ) {
     throw new Error('Formato criptografado incompatível.');
   }
   const plaintext = await crypto.subtle.decrypt(
@@ -190,8 +187,13 @@ export async function decryptAccountSlice(dataKey, userId, slice, encrypted) {
   const bytes = new Uint8Array(plaintext);
   try {
     const envelope = JSON.parse(new TextDecoder().decode(bytes));
-    if (!envelope || typeof envelope !== 'object' || !Object.hasOwn(envelope, 'v')
-      || !Object.hasOwn(envelope, 't') || !Number.isFinite(envelope.t)) {
+    if (
+      !envelope ||
+      typeof envelope !== 'object' ||
+      !Object.hasOwn(envelope, 'v') ||
+      !Object.hasOwn(envelope, 't') ||
+      !Number.isFinite(envelope.t)
+    ) {
       throw new Error('Envelope de dados criptografado inválido.');
     }
     return envelope;

@@ -80,8 +80,10 @@ export function habitInsights(habits, today, windowDays = INSIGHT_WINDOW_DAYS) {
     scheduledTotal += scheduled;
     completedTotal += completed;
     const streak = currentStreak(habit, today);
-    const dueToday = habit.days.includes(pk(today).getDay())
-      && habitStartedOnOrBefore(habit, today) && !habitIsSkipped(habit, today, today);
+    const dueToday =
+      habit.days.includes(pk(today).getDay()) &&
+      habitStartedOnOrBefore(habit, today) &&
+      !habitIsSkipped(habit, today, today);
     perHabit.push({
       habit,
       scheduled,
@@ -94,24 +96,18 @@ export function habitInsights(habits, today, windowDays = INSIGHT_WINDOW_DAYS) {
   }
 
   const rated = perHabit.filter((item) => item.scheduled >= MIN_SCHEDULED_FOR_RATE);
-  const struggling = rated
-    .filter((item) => item.rate < STRUGGLING_BELOW)
-    .sort((a, b) => a.rate - b.rate);
-  const solid = rated
-    .filter((item) => item.rate >= SOLID_FROM)
-    .sort((a, b) => b.rate - a.rate);
+  const struggling = rated.filter((item) => item.rate < STRUGGLING_BELOW).sort((a, b) => a.rate - b.rate);
+  const solid = rated.filter((item) => item.rate >= SOLID_FROM).sort((a, b) => b.rate - a.rate);
   const weekdays = weekday.map((slot, index) => ({
     weekday: index,
     scheduled: slot.scheduled,
     rate: slot.scheduled ? slot.completed / slot.scheduled : null,
   }));
   const rankable = weekdays.filter((slot) => slot.scheduled >= 4);
-  const hardestWeekday = rankable.length >= 3
-    ? rankable.reduce((low, slot) => (slot.rate < low.rate ? slot : low))
-    : null;
-  const easiestWeekday = rankable.length >= 3
-    ? rankable.reduce((high, slot) => (slot.rate > high.rate ? slot : high))
-    : null;
+  const hardestWeekday =
+    rankable.length >= 3 ? rankable.reduce((low, slot) => (slot.rate < low.rate ? slot : low)) : null;
+  const easiestWeekday =
+    rankable.length >= 3 ? rankable.reduce((high, slot) => (slot.rate > high.rate ? slot : high)) : null;
   const spread = hardestWeekday && easiestWeekday ? easiestWeekday.rate - hardestWeekday.rate : 0;
 
   return {

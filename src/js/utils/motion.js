@@ -2,12 +2,15 @@ const PROGRESS_RING_SELECTOR = '.home-head .ring-fg, .annual-plan-progress-ring'
 
 export function prefersReducedMotion(userPreference = false) {
   const root = typeof document !== 'undefined' ? document.documentElement : null;
-  const dataPreference = root?.dataset.motion === 'reduce'
-    || (typeof root?.hasAttribute === 'function' && root.hasAttribute('data-reduce-motion')
-      && !['false', '0'].includes(root.getAttribute('data-reduce-motion')));
-  const systemPreference = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dataPreference =
+    root?.dataset.motion === 'reduce' ||
+    (typeof root?.hasAttribute === 'function' &&
+      root.hasAttribute('data-reduce-motion') &&
+      !['false', '0'].includes(root.getAttribute('data-reduce-motion')));
+  const systemPreference =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   return Boolean(userPreference || dataPreference || systemPreference);
 }
 
@@ -34,14 +37,17 @@ function runMotion(element, className, onFinish = () => {}) {
 function progressRingEntries(root) {
   if (!root?.querySelectorAll) return [];
   const indexes = { annual: 0, stroke: 0 };
-  return [...root.querySelectorAll(PROGRESS_RING_SELECTOR)].map((element) => {
-    const type = element.matches('.annual-plan-progress-ring') ? 'annual' : 'stroke';
-    const key = `${type}:${indexes[type]++}`;
-    const value = type === 'annual'
-      ? Number.parseFloat(element.style.getPropertyValue('--annual-progress'))
-      : Number(element.getAttribute('stroke-dashoffset'));
-    return { element, key, type, value };
-  }).filter(({ value }) => Number.isFinite(value));
+  return [...root.querySelectorAll(PROGRESS_RING_SELECTOR)]
+    .map((element) => {
+      const type = element.matches('.annual-plan-progress-ring') ? 'annual' : 'stroke';
+      const key = `${type}:${indexes[type]++}`;
+      const value =
+        type === 'annual'
+          ? Number.parseFloat(element.style.getPropertyValue('--annual-progress'))
+          : Number(element.getAttribute('stroke-dashoffset'));
+      return { element, key, type, value };
+    })
+    .filter(({ value }) => Number.isFinite(value));
 }
 
 export function captureProgressRings(root) {
@@ -52,11 +58,12 @@ export function animateProgressRing(element, fromValue, toValue) {
   if (!element?.classList) return false;
   const annual = element.matches('.annual-plan-progress-ring');
   const from = Number(fromValue);
-  const to = toValue === undefined
-    ? (annual
-      ? Number.parseFloat(element.style.getPropertyValue('--annual-progress'))
-      : Number(element.getAttribute('stroke-dashoffset')))
-    : Number(toValue);
+  const to =
+    toValue === undefined
+      ? annual
+        ? Number.parseFloat(element.style.getPropertyValue('--annual-progress'))
+        : Number(element.getAttribute('stroke-dashoffset'))
+      : Number(toValue);
   if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return false;
   const unit = annual ? '%' : '';
   element.style.setProperty('--motion-progress-from', `${from}${unit}`);

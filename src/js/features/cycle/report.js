@@ -7,9 +7,8 @@ const BUCKET_LABELS = Object.freeze({
   before: 'nos 5 dias antes do período',
 });
 
-const average = (values) => values.length
-  ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
-  : null;
+const average = (values) =>
+  values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
 
 // O resumo usa só período, duração do ciclo e sintomas. Registros de intimidade,
 // testes, medicação e anotações livres ficam de fora de propósito.
@@ -23,7 +22,12 @@ export function buildCycleReport({ cycleLog, stats, asOfDate, getLabel }) {
     avgCycle: stats.avg,
     minCycle: stats.min,
     maxCycle: stats.max,
-    avgPeriod: average(history.filter((row) => row.periodLength > 0).slice(0, RECENT_CYCLES).map((row) => row.periodLength)),
+    avgPeriod: average(
+      history
+        .filter((row) => row.periodLength > 0)
+        .slice(0, RECENT_CYCLES)
+        .map((row) => row.periodLength),
+    ),
     cycles: completed,
     symptoms: topSymptoms(cycleLog, asOfDate, getLabel),
     patterns: symptomPhasePatterns(cycleLog, stats, asOfDate, getLabel),
@@ -32,10 +36,23 @@ export function buildCycleReport({ cycleLog, stats, asOfDate, getLabel }) {
 }
 
 export function cycleReportHtml(report, { esc, longDate, shortDate, plural }) {
-  const rows = report.cycles.map((row) => `<tr><td>${esc(shortDate(row.start))}</td><td>${row.length} dias</td><td>${row.periodLength ? `${row.periodLength} ${plural(row.periodLength, 'dia', 'dias')}` : '—'}</td></tr>`).join('');
-  const symptoms = report.symptoms.map((item) => `<li>${esc(item.label)} · ${item.count} ${plural(item.count, 'registro', 'registros')}</li>`).join('');
-  const patterns = report.patterns.map((item) => `<li>${esc(item.label)} · ${item.inBucket} de ${item.count} ${plural(item.count, 'registro', 'registros')} ${BUCKET_LABELS[item.bucket]}</li>`).join('');
-  const range = report.minCycle === report.maxCycle ? `${report.minCycle} dias` : `${report.minCycle} a ${report.maxCycle} dias`;
+  const rows = report.cycles
+    .map(
+      (row) =>
+        `<tr><td>${esc(shortDate(row.start))}</td><td>${row.length} dias</td><td>${row.periodLength ? `${row.periodLength} ${plural(row.periodLength, 'dia', 'dias')}` : '—'}</td></tr>`,
+    )
+    .join('');
+  const symptoms = report.symptoms
+    .map((item) => `<li>${esc(item.label)} · ${item.count} ${plural(item.count, 'registro', 'registros')}</li>`)
+    .join('');
+  const patterns = report.patterns
+    .map(
+      (item) =>
+        `<li>${esc(item.label)} · ${item.inBucket} de ${item.count} ${plural(item.count, 'registro', 'registros')} ${BUCKET_LABELS[item.bucket]}</li>`,
+    )
+    .join('');
+  const range =
+    report.minCycle === report.maxCycle ? `${report.minCycle} dias` : `${report.minCycle} a ${report.maxCycle} dias`;
   return `<article class="cycle-report">
 <h2>Resumo do ciclo</h2>
 <p class="cycle-report-note">Gerado em ${esc(longDate(report.asOfDate))} com os registros feitos no Aurora. É um apoio para conversar com quem cuida da sua saúde e não é diagnóstico.</p>

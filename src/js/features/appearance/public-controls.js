@@ -19,8 +19,10 @@ function setAccessibilityOpen(open) {
 
 export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
   const isLanding = !demo && !authMode;
-  const sectionHref = (id) => isLanding ? `#${id}` : `/#${id}`;
-  const publicNav = demo ? '' : `
+  const sectionHref = (id) => (isLanding ? `#${id}` : `/#${id}`);
+  const publicNav = demo
+    ? ''
+    : `
     <nav class="public-header-nav" aria-label="Navegação principal">
       <a href="${sectionHref('areas')}">O que dá para organizar</a>
       <a href="${sectionHref('steps')}">Como começar</a>
@@ -34,22 +36,33 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
     const accessibleLabel = mode === 'signup' ? 'Criar conta grátis' : 'Entrar';
     if (!authMode) {
       const href = isLanding
-        ? (mode === 'signup' ? signupUrl : loginUrl)
-        : (mode === 'signup' ? '/criar-conta' : '/entrar');
-      return `<a class="btn ${variant} public-account-action" href="${href}" data-public-action="${mode}" aria-label="${accessibleLabel}">${label}</a>`;
+        ? mode === 'signup'
+          ? signupUrl
+          : loginUrl
+        : mode === 'signup'
+          ? '/criar-conta'
+          : '/entrar';
+      return `<a class="btn ${variant} public-account-action" href="${href}" data-public-action="${mode}"
+        aria-label="${accessibleLabel}">${label}</a>`;
     }
-    return `<button type="button" class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action} aria-label="${accessibleLabel}" ${current}>${label}</button>`;
+    return `<button type="button"
+      class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action}
+      aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
   const accountSignupLabel = 'Criar conta<span class="landing-header-free"> grátis</span>';
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
-      <a class="brand public-brand-link" href="${isLanding ? `${APP_URL}/` : './'}" data-public-action="landing" aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true" width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
+      <a class="brand public-brand-link" href="${isLanding ? `${APP_URL}/` : './'}" data-public-action="landing"
+        aria-label="aurora., página inicial"><img class="public-brand-icon" src="${brandLogo}" alt="" aria-hidden="true"
+        width="36" height="36"><span class="wordmark">aurora<span>.</span></span></a>
       ${publicNav}
       <span class="header-actions public-header-actions">
         ${accountAction('login', 'Entrar')}
         ${accountAction('signup', accountSignupLabel)}
         <span class="public-header-tools" role="group" aria-label="Preferências da página">
-          <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle" aria-label="${themeAction(publicLook.mode)}" title="${themeTooltip(publicLook.mode)}">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
+          <button type="button" class="iconbtn theme-trigger" data-public-control="theme-cycle"
+            aria-label="${themeAction(publicLook.mode)}"
+            title="${themeTooltip(publicLook.mode)}">${icon(publicLook.mode === 'auto' ? 'monitor' : publicLook.mode === 'dark' ? 'moon' : 'sun', 20)}</button>
         </span>
       </span>
     </header>`;
@@ -58,9 +71,7 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
 function applyPublicLook() {
   const root = document.documentElement;
   const [primary, accent] = paletteColors('rose', publicLook);
-  const effectiveMode = publicLook.mode === 'auto'
-    ? (systemThemeQuery?.matches ? 'dark' : 'light')
-    : publicLook.mode;
+  const effectiveMode = publicLook.mode === 'auto' ? (systemThemeQuery?.matches ? 'dark' : 'light') : publicLook.mode;
   root.style.setProperty('--p', primary);
   root.style.setProperty('--pd', accent);
   root.setAttribute('data-palette', 'rose');
@@ -73,7 +84,9 @@ function applyPublicLook() {
   root.setAttribute('data-links', publicLook.highlightLinks ? 'highlight' : 'normal');
   root.setAttribute('data-motion', publicLook.reduceMotion ? 'reduce' : 'normal');
   const themeColor = getComputedStyle(root).getPropertyValue('--bg').trim();
-  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = themeColor; });
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = themeColor;
+  });
   syncNativeAppearance(effectiveMode);
   syncPublicControls();
 }
@@ -144,9 +157,7 @@ export function handlePublicKeydown(event) {
 }
 
 export function handlePublicControl(event, root) {
-  const control = event.target instanceof Element
-    ? event.target.closest('[data-public-control]')
-    : null;
+  const control = event.target instanceof Element ? event.target.closest('[data-public-control]') : null;
   if (!control || control.disabled) return false;
   event.preventDefault();
 
@@ -172,7 +183,9 @@ export function handlePublicControl(event, root) {
       publicLook.mode = control.dataset.value;
       break;
     case 'font':
-      publicLook.font = ['s', 'm', 'l'][Math.max(0, Math.min(2, ['s', 'm', 'l'].indexOf(publicLook.font) + Number(control.dataset.step)))];
+      publicLook.font = ['s', 'm', 'l'][
+        Math.max(0, Math.min(2, ['s', 'm', 'l'].indexOf(publicLook.font) + Number(control.dataset.step)))
+      ];
       break;
     case 'font-reset':
       publicLook.font = 'm';

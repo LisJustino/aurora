@@ -13,9 +13,12 @@ export function tasksForWeek(tasks, days) {
     day,
     tasks: tasks
       .filter((task) => task.dueDate === day)
-      .sort((a, b) => Number(a.done) - Number(b.done)
-        || (a.time || '99:99').localeCompare(b.time || '99:99')
-        || (a.createdAt || 0) - (b.createdAt || 0)),
+      .sort(
+        (a, b) =>
+          Number(a.done) - Number(b.done) ||
+          (a.time || '99:99').localeCompare(b.time || '99:99') ||
+          (a.createdAt || 0) - (b.createdAt || 0),
+      ),
   }));
 }
 
@@ -35,32 +38,38 @@ export function weeklyReview(
   const currentTasks = tasks.filter((task) => task.dueDate >= weekStartDay && task.dueDate <= weekEndDay);
   const completedTasks = tasks.filter((task) => {
     if (!task.done) return false;
-    const completedOn = typeof task.doneAt === 'string' && Number.isFinite(Date.parse(task.doneAt))
-      ? isoDay(task.doneAt)
-      : task.dueDate;
+    const completedOn =
+      typeof task.doneAt === 'string' && Number.isFinite(Date.parse(task.doneAt)) ? isoDay(task.doneAt) : task.dueDate;
     return isDay(completedOn) && completedOn >= weekStartDay && completedOn <= today;
   });
   const nextDays = weekDays(addDays(weekStartDay, 7), weekStart);
   const nextTasks = tasks
     .filter((task) => !task.done && task.dueDate >= nextDays[0] && task.dueDate <= nextDays[6])
-    .sort((a, b) => (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0)
-      || a.dueDate.localeCompare(b.dueDate)
-      || (a.time || '99:99').localeCompare(b.time || '99:99'));
+    .sort(
+      (a, b) =>
+        (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0) ||
+        a.dueDate.localeCompare(b.dueDate) ||
+        (a.time || '99:99').localeCompare(b.time || '99:99'),
+    );
   const overdueTasks = tasks
     .filter((task) => !task.done && isDay(task.dueDate) && task.dueDate < today)
-    .sort((a, b) => (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0)
-      || a.dueDate.localeCompare(b.dueDate)
-      || (a.time || '99:99').localeCompare(b.time || '99:99'));
+    .sort(
+      (a, b) =>
+        (a.priority === 'high' ? -1 : 0) - (b.priority === 'high' ? -1 : 0) ||
+        a.dueDate.localeCompare(b.dueDate) ||
+        (a.time || '99:99').localeCompare(b.time || '99:99'),
+    );
   const activeHabits = habits.filter((habit) => (habit.status || 'active') === 'active');
   let habitScheduled = 0;
   let habitCompleted = 0;
   let habitsOnTrack = 0;
   for (const habit of activeHabits) {
-    const scheduledDays = elapsedDays.filter((day) => (
-      habitStartedOnOrBefore(habit, day)
-      && habit.days.includes(new Date(`${day}T12:00:00`).getDay())
-      && !isHabitSkipped(habit, day)
-    ));
+    const scheduledDays = elapsedDays.filter(
+      (day) =>
+        habitStartedOnOrBefore(habit, day) &&
+        habit.days.includes(new Date(`${day}T12:00:00`).getDay()) &&
+        !isHabitSkipped(habit, day),
+    );
     let completed = 0;
     for (const day of scheduledDays) {
       habitScheduled++;
@@ -69,12 +78,11 @@ export function weeklyReview(
         completed++;
       }
     }
-    const weeklyTarget = Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1
-      ? Math.min(habit.weeklyGoal, habit.days.length)
-      : null;
-    const expected = weeklyTarget === null
-      ? scheduledDays.length
-      : Math.min(weeklyTarget, scheduledDays.length);
+    const weeklyTarget =
+      Number.isInteger(habit.weeklyGoal) && habit.weeklyGoal >= 1
+        ? Math.min(habit.weeklyGoal, habit.days.length)
+        : null;
+    const expected = weeklyTarget === null ? scheduledDays.length : Math.min(weeklyTarget, scheduledDays.length);
     if (completed >= expected) habitsOnTrack++;
   }
   return {

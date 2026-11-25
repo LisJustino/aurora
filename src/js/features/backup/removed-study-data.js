@@ -14,8 +14,14 @@ export function purgeRemovedStudyDataFromBrowserStorage(storage, userId) {
     } catch {
       throw new Error('As configurações antigas não puderam ser lidas; nenhuma cópia foi apagada.');
     }
-    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
-      || !envelope.v || typeof envelope.v !== 'object' || Array.isArray(envelope.v)) {
+    if (
+      !envelope ||
+      typeof envelope !== 'object' ||
+      Array.isArray(envelope) ||
+      !envelope.v ||
+      typeof envelope.v !== 'object' ||
+      Array.isArray(envelope.v)
+    ) {
       throw new Error('As configurações antigas têm formato inválido; nenhuma cópia foi apagada.');
     }
     const value = { ...envelope.v };

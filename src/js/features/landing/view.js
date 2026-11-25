@@ -16,7 +16,11 @@ const LANDING_TUTORIALS = [
     color: 'var(--area-plan)',
     heading: 'O seu dia, numa tela só',
     description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas e hábitos organizados na sua tela.',
-    steps: ['Tarefas atrasadas e do dia em destaque', 'Anote algo novo sem sair da tela', 'Escolha quais blocos aparecem'],
+    steps: [
+      'Tarefas atrasadas e do dia em destaque',
+      'Anote algo novo sem sair da tela',
+      'Escolha quais blocos aparecem',
+    ],
     image: '/src/assets/tutorials/landing/hoje.webp',
     imageMobile: '/assets/landing-areas/hoje-mobile.webp',
     alt: 'Tela inicial do Aurora com tarefas e hábitos para o dia.',
@@ -27,8 +31,13 @@ const LANDING_TUTORIALS = [
     icon: 'calendarCheck',
     color: 'var(--area-plan)',
     heading: 'Tire as pendências da cabeça',
-    description: 'Anote o que precisa fazer, com prazo e prioridade se quiser, e veja tudo em lista, calendário ou semana.',
-    steps: ['Prazo e prioridade em segundos', 'Lista, calendário ou visão da semana', 'Busca e filtros para achar qualquer coisa'],
+    description:
+      'Anote o que precisa fazer, com prazo e prioridade se quiser, e veja tudo em lista, calendário ou semana.',
+    steps: [
+      'Prazo e prioridade em segundos',
+      'Lista, calendário ou visão da semana',
+      'Busca e filtros para achar qualquer coisa',
+    ],
     image: '/src/assets/tutorials/landing/tarefas.webp',
     imageMobile: '/assets/landing-areas/tarefas-mobile.webp',
     alt: 'Tela de tarefas do Aurora com opções de lista, calendário e semana.',
@@ -51,7 +60,8 @@ const LANDING_TUTORIALS = [
     icon: 'wallet',
     color: 'var(--area-finances)',
     heading: 'Saiba para onde vai o dinheiro',
-    description: 'Anote contas, receitas e despesas para acompanhar o que entra e o que sai. O Aurora não acessa seu banco.',
+    description:
+      'Anote contas, receitas e despesas para acompanhar o que entra e o que sai. O Aurora não acessa seu banco.',
     steps: ['Contas e saldos num só lugar', 'Receitas, despesas e transferências', 'Relatórios para entender o mês'],
     image: '/src/assets/tutorials/landing/financas.webp',
     imageMobile: '/assets/landing-areas/financas-mobile.webp',
@@ -63,7 +73,8 @@ const LANDING_TUTORIALS = [
     icon: 'heart',
     color: 'var(--area-cycle)',
     heading: 'Seu ciclo junto com o resto da rotina',
-    description: 'Anote períodos e sintomas e consulte datas e médias. É um acompanhamento informativo e as estimativas podem variar.',
+    description:
+      'Anote períodos e sintomas e consulte datas e médias. É um acompanhamento informativo e as estimativas podem variar.',
     steps: ['Início e fim de cada período', 'Sintomas e observações do dia', 'Calendário e médias do ciclo'],
     image: '/src/assets/tutorials/landing/ciclo.webp',
     imageMobile: '/assets/landing-areas/ciclo-mobile.webp',
@@ -109,11 +120,16 @@ function initializeLandingTutorials(root) {
     const tab = event.target.closest('[data-landing-tutorial-tab]');
     const index = tabs.indexOf(tab);
     if (index < 0) return;
-    const nextIndex = event.key === 'ArrowRight' || event.key === 'ArrowDown'
-      ? (index + 1) % tabs.length
-      : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-        ? (index - 1 + tabs.length) % tabs.length
-        : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+    const nextIndex =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? (index + 1) % tabs.length
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? (index - 1 + tabs.length) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : -1;
     if (nextIndex < 0) return;
     event.preventDefault();
     const nextTab = tabs[nextIndex];
@@ -134,10 +150,14 @@ function landingFooter() {
   return `<footer class="landing-footer">
     <div class="landing-footer-card">
       <div class="landing-footer-primary">
-        <a class="landing-footer-brand" href="${APP_URL}/" data-public-action="landing" aria-label="aurora., página inicial">
+        <a class="landing-footer-brand" href="${APP_URL}/" data-public-action="landing"
+          aria-label="aurora., página inicial">
           <img src="${logo}" alt="" width="36" height="36"><span>aurora<span>.</span></span>
         </a>
         <p>Uma rotina inteira, num app só.</p>
+        <a class="landing-footer-cta" href="${signup}" data-public-action="signup">
+          Criar conta grátis ${iconSvg('arrow', 18)}
+        </a>
       </div>
       <nav class="landing-footer-nav" aria-label="Links do Aurora">
         <div class="landing-footer-link-group">
@@ -148,6 +168,12 @@ function landingFooter() {
         </div>
         <div class="landing-footer-link-group">
           <h2>Explorar</h2>
+          <a href="#areas">Áreas da rotina</a>
+          <a href="#steps">Como começar</a>
+          <a href="#faq">Perguntas</a>
+        </div>
+        <div class="landing-footer-link-group">
+          <h2>Legal</h2>
           <a href="${privacy}">Privacidade</a>
           <a href="${APP_URL}/terms.html">Termos de uso</a>
         </div>
@@ -162,7 +188,8 @@ function landingFooter() {
 
 export function landingMarkup() {
   const activeTutorialArea = LANDING_TUTORIALS.some(({ id }) => id === landingState.tutorialArea)
-    ? landingState.tutorialArea : 'hoje';
+    ? landingState.tutorialArea
+    : 'hoje';
   const desktopLight = '/src/assets/landing-desktop.webp';
   const desktopDark = '/src/assets/landing-desktop-dark.webp';
   const mobileLight = '/src/assets/landing-mobile.webp';
@@ -178,7 +205,8 @@ export function landingMarkup() {
             <h1 id="landing-title" class="type-editorial-display">Sua rotina inteira,<br><em>num app só.</em></h1>
             <p class="landing-hero-lead">Tarefas, hábitos, finanças e ciclo no mesmo lugar. Abra, veja o que é para hoje e deixe o resto para depois, sem planilha e sem cinco apps diferentes.</p>
             <div class="landing-hero-actions">
-              <a class="btn primary large" href="${signup}" data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
+              <a class="btn primary large" href="${signup}"
+                data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
               <a class="btn ghost large" href="${demo}" data-public-action="demo">Testar sem cadastro</a>
             </div>
             <ul class="landing-proof-list" aria-label="Informações rápidas">
@@ -187,32 +215,46 @@ export function landingMarkup() {
           </div>
           <figure class="landing-hero-visual">
             <div class="landing-hero-desktop">
-              <img class="landing-screen-light" src="${desktopLight}" width="1280" height="720" alt="Visão clara do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
-              <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720" alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas." fetchpriority="high">
+              <img class="landing-screen-light" src="${desktopLight}" width="1280" height="720"
+                alt="Visão clara do Aurora no computador, com tarefas e áreas da rotina organizadas."
+                fetchpriority="high">
+              <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720"
+                alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas."
+                fetchpriority="high">
             </div>
             <div class="landing-hero-phone">
-              <img class="landing-screen-light" src="${mobileLight}" width="612" height="680" alt="Visão clara do Aurora no celular, com tarefas do dia." fetchpriority="high">
-              <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680" alt="Visão escura do Aurora no celular, com tarefas do dia." fetchpriority="high">
+              <img class="landing-screen-light" src="${mobileLight}" width="612" height="680"
+                alt="Visão clara do Aurora no celular, com tarefas do dia." fetchpriority="high">
+              <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680"
+                alt="Visão escura do Aurora no celular, com tarefas do dia." fetchpriority="high">
             </div>
             <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
           </figure>
         </section>
 
-        <section class="public-tutorials landing-section" id="areas" aria-labelledby="public-tutorials-title" data-landing-areas>
+        <section class="public-tutorials landing-section" id="areas" aria-labelledby="public-tutorials-title"
+          data-landing-areas>
           <div class="public-section-heading landing-section-heading">
             <p class="public-eyebrow">O que dá para organizar</p>
-            <h2 id="public-tutorials-title" class="type-editorial-title">Cinco partes da sua vida, sem trocar de app.</h2>
+            <h2 id="public-tutorials-title"
+              class="type-editorial-title">Cinco partes da sua vida, sem trocar de app.</h2>
           </div>
           <div class="landing-tutorial-tabs" role="tablist" aria-label="Áreas da sua rotina">
             ${LANDING_TUTORIALS.map((area) => {
               const selected = area.id === activeTutorialArea;
-              return `<button type="button" class="landing-tutorial-tab" role="tab" id="landing-tutorial-tab-${area.id}" aria-controls="landing-tutorial-panel-${area.id}" aria-selected="${selected}" tabindex="${selected ? '0' : '-1'}" data-landing-tutorial-tab="${area.id}" style="--area-icon:${area.color}"><span class="landing-tab-icon">${iconSvg(area.icon, 20)}</span>${area.title}</button>`;
+              return `<button type="button" class="landing-tutorial-tab" role="tab" id="landing-tutorial-tab-${area.id}"
+                aria-controls="landing-tutorial-panel-${area.id}" aria-selected="${selected}"
+                tabindex="${selected ? '0' : '-1'}" data-landing-tutorial-tab="${area.id}"
+                style="--area-icon:${area.color}"><span
+                class="landing-tab-icon">${iconSvg(area.icon, 20)}</span>${area.title}</button>`;
             }).join('')}
           </div>
           <div class="landing-tutorial-panels">
             ${LANDING_TUTORIALS.map((area) => {
               const selected = area.id === activeTutorialArea;
-              return `<section class="landing-tutorial-panel" role="tabpanel" id="landing-tutorial-panel-${area.id}" aria-labelledby="landing-tutorial-tab-${area.id}" tabindex="0" data-landing-tutorial-panel="${area.id}" data-area="${area.id}"${selected ? '' : ' hidden'}>
+              return `<section class="landing-tutorial-panel" role="tabpanel" id="landing-tutorial-panel-${area.id}"
+                aria-labelledby="landing-tutorial-tab-${area.id}" tabindex="0" data-landing-tutorial-panel="${area.id}"
+                data-area="${area.id}"${selected ? '' : ' hidden'}>
                 <div class="landing-area-copy">
                   <h3>${area.heading}</h3>
                   <p>${area.description}</p>
@@ -225,8 +267,10 @@ export function landingMarkup() {
                     <img src="${area.image}" alt="${area.alt}" loading="lazy" width="1280" height="720">
                   </picture>
                   <picture class="landing-screen-dark">
-                    <source media="(max-width: 700px)" srcset="${area.imageMobile.replace('-mobile.webp', '-mobile-dark.webp')} 2x" type="image/webp">
-                    <img src="${area.image.replace('.webp', '-dark.webp')}" alt="${area.alt}" loading="lazy" width="1280" height="720">
+                    <source media="(max-width: 700px)"
+                      srcset="${area.imageMobile.replace('-mobile.webp', '-mobile-dark.webp')} 2x" type="image/webp">
+                    <img src="${area.image.replace('.webp', '-dark.webp')}" alt="${area.alt}" loading="lazy"
+                      width="1280" height="720">
                   </picture>
                 </div>
               </section>`;
@@ -244,7 +288,8 @@ export function landingMarkup() {
             <li><span>2</span><h3>Anote o que está pendente</h3><p>Tarefas, contas, hábitos: coloque tudo do jeito que vier à cabeça.</p></li>
             <li><span>3</span><h3>Escolha o que cabe hoje</h3><p>O Aurora mostra o seu dia. O resto fica guardado para quando der.</p></li>
           </ol>
-          <a class="btn primary large landing-steps-cta" href="${signup}" data-public-action="signup">Começar agora, é grátis</a>
+          <a class="btn primary large landing-steps-cta" href="${signup}"
+            data-public-action="signup">Começar agora, é grátis</a>
         </section>
 
         <section class="public-trust landing-trust landing-section" aria-labelledby="public-trust-title">
@@ -258,7 +303,8 @@ export function landingMarkup() {
             <article><span>${iconSvg('bank', 22)}</span><div><h3>Não acessa seu banco</h3><p>Você anota receitas e despesas. Nenhuma conta bancária é conectada.</p></div></article>
             <article><span>${iconSvg('grid', 22)}</span><div><h3>Vira app no celular</h3><p>Adicione o Aurora à tela inicial no Android ou no iPhone e abra com um toque.</p></div></article>
           </div>
-          <p class="landing-trust-privacy">Quer os detalhes? <a href="${privacy}">Leia a Política de Privacidade.</a></p>
+          <p class="landing-trust-privacy">Quer os detalhes? <a
+            href="${privacy}">Leia a Política de Privacidade.</a></p>
         </section>
 
         <section class="public-faq landing-faq landing-section" id="faq" aria-labelledby="public-faq-title">
@@ -295,15 +341,18 @@ export function landingMarkup() {
         </section>
 
         <section class="public-closing landing-final-cta landing-section" aria-labelledby="public-closing-title">
-          <h2 id="public-closing-title" class="type-editorial-title">Menos coisa na cabeça.<br><em>Mais dia para viver.</em></h2>
+          <h2 id="public-closing-title"
+            class="type-editorial-title">Menos coisa na cabeça.<br><em>Mais dia para viver.</em></h2>
           <p>Crie sua conta grátis e organize o que importa hoje.</p>
           <div class="landing-final-actions">
-            <a class="btn primary large" href="${signup}" data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
+            <a class="btn primary large" href="${signup}"
+              data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
             <a class="landing-text-link" href="${demo}" data-public-action="demo">ou testar sem cadastro</a>
           </div>
         </section>
       </main>
       ${landingFooter()}
-      <a class="public-mobile-cta btn primary" href="${signup}" data-public-action="signup" aria-hidden="true" hidden>Criar minha conta grátis</a>
+      <a class="public-mobile-cta btn primary" href="${signup}" data-public-action="signup" aria-hidden="true"
+        hidden>Criar minha conta grátis</a>
     </div>`;
 }

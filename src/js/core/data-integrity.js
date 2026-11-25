@@ -20,18 +20,12 @@ export function validateFinanceReferences(finance) {
     return { value: finance, invalidCount: 1 };
   }
 
-  const accounts = Array.isArray(finance.accounts)
-    ? finance.accounts
-    : [];
+  const accounts = Array.isArray(finance.accounts) ? finance.accounts : [];
 
   const accountIds = new Set(
     accounts
-      .filter((account) => (
-        isPlainObject(account)
-        && typeof account.id === 'string'
-        && account.id.trim().length > 0
-      ))
-      .map((account) => account.id)
+      .filter((account) => isPlainObject(account) && typeof account.id === 'string' && account.id.trim().length > 0)
+      .map((account) => account.id),
   );
 
   let invalidCount = 0;
@@ -48,11 +42,9 @@ export function validateFinanceReferences(finance) {
 
     const isTransfer = transaction.type === 'tr';
 
-    const destinationExists = !isTransfer
-      || accountIds.has(transaction.toAccountId);
+    const destinationExists = !isTransfer || accountIds.has(transaction.toAccountId);
 
-    const distinctAccounts = !isTransfer
-      || transaction.accountId !== transaction.toAccountId;
+    const distinctAccounts = !isTransfer || transaction.accountId !== transaction.toAccountId;
 
     if (!sourceExists || !destinationExists || !distinctAccounts) {
       invalidCount++;
@@ -65,10 +57,7 @@ export function validateFinanceReferences(finance) {
   const recurring = [];
 
   (Array.isArray(finance.recurring) ? finance.recurring : []).forEach((item) => {
-    if (
-      !isPlainObject(item)
-      || !accountIds.has(item.accountId)
-    ) {
+    if (!isPlainObject(item) || !accountIds.has(item.accountId)) {
       invalidCount++;
       return;
     }
@@ -80,8 +69,8 @@ export function validateFinanceReferences(finance) {
     value: {
       ...finance,
       tx: transactions,
-      recurring
+      recurring,
     },
-    invalidCount
+    invalidCount,
   };
 }

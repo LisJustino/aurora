@@ -50,6 +50,7 @@ import {
   setRememberSession,
 } from '../src/js/data/supabase-client.js';
 
+import { readAppSource } from './app-source.mjs';
 assert.deepEqual(resolveSupabaseConfig({
   isDevelopment: true,
   localUrl: 'https://cltymialatksylhzsitz.supabase.co',
@@ -244,7 +245,7 @@ assert.throws(() => createCycleDataConsentRevocationMetadata(new Date('invalid')
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
 const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
-const mainSource = readFileSync(new URL('../src/js/main.js', import.meta.url), 'utf8');
+const mainSource = readAppSource();
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
 const ageAttestationMigration = readFileSync(new URL('../supabase/migrations/20261116010000_signup_age_attestation.sql', import.meta.url), 'utf8');

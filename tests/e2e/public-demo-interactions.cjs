@@ -44,10 +44,35 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5173';
 
   await page.setViewportSize({ width: 320, height: 720 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+  await page.goto(`${BASE}/demonstracao`);
+  const homeHabit = page.locator('.home-habit-checkins [data-demo-action="habit-toggle"]');
+  await homeHabit.waitFor();
+  assert.equal(
+    await page.locator('.home-task-groups .home-task-group').getByText('Ler por alguns minutos', { exact: true }).count(),
+    1,
+  );
+  assert.equal(await page.getByText('Alongar um pouquinho', { exact: true }).count(), 1);
+  const habitDay = await homeHabit.getAttribute('data-day-index');
+  const initialPressed = await homeHabit.getAttribute('aria-pressed');
+  const initialStatus = initialPressed === 'true' ? 'Concluído hoje' : 'Ainda não marcado';
+  const nextStatus = initialPressed === 'true' ? 'Ainda não marcado' : 'Concluído hoje';
+  assert.equal(await page.locator('.home-habit-checkins').getByText(initialStatus, { exact: true }).count(), 1);
+  await homeHabit.click();
+  const updatedHomeHabit = page.locator(`.home-habit-checkins [data-day-index="${habitDay}"]`);
+  assert.notEqual(await updatedHomeHabit.getAttribute('aria-pressed'), initialPressed);
+  assert.equal(await page.locator('.home-habit-checkins').getByText(nextStatus, { exact: true }).count(), 1);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.locator('.demo-nav a[data-demo-view="habits"]').click();
+  assert.equal(
+    await page.locator(`.demo-habit-week [data-day-index="${habitDay}"]`).getAttribute('aria-pressed'),
+    initialPressed === 'true' ? 'false' : 'true',
+  );
+
   assert.deepEqual(errors, []);
 
   await browser.close();
-  console.log('Landing atual: hero, abas, tema, FAQ e responsividade verificados.');
+  console.log('Landing atual: hero, abas, tema, FAQ, hábitos da demonstração e responsividade verificados.');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

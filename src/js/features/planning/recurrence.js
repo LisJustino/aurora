@@ -1,6 +1,13 @@
 import { dk, pk } from '../../utils/dates.js';
 
-export const REPEATS = { none: 'Nunca', day: 'Todo dia', weekday: 'Dias úteis', week: 'Toda semana', month: 'Todo mês', year: 'Todo ano' };
+export const REPEATS = {
+  none: 'Nunca',
+  day: 'Todo dia',
+  weekday: 'Dias úteis',
+  week: 'Toda semana',
+  month: 'Todo mês',
+  year: 'Todo ano',
+};
 
 export function nextDue(date, repeat) {
   const nextDate = pk(date);
@@ -15,10 +22,7 @@ export function nextDue(date, repeat) {
     const day = nextDate.getDate();
     nextDate.setDate(1);
     nextDate.setMonth(nextDate.getMonth() + (repeat === 'month' ? 1 : 12));
-    nextDate.setDate(Math.min(
-      day,
-      new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate(),
-    ));
+    nextDate.setDate(Math.min(day, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
   }
   return dk(nextDate);
 }

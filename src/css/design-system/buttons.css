@@ -16,7 +16,7 @@
   justify-content: center;
   gap: var(--button-gap);
   padding-inline: var(--button-padding-inline);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: var(--button-radius);
   background: var(--surface);
   color: var(--ink);
@@ -59,7 +59,7 @@
 
 /* Padrão (secundário) */
 .btn:not(.primary):not(.danger):not(.ghost) {
-  border-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-color: color-mix(in srgb, var(--line-strong) 52%, transparent);
   background: color-mix(in srgb, var(--surface) 88%, var(--bg));
 }
 .btn:not(.primary):not(.danger):not(.ghost):hover {

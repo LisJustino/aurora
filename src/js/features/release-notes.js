@@ -1,6 +1,5 @@
-const releaseMetadata = typeof __AURORA_RELEASE_METADATA__ === 'undefined'
-  ? { id: 'development', title: '' }
-  : __AURORA_RELEASE_METADATA__;
+const releaseMetadata =
+  typeof __AURORA_RELEASE_METADATA__ === 'undefined' ? { id: 'development', title: '' } : __AURORA_RELEASE_METADATA__;
 
 export const RELEASE_VERSION = releaseMetadata.id;
 
@@ -8,10 +7,12 @@ export function getReleaseNotes(version = RELEASE_VERSION) {
   if (version !== RELEASE_VERSION || !releaseMetadata.title) return null;
   return {
     title: 'O que mudou no Aurora',
-    items: [{
-      title: releaseMetadata.title,
-      description: releaseMetadata.description || '',
-    }],
+    items: [
+      {
+        title: releaseMetadata.title,
+        description: releaseMetadata.description || '',
+      },
+    ],
   };
 }
 

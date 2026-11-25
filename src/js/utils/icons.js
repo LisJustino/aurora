@@ -3,10 +3,13 @@ import { esc, raw } from './dom.js';
 
 export const IC = Object.freeze({
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
-  calendarCheck: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/>',
+  calendarCheck:
+    '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><path d="m9 15 2 2 4-4"/>',
   book: '<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H19v17H7.5A2.5 2.5 0 0 0 5 21.5z"/><path d="M5 4.5v17"/><path d="M9 7h6"/>',
-  sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
-  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19v3"/><rect x="3" y="8" width="18" height="12" rx="3"/><circle cx="16.5" cy="14" r="1.2"/>',
+  sparkles:
+    '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  wallet:
+    '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19v3"/><rect x="3" y="8" width="18" height="12" rx="3"/><circle cx="16.5" cy="14" r="1.2"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   circle: '<circle cx="12" cy="12" r="8.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -37,7 +40,8 @@ export const IC = Object.freeze({
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   alert: '<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   eye: '<path d="M2.5 12s3.2-6 9.5-6 9.5 6 9.5 6-3.2 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/>',
-  eyeOff: '<path d="m3 3 18 18"/><path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6.3 0 9.5 6 9.5 6a17 17 0 0 1-3.1 3.8M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.2 6 9.5 6c.9 0 1.8-.2 2.6-.4"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>',
+  eyeOff:
+    '<path d="m3 3 18 18"/><path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6.3 0 9.5 6 9.5 6a17 17 0 0 1-3.1 3.8M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.2 6 9.5 6c.9 0 1.8-.2 2.6-.4"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>',
   lock: '<rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 1 1 8 0v3M12 14v3"/>',
   shield: '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
@@ -45,7 +49,8 @@ export const IC = Object.freeze({
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   archive: '<rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5V20h14V8.5M10 13h4"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
-  repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
+  repeat:
+    '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
   card: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',
   bank: '<path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/>',
   bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
@@ -56,35 +61,45 @@ export const IC = Object.freeze({
   trendUp: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
   chart: '<path d="M3 20h18"/><path d="M7 16v-5M12 16V6M17 16v-3"/>',
   leaf: '<path d="M5 19c0-9 5-14 14-14 0 9-5 14-14 14Z"/><path d="M5 19 13 11"/>',
-  apple: '<path d="M12 8c-2-1.6-6-1-6 3.8 0 4 2.5 8.2 4.6 8.2 1 0 1-.6 1.4-.6s.4.6 1.4.6c2.1 0 4.6-4.2 4.6-8.2C18 7 14 6.4 12 8Z"/><path d="M12 8c0-2.2 1-3.6 3-4.5"/>',
+  apple:
+    '<path d="M12 8c-2-1.6-6-1-6 3.8 0 4 2.5 8.2 4.6 8.2 1 0 1-.6 1.4-.6s.4.6 1.4.6c2.1 0 4.6-4.2 4.6-8.2C18 7 14 6.4 12 8Z"/><path d="M12 8c0-2.2 1-3.6 3-4.5"/>',
   bone: '<path d="M8.2 8.2 15.8 15.8"/><path d="M7.8 9.5a2.8 2.8 0 1 1-3.9-3.9 2.8 2.8 0 0 1 3.9 3.9ZM20.1 18.4a2.8 2.8 0 1 1-3.9-3.9 2.8 2.8 0 0 1 3.9 3.9Z"/><path d="M8 8l8 8"/>',
   bed: '<path d="M3 18V6.5"/><path d="M3 14h18v4"/><path d="M21 14v-1.500a3 3 0 0 0-3-3h-7V14"/><circle cx="7" cy="11" r="1.7"/>',
   bike: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16 9.5 8H14l4 8"/><path d="M9.5 8 12 16h-6M14 8l-1.5-2.500H10"/>',
-  meditate: '<path d="M12 4.500c2 2.5 2 6 0 9.5-2-3.5-2-7 0-9.500Z"/><path d="M12 14c-1-3-4-4.5-7.5-4 0 4 3.5 7.5 7.5 7.500s7.5-3.5 7.5-7.500C16 9.5 13 11 12 14Z"/>',
+  meditate:
+    '<path d="M12 4.500c2 2.5 2 6 0 9.5-2-3.5-2-7 0-9.500Z"/><path d="M12 14c-1-3-4-4.5-7.5-4 0 4 3.5 7.5 7.5 7.500s7.5-3.5 7.5-7.500C16 9.5 13 11 12 14Z"/>',
   pill: '<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-40 12 12)"/><path d="m9 9 6 6"/>',
-  coffee: '<path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9Z"/><path d="M16 10h1.500a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.500v2.500M12 3.500v2.5"/>',
+  coffee:
+    '<path d="M5 9h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9Z"/><path d="M16 10h1.500a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.500v2.500M12 3.500v2.5"/>',
   music: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
-  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2.2-.5-1.2.2-2.3 1.6-2.300H17a4 4 0 0 0 4-4c0-5-4-9.5-9-9.500Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15.5" cy="8" r="1"/>',
-  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.6 2.3 2.3 4 2.300s3-.700 4-2.3"/><path d="M9 9.500h.01M15 9.500h.01"/>',
+  palette:
+    '<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2.2-.5-1.2.2-2.3 1.6-2.300H17a4 4 0 0 0 4-4c0-5-4-9.5-9-9.500Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15.5" cy="8" r="1"/>',
+  smile:
+    '<circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.6 2.3 2.3 4 2.300s3-.700 4-2.3"/><path d="M9 9.500h.01M15 9.500h.01"/>',
   acne: '<path d="M20 13a8 8 0 1 1-4-7"/><path d="M8.5 10h.01M14.5 10h.01M9 15c1.4 1 4.6 1 6 0"/><circle cx="18" cy="5" r="1.3"/><circle cx="20.5" cy="9" r=".8"/>',
-  flower: '<circle cx="12" cy="12" r="2"/><path d="M12 10c-4-1-4.5-5.5-1.5-6 2-.3 3 2 1.5 6ZM14 12c1-4 5.5-4.5 6-1.5.3 2-2 3-6 1.5ZM12 14c4 1 4.5 5.5 1.5 6-2 .3-3-2-1.5-6ZM10 12c-1 4-5.5 4.5-6 1.5-.3-2 2-3 6-1.5Z"/>',
+  flower:
+    '<circle cx="12" cy="12" r="2"/><path d="M12 10c-4-1-4.5-5.5-1.5-6 2-.3 3 2 1.5 6ZM14 12c1-4 5.5-4.5 6-1.5.3 2-2 3-6 1.5ZM12 14c4 1 4.5 5.5 1.5 6-2 .3-3-2-1.5-6ZM10 12c-1 4-5.5 4.5-6 1.5-.3-2 2-3 6-1.5Z"/>',
   hair: '<path d="M7 21c-1-3 1-5 1-8 0-3-2-4-1-7M12 21c-1-3 1-5 1-8 0-3-2-4-1-7M17 21c-1-3 1-5 1-8 0-3-2-4-1-7"/>',
-  ovaries: '<path d="M12 7v5M12 12c-2-1-3-4-5-4-2 0-3 2-3 4s1 4 3 4c2 0 3-3 5-4Zm0 0c2-1 3-4 5-4 2 0 3 2 3 4s-1 4-3 4c-2 0-3-3-5-4Z"/><path d="M9 19h6"/>',
+  ovaries:
+    '<path d="M12 7v5M12 12c-2-1-3-4-5-4-2 0-3 2-3 4s1 4 3 4c2 0 3-3 5-4Zm0 0c2-1 3-4 5-4 2 0 3 2 3 4s-1 4-3 4c-2 0-3-3-5-4Z"/><path d="M9 19h6"/>',
   spine: '<path d="M12 3v18"/><path d="M9 5h6M8 8h8M9 11h6M8 14h8M9 17h6M10 20h4"/>',
   stomach: '<path d="M10 3v5c0 2 1 3 3 3h1c3 0 5 2 5 5s-2 5-6 5H9a5 5 0 0 1-5-5c0-2 1-4 3-5V3"/>',
   egg: '<path d="M12 3c-3.5 0-7 5.6-7 11a7 7 0 0 0 14 0c0-5.4-3.5-11-7-11Z"/><circle cx="12" cy="14" r="2"/>',
   wind: '<path d="M3 8h12a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 12h16a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 16h8"/>',
-  water: '<path d="M6 17c0-2 2-4 2-4s2 2 2 4a2 2 0 1 1-4 0Z"/><path d="M14 9c0-2 2-4 2-4s2 2 2 4a2 2 0 1 1-4 0Z"/><path d="M15 19c0-1.5 1.5-3 1.5-3s1.5 1.5 1.5 3a1.5 1.5 0 1 1-3 0Z"/>',
+  water:
+    '<path d="M6 17c0-2 2-4 2-4s2 2 2 4a2 2 0 1 1-4 0Z"/><path d="M14 9c0-2 2-4 2-4s2 2 2 4a2 2 0 1 1-4 0Z"/><path d="M15 19c0-1.5 1.5-3 1.5-3s1.5 1.5 1.5 3a1.5 1.5 0 1 1-3 0Z"/>',
   blood: '<path d="M12 3s-6 6.2-6 10.5a6 6 0 0 0 12 0C18 9.2 12 3 12 3Z"/>',
   spot: '<path d="M12 5s-4 4.2-4 7.2a4 4 0 0 0 8 0C16 9.2 12 5 12 5Z" fill="currentColor" stroke="none"/>',
-  candy: '<path d="m7 9-4-3v12l4-3M17 9l4-3v12l-4-3"/><rect x="7" y="8" width="10" height="8" rx="3"/><path d="M10 8v8"/>',
+  candy:
+    '<path d="m7 9-4-3v12l4-3M17 9l4-3v12l-4-3"/><rect x="7" y="8" width="10" height="8" rx="3"/><path d="M10 8v8"/>',
   phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M10.5 18h3"/>',
   phoneOff: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M10.5 18h3"/><path d="m4 4 16 16"/>',
   pie: '<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>',
   arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
-  refresh: '<path d="M20 7v5h-5"/><path d="M4.9 9A7.5 7.5 0 0 1 17.5 6L20 12"/><path d="M4 17v-5h5"/><path d="M19.1 15A7.5 7.5 0 0 1 6.5 18L4 12"/>',
+  refresh:
+    '<path d="M20 7v5h-5"/><path d="M4.9 9A7.5 7.5 0 0 1 17.5 6L20 12"/><path d="M4 17v-5h5"/><path d="M19.1 15A7.5 7.5 0 0 1 6.5 18L4 12"/>',
   more: '<path d="M5 12h.01M12 12h.01M19 12h.01"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
   monitor: '<rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/>',
@@ -116,7 +131,9 @@ export function iconSvg(name, size = ICON_SIZES.standard, cls = '') {
     throw new TypeError('A classe adicional do ícone deve ser texto.');
   }
   const className = cls.trim() ? ` ${esc(cls.trim())}` : '';
-  return `<svg class="ic${className}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${ICON_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[name]}</svg>`;
+  return `<svg class="ic${className}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="${ICON_STROKE_WIDTH}" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true" focusable="false">${IC[name]}</svg>`;
 }
 
 export const icon = (name, size = ICON_SIZES.standard, cls = '') => raw(iconSvg(name, size, cls));

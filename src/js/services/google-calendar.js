@@ -32,13 +32,13 @@ function normalizeEvent(event, calendarId) {
   if (!isCalendarDay(day)) return null;
 
   return {
-    id: typeof event.id === 'string' && event.id
-      ? event.id
-      : `${calendarId}:${day}:${allDay ? 'allday' : String(start.dateTime)}:${typeof event.summary === 'string' ? event.summary : ''}`,
+    id:
+      typeof event.id === 'string' && event.id
+        ? event.id
+        : `${calendarId}:${day}:${allDay ? 'allday' : String(start.dateTime)}:${typeof event.summary === 'string' ? event.summary : ''}`,
     calendarId,
-    title: typeof event.summary === 'string' && event.summary.trim()
-      ? event.summary.trim().slice(0, 200)
-      : 'Sem título',
+    title:
+      typeof event.summary === 'string' && event.summary.trim() ? event.summary.trim().slice(0, 200) : 'Sem título',
     day,
     allDay,
     time: allDay
@@ -49,9 +49,15 @@ function normalizeEvent(event, calendarId) {
 }
 
 export function googleCalendarEventTaskKey(accountIdentity, event) {
-  if (typeof accountIdentity !== 'string' || !accountIdentity
-    || typeof event?.calendarId !== 'string' || !event.calendarId
-    || typeof event?.id !== 'string' || !event.id) return '';
+  if (
+    typeof accountIdentity !== 'string' ||
+    !accountIdentity ||
+    typeof event?.calendarId !== 'string' ||
+    !event.calendarId ||
+    typeof event?.id !== 'string' ||
+    !event.id
+  )
+    return '';
   return `google-calendar:${accountIdentity}:${event.calendarId}:${event.id}`;
 }
 
@@ -64,7 +70,8 @@ export function formatGoogleCalendarEventSource(calendarName, accountLabel) {
 
 async function loadGoogleIdentity() {
   if (globalThis.google?.accounts?.oauth2) return globalThis.google;
-  if (typeof document === 'undefined') throw new Error('Não foi possível carregar a conexão com o Google neste ambiente.');
+  if (typeof document === 'undefined')
+    throw new Error('Não foi possível carregar a conexão com o Google neste ambiente.');
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
@@ -76,7 +83,8 @@ async function loadGoogleIdentity() {
       if (globalThis.google?.accounts?.oauth2) resolve(globalThis.google);
       else reject(new Error('O Google não disponibilizou a autorização de calendário. Tente novamente.'));
     };
-    script.onerror = () => reject(new Error('Não foi possível carregar a autorização do Google. Verifique a conexão e tente novamente.'));
+    script.onerror = () =>
+      reject(new Error('Não foi possível carregar a autorização do Google. Verifique a conexão e tente novamente.'));
     document.head.append(script);
   });
 }
@@ -135,7 +143,9 @@ export function createGoogleCalendarService({
         setAccess(result.accessToken, Number(result.expiresIn));
         return accessToken;
       })
-      .finally(() => { tokenRefresh = null; });
+      .finally(() => {
+        tokenRefresh = null;
+      });
     return tokenRefresh;
   };
 
@@ -159,8 +169,10 @@ export function createGoogleCalendarService({
       if (tokenProvider && !retried) return request(url, true);
       throw new Error('A autorização do Google Calendar expirou ou foi revogada. Conecte novamente.');
     }
-    if (response.status === 403) throw new Error('O Google não autorizou a leitura deste calendário. Reconecte e aceite a permissão solicitada.');
-    if (response.status === 429) throw new Error('O Google Calendar recebeu muitas solicitações. Aguarde e tente novamente.');
+    if (response.status === 403)
+      throw new Error('O Google não autorizou a leitura deste calendário. Reconecte e aceite a permissão solicitada.');
+    if (response.status === 429)
+      throw new Error('O Google Calendar recebeu muitas solicitações. Aguarde e tente novamente.');
     if (!response.ok) throw new Error('O Google Calendar está indisponível. Tente novamente.');
 
     let result;
@@ -245,16 +257,20 @@ export function createGoogleCalendarService({
             prompt,
             callback: (response) => {
               if (response?.error) {
-                fail(response.error === 'access_denied'
-                  ? 'A autorização do Google Calendar foi cancelada.'
-                  : 'Não foi possível autorizar a leitura do Google Calendar.');
+                fail(
+                  response.error === 'access_denied'
+                    ? 'A autorização do Google Calendar foi cancelada.'
+                    : 'Não foi possível autorizar a leitura do Google Calendar.',
+                );
                 return;
               }
               const expiresIn = Number(response?.expires_in);
-              if (typeof response?.access_token !== 'string'
-                || !response.access_token
-                || !Number.isFinite(expiresIn)
-                || expiresIn <= 0) {
+              if (
+                typeof response?.access_token !== 'string' ||
+                !response.access_token ||
+                !Number.isFinite(expiresIn) ||
+                expiresIn <= 0
+              ) {
                 fail('O Google não devolveu uma autorização válida para ler os calendários.');
                 return;
               }
@@ -274,7 +290,8 @@ export function createGoogleCalendarService({
     // Pede ao Google um código de autorização (acesso offline), que o servidor troca por token.
     authorizeCode() {
       requireCalendarClientId(clientId);
-      if (!identity?.accounts?.oauth2?.initCodeClient) throw new Error('Prepare a conexão com o Google antes de autorizar.');
+      if (!identity?.accounts?.oauth2?.initCodeClient)
+        throw new Error('Prepare a conexão com o Google antes de autorizar.');
       return new Promise((resolve, reject) => {
         let settled = false;
         const fail = (message) => {
@@ -290,9 +307,11 @@ export function createGoogleCalendarService({
             select_account: true,
             callback: (response) => {
               if (response?.error) {
-                fail(response.error === 'access_denied'
-                  ? 'A autorização do Google Calendar foi cancelada.'
-                  : 'Não foi possível autorizar a leitura do Google Calendar.');
+                fail(
+                  response.error === 'access_denied'
+                    ? 'A autorização do Google Calendar foi cancelada.'
+                    : 'Não foi possível autorizar a leitura do Google Calendar.',
+                );
                 return;
               }
               // O callback do fluxo por código pode omitir `scope`; o servidor verifica o acesso efetivo antes de persistir.
@@ -314,13 +333,19 @@ export function createGoogleCalendarService({
     async getCalendars() {
       const items = await pagedItems(`${GOOGLE_CALENDAR_API}/users/me/calendarList?maxResults=250`);
       return items
-        .filter((calendar) => calendar && typeof calendar.id === 'string' && calendar.id
-          && ['owner', 'writer', 'reader'].includes(calendar.accessRole))
+        .filter(
+          (calendar) =>
+            calendar &&
+            typeof calendar.id === 'string' &&
+            calendar.id &&
+            ['owner', 'writer', 'reader'].includes(calendar.accessRole),
+        )
         .map((calendar) => ({
           id: calendar.id,
-          name: typeof calendar.summary === 'string' && calendar.summary.trim()
-            ? calendar.summary.trim().slice(0, 120)
-            : 'Sem nome',
+          name:
+            typeof calendar.summary === 'string' && calendar.summary.trim()
+              ? calendar.summary.trim().slice(0, 120)
+              : 'Sem nome',
           primary: calendar.primary === true,
           selected: calendar.selected === true,
         }));
@@ -329,9 +354,13 @@ export function createGoogleCalendarService({
       if (!Array.isArray(calendarIds) || !calendarIds.every((id) => typeof id === 'string' && id)) {
         throw new Error('Selecione calendários válidos para atualizar os eventos.');
       }
-      if (!(start instanceof Date) || !(end instanceof Date)
-        || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())
-        || end <= start) {
+      if (
+        !(start instanceof Date) ||
+        !(end instanceof Date) ||
+        !Number.isFinite(start.getTime()) ||
+        !Number.isFinite(end.getTime()) ||
+        end <= start
+      ) {
         throw new Error('O período selecionado para o calendário é inválido.');
       }
 

@@ -6,11 +6,15 @@ const controls = new Set();
 let activeControl = null;
 let nextId = 0;
 
-const normalizeText = (value) => String(value || '').trim().replace(/\s+/g, ' ');
-const normalizedSearch = (value) => normalizeText(value)
-  .toLocaleLowerCase('pt-BR')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '');
+const normalizeText = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+const normalizedSearch = (value) =>
+  normalizeText(value)
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 function uniqueId(document, prefix) {
   let id;
@@ -23,14 +27,16 @@ function uniqueId(document, prefix) {
 function labelText(label) {
   if (label.hasAttribute('aria-label')) return normalizeText(label.getAttribute('aria-label'));
   const copy = label.cloneNode(true);
-  copy.querySelectorAll('select, button, input, textarea, a, [contenteditable="true"], [aria-hidden="true"], .field-err, .account-field-error')
+  copy
+    .querySelectorAll(
+      'select, button, input, textarea, a, [contenteditable="true"], [aria-hidden="true"], .field-err, .account-field-error',
+    )
     .forEach((element) => element.remove());
   return normalizeText(copy.textContent);
 }
 
 function disabledOption(option) {
-  return !option || option.disabled
-    || (option.parentElement?.tagName === 'OPTGROUP' && option.parentElement.disabled);
+  return !option || option.disabled || (option.parentElement?.tagName === 'OPTGROUP' && option.parentElement.disabled);
 }
 
 function enabledOptionFrom(control, start, direction) {
@@ -132,17 +138,13 @@ function buildMenu(control) {
     }
   });
   menu.addEventListener('pointermove', (event) => {
-    const option = event.target instanceof Element
-      ? event.target.closest('[data-select-option-index]')
-      : null;
+    const option = event.target instanceof Element ? event.target.closest('[data-select-option-index]') : null;
     if (!option) return;
     const index = Number(option.dataset.selectOptionIndex);
     if (!disabledOption(control.select.options[index])) setActiveOption(control, index, false);
   });
   menu.addEventListener('click', (event) => {
-    const option = event.target instanceof Element
-      ? event.target.closest('[data-select-option-index]')
-      : null;
+    const option = event.target instanceof Element ? event.target.closest('[data-select-option-index]') : null;
     if (!option) return;
     const index = Number(option.dataset.selectOptionIndex);
     if (!disabledOption(control.select.options[index])) chooseOption(control, index);
@@ -161,9 +163,10 @@ function positionMenu(control) {
   const gap = 6;
   const availableBelow = Math.max(0, viewportTop + viewportHeight - rect.bottom - gap - margin);
   const availableAbove = Math.max(0, rect.top - viewportTop - gap - margin);
-  const maxMenuHeight = Number.parseFloat(
-    window.getComputedStyle(control.document.documentElement).getPropertyValue('--select-menu-max-height'),
-  ) || 288;
+  const maxMenuHeight =
+    Number.parseFloat(
+      window.getComputedStyle(control.document.documentElement).getPropertyValue('--select-menu-max-height'),
+    ) || 288;
   const desiredHeight = Math.min(maxMenuHeight, control.menu.scrollHeight);
   const openBelow = availableBelow >= Math.min(desiredHeight, 160) || availableBelow >= availableAbove;
   const availableHeight = openBelow ? availableBelow : availableAbove;
@@ -267,9 +270,7 @@ function syncControl(control) {
     control.menu = buildMenu(control);
     menuPortalRoot(control).append(control.menu);
     control.trigger.setAttribute('aria-controls', control.menuId);
-    const activeIndex = disabledOption(select.options[control.activeIndex])
-      ? -1
-      : control.activeIndex;
+    const activeIndex = disabledOption(select.options[control.activeIndex]) ? -1 : control.activeIndex;
     setActiveOption(control, activeIndex, false);
     positionMenu(control);
   }
@@ -291,13 +292,15 @@ function chooseOption(control, index) {
 function typeahead(control, character) {
   clearTimeout(control.typeaheadTimer);
   control.typeahead += normalizedSearch(character);
-  control.typeaheadTimer = setTimeout(() => { control.typeahead = ''; }, 700);
+  control.typeaheadTimer = setTimeout(() => {
+    control.typeahead = '';
+  }, 700);
   const options = Array.from(control.select.options);
   const start = control.activeIndex >= 0 ? control.activeIndex + 1 : 0;
   const ordered = [...options.slice(start), ...options.slice(0, start)];
-  const match = ordered.find((option) => (
-    !disabledOption(option) && normalizedSearch(option.label).startsWith(control.typeahead)
-  ));
+  const match = ordered.find(
+    (option) => !disabledOption(option) && normalizedSearch(option.label).startsWith(control.typeahead),
+  );
   if (match) setActiveOption(control, options.indexOf(match));
 }
 
@@ -331,15 +334,19 @@ function onTriggerKeydown(control, event) {
   if (key === 'ArrowDown' || key === 'ArrowUp') {
     event.preventDefault();
     const direction = key === 'ArrowDown' ? 1 : -1;
-    const start = control.activeIndex < 0
-      ? (direction > 0 ? 0 : control.select.options.length - 1)
-      : control.activeIndex + direction;
+    const start =
+      control.activeIndex < 0
+        ? direction > 0
+          ? 0
+          : control.select.options.length - 1
+        : control.activeIndex + direction;
     setActiveOption(control, enabledOptionFrom(control, start, direction));
   } else if (key === 'Home' || key === 'End') {
     event.preventDefault();
-    const index = key === 'Home'
-      ? enabledOptionFrom(control, 0, 1)
-      : enabledOptionFrom(control, control.select.options.length - 1, -1);
+    const index =
+      key === 'Home'
+        ? enabledOptionFrom(control, 0, 1)
+        : enabledOptionFrom(control, control.select.options.length - 1, -1);
     setActiveOption(control, index);
   } else if (key === 'Enter' || key === ' ') {
     event.preventDefault();
@@ -354,7 +361,12 @@ function connectLabel(control, label) {
   const handleLabelClick = (event) => {
     if (control.select.matches(':disabled')) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('button, a, input, select, textarea, [contenteditable="true"], [role="button"], .ds-select__trigger')) return;
+    if (
+      target?.closest(
+        'button, a, input, select, textarea, [contenteditable="true"], [role="button"], .ds-select__trigger',
+      )
+    )
+      return;
     event.preventDefault();
     control.trigger.focus({ preventScroll: true });
   };
@@ -465,10 +477,11 @@ function initializeObserver(document, root) {
       } else {
         const control = controlForMutation(record.target);
         if (control) syncControl(control);
-        if (record.target instanceof Element) record.target.querySelectorAll('select').forEach((select) => {
-          const nestedControl = controlsBySelect.get(select);
-          if (nestedControl) syncControl(nestedControl);
-        });
+        if (record.target instanceof Element)
+          record.target.querySelectorAll('select').forEach((select) => {
+            const nestedControl = controlsBySelect.get(select);
+            if (nestedControl) syncControl(nestedControl);
+          });
       }
     }
 
