@@ -68,15 +68,27 @@ Deno.serve(async (request) => {
     console.error('delete-account: Google connections could not be loaded.');
     return jsonResponse({ error: 'account-deletion-unavailable' }, 503, requestOrigin || undefined);
   }
-  if (googleRows?.length && googleSecret) {
-    try {
-      const key = await importEncryptionKey(googleSecret);
-      for (const row of googleRows) {
-        const token = await decryptRefreshToken(row.refresh_token_encrypted, key, userData.user.id);
-        await revokeGoogleToken(token);
+  if (googleRows?.length) {
+    if (!googleSecret) {
+      console.error('delete-account: GOOGLE_TOKEN_ENCRYPTION_KEY is missing; skipping Google token revocation.');
+    } else {
+      let key = null;
+      try {
+        key = await importEncryptionKey(googleSecret);
+      } catch {
+        console.error('delete-account: GOOGLE_TOKEN_ENCRYPTION_KEY is invalid.');
       }
-    } catch {
-      console.error('delete-account: Google revocation was not confirmed.');
+      if (key) {
+        for (const row of googleRows) {
+          try {
+            const token = await decryptRefreshToken(row.refresh_token_encrypted, key, userData.user.id);
+            const revoked = await revokeGoogleToken(token);
+            if (!revoked) console.error('delete-account: Google revocation was not confirmed.');
+          } catch {
+            console.error('delete-account: Google revocation failed for a connection.');
+          }
+        }
+      }
     }
   }
 

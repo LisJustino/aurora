@@ -10,7 +10,13 @@ const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
 const CALENDAR_LIST_URL = 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1';
 const CONNECTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTED_CALENDARS = 50;
-const COLUMNS = 'id,email,selected_calendar_ids,refresh_token_encrypted';
+const OUTBOUND_TIMEOUT_MS = 10000;
+const PUBLIC_COLUMNS = 'id,email,selected_calendar_ids';
+const SECRET_COLUMNS = 'id,email,selected_calendar_ids,refresh_token_encrypted';
+
+function timeoutSignal() {
+  return typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) : undefined;
+}
 
 export class GoogleCalendarError extends Error {
   constructor(code, status) {
@@ -38,11 +44,17 @@ function publicConnection(row) {
 }
 
 async function postToken(params, { clientId, clientSecret, fetchImpl }) {
-  const response = await fetchImpl(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, ...params }),
-  });
+  let response;
+  try {
+    response = await fetchImpl(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, ...params }),
+      signal: timeoutSignal(),
+    });
+  } catch {
+    throw new GoogleCalendarError('service-unavailable', 503);
+  }
   const body = await response.json().catch(() => ({}));
   return { ok: response.ok, body };
 }
@@ -52,6 +64,7 @@ async function verifyCalendarReadAccess(accessToken, fetchImpl) {
   try {
     response = await fetchImpl(CALENDAR_LIST_URL, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      signal: timeoutSignal(),
     });
   } catch {
     throw new GoogleCalendarError('service-unavailable', 503);
@@ -70,11 +83,11 @@ async function verifyCalendarReadAccess(accessToken, fetchImpl) {
   if (!response.ok) throw new GoogleCalendarError('service-unavailable', 503);
 }
 
-async function findConnection(db, userId, id) {
+async function findConnection(db, userId, id, { includeSecret = false } = {}) {
   if (!CONNECTION_ID_PATTERN.test(String(id || ''))) throw new GoogleCalendarError('invalid-request', 400);
   const { data, error } = await db
     .from('google_calendar_connections')
-    .select(COLUMNS)
+    .select(includeSecret ? SECRET_COLUMNS : PUBLIC_COLUMNS)
     .eq('user_id', userId)
     .eq('id', id)
     .maybeSingle();
@@ -92,7 +105,7 @@ export async function handleGoogleCalendarAction(input, {
   if (action === 'list') {
     const { data, error } = await db
       .from('google_calendar_connections')
-      .select(COLUMNS)
+      .select(PUBLIC_COLUMNS)
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
     if (error) throw new GoogleCalendarError('service-unavailable', 503);
@@ -107,21 +120,28 @@ export async function handleGoogleCalendarAction(input, {
     const exchange = await postToken({ code, grant_type: 'authorization_code', redirect_uri: origin }, credentials);
     if (!exchange.ok || !exchange.body.access_token) throw new GoogleCalendarError('authorization-rejected', 400);
     await verifyCalendarReadAccess(exchange.body.access_token, fetchImpl);
-    const infoResponse = await fetchImpl(USERINFO_URL, {
-      headers: { Authorization: `Bearer ${exchange.body.access_token}` },
-    });
+    let infoResponse;
+    try {
+      infoResponse = await fetchImpl(USERINFO_URL, {
+        headers: { Authorization: `Bearer ${exchange.body.access_token}` },
+        signal: timeoutSignal(),
+      });
+    } catch {
+      throw new GoogleCalendarError('service-unavailable', 503);
+    }
     const info = infoResponse.ok ? await infoResponse.json().catch(() => ({})) : {};
     if (!info.sub || !info.email) throw new GoogleCalendarError('authorization-rejected', 400);
 
     let refreshToken = exchange.body.refresh_token;
     if (!refreshToken) {
       // Google só reenvia o refresh token no primeiro consentimento; reaproveitamos o guardado.
-      const { data: existing } = await db
+      const { data: existing, error: existingError } = await db
         .from('google_calendar_connections')
-        .select(COLUMNS)
+        .select(SECRET_COLUMNS)
         .eq('user_id', userId)
         .eq('google_subject', info.sub)
         .maybeSingle();
+      if (existingError) throw new GoogleCalendarError('service-unavailable', 503);
       if (!existing) throw new GoogleCalendarError('no-refresh-token', 400);
       refreshToken = await decryptRefreshToken(existing.refresh_token_encrypted, key, userId);
     }
@@ -134,7 +154,7 @@ export async function handleGoogleCalendarAction(input, {
         email: info.email,
         refresh_token_encrypted: await encryptRefreshToken(refreshToken, key, userId),
       }, { onConflict: 'user_id,google_subject' })
-      .select(COLUMNS)
+      .select(PUBLIC_COLUMNS)
       .single();
     if (error || !data) throw new GoogleCalendarError('service-unavailable', 503);
     return {
@@ -145,17 +165,30 @@ export async function handleGoogleCalendarAction(input, {
   }
 
   if (action === 'token') {
-    const row = await findConnection(db, userId, input.id);
+    const row = await findConnection(db, userId, input.id, { includeSecret: true });
     const refreshToken = await decryptRefreshToken(row.refresh_token_encrypted, key, userId).catch(() => null);
     if (!refreshToken) throw new GoogleCalendarError('service-unavailable', 503);
     const refreshed = await postToken({ refresh_token: refreshToken, grant_type: 'refresh_token' }, credentials);
     if (!refreshed.ok || !refreshed.body.access_token) {
       if (refreshed.body?.error === 'invalid_grant') {
         // O acesso foi revogado no Google ou expirou: removemos para o app pedir nova autorização.
-        await db.from('google_calendar_connections').delete().eq('user_id', userId).eq('id', row.id);
+        const { error: cleanupError } = await db
+          .from('google_calendar_connections')
+          .delete()
+          .eq('user_id', userId)
+          .eq('id', row.id);
+        if (cleanupError) console.error('google-calendar: failed to remove revoked connection.');
         throw new GoogleCalendarError('reauthorization-required', 409);
       }
       throw new GoogleCalendarError('service-unavailable', 503);
+    }
+    if (typeof refreshed.body.refresh_token === 'string' && refreshed.body.refresh_token) {
+      const { error: rotateError } = await db
+        .from('google_calendar_connections')
+        .update({ refresh_token_encrypted: await encryptRefreshToken(refreshed.body.refresh_token, key, userId) })
+        .eq('user_id', userId)
+        .eq('id', row.id);
+      if (rotateError) console.error('google-calendar: failed to persist rotated refresh token.');
     }
     return { accessToken: refreshed.body.access_token, expiresIn: Number(refreshed.body.expires_in) || 3600 };
   }
@@ -173,7 +206,7 @@ export async function handleGoogleCalendarAction(input, {
   }
 
   if (action === 'disconnect') {
-    const row = await findConnection(db, userId, input.id);
+    const row = await findConnection(db, userId, input.id, { includeSecret: true });
     const refreshToken = await decryptRefreshToken(row.refresh_token_encrypted, key, userId).catch(() => null);
     if (refreshToken) await revokeGoogleToken(refreshToken, fetchImpl);
     const { error } = await db.from('google_calendar_connections').delete().eq('user_id', userId).eq('id', row.id);

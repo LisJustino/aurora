@@ -7,7 +7,10 @@ export async function loadHtmlTemplate(url, featureName) {
 }
 
 export function renderHtmlTemplate(template, slots, featureName) {
-  const rendered = template.replace(/\{\{([a-z-]+)\}\}/g, (placeholder, name) => {
+  return template.replace(/\{\{([^}]+)\}\}/g, (_placeholder, name) => {
+    if (!/^[a-z-]+$/.test(name)) {
+      throw new Error(`O template de ${featureName} contém slots não resolvidos.`);
+    }
     if (!Object.prototype.hasOwnProperty.call(slots, name)) {
       throw new Error(`Slot não fornecido no template de ${featureName}: ${name}.`);
     }
@@ -16,8 +19,4 @@ export function renderHtmlTemplate(template, slots, featureName) {
     }
     return slots[name];
   });
-  if (/\{\{[^}]+\}\}/.test(rendered)) {
-    throw new Error(`O template de ${featureName} contém slots não resolvidos.`);
-  }
-  return rendered;
 }

@@ -40,7 +40,7 @@ function parseDateAny(value) {
   if ((match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text)) || (match = /^(\d{4})(\d{2})(\d{2})/.exec(text))) {
     return normDate(match[1], match[2], match[3]);
   }
-  if ((match = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4}|\d{2})\b/.exec(text))) {
+  if ((match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})\b/.exec(text))) {
     return normDate(match[3].length === 2 ? `20${match[3]}` : match[3], match[2], match[1]);
   }
   return null;

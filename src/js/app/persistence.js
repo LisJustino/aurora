@@ -1,7 +1,7 @@
 import { $ } from '../utils/dom.js';
 import { newId } from '../utils/ids.js';
 import { isPlainObject } from '../core/data-integrity.js';
-import { hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { createBirthdayReferenceFromParts } from '../features/profile/birthday.js';
 import { isTrashExpired } from '../features/trash/model.js';
 import { cyclePeriodKey, syncLatestCycleWeight } from './cycle.js';
@@ -86,36 +86,49 @@ export const Persist = {
       return false;
     }
     const task = (async () => {
+      let supersededRetries = 0;
       while (this.pendingSnapshot) {
         const snapshot = this.pendingSnapshot;
         this.pendingSnapshot = null;
         try {
+          const controller = typeof AbortController === 'function' ? new AbortController() : null;
           let saveTimer = 0;
           const saveTimeout = new Promise((_, reject) => {
-            saveTimer = setTimeout(
-              () => reject(new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.')),
-              30000,
-            );
+            saveTimer = setTimeout(() => {
+              controller?.abort();
+              reject(new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.'));
+            }, 30000);
           });
           try {
-            await Promise.race([this.store.save(snapshot, this.confirmedState), saveTimeout]);
+            await Promise.race([
+              this.store.save(snapshot, this.confirmedState, { signal: controller?.signal }),
+              saveTimeout,
+            ]);
           } finally {
             clearTimeout(saveTimer);
           }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
+          supersededRetries = 0;
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
           ui.persistFailed.clear();
           ui.persistError = '';
         } catch (error) {
+          const isVersionConflict = error instanceof Error && error.code === 'version_conflict';
+          if (this.pendingSnapshot && !isVersionConflict && navigator.onLine !== false && supersededRetries < 2) {
+            supersededRetries += 1;
+            console.error('Aurora: uma gravação anterior falhou; tentando enviar a alteração mais recente.', error);
+            continue;
+          }
           if (!this.pendingSnapshot) {
             this.pendingSnapshot = snapshot;
             if (this.confirmedState && sameJsonValue(S, snapshot)) {
               setS(JSON.parse(JSON.stringify(this.confirmedState)));
             }
+          } else if (this.confirmedState && sameJsonValue(S, this.pendingSnapshot)) {
+            setS(JSON.parse(JSON.stringify(this.confirmedState)));
           }
-          const isVersionConflict = error instanceof Error && error.code === 'version_conflict';
           syncState.pending.forEach((slice) => syncState.failed.add(slice));
           syncState.failed.add('account');
           syncState.pending.clear();

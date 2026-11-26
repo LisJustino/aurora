@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   calculateAge,
   createLegalConsentMetadata,
@@ -46,6 +46,7 @@ import { timeBasedGreeting } from '../src/js/features/profile/model.js';
 import {
   createAuthSessionStorage,
   hasStoredAuthSession,
+  isSecretSupabaseKey,
   resolveSupabaseConfig,
   setRememberSession,
 } from '../src/js/data/supabase-client.js';
@@ -122,6 +123,13 @@ const authSessionStorage = createAuthSessionStorage({
 const storage = { localStorage: localAuthStorage, sessionStorage: sessionAuthStorage };
 const testUrl = 'https://test.supabase.co';
 assert.equal(hasStoredAuthSession(storage, testUrl), false);
+assert.equal(hasStoredAuthSession(storage, ''), false);
+const encodeJwtPart = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+const anonJwt = `${encodeJwtPart({ alg: 'HS256' })}.${encodeJwtPart({ role: 'anon' })}.sig`;
+const serviceJwt = `${encodeJwtPart({ alg: 'HS256' })}.${encodeJwtPart({ role: 'service_role' })}.sig`;
+assert.equal(isSecretSupabaseKey(anonJwt), false);
+assert.equal(isSecretSupabaseKey(serviceJwt), true);
+assert.equal(isSecretSupabaseKey('sb_secret_example_123'), true);
 assert.throws(() => hasStoredAuthSession({
   localStorage: { getItem() { throw new Error('storage unavailable'); } },
   sessionStorage: sessionAuthStorage,
@@ -244,7 +252,12 @@ assert.throws(() => createCycleDataConsentMetadata('2026-11-08T12:00:00.000Z'), 
 assert.throws(() => createCycleDataConsentRevocationMetadata(new Date('invalid')), TypeError);
 const termsDocument = readFileSync(new URL('../terms.html', import.meta.url), 'utf8');
 const privacyDocument = readFileSync(new URL('../privacy.html', import.meta.url), 'utf8');
-const accountAuthSource = readFileSync(new URL('../src/js/services/account-auth.js', import.meta.url), 'utf8');
+const servicesDir = new URL('../src/js/services/', import.meta.url);
+const accountAuthSource = readdirSync(servicesDir)
+  .filter((file) => /^account-.*\.js$/.test(file))
+  .sort()
+  .map((file) => readFileSync(new URL(file, servicesDir), 'utf8'))
+  .join('\n');
 const mainSource = readAppSource();
 const landingSource = readFileSync(new URL('../src/js/features/landing/view.js', import.meta.url), 'utf8');
 const signupAgeMigration = readFileSync(new URL('../supabase/migrations/20261103000000_signup_minimum_age.sql', import.meta.url), 'utf8');
@@ -442,6 +455,13 @@ assert.equal(LEGACY_PASSWORD_MIN_LENGTH, 6);
 assert.equal(PASSWORD_MAX_LENGTH, 72);
 assert.equal(PASSWORD_REQUIREMENTS.length, 1);
 assert.equal(PASSWORD_REQUIREMENTS[0][1], 'entre 12 e 72 caracteres');
+
+// A contagem de caracteres aparece no cadastro e na redefinição de senha, não só a dica fixa
+assert.equal(
+  (accountAuthSource.match(/bindPasswordLengthHint\(form\.elements\.password\)/g) || []).length,
+  2,
+  'cadastro e redefinição devem mostrar quantos caracteres faltam na senha',
+);
 assert.equal(validatePassword('Abcdefg1!').valid, false);
 assert.equal(validatePassword('abcdefghijkl').valid, true);
 assert.equal(validatePassword('abcdefghijkl!').valid, true);

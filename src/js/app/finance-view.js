@@ -26,7 +26,7 @@ import {
 import { ACCOUNT_TYPES } from '../features/finance/accounts.js';
 import { cycleStats, nextPeriodRange } from '../features/cycle/calculations.js';
 import { budgetReport, budgetSettingsFor } from '../features/finance/budget-insights.js';
-import { hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { agendaForMonth as buildAgendaForMonth } from '../features/planning/agenda.js';
 import { bankFieldValue, BANKS, norm, OTHER_BANK, plural } from './core.js';
 import { finCompare, finTools, recList } from './finance-extras.js';
@@ -469,10 +469,12 @@ function monthlyFlowChart(ym) {
   });
   if (!data.some((item) => item.income || item.expense)) return '';
   const max = Math.max(...data.map((item) => Math.max(item.income, item.expense)), 1);
+  const hidden = S.settings.prefs.financeValuesHidden;
+  const formatFlowAmount = (cents) => (hidden ? 'valor oculto' : brl(cents));
   const summary = data
     .map(
       (item) =>
-        `${MESES_L[Number(item.month.slice(5)) - 1]}: receitas ${money(item.income)}, despesas ${money(item.expense)}`,
+        `${MESES_L[Number(item.month.slice(5)) - 1]}: receitas ${formatFlowAmount(item.income)}, despesas ${formatFlowAmount(item.expense)}`,
     )
     .join('; ');
   const columns = data.map((item) => {
@@ -734,7 +736,7 @@ function finGastoDiario(ym) {
   }
   if (!room.perDayCents) {
     return h`<div class="finance-daily-room is-over"><p
-      class="section-kicker">Pode gastar por dia</p><b>${money(0)}</b><p>${room.overCents ? `Os limites já passaram ${money(room.overCents)}.` : 'Os limites do mês já foram usados.'}</p></div>`;
+      class="section-kicker">Pode gastar por dia</p><b>${money(0)}</b><p>${room.overCents ? h`Os limites já passaram ${money(room.overCents)}.` : 'Os limites do mês já foram usados.'}</p></div>`;
   }
   return h`<div class="finance-daily-room"><p
     class="section-kicker">Pode gastar por dia</p><b>${money(room.perDayCents)}</b><p>Restam ${money(room.remainingCents)} nos limites, para ${room.daysLeft} ${plural(room.daysLeft, 'dia', 'dias')}.</p></div>`;
@@ -803,7 +805,7 @@ function finFixas() {
     inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
   return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><h2
     id="fin-fixas-title">Lançamentos fixos</h2><p
-    class="small muted">${rs.length ? `${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? ' e ' + money(inc) + ' em receitas' : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button
+    class="small muted">${rs.length ? h`${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? h` e ${money(inc)} em receitas` : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button
     class="btn ghost sm"
     data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${
       rs.length

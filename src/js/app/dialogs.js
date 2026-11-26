@@ -34,7 +34,16 @@ import { mkTask, toast } from './samples-backup.js';
 import { relationalDataWipeScope } from './settings.js';
 import { areaEmpty, areaOn, fieldError } from './shell.js';
 import { maybeOpenReleaseNotes } from './startup.js';
-import { allTags, currentProfileAge, cycleDialogViews, isValidCycleLog, S, settingsView, ui } from './state.js';
+import {
+  allTags,
+  currentProfileAge,
+  cycleDialogViews,
+  isValidCycleLog,
+  S,
+  settingsView,
+  toastController,
+  ui,
+} from './state.js';
 
 // Diálogos
 function profileSetupDraft() {
@@ -81,8 +90,7 @@ export const dlgOpen = (type, d = {}) => {
   ui.dlg = next;
   // Avisos de confirmação (sem "Desfazer") escondem o título e os campos do diálogo; saem quando um diálogo abre.
   if (ui.toast && !ui.toast.undo && ['success', 'info'].includes(ui.toast.tone)) {
-    clearTimeout(ui.toastT);
-    ui.toast = null;
+    toastController.clear();
   }
   render();
 };

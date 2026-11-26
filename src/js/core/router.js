@@ -87,7 +87,7 @@ export function routeFromLocation(locationLike, availableRoutes, fallbackRoute =
   const url = new URL(locationLike.href);
   const hashRoute = locationHashRoute(url);
   const settingsPath = hashRoute ? null : settingsPathForLocation(url);
-  let routeValue = hashRoute?.route || settingsPath?.route || locationPathRoute(url) || fallbackRoute;
+  const routeValue = hashRoute?.route || settingsPath?.route || locationPathRoute(url) || fallbackRoute;
   let query = url.search.slice(1);
 
   if (hashRoute) {

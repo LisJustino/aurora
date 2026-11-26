@@ -72,5 +72,14 @@ export function createToastController({ readToast, writeToast, getContext, getOv
     render();
   }
 
-  return { render, show };
+  function clear() {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+    expiresAt = 0;
+    duration = 0;
+    writeToast(null);
+    render();
+  }
+
+  return { clear, render, show };
 }

@@ -5,7 +5,7 @@ import { routeFromLocation, routePathFor, settingsRootPath } from '../core/route
 import { feedbackPromptNextAt, isFeedbackPromptDue } from '../features/feedback/prompt.js';
 import { canAccessCycle } from '../features/cycle/access.js';
 import { initializeFaqDisclosure } from '../features/footer/view.js';
-import { hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { animateProgressRings, captureProgressRings, prefersReducedMotion } from '../utils/motion.js';
 import { MAX_CYCLE_PERIOD_DAYS } from '../features/cycle/period.js';
 import { HOME_AREA_COLORS, homeAreaColorValue, normalizeHomeAreaColors } from '../features/home/personalization.js';

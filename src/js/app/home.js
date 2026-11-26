@@ -6,7 +6,7 @@ import { netAccountBalance } from '../features/finance/calculations.js';
 import { todayTasks as selectTodayTasks } from '../features/planning/task-selection.js';
 import { canAccessCycle } from '../features/cycle/access.js';
 import { cycleDayNumber, cycleStats } from '../features/cycle/calculations.js';
-import { hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { normalizeProfileAppearance } from '../features/profile/model.js';
 import { homeFirstStepsProgress } from '../features/home/personalization.js';
 import {

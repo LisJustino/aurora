@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  accountBalance,
   balanceSplit,
   cardInfo,
   cardInvoice,
@@ -7,6 +8,7 @@ import {
   goalMonthlyPlan,
   invoiceDueDate,
   savingsRatePercent,
+  signedAmount,
 } from '../src/js/features/finance/calculations.js';
 
 const shiftMonth = (month, delta) => {
@@ -93,5 +95,38 @@ assert.equal(info.ym, '2026-12');
 assert.equal(info.total, 4000);
 assert.equal(info.due, '2026-12-28');
 assert.equal(info.used, 7000);
+
+// fatura parcelada com juros debita principal + juros da conta, mas credita apenas o principal no cartão
+const checkingAccount = { id: 'main', type: 'checking', initialCents: 200000 };
+const creditAccount = { id: 'card', type: 'credit', initialCents: 0, closingDay: 20, dueDay: 28 };
+const invoiceInstallmentTx = [
+  out('purchase', '2026-11-10', 100000, 'Compras', 'card'),
+  {
+    id: 'inv-1',
+    type: 'tr',
+    accountId: 'main',
+    toAccountId: 'card',
+    cents: 55000,
+    interestCents: 5000,
+    date: '2026-12-28',
+    paid: true,
+    invoiceInstallment: true,
+  },
+  {
+    id: 'inv-2',
+    type: 'tr',
+    accountId: 'main',
+    toAccountId: 'card',
+    cents: 55000,
+    interestCents: 5000,
+    date: '2027-01-28',
+    paid: true,
+    invoiceInstallment: true,
+  },
+];
+assert.equal(signedAmount(invoiceInstallmentTx[1], 'main'), -55000);
+assert.equal(signedAmount(invoiceInstallmentTx[1], 'card'), 50000);
+assert.equal(accountBalance(checkingAccount, invoiceInstallmentTx), 90000);
+assert.equal(accountBalance(creditAccount, invoiceInstallmentTx), 0);
 
 console.log('finance-planning-check: ok');

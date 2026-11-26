@@ -11,12 +11,11 @@ import {
   handlePublicControl,
   handlePublicKeydown,
 } from './features/appearance/public-controls.js';
-import { renderLanding, renderLandingDemo } from './features/landing/view.js';
-import { stopLandingDemo } from './features/landing/demo.js';
+import { renderLanding } from './features/landing/view.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { normalizeSuggestionMessage } from './features/footer/suggestions.js';
-import { isAppInstalled, showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
-import { hasStoredAuthSession, hasSupabaseConfig } from './data/supabase-client.js';
+import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
+import { getSupabaseClient, hasStoredAuthSession, hasSupabaseConfig } from './data/supabase-client.js';
 import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
@@ -142,12 +141,13 @@ function observeLandingScroll() {
 let applicationLoaded = false;
 let publicAccountNavigationPending = false;
 let returnToPublicLanding = () => {};
+let stopLoadedDemo = null;
 async function loadApplication(mode = 'login') {
   root.removeAttribute('aria-busy');
   publicPwaCleanup();
   publicConnectionCleanup();
   mobileCtaCleanup();
-  stopLandingDemo(root);
+  stopLoadedDemo?.(root);
   const url = new URL(location.href);
   url.searchParams.delete('aurora-account-mode');
   const path = accountPathForMode(mode === 'signup' ? 'signup-profile' : mode);
@@ -273,15 +273,14 @@ function hasSavedAccountSession() {
   }
 }
 
-// O app instalado só pula a landing quando há sessão salva; sem sessão, mostra a landing.
-const installedLanding =
+// Com sessão salva (na aba ou no app instalado) a landing é pulada e a área logada abre direto; sem sessão, a landing aparece.
+const savedSessionLanding =
   routeMeta &&
   !isDemoLocation(location) &&
   document.documentElement.dataset.auroraAuthCallback !== 'true' &&
-  isAppInstalled() &&
   hasSavedAccountSession() &&
   isPublicLandingLocation(location);
-if (installedLanding) {
+if (savedSessionLanding) {
   history.replaceState(null, '', `/inicio${location.search}`);
 }
 
@@ -290,7 +289,7 @@ const publicEntryRoute = routeMeta && (isPublicLandingLocation(location) || isPu
 if (
   localPreview ||
   !publicEntryRoute ||
-  installedLanding ||
+  savedSessionLanding ||
   document.documentElement.dataset.auroraAuthCallback === 'true'
 ) {
   import('./main.js').catch((error) => {
@@ -307,8 +306,9 @@ if (
       mobileCtaCleanup();
       root.setAttribute('aria-busy', 'true');
       const requestedPath = renderedPublicPath;
-      void import('../css/main.css')
-        .then(() => {
+      void Promise.all([import('../css/main.css'), import('./features/landing/demo.js')])
+        .then(([, { renderLandingDemo, stopLandingDemo }]) => {
+          stopLoadedDemo = stopLandingDemo;
           if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
           renderLandingDemo(root);
           root.removeAttribute('aria-busy');
@@ -324,6 +324,7 @@ if (
       return;
     } else {
       root.removeAttribute('aria-busy');
+      stopLoadedDemo?.(root);
       renderLanding(root);
       document.title = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
       observeLandingScroll();
@@ -379,7 +380,6 @@ if (
     isPublicLandingLocation(location) && !isDemoLocation(location)
       ? (async () => {
           try {
-            const { hasSupabaseConfig, hasStoredAuthSession } = await import('./data/supabase-client.js');
             const query = new URLSearchParams(location.search);
             const hash = new URLSearchParams(location.hash.slice(1));
             const hasAuthCallback = [query, hash].some(
@@ -533,7 +533,6 @@ if (
       submit.setAttribute('aria-busy', 'true');
       if (errorMessage) errorMessage.hidden = true;
       if (status) status.textContent = 'Enviando…';
-      const { getSupabaseClient } = await import('./data/supabase-client.js');
       const client = await getSupabaseClient();
       const { error } = await client.functions.invoke('submit-suggestion', { body: { message } });
       if (error) throw error;

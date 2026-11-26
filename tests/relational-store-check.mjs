@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { RelationalAccountStore } from '../src/js/data/relational-account-store.js';
 import {
   isValidCycleSexualLog,
@@ -920,5 +920,132 @@ try {
 } finally {
   console.error = originalConsoleError;
 }
+
+// O banco precisa aceitar todo valor de `tracking` que o app grava (o hábito de peso usa 'weight')
+{
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const files = (await readdir(dir)).filter((name) => name.endsWith('.sql')).sort();
+  let rule = '';
+  for (const name of files) {
+    const text = await readFile(new URL(name, dir), 'utf8');
+    if (/habits_tracking_check|tracking text check/.test(text)) rule = text.match(/tracking[^;]*?\)\s*(?:,|;|$)/m)?.[0] || text;
+  }
+  for (const value of ['water', 'weight']) {
+    assert.ok(rule.includes(`'${value}'`), `a regra de habits.tracking no banco deve aceitar '${value}'`);
+  }
+}
+
+// Alternar um dia de hábito entre concluído e pulado reutiliza o mesmo UUID (sem colidir com unique(habit_id, log_date)).
+const legacyHabitUuid = '68a24b2c-0d9c-48c6-ae92-f1ad4b2e0201';
+const legacyLogUuid = '68a24b2c-0d9c-48c6-ae92-f1ad4b2e0202';
+const habitToggleWrites = [];
+const habitToggleClient = {
+  from(table) {
+    const tables = {
+      habits: [{
+        id: legacyHabitUuid,
+        user_id: userId,
+        legacy_id: 'habit-toggle',
+        name: 'Caminhar',
+        scheduled_days: [0, 1, 2, 3, 4, 5, 6],
+        status: 'active',
+        paused_from: null,
+        paused_days: [],
+        tracking: null,
+        icon: null,
+        color: null,
+        weekly_goal: null,
+        is_test_data: false,
+        deleted_at: null,
+        updated_at: versionStamp,
+      }],
+      habit_logs: [{
+        id: legacyLogUuid,
+        user_id: userId,
+        legacy_id: 'habit-toggle|completed|2026-11-20',
+        habit_id: legacyHabitUuid,
+        log_date: '2026-11-20',
+        status: 'completed',
+        note: null,
+        is_test_data: false,
+        deleted_at: null,
+        updated_at: versionStamp,
+      }],
+    };
+    return {
+      select() { return this; },
+      async range() { return { data: tables[table] || [], error: null }; },
+    };
+  },
+  async rpc(name, args) {
+    if (name === 'load_relational_account') {
+      return { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    }
+    habitToggleWrites.push(args.p_changes);
+    return {
+      data: args.p_changes.map(({ table, rows }) => ({
+        table,
+        rows: rows.map((row) => ({
+          id: table === 'profiles' || table === 'user_settings' ? `stored-${table}` : row.id,
+          user_id: row.user_id,
+          updated_at: '2026-11-20T12:01:00.000Z',
+        })),
+      })),
+      error: null,
+    };
+  },
+};
+const habitToggleStore = new RelationalAccountStore(habitToggleClient, userId);
+const habitLoaded = await habitToggleStore.load();
+assert.deepEqual(habitLoaded.habits[0].completions, ['2026-11-20']);
+const habitSwitched = structuredClone(habitLoaded);
+habitSwitched.habits[0].completions = [];
+habitSwitched.habits[0].skipped = ['2026-11-20'];
+await habitToggleStore.save(habitSwitched, habitLoaded);
+const toggledLogs = habitToggleWrites[0].find(({ table }) => table === 'habit_logs').rows;
+assert.equal(toggledLogs.length, 1);
+assert.equal(toggledLogs[0].id, legacyLogUuid);
+assert.equal(toggledLogs[0].status, 'skipped');
+assert.equal(toggledLogs[0].deleted_at, null);
+assert.equal(toggledLogs[0].expected_updated_at, versionStamp);
+
+// Migration aditiva de segurança e limpeza relacional.
+const hardeningMigration = await readFile(
+  new URL('../supabase/migrations/20261125213000_security_and_cleanup_hardening.sql', import.meta.url),
+  'utf8',
+);
+assert.match(hardeningMigration, /revoke all on function public\.submit_public_suggestion\(text, text\) from public, anon, authenticated/i);
+assert.match(hardeningMigration, /grant execute on function public\.submit_public_suggestion\(text, text\) to service_role/i);
+assert.match(hardeningMigration, /drop policy if exists "Owners can manage their own tasks" on public\.tasks/i);
+assert.match(hardeningMigration, /'finance_transactions', 'finance_recurrences'/i);
+assert.match(hardeningMigration, /array\['checking', 'savings', 'investment'\]::text\[\]/i);
+assert.match(hardeningMigration, /if metadata \? 'age' then[\s\S]*metadata_age::integer < 16/i);
+
+// AbortSignal em save() impede que uma resposta tardia contamine rowVersions após timeout.
+let releaseSlowRpc;
+const slowRpcClient = {
+  rpc(_name, args) {
+    return new Promise((resolve) => {
+      releaseSlowRpc = () => resolve({
+        data: args.p_changes.map(({ table, rows }) => ({
+          table,
+          rows: rows.map((row) => ({
+            id: table === 'profiles' || table === 'user_settings' ? `stored-${table}` : row.id,
+            user_id: row.user_id,
+            updated_at: '2026-11-25T23:59:59.000Z',
+          })),
+        })),
+        error: null,
+      });
+    });
+  },
+};
+const abortStore = new RelationalAccountStore(slowRpcClient, userId);
+const abortController = new AbortController();
+const pendingSave = abortStore.save(state, null, { signal: abortController.signal });
+abortController.abort();
+releaseSlowRpc();
+await assert.rejects(pendingSave, /A nuvem não respondeu a tempo/);
+assert.equal(abortStore.rowVersions.get('tasks').size, 0, 'save abortado não deve mutar rowVersions');
 
 console.log('relational-store-check: all checks passed');

@@ -11,7 +11,7 @@ import { ACTIONS } from './actions.js';
 
 import { applyBulkTasks, askDiscardDialog, dlgClose, dlgOpen, requestActionConfirmation } from './dialogs.js';
 import { shiftMonth } from './finance-view.js';
-import { moveTask } from './global-events.js';
+import { moveTask } from './global-events-drag.js';
 import {
   authorizeGoogleCalendar,
   connectedGoogleCalendarAccounts,

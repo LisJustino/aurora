@@ -9,8 +9,6 @@ import {
   routePathFor,
 } from '../core/router.js';
 import { markReleaseNotesSeen, shouldShowReleaseNotes } from '../features/release-notes.js';
-import { renderLanding, renderLandingDemo } from '../features/landing/view.js';
-import { stopLandingDemo } from '../features/landing/demo.js';
 import { renderFooterContent } from '../features/footer/view.js';
 import { initializeLegalDialogEvents } from '../features/footer/legal-dialog.js';
 import { submitSuggestion } from '../features/footer/suggestions.js';
@@ -256,8 +254,8 @@ export async function startAuthenticatedAurora(
   if (!accountSession) {
     if (returnedToPublic) {
       initializePublicAppearance();
-      if (isDemoLocation(location)) renderLandingDemo(root);
-      else renderLanding(root);
+      if (isDemoLocation(location)) await showPublicDemo(root);
+      else await showPublicLanding(root);
       window.dispatchEvent(new Event('aurora:public-return'));
     }
     return;
@@ -279,6 +277,18 @@ export async function startAuthenticatedAurora(
   watchSessionExpiry(accountSession.client);
   await continueAuthenticatedAurora(root, accountSession.user);
   void restoreGoogleCalendarAccounts();
+}
+
+let stopStartupDemo = null;
+async function showPublicLanding(root) {
+  stopStartupDemo?.(root);
+  const { renderLanding } = await import('../features/landing/view.js');
+  renderLanding(root);
+}
+async function showPublicDemo(root) {
+  const { renderLandingDemo, stopLandingDemo } = await import('../features/landing/demo.js');
+  stopStartupDemo = stopLandingDemo;
+  renderLandingDemo(root);
 }
 
 export function showAccountStartupError(root, message) {
@@ -354,8 +364,8 @@ export async function startAurora() {
     return;
   }
   initializePublicAppearance();
-  if (isDemoLocation(location)) renderLandingDemo(root);
-  else renderLanding(root);
+  if (isDemoLocation(location)) await showPublicDemo(root);
+  else await showPublicLanding(root);
   const sessionRestore = (async () => {
     try {
       const [{ getAccountClient }, { hasSupabaseConfig }] = await Promise.all([
@@ -393,7 +403,7 @@ export async function startAurora() {
       if (trigger.getAttribute('aria-disabled') === 'true') return;
     }
     if (action === 'landing') {
-      renderLanding(root);
+      await showPublicLanding(root);
       return;
     }
     if (action === 'skip') {
@@ -404,12 +414,12 @@ export async function startAurora() {
       return;
     }
     if (action === 'demo') {
-      renderLandingDemo(root);
+      await showPublicDemo(root);
       window.scrollTo(0, 0);
       return;
     }
     if (action !== 'login' && action !== 'signup') return;
-    stopLandingDemo(root);
+    stopStartupDemo?.(root);
     root.querySelectorAll('[data-public-action]').forEach((button) => {
       if (button instanceof HTMLButtonElement) button.disabled = true;
       else if (button.dataset.publicAction !== 'skip' && button.dataset.publicAction !== 'landing')

@@ -474,15 +474,18 @@ function buildRows(userId, state, idMap) {
         ...(Number.isFinite(habit.createdAt) ? { created_at: toIso(habit.createdAt) } : {}),
       }),
     );
+    const seenDays = new Set();
     for (const [status, days] of [
       ['completed', habit.completions || []],
       ['skipped', habit.skipped || []],
     ]) {
-      days.forEach((day) =>
+      days.forEach((day) => {
+        if (seenDays.has(day)) return;
+        seenDays.add(day);
         pushRow(
           rows,
           'habit_logs',
-          rowId(idMap, 'habit_logs', userId, `${habit.id}|${status}|${day}`, {
+          rowId(idMap, 'habit_logs', userId, `${habit.id}|${day}`, {
             habit_id: habitId,
             log_date: day,
             status,
@@ -490,8 +493,8 @@ function buildRows(userId, state, idMap) {
             is_test_data: habit.sample === true,
             deleted_at: removedAt,
           }),
-        ),
-      );
+        );
+      });
     }
   }
 
@@ -1127,15 +1130,22 @@ export class RelationalAccountStore {
       this.rowVersions.get(table).clear();
       for (const row of tables[table]) {
         if (row.legacy_id) this.idMap.get(table).set(row.legacy_id, row.id);
+        if (table === 'habit_logs' && row.habit_id && row.log_date) {
+          const habitSource = sourceId(this.idMap, 'habits', row.habit_id);
+          this.idMap.get('habit_logs').set(`${habitSource}|${row.log_date}`, row.id);
+        }
         if (row.updated_at) this.rowVersions.get(table).set(versionId(table, row), row.updated_at);
       }
     }
     return buildState(tables, this.idMap);
   }
 
-  async save(state, previousState = null) {
+  async save(state, previousState = null, { signal } = {}) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. A alteração não foi gravada; conecte-se e tente novamente.');
+    }
+    if (signal?.aborted) {
+      throw new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.');
     }
     const rows = buildRows(this.userId, state, this.idMap);
     const previousRows = previousState ? buildRows(this.userId, previousState, this.idMap) : null;
@@ -1161,7 +1171,23 @@ export class RelationalAccountStore {
         })),
       };
     });
-    const { data, error } = await this.client.rpc('apply_relational_changes', { p_changes: changes });
+    let rpcResult;
+    try {
+      let rpcRequest = this.client.rpc('apply_relational_changes', { p_changes: changes });
+      if (signal && typeof rpcRequest?.abortSignal === 'function') {
+        rpcRequest = rpcRequest.abortSignal(signal);
+      }
+      rpcResult = await rpcRequest;
+    } catch (rpcError) {
+      if (signal?.aborted) {
+        throw new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.');
+      }
+      throw rpcError;
+    }
+    const { data, error } = rpcResult;
+    if (signal?.aborted) {
+      throw new Error('A nuvem não respondeu a tempo. Verifique sua conexão e tente novamente.');
+    }
     if (error) {
       const conflictMessage = typeof error.message === 'string' ? error.message : '';
       const isVersionConflict =

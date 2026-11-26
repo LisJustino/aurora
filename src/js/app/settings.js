@@ -4,7 +4,7 @@ import { isoDay, shortDate } from '../utils/dates.js';
 import { canAccessCycle } from '../features/cycle/access.js';
 import { renderSuggestionForm } from '../features/footer/view.js';
 import { CONTACT_EMAIL } from '../features/footer/suggestions.js';
-import { hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import {
   normalizeProfileAppearance,
   PROFILE_APPEARANCE_DEFAULT,
@@ -26,10 +26,7 @@ import {
   MENU_ITEMS,
   normalizeMenuOrder,
 } from '../features/navigation/menu.js';
-import {
-  renderSettingsSegment as settingsSegment,
-  renderSettingsView,
-} from '../features/settings/view.js';
+import { renderSettingsSegment as settingsSegment, renderSettingsView } from '../features/settings/view.js';
 import { isTrashExpired, sortTrashEntriesByExpiry, trashDaysRemaining } from '../features/trash/model.js';
 import { AREAS, plural, SEX } from './core.js';
 import { viewCiclo } from './cycle.js';

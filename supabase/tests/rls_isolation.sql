@@ -27,7 +27,7 @@ declare
   policy_count integer;
   user_tables constant text[] := array[
     'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
-    'task_tag_assignments', 'weekly_reflections',
+    'task_tag_assignments', 'weekly_reflections', 'daily_checkins',
     'timer_state', 'pomodoro_daily_stats', 'habits', 'habit_logs', 'water_logs',
     'gym_templates', 'gym_template_exercises', 'gym_logs', 'finance_accounts',
     'finance_recurrences', 'finance_transactions', 'finance_budgets', 'finance_goals',
@@ -66,6 +66,26 @@ begin
       raise exception 'A public or anon policy exists on public.%', table_name;
     end if;
   end loop;
+
+  if not exists (
+    select 1
+    from pg_class as c
+    join pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'google_calendar_connections'
+      and c.relrowsecurity
+  ) then
+    raise exception 'RLS is not enabled on public.google_calendar_connections';
+  end if;
+
+  if exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'google_calendar_connections'
+  ) then
+    raise exception 'Unexpected client policy on service-only table public.google_calendar_connections';
+  end if;
 end;
 $$;
 
@@ -256,11 +276,28 @@ begin
     when insufficient_privilege then null;
   end;
 
+  begin
+    perform public.submit_public_suggestion(
+      'Sugestão direta bloqueada para anon',
+      repeat('a', 64)
+    );
+    raise exception 'Anonymous users invoked submit_public_suggestion directly';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+reset role;
+set local role service_role;
+
+do $$
+begin
   if public.submit_public_suggestion(
     'Sugestão de teste da política pública',
     repeat('a', 64)
   ) ->> 'accepted' <> 'true' then
-    raise exception 'Anonymous suggestion submission did not succeed through the guarded function';
+    raise exception 'Service role suggestion submission did not succeed through the guarded function';
   end if;
 end;
 $$;

@@ -141,29 +141,88 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   }
 }
 
-/* Com o teclado aberto o rodapé do modal fica compacto: botão principal em cima, os demais lado a lado.
-   Empilhados em coluna eles ocupavam metade da área visível e escondiam o formulário. */
+/* Com o teclado aberto sobra pouca altura. O modal vira uma folha compacta: o cabeçalho perde o ícone e a
+   chamada, o rodapé usa uma linha (a ação principal ocupa o espaço que sobra; com 3 botões de texto ele quebra
+   em duas) e o formulário usa o resto. */
 @media (width < 900px) {
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) {
     padding-bottom: 0;
   }
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot {
-    flex-direction: row-reverse;
+    flex-direction: row;
     flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: stretch;
     gap: var(--space-2);
-    padding-block: 8px;
+    padding: 8px max(var(--dialog-padding-compact), env(safe-area-inset-right, 0px)) 8px
+      max(var(--dialog-padding-compact), env(safe-area-inset-left, 0px));
   }
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn {
     width: auto;
     min-width: 0;
-    flex: 1 1 0;
     min-height: 44px;
-  }
-  /* Só com 3 botões o principal ocupa a primeira linha; com 2 eles já cabem lado a lado. */
-  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn.primary {
-    flex: 1 1 100%;
-  }
-  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn.back {
     flex: 0 0 auto;
+    padding-inline: var(--space-4);
+    white-space: nowrap;
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn.primary {
+    flex: 1 1 140px;
+  }
+  /* Com três botões de texto (ex.: Cancelar, Continuar e salvar, Adicionar) a fonte e o espaçamento encolhem um
+     pouco para eles caberem numa linha só. Se mesmo assim não couberem, o principal desce (flex-wrap). */
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn:not(:has(> svg:only-child)) {
+    padding-inline: var(--space-2);
+    font-size: var(--text-md, 0.9375rem);
+  }
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn.primary {
+    flex: 1 1 96px;
+  }
+  /* Botão só com ícone (excluir) vira um quadrado do tamanho do alvo de toque. */
+  .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn:has(> svg:only-child) {
+    width: 44px;
+    padding-inline: 0;
+  }
+
+  .dlg-back.is-keyboard-open .dlg-body {
+    gap: var(--space-3);
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+  .dlg-back.is-keyboard-open .dlg-body.task-dialog {
+    padding: 10px 16px 8px;
+  }
+  .dlg-back.is-keyboard-open .dlg-body.task-dialog > .task-dialog-head {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  .dlg-back.is-keyboard-open .dlg .head.task-dialog-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .dlg-back.is-keyboard-open .task-dialog-mark,
+  .dlg-back.is-keyboard-open .task-dialog-eyebrow {
+    display: none;
+  }
+  .dlg-back.is-keyboard-open .dlg .head.task-dialog-head h2 {
+    font-size: var(--text-lg, 1.125rem);
+  }
+  .dlg-back.is-keyboard-open .task-dialog .task-form {
+    padding: 8px 12px 12px;
+    gap: var(--space-2);
+  }
+  /* A grade de ícones vira uma fileira que rola para o lado, para os demais campos aparecerem acima do teclado. */
+  .dlg-back.is-keyboard-open .task-icon-picker {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .dlg-back.is-keyboard-open .task-icon-picker::-webkit-scrollbar {
+    display: none;
+  }
+  .dlg-back.is-keyboard-open .task-icon-picker label {
+    flex: 0 0 44px;
+    scroll-snap-align: start;
   }
 }

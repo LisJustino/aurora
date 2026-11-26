@@ -15,10 +15,36 @@ function jsonResponse(body, status, origin) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+const MAX_BODY_BYTES = 8192;
+
 async function hashRequestKey(ip, pepper) {
-  const bytes = new TextEncoder().encode(`${pepper}:${ip}`);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(pepper),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(`suggestion:${ip}`));
+  return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function extractClientIp(headers) {
+  const forwarded = (headers.get('x-forwarded-for') || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const candidates = [
+    headers.get('cf-connecting-ip'),
+    headers.get('x-real-ip'),
+    forwarded.at(-1),
+  ];
+  for (const raw of candidates) {
+    const ip = String(raw || '').trim();
+    if (ip && ip.length <= 64 && /^[0-9a-fA-F:.]+$/.test(ip)) return ip;
+  }
+  return '';
 }
 
 Deno.serve(async (request) => {
@@ -35,16 +61,25 @@ Deno.serve(async (request) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const pepper = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !anonKey || !pepper) {
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const pepper = Deno.env.get('SUGGESTION_RATE_LIMIT_SECRET') || serviceRoleKey;
+  if (!supabaseUrl || !serviceRoleKey || !pepper) {
     console.error('submit-suggestion: required Supabase secrets are not configured.');
     return jsonResponse({ error: 'service-unavailable' }, 503, requestOrigin);
   }
 
+  const contentLength = Number(request.headers.get('content-length') || '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return jsonResponse({ error: 'payload-too-large' }, 413, requestOrigin);
+  }
+
   let payload;
   try {
-    payload = await request.json();
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
+      return jsonResponse({ error: 'payload-too-large' }, 413, requestOrigin);
+    }
+    payload = JSON.parse(rawBody);
   } catch {
     return jsonResponse({ error: 'invalid-request' }, 400, requestOrigin);
   }
@@ -53,14 +88,13 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'invalid-suggestion' }, 400, requestOrigin);
   }
 
-  const forwardedFor = request.headers.get('x-forwarded-for') || '';
-  const sourceIp = forwardedFor.split(',').map((value) => value.trim()).filter(Boolean).at(-1);
-  if (!sourceIp || sourceIp.length > 64 || !/^[0-9a-fA-F:.]+$/.test(sourceIp)) {
+  const sourceIp = extractClientIp(request.headers);
+  if (!sourceIp) {
     return jsonResponse({ error: 'request-ip-unavailable' }, 503, requestOrigin);
   }
 
   const requestHash = await hashRequestKey(sourceIp, pepper);
-  const client = createClient(supabaseUrl, anonKey, {
+  const client = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data, error } = await client.rpc('submit_public_suggestion', {

@@ -134,4 +134,8 @@ assert.equal(pending.transactions[0].paid, false);
 const card = buildBulkRecords(rows[3], ctx({ isCredit: () => true }));
 assert.ok(card.transactions.every((t) => t.paid === true && !('settledDate' in t)));
 
+const zeroCentInstallment = parseBulkText('Micro - parcelado - 0,02 - 3x - dia 10/12', context)[0];
+assert.match(zeroCentInstallment.error, /R\$ 0,01 por parcela/);
+assert.ok(Number.isNaN(parseAmountCents('99999999999999999.99')));
+
 console.log('bulk-entry: ok');

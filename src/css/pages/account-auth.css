@@ -647,6 +647,7 @@
 }
 .account-password-toggle:hover { background: var(--soft); color: var(--accent); }
 .account-field-help { color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-body); }
+.account-field-help[data-state="ok"] { color: var(--ok); }
 .account-age-status { margin: calc(-1 * var(--space-1)) 0 0; color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-body); }
 .account-age-status[data-state="invalid"] { color: var(--bad); }
 .account-age-status[data-state="eligible"] { color: var(--ok); }

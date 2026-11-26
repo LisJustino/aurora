@@ -355,6 +355,8 @@ create table if not exists public.public_suggestion_rate_limits (
 alter table public.public_suggestion_rate_limits enable row level security;
 alter table public.public_suggestion_rate_limits force row level security;
 revoke all on table public.public_suggestion_rate_limits from public, anon, authenticated;
+create index if not exists public_suggestion_rate_limits_window_idx
+  on public.public_suggestion_rate_limits (window_started_at);
 
 create or replace function public.submit_public_suggestion(p_message text, p_request_hash text)
 returns jsonb
@@ -397,5 +399,5 @@ begin
 end;
 $$;
 
-revoke all on function public.submit_public_suggestion(text, text) from public, authenticated;
-grant execute on function public.submit_public_suggestion(text, text) to anon;
+revoke all on function public.submit_public_suggestion(text, text) from public, anon, authenticated;
+grant execute on function public.submit_public_suggestion(text, text) to service_role;

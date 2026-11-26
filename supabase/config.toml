@@ -19,3 +19,6 @@ verify_jwt = true
 
 [functions.google-calendar]
 verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true

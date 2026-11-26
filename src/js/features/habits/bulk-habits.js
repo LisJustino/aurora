@@ -72,7 +72,7 @@ const FILLER = new Set([
 
 function range(from, to) {
   const days = [from];
-  for (let day = from; day !== to && days.length < 8; ) {
+  for (let day = from; day !== to && days.length < 8;) {
     day = (day + 1) % 7;
     days.push(day);
   }

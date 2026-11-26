@@ -596,7 +596,7 @@ function dlgBudget() {
   const history = budgetHistory(S.finance.tx, d.cat, ui.finMonth, 3, shiftMonth);
   const suggestion = suggestBudgetCents(history);
   const historyLine = history.some((entry) => entry.cents > 0)
-    ? h`<p class="small muted budget-history">Últimos 3 meses: ${history.map((entry) => `${MESES[Number(entry.month.slice(5)) - 1]} ${money(entry.cents)}`).join(' · ')}</p>`
+    ? h`<p class="small muted budget-history">Últimos 3 meses: ${history.map((entry, index) => h`${index ? ' · ' : ''}${MESES[Number(entry.month.slice(5)) - 1]} ${money(entry.cents)}`)}</p>`
     : '';
   const suggestionLine = suggestion
     ? h`<p class="small budget-suggestion">Pela sua média, um limite de ${money(suggestion.cents)} seria realista. <button

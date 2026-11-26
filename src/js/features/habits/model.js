@@ -3,7 +3,7 @@ export { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
 import { addDays, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
-import { isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
+import { estimateWaterGoal, isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
 import { habitStartedOnOrBefore, isValidHabitCreatedAt } from './dates.js';
 
 export const HABIT_ICONS = Object.freeze([
@@ -66,6 +66,18 @@ export const isWaterHabit = (habit) =>
   habit?.tracking === 'water' || /^beber agua(?:\s|$)/.test(normalizeHabitText(habit?.name));
 export const isWeightHabit = (habit) =>
   habit?.tracking === 'weight' || /^medir peso(?:\s|$)/.test(normalizeHabitText(habit?.name));
+// Ajusta a meta dos hábitos de água ao peso informado. Devolve a nova meta em mL, ou null se nada mudou.
+export function applyWeightToWaterHabits(habits, weightKg, age) {
+  const estimate = estimateWaterGoal({ weightKg, age });
+  if (!estimate) return null;
+  let changed = false;
+  for (const habit of habits) {
+    if (!isWaterHabit(habit) || habit.waterGoalMl === estimate.ml) continue;
+    habit.waterGoalMl = estimate.ml;
+    changed = true;
+  }
+  return changed ? estimate.ml : null;
+}
 export const HABIT_ENTRY_TYPES = Object.freeze(['check', 'text', 'select']);
 export function habitEntryType(habit) {
   return HABIT_ENTRY_TYPES.includes(habit?.entryType) ? habit.entryType : 'check';

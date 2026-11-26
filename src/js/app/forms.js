@@ -3,7 +3,7 @@ import { isDay, shortDate, today } from '../utils/dates.js';
 import { newId } from '../utils/ids.js';
 import { postSignOutPath } from '../core/router.js';
 import { taskIconKey } from '../features/planning/task-icons.js';
-import { createCycleDataConsentMetadata, hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { createCycleDataConsentMetadata, hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import {
   createCyclePeriod,
   cycleLogDays,
@@ -13,6 +13,7 @@ import {
 } from '../features/cycle/period.js';
 import { HOME_BLOCK_IDS, HOME_MESSAGE_MAX_LENGTH } from '../features/home/personalization.js';
 import {
+  applyWeightToWaterHabits,
   HABIT_COLORS,
   HABIT_ENTRY_TYPES,
   HABIT_ICON_KEYS,
@@ -330,25 +331,20 @@ export const FORMS = {
       else S.weight.push({ id: newId(), date: day, kg: weightKg });
       S.weight.sort((a, b) => a.date.localeCompare(b.date));
       S.settings.profile.weightKg = weightKg;
+      const waterGoalMl = applyWeightToWaterHabits(S.habits, weightKg, currentProfileAge(S.settings));
       if (!saveSlicesWithRollback(['habits', 'weight', 'settings'], snapshot, false, 'a pesagem')) return;
       ui.dlg = null;
       render();
-      if (!change)
-        toast(
-          `Peso registrado: ${weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg.`,
-          'success',
-        );
-      else if (change.direction === 'loss')
-        toast(
-          `Você perdeu ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`,
-          'success',
-        );
-      else if (change.direction === 'gain')
-        toast(
-          `Você ganhou ${change.difference.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg desde a última medição.`,
-          'success',
-        );
-      else toast('Seu peso permaneceu igual à última medição.', 'success');
+      const kg = (value) => value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const message = !change
+        ? `Peso registrado: ${kg(weightKg)} kg.`
+        : change.direction === 'loss'
+          ? `Você perdeu ${kg(change.difference)} kg desde a última medição.`
+          : change.direction === 'gain'
+            ? `Você ganhou ${kg(change.difference)} kg desde a última medição.`
+            : 'Seu peso permaneceu igual à última medição.';
+      const waterNote = waterGoalMl ? ` A meta de água agora é ${waterGoalMl.toLocaleString('pt-BR')} mL.` : '';
+      toast(message + waterNote, 'success');
       return;
     }
     const name = String(d.get('name') || '').trim();

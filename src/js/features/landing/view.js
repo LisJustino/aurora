@@ -2,9 +2,6 @@ import { renderPublicHeader } from '../appearance/public-controls.js';
 import { initializeFaqDisclosure } from '../footer/view.js';
 import { iconSvg } from '../../utils/icons.js';
 import { APP_URL, demo, login, privacy, signup } from './links.js';
-import { renderLandingDemo, stopLandingDemo } from './demo.js';
-
-export { renderLandingDemo };
 
 const landingControllers = new WeakMap();
 const landingState = { tutorialArea: 'hoje' };
@@ -84,7 +81,6 @@ const LANDING_TUTORIALS = [
 
 export function renderLanding(root) {
   landingControllers.get(root)?.();
-  stopLandingDemo(root);
   document.title = 'Aurora — tarefas, hábitos, finanças e ciclo num app só';
   if (!root.querySelector?.('.public-site[data-prerendered]')) root.innerHTML = landingMarkup();
   initializeLandingTutorials(root);
@@ -220,13 +216,13 @@ export function landingMarkup() {
                 fetchpriority="high">
               <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720"
                 alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas."
-                fetchpriority="high">
+                loading="lazy" decoding="async">
             </div>
             <div class="landing-hero-phone">
               <img class="landing-screen-light" src="${mobileLight}" width="612" height="680"
-                alt="Visão clara do Aurora no celular, com tarefas do dia." fetchpriority="high">
+                alt="Visão clara do Aurora no celular, com tarefas do dia." decoding="async">
               <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680"
-                alt="Visão escura do Aurora no celular, com tarefas do dia." fetchpriority="high">
+                alt="Visão escura do Aurora no celular, com tarefas do dia." loading="lazy" decoding="async">
             </div>
             <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
           </figure>

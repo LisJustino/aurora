@@ -88,6 +88,7 @@ import {
   SUGGESTED_HABITS,
   SUGGESTED_HABIT_CATEGORIES,
   SUGGESTED_HABIT_TAGS,
+  applyWeightToWaterHabits,
   habitStats,
   habitDayOverview,
   habitEntryType,
@@ -1017,6 +1018,22 @@ test('aniversário de 29 de fevereiro é contado em 28 de fevereiro nos anos com
   const birthday = createBirthdayReference('2000-02-29', new Date(2024, 1, 29));
   equal(ageFromBirthdayReference(birthday, new Date(2025, 1, 27)), 24);
   equal(ageFromBirthdayReference(birthday, new Date(2025, 1, 28)), 25);
+});
+
+test('o peso atualiza a meta dos hábitos de água e ignora os demais', () => {
+  const habits = [
+    { id: 'a', name: 'Beber água', tracking: 'water', waterGoalMl: 2000 },
+    { id: 'b', name: 'Ler', waterGoalMl: 1234 },
+    { id: 'c', name: 'Medir peso', tracking: 'weight' },
+  ];
+  equal(applyWeightToWaterHabits(habits, 60, 40), 2100);
+  equal(habits[0].waterGoalMl, 2100);
+  equal(habits[1].waterGoalMl, 1234);
+  equal('waterGoalMl' in habits[2], false);
+  equal(applyWeightToWaterHabits(habits, 60, 40), null);
+  equal(applyWeightToWaterHabits(habits, 500, 40), null);
+  equal(habits[0].waterGoalMl, 2100);
+  equal(applyWeightToWaterHabits([{ id: 'x', name: 'Ler' }], 60, 40), null);
 });
 
 test('sugestão de água considera idade registrada e usa referência adulta quando ausente', () => {
@@ -2289,7 +2306,7 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
     },
   });
 
-  equal(attributes['data-theme'], undefined);
+  equal(attributes['data-theme'], 'dark');
   equal(root.style.colorScheme, 'dark');
   equal(root.style.backgroundColor, '#1c1b19');
   equal(manifestHref, 'https://aurora.test/manifest-dark.webmanifest');
@@ -2300,9 +2317,10 @@ test('a tela inicial acompanha o tema do sistema até a aparência da conta carr
   equal(manifestHref, 'https://aurora.test/manifest-light.webmanifest');
 
   browserWindow.auroraManifestTheme.setMode('auto');
+  equal(attributes['data-theme'], 'dark');
   systemTheme.matches = false;
   systemTheme.listener();
-  equal(attributes['data-theme'], undefined);
+  equal(attributes['data-theme'], 'light');
   equal(root.style.colorScheme, 'light');
 });
 

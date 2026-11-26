@@ -394,7 +394,7 @@ export function renderTaskCalendar({
     ].join('');
     cells.push(
       `<button type="button"
-        class="tc ${key === tdy ? 't' : ''} ${key === ui.taskDay ? 's' : ''} ${pending.some((task) => key < task.dueDate) ? 'od' : ''}"
+        class="tc ${key === tdy ? 't' : ''} ${key === ui.taskDay ? 's' : ''} ${key < tdy && pending.length ? 'od' : ''}"
         data-action="tcal-day" data-d="${key}"
         aria-label="${dayNumber} de ${MESES_L[m - 1]}, ${labels.join(', ')}"><b>${dayNumber}</b><i>${markers}</i></button>`,
     );

@@ -1,86 +1,4 @@
 /* Page-specific hierarchy layered on shared components */
-.main[data-route="habitos"] .habit-water-area {
-  --area: var(--area-water);
-  --progress-tone: var(--area);
-  --water-accent: var(--area);
-  --water-soft: color-mix(in srgb, var(--area) 9%, var(--surface-strong));
-}
-.habit-water-area { display: grid; gap: var(--space-3); scroll-margin-top: var(--space-4); }
-.habit-water-area > .head { margin: 0; }
-.habit-water-area > .head > div > p { margin: 3px 0 0; }
-.habit-water-disabled { align-items: flex-start; gap: var(--space-3); scroll-margin-top: var(--space-4); }
-.habit-water-disabled > div > p { margin: 4px 0 0; }
-.water-summary {
-  gap: var(--space-5);
-  overflow: hidden;
-  border-color: color-mix(in srgb, var(--water-accent) 22%, var(--line));
-  border-inline-start: 4px solid var(--water-accent);
-  background: var(--surface-strong);
-}
-.water-summary-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
-.water-eyebrow {
-  margin-bottom: 6px;
-  color: var(--water-accent);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: .045em;
-}
-.water-total-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
-.water-total {
-  font-size: var(--text-water-total);
-  font-weight: var(--weight-bold);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -.065em;
-  line-height: 1;
-}
-.water-total-unit { color: var(--muted); font-size: var(--text-base); font-weight: var(--weight-semibold); }
-.water-total-unit span { font-size: var(--text-sm); font-weight: var(--weight-medium); }
-.water-goal-copy { margin-top: 8px; color: var(--muted); }
-.water-goal-copy strong { color: var(--ink); font-weight: var(--weight-bold); }
-.water-mark {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  flex: none;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--water-accent) 20%, var(--line));
-  border-radius: var(--r);
-  background: color-mix(in srgb, var(--water-accent) 12%, var(--surface));
-  color: var(--water-accent);
-}
-.water-progress-note { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-3); color: var(--muted); font-size: var(--text-meta); font-weight: var(--weight-semibold); }
-.water-progress-note > :first-child { color: var(--water-accent); }
-.water-progress { height: 10px; background: color-mix(in srgb, var(--water-accent) 12%, var(--surface)); }
-.water-progress > span { background: var(--water-accent); }
-.water-note { display: flex; align-items: flex-start; gap: var(--space-2); margin-top: calc(-1 * var(--space-4)); color: var(--muted); font-size: var(--text-meta); line-height: 1.5; }
-.water-note-icon { display: inline-flex; flex: none; margin-top: 1px; color: var(--water-accent); }
-.water-entry { gap: var(--space-4); }
-.water-entry-heading { display: flex; flex-direction: column; gap: var(--space-1); }
-.water-entry-heading h2 { font-size: var(--text-lg); }
-.water-goal-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); align-items: end; gap: var(--space-3); }
-.water-goal-settings .water-entry-heading { min-width: 0; }
-.water-goal-settings .water-entry-heading p { margin: 0; }
-.water-goal-settings > .f { min-width: 0; }
-.water-actions { gap: var(--space-3); }
-.water-actions .chip {
-  min-width: 104px;
-  justify-content: center;
-  border-color: var(--area);
-  background: var(--surface);
-  color: var(--area);
-}
-.water-actions .chip:hover { border-color: var(--area); background: var(--surface); color: var(--area); }
-.water-actions .chip:active { transform: translateY(1px); }
-.water-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: var(--text-xs); }
-.water-divider::before, .water-divider::after { height: 1px; flex: 1; background: var(--line); content: ""; }
-.habit-water-content .water-custom { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); }
-.habit-water-content .water-custom > .f { min-width: 0; }
-.habit-water-content .water-custom > .btn { grid-column: auto; min-height: var(--control-field); border-color: var(--area-water); background: var(--area-water); color: var(--surface-strong); }
-.habit-water-content .water-custom > .btn:hover {
-  border-color: color-mix(in srgb, var(--area-water) 78%, var(--ink));
-  background: color-mix(in srgb, var(--area-water) 92%, var(--ink));
-}
-
 .main[data-route="ciclo"] .notice { line-height: 1.55; }
 .main[data-route="ciclo"] .card:has(> .cal) > .head { width: min(100%, 420px); margin-inline: auto; }
 .cycle-consent-card { display: grid; gap: var(--space-3); max-width: 760px; margin-inline: auto; }
@@ -432,16 +350,6 @@
 
 .main[data-route="financas"] [role="tabpanel"] {
   min-width: 0;
-}
-
-@media (width <= 480px) {
-  .water-summary { gap: var(--space-4); }
-  .water-goal-settings { grid-template-columns: minmax(0, 1fr); }
-  .water-mark { width: 52px; height: 52px; border-radius: var(--r-group); }
-  .water-progress-note { font-size: var(--text-xs); }
-  .water-entry { gap: var(--space-4); }
-  .habit-water-content .water-custom { grid-template-columns: minmax(0, 1fr); }
-  .habit-water-content .water-custom > .btn { width: 100%; }
 }
 
 /* Calendário do Ciclo: setas ao lado do mês, também em telas estreitas */

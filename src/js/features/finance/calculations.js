@@ -42,14 +42,15 @@ export function recurringBillsDueOn(transactions, day) {
     .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
 
-export const signedAmount = (transaction, accountId) =>
-  transaction.type === 'in'
-    ? transaction.cents
-    : transaction.type === 'out'
-      ? -transaction.cents
-      : transaction.accountId === accountId
-        ? -transaction.cents
-        : transaction.cents;
+export const signedAmount = (transaction, accountId) => {
+  if (transaction.type === 'in') return transaction.cents;
+  if (transaction.type === 'out') return -transaction.cents;
+  if (transaction.accountId === accountId) return -transaction.cents;
+  if (transaction.invoiceInstallment) {
+    return Math.max(0, transaction.cents - (transaction.interestCents || 0));
+  }
+  return transaction.cents;
+};
 
 export function accountBalance(account, transactions) {
   return (

@@ -1,5 +1,6 @@
-// Mantém o HTML pré-renderizado só na landing em "/" no navegador.
-// Outras rotas, retornos de autenticação e o app instalado com sessão salva usam o carregamento.
+// Mantém o HTML pré-renderizado só para quem visita a landing em "/" sem estar logado.
+// Outras rotas, retornos de autenticação e qualquer visita com sessão salva (aba ou app instalado) usam o
+// carregamento, para a landing não piscar antes de a área logada abrir.
 (function () {
   var path = window.location.pathname.replace(/index\.html$/, '');
   var query = new URLSearchParams(window.location.search);
@@ -12,8 +13,6 @@
   var app = document.getElementById('app');
   var template = document.getElementById('app-skeleton');
   if (!app || !template || !app.querySelector('[data-prerendered]')) return;
-  var standalone = window.navigator.standalone === true
-    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   var hasSession = false;
   try {
     for (var i = 0; i < window.localStorage.length; i += 1) {
@@ -25,7 +24,7 @@
       }
     }
   } catch (error) { hasSession = false; }
-  if (authCallback || (standalone && hasSession) || (path !== '/' && path !== '')) {
+  if (authCallback || hasSession || (path !== '/' && path !== '')) {
     app.innerHTML = '';
     app.appendChild(template.content.cloneNode(true));
   }

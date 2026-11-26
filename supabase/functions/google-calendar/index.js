@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { GoogleCalendarError, handleGoogleCalendarAction } from './logic.js';
 import { importEncryptionKey } from '../_shared/google-calendar-tokens.js';
-import { parseAllowedOrigins } from '../delete-account/push-cleanup.js';
+import { parseAllowedOrigins } from '../delete-account/allowed-origins.js';
 
 const corsHeaders = (origin) => ({
   'Access-Control-Allow-Origin': origin,
@@ -10,6 +10,8 @@ const corsHeaders = (origin) => ({
   'Access-Control-Max-Age': '600',
   Vary: 'Origin',
 });
+
+const MAX_BODY_BYTES = 16384;
 
 function jsonResponse(body, status, origin) {
   const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
@@ -59,9 +61,18 @@ Deno.serve(async (request) => {
   const { data: userData, error: userError } = await userClient.auth.getUser(tokenMatch[1]);
   if (userError || !userData.user) return jsonResponse({ error: 'unauthorized' }, 401, origin);
 
+  const contentLength = Number(request.headers.get('content-length') || '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return jsonResponse({ error: 'payload-too-large' }, 413, origin);
+  }
+
   let input;
   try {
-    input = await request.json();
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
+      return jsonResponse({ error: 'payload-too-large' }, 413, origin);
+    }
+    input = JSON.parse(rawBody);
   } catch {
     return jsonResponse({ error: 'invalid-request' }, 400, origin);
   }

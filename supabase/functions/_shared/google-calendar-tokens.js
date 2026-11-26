@@ -56,6 +56,7 @@ export async function revokeGoogleToken(token, fetchImpl = fetch) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ token }),
+      signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(10000) : undefined,
     });
     return response.ok;
   } catch {

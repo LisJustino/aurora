@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { access, readFile } from 'node:fs/promises';
 import {
   decryptRefreshToken,
   encryptRefreshToken,
@@ -9,6 +10,19 @@ import {
   handleGoogleCalendarAction,
   normalizeCalendarIds,
 } from '../supabase/functions/google-calendar/logic.js';
+
+// Garante que todos os imports relativos dos entrypoints Deno realmente existem.
+for (const relativeEntrypoint of [
+  '../supabase/functions/google-calendar/index.js',
+  '../supabase/functions/delete-account/index.js',
+  '../supabase/functions/submit-suggestion/index.js',
+]) {
+  const entrypointUrl = new URL(relativeEntrypoint, import.meta.url);
+  const entrypointSource = await readFile(entrypointUrl, 'utf8');
+  for (const match of entrypointSource.matchAll(/^\s*import\s+[\s\S]*?\s+from\s+['"](\.[^'"]+)['"]/gm)) {
+    await access(new URL(match[1], entrypointUrl));
+  }
+}
 
 const secret = Buffer.alloc(32, 7).toString('base64url');
 const key = await importEncryptionKey(secret);
@@ -153,5 +167,39 @@ await handleGoogleCalendarAction({ action: 'disconnect', id: again.account.id },
 assert.equal(calls.some((url) => url.includes('/revoke')), true);
 assert.equal(db.rows.length, 0);
 await assert.rejects(handleGoogleCalendarAction({ action: 'nope' }, base(db, google({}))), (e) => e.code === 'invalid-request');
+
+// rotação de refresh_token durante renovação é persistida criptografada.
+const rotatedDb = createDb();
+const rotatedConn = await handleGoogleCalendarAction({ action: 'connect', code: 'rot' }, base(rotatedDb, google({
+  'oauth2.googleapis.com/token': () => ({ status: 200, body: { access_token: 'a0', refresh_token: 'refresh-old', expires_in: 3599 } }),
+  'userinfo': () => ({ status: 200, body: { sub: 'g-rot', email: 'rot@example.test' } }),
+})));
+const rotated = await handleGoogleCalendarAction({ action: 'token', id: rotatedConn.account.id }, base(rotatedDb, google({
+  'oauth2.googleapis.com/token': () => ({
+    status: 200,
+    body: { access_token: 'access-4', refresh_token: 'refresh-rotated', expires_in: 3599 },
+  }),
+})));
+assert.equal(rotated.accessToken, 'access-4');
+assert.equal(await decryptRefreshToken(rotatedDb.rows[0].refresh_token_encrypted, key, userId), 'refresh-rotated');
+
+// erro de banco ao buscar conexão existente no connect retorna 503 em vez de no-refresh-token.
+const failingDb = {
+  from() {
+    const chain = {
+      select: () => chain,
+      eq: () => chain,
+      maybeSingle: async () => ({ data: null, error: { message: 'db down' } }),
+    };
+    return chain;
+  },
+};
+await assert.rejects(
+  handleGoogleCalendarAction({ action: 'connect', code: 'db-err' }, base(failingDb, google({
+    'oauth2.googleapis.com/token': () => ({ status: 200, body: { access_token: 'a', expires_in: 3599 } }),
+    'userinfo': () => ({ status: 200, body: { sub: 'g-err', email: 'err@example.test' } }),
+  }))),
+  (e) => e.code === 'service-unavailable' && e.status === 503,
+);
 
 console.log('google-calendar-server-check: all checks passed');

@@ -59,7 +59,6 @@ let installNotice = null;
 
 function showInstallNotice(messageText, canInstall) {
   if (installNotice?.isConnected || document.getElementById('pwa-update-notice')) return;
-  let notice;
   const onAction = canInstall
     ? async () => {
         if (!deferredPrompt) return;
@@ -81,7 +80,7 @@ function showInstallNotice(messageText, canInstall) {
         }
       }
     : null;
-  notice = createNotice(messageText, canInstall ? 'Instalar' : null, onAction, () => {
+  const notice = createNotice(messageText, canInstall ? 'Instalar' : null, onAction, () => {
     if (installNotice === notice) installNotice = null;
   });
   installNotice = notice;

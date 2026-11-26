@@ -1,5 +1,5 @@
 import { cycleDayNumber, cycleStats, topSymptoms } from '../features/cycle/calculations.js';
-import { isWaterHabit } from '../features/habits/model.js';
+import { applyWeightToWaterHabits } from '../features/habits/model.js';
 import { estimateWaterGoal } from '../features/habits/water-goal.js';
 import { CYCLE_SOCIAL_OPTIONS, CYCLE_TEST_RESULTS } from '../features/cycle/log.js';
 import { clamp, plural } from './core.js';
@@ -153,7 +153,7 @@ export const CYC_SHORT_LABEL = {
   sleep: { great: 'Bem', restless: 'Agitado', sleepy: 'Sonolência' },
   skin: { oilyskin: 'Oleosa', dryskin: 'Ressecada', oilyhair: 'Cabelo oleoso' },
 };
-export const cycLabel = (cat, v) => (CYC.find((c) => c.id === cat)?.opts.find((o) => o[0] === v) || [, v])[1];
+export const cycLabel = (cat, v) => (CYC.find((c) => c.id === cat)?.opts.find((o) => o[0] === v) || [undefined, v])[1];
 const cycleTestResultLabel = (value) => CYCLE_TEST_RESULTS.find(([id]) => id === value)?.[1] || '';
 export const dayLog = (k) => S.cycleLog[k] || {};
 export const isBleeding = (l) => ['light', 'medium', 'heavy'].includes(l.flow);
@@ -232,12 +232,9 @@ export function syncLatestCycleWeight() {
     .sort(([dayA], [dayB]) => dayB.localeCompare(dayA))[0];
   if (!latest) return false;
   const [, log] = latest;
-  const estimate = estimateWaterGoal({ weightKg: log.weightKg, age: S.settings.profile.age });
-  if (!estimate) return false;
+  if (!estimateWaterGoal({ weightKg: log.weightKg, age: S.settings.profile.age })) return false;
   S.settings.profile.weightKg = log.weightKg;
-  S.habits.forEach((habit) => {
-    if (isWaterHabit(habit)) habit.waterGoalMl = estimate.ml;
-  });
+  applyWeightToWaterHabits(S.habits, log.weightKg, S.settings.profile.age);
   return true;
 }
 export const cyclePeriodKey = (period) => `${period.start}|${period.end || ''}`;

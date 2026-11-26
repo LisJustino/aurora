@@ -44,6 +44,22 @@ export function resolveSupabaseConfig({
   return { url: url || '', anonKey: anonKey || '' };
 }
 
+export function isSecretSupabaseKey(key) {
+  const value = String(key || '').trim();
+  if (!value) return false;
+  if (/^sb_secret_/i.test(value) || /service[_-]?role/i.test(value)) return true;
+  const parts = value.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const normalized = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return payload?.role === 'service_role' || payload?.role === 'supabase_admin';
+  } catch {
+    return false;
+  }
+}
+
 const isDevelopment = import.meta.env?.DEV === true;
 const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabaseConfig({
   isDevelopment,
@@ -58,12 +74,18 @@ const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabaseConfig({
     isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'development'
       ? ''
       : import.meta.env?.VITE_SUPABASE_PREVIEW_ANON_KEY,
-  productionUrl: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_URL,
-  productionAnonKey: isDevelopment ? '' : import.meta.env?.VITE_SUPABASE_PRODUCTION_ANON_KEY,
+  productionUrl:
+    isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'production'
+      ? ''
+      : import.meta.env?.VITE_SUPABASE_PRODUCTION_URL,
+  productionAnonKey:
+    isDevelopment || import.meta.env?.VITE_SUPABASE_TARGET !== 'production'
+      ? ''
+      : import.meta.env?.VITE_SUPABASE_PRODUCTION_ANON_KEY,
 });
 const supabaseEnvironment = isDevelopment ? 'development' : import.meta.env?.VITE_SUPABASE_TARGET;
 const isSafeSupabaseConfig = () => {
-  if (!supabaseUrl || !supabaseAnonKey || /service[_-]?role/i.test(supabaseAnonKey)) return false;
+  if (!supabaseUrl || !supabaseAnonKey || isSecretSupabaseKey(supabaseAnonKey)) return false;
   try {
     const url = new URL(supabaseUrl);
     return url.protocol === 'https:' && url.hostname === `${PROJECT_REFS[supabaseEnvironment]}.supabase.co`;
@@ -76,11 +98,17 @@ let clientPromise;
 let rememberSession = false;
 
 function authStorageKey(url) {
-  return `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
+  if (!url) return '';
+  try {
+    return `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
+  } catch {
+    return '';
+  }
 }
 
 export function hasStoredAuthSession({ localStorage, sessionStorage }, url = supabaseUrl) {
   const key = authStorageKey(url);
+  if (!key) return false;
   return localStorage.getItem(key) !== null || sessionStorage.getItem(key) !== null;
 }
 

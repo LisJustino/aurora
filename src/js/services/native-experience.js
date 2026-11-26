@@ -1,7 +1,4 @@
 import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { StatusBar, Style } from '@capacitor/status-bar';
-import { Badge } from '@capawesome/capacitor-badge';
 
 let appliedStatusBarMode = null;
 let statusBarRevision = 0;
@@ -22,22 +19,28 @@ export function syncNativeAppearance(mode) {
   if (!Capacitor.isNativePlatform() || appliedStatusBarMode === mode) return;
   appliedStatusBarMode = mode;
 
-  const operations = [StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })];
   const revision = ++statusBarRevision;
-  if (Capacitor.getPlatform() === 'android') {
-    operations.push(StatusBar.setBackgroundColor({ color: background }));
-  }
-  void Promise.all(operations).catch((error) => {
-    if (revision === statusBarRevision) appliedStatusBarMode = null;
-    console.error('Aurora: não foi possível atualizar a barra de status nativa.', error);
-  });
+  void import('@capacitor/status-bar')
+    .then(({ StatusBar, Style }) => {
+      const operations = [StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })];
+      if (Capacitor.getPlatform() === 'android') {
+        operations.push(StatusBar.setBackgroundColor({ color: background }));
+      }
+      return Promise.all(operations);
+    })
+    .catch((error) => {
+      if (revision === statusBarRevision) appliedStatusBarMode = null;
+      console.error('Aurora: não foi possível atualizar a barra de status nativa.', error);
+    });
 }
 
 export function triggerHapticFeedback() {
   if (Capacitor.isNativePlatform()) {
-    void Haptics.impact({ style: ImpactStyle.Light }).catch((error) => {
-      console.warn('Aurora: não foi possível emitir o retorno tátil.', error);
-    });
+    void import('@capacitor/haptics')
+      .then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light }))
+      .catch((error) => {
+        console.warn('Aurora: não foi possível emitir o retorno tátil.', error);
+      });
     return;
   }
   if (typeof navigator.vibrate !== 'function') return;
@@ -59,6 +62,7 @@ export function updateAppIconBadge(count) {
       if (revision !== badgeRevision || count === lastBadgeCount) return;
 
       if (Capacitor.isNativePlatform()) {
+        const { Badge } = await import('@capawesome/capacitor-badge');
         if (nativeBadgeSupported === null) {
           const result = await Badge.isSupported();
           nativeBadgeSupported = result.isSupported;

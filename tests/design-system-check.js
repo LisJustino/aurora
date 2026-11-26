@@ -22,7 +22,11 @@ const loadCss = async (url, seen = new Set()) => {
   return out;
 };
 
-const files = await loadCss('/src/css/main.css');
+const seenCss = new Set();
+const files = [
+  ...await loadCss('/src/css/main.css', seenCss),
+  ...await loadCss('/src/css/public.css', seenCss),
+];
 const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '');
 const outsideTokens = files.filter((item) => item.file !== 'design-system/tokens.css');
 const offenders = (regex, filter = () => true) => outsideTokens.flatMap(({ file, text }) => (

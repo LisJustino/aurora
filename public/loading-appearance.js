@@ -8,11 +8,7 @@
   function applyInitialTheme(mode) {
     var isDark = mode === 'dark'
       || (mode === 'auto' && Boolean(systemTheme && systemTheme.matches));
-    if (mode === 'auto') {
-      root.removeAttribute('data-theme');
-    } else {
-      root.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    }
+    root.setAttribute('data-theme', isDark ? 'dark' : 'light');
     root.style.colorScheme = isDark ? 'dark' : 'light';
     root.style.backgroundColor = isDark ? '#1c1b19' : '#faf8f5';
     var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');

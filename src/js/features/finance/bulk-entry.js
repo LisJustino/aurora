@@ -30,7 +30,10 @@ const MONEY_DOT = /^(?:R\$\s*)?(\d+)\.(\d{1,2})$/;
 export function parseAmountCents(text) {
   const value = String(text ?? '').trim();
   const dotted = MONEY_DOT.exec(value);
-  if (dotted) return Number(dotted[1]) * 100 + Number(dotted[2].padEnd(2, '0'));
+  if (dotted) {
+    const cents = Number(dotted[1]) * 100 + Number(dotted[2].padEnd(2, '0'));
+    return Number.isSafeInteger(cents) ? cents : NaN;
+  }
   const match = MONEY.exec(value);
   if (!match) return NaN;
   const cents = Number(match[1].replace(/\./g, '')) * 100 + Number((match[2] || '').padEnd(2, '0'));
@@ -160,6 +163,9 @@ function parseFields(fields, context) {
     if (current < 1 || current > total) return { error: 'A parcela atual deve estar entre 1 e o total.' };
     // Quem informa "parcela 2/90" costuma estar digitando o valor que paga a cada mês.
     if (!row.amountMode) row.amountMode = row.installmentLabeled ? 'installment' : 'total';
+    if (row.amountMode === 'total' && row.amountCents < total) {
+      return { error: 'O valor total precisa ser de pelo menos R$ 0,01 por parcela.' };
+    }
   }
   return { row };
 }

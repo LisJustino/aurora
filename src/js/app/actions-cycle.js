@@ -2,7 +2,7 @@ import { esc } from '../utils/dom.js';
 import { isDay, longDate, shortDate, today } from '../utils/dates.js';
 import { cycleStats } from '../features/cycle/calculations.js';
 import { buildCycleReport, CYCLE_REPORT_PRINT_CSS, cycleReportHtml } from '../features/cycle/report.js';
-import { createCycleDataConsentRevocationMetadata, hasCurrentCycleDataConsent } from '../services/account-auth.js';
+import { createCycleDataConsentRevocationMetadata, hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { CYCLE_CONTRACEPTION_METHODS, CYCLE_TEST_RESULTS } from '../features/cycle/log.js';
 import { plural } from './core.js';
 import {

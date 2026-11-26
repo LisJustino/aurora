@@ -157,7 +157,7 @@ export function renderCycleView({
           class="stats cycle-overview-stats">${
             dn
               ? h`<div
-          class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? `style="--cycle-progress:${cycleProgress}%"` : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>`
+          class="cycle-day-ring ${st.avg ? '' : 'is-unestimated'}" ${st.avg ? raw(`style="--cycle-progress:${Math.max(0, Math.min(100, Number(cycleProgress) || 0))}%"`) : ''}><span><b>${dn}</b><small>Dia do ciclo</small></span></div>`
               : ''
           }${
             st.avg

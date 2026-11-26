@@ -1,0 +1,5 @@
+@import url("./design-system/tokens.css");
+@import url("./base.css");
+@import url("./design-system/typography.css");
+@import url("./pages/legal.css");
+@import url("./design-system/motion.css");

@@ -78,16 +78,7 @@ function renderSettingsSectionContent(s, p, selectedTab, renderers) {
   }
 }
 
-export function renderSettingsView({
-  S,
-  ui,
-  sections,
-  sectionGroups,
-  settingsTabId,
-  tabLabel,
-  pageTitle,
-  renderers,
-}) {
+export function renderSettingsView({ S, ui, sections, sectionGroups, settingsTabId, tabLabel, pageTitle, renderers }) {
   const s = S.settings;
   const p = s.prefs;
   const requestedTab = settingsTabId(ui.settingsTab);

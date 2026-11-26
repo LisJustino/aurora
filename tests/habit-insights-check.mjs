@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { habitBestStreak, habitInsights } from '../src/js/features/habits/insights.js';
 import { parseBulkHabits, parseHabitSchedule, MAX_BULK_HABITS } from '../src/js/features/habits/bulk-habits.js';
+import { renderHtmlTemplate } from '../src/js/utils/html-template.js';
 
 const today = '2026-11-22'; // domingo
 const dayN = (n) => { const d = new Date(2026, 10, 22 - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -98,5 +99,15 @@ assert.equal(parseBulkHabits(' - ')[0]?.error, 'Escreva o nome do hábito.');
 assert.ok(parseBulkHabits('x'.repeat(61))[0].error);
 const many = parseBulkHabits(Array.from({ length: MAX_BULK_HABITS + 2 }, (_, i) => `Hábito ${i}`).join('\n'));
 assert.equal(many.filter((row) => row.error).length, 2);
+
+// Template HTML aceita texto do usuário contendo {{...}} sem quebrar, mas ainda rejeita slots inválidos no template.
+assert.equal(
+  renderHtmlTemplate('<div>{{todays-habits}}</div>', { 'todays-habits': '<span>{{meta}}</span>' }, 'Hábitos'),
+  '<div><span>{{meta}}</span></div>',
+);
+assert.throws(
+  () => renderHtmlTemplate('<div>{{SLOT_INVALIDO}}</div>', {}, 'Hábitos'),
+  /slots não resolvidos/,
+);
 
 console.log('habit insights + bulk ok');
