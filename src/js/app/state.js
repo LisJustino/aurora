@@ -69,6 +69,7 @@ export const defaults = () => ({
     introSeen: false,
     prefs: {
       waterGoalMl: 2000,
+      vibrationEnabled: true,
       financeValuesHidden: false,
       cycleDiscreet: false,
       backupReminderSnoozedUntil: null,
@@ -137,6 +138,10 @@ export const ui = {
   taskDay: dk(),
   googleCalendar: { status: 'disconnected', accounts: [], error: '', requestId: 0 },
   habitMonth: today().slice(0, 7),
+  habitTab: 'hoje',
+  habitReordering: false,
+  habitHistoryId: '',
+  habitWeekOpen: {},
   habitSuggestions: null,
   habitIdeaCategory: 'all',
   habitIdeaTag: 'all',
@@ -146,6 +151,7 @@ export const ui = {
   profileImageBusy: false,
   settingsDraft: null,
   settingsDraftBase: null,
+  settingsMenuOpen: false,
   settingsSaving: false,
   route: 'inicio',
   status: 'local',
@@ -160,12 +166,23 @@ export const ui = {
   financeValuesHidden: false,
   financeWeekDay: '',
   settingsTab: 'profile',
+  trashFilter: 'all',
+  trashQuery: '',
   pwaUpdateAvailable: false,
   pwaUpdateDismissed: false,
   exploreNoticeDismissed: false,
   filters: { f: 'todas', q: '', sort: 'prazo' },
   finMonth: dk().slice(0, 7),
   finTab: 'resumo',
+  finPlanTab: 'limites',
+  finReportTab: 'resumo',
+  finViewMode: 'lista',
+  finCalDay: '',
+  finTag: '',
+  finFlowRange: '6m',
+  finForecastDays: 30,
+  finForecastExpanded: false,
+  finBudgetQ: '',
   finInvoiceShift: {},
   finFilter: 'todos',
   finAcc: '',
@@ -176,6 +193,7 @@ export const ui = {
   repCat: '',
   repBasis: 'competence',
   calMonth: dk().slice(0, 7),
+  cycSymptomFilter: '',
   openDetails: {},
   persistFailed: new Set(),
   persistError: '',
@@ -481,6 +499,7 @@ export function normalizeSettings(s) {
   );
   o.prefs.birthday = isValidBirthdayReference(prefs.birthday) ? { ...prefs.birthday } : null;
   o.prefs.birthdayCorrectionUsed = prefs.birthdayCorrectionUsed === true;
+  o.prefs.vibrationEnabled = typeof prefs.vibrationEnabled === 'boolean' ? prefs.vibrationEnabled : true;
   o.prefs.financeValuesHidden = prefs.financeValuesHidden === true;
   o.prefs.cycleDiscreet = prefs.cycleDiscreet === true;
   o.prefs.backupReminderSnoozedUntil =
@@ -491,6 +510,7 @@ export function normalizeSettings(s) {
   o.prefs.firstStepsDismissed = prefs.firstStepsDismissed === true;
   o.prefs.firstStepsStarted = prefs.firstStepsStarted === true;
   o.prefs.sample = typeof prefs.sample === 'boolean' ? prefs.sample : d.prefs.sample;
+  o.prefs.weeklyReviewReminder = prefs.weeklyReviewReminder === true;
   o.prefs.lastBackup =
     typeof prefs.lastBackup === 'string' && Number.isFinite(Date.parse(prefs.lastBackup)) ? prefs.lastBackup : null;
   o.prefs.feedbackPromptNextAt = normalizeFeedbackPromptNextAt(prefs.feedbackPromptNextAt);
@@ -814,6 +834,18 @@ function settingsIssueCount(value) {
         issues++;
     });
     if (Object.hasOwn(prefs, 'sample') && prefs.sample !== undefined && typeof prefs.sample !== 'boolean') issues++;
+    if (
+      Object.hasOwn(prefs, 'vibrationEnabled') &&
+      prefs.vibrationEnabled !== undefined &&
+      typeof prefs.vibrationEnabled !== 'boolean'
+    )
+      issues++;
+    if (
+      Object.hasOwn(prefs, 'weeklyReviewReminder') &&
+      prefs.weeklyReviewReminder !== undefined &&
+      typeof prefs.weeklyReviewReminder !== 'boolean'
+    )
+      issues++;
     if (
       Object.hasOwn(prefs, 'lastBackup') &&
       prefs.lastBackup !== undefined &&

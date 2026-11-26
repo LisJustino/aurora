@@ -1,6 +1,7 @@
 import { $ } from '../utils/dom.js';
 import { newId } from '../utils/ids.js';
 import { isPlainObject } from '../core/data-integrity.js';
+import { clearOfflinePending, readOfflinePending, writeOfflinePending } from '../data/offline-queue.js';
 import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
 import { createBirthdayReferenceFromParts } from '../features/profile/birthday.js';
 import { isTrashExpired } from '../features/trash/model.js';
@@ -27,14 +28,18 @@ export const Persist = {
   store: null,
   inFlight: null,
   pendingSnapshot: null,
+  offlineQueuedCount: 0,
+  offlineQueuedSlices: new Set(),
   confirmedState: null,
   rawTables: null,
   replacing: false,
-  async attach({ client, user }) {
+  async attach({ client, user, prefetchedAccountLoad = null }) {
     const { RelationalAccountStore } = await import('../data/relational-account-store.js');
     this.userId = user.id;
-    this.store = new RelationalAccountStore(client, user.id);
+    this.store = new RelationalAccountStore(client, user.id, { prefetchedAccountLoad });
     this.confirmedState = null;
+    this.offlineQueuedCount = 0;
+    this.offlineQueuedSlices.clear();
     ui.persistError = '';
   },
   save(slice) {
@@ -47,16 +52,6 @@ export const Persist = {
       toast('Há dados que precisam de revisão antes de salvar. Nenhuma área foi enviada para a nuvem.', 'error');
       return false;
     }
-    if (navigator.onLine === false) {
-      if (this.confirmedState) setS(JSON.parse(JSON.stringify(this.confirmedState)));
-      ui.persistError = '';
-      slices.forEach((slice) => {
-        ui.persistFailed.add(slice);
-        syncState.failed.add(slice);
-      });
-      toast('Sem conexão: a alteração foi desfeita e não foi salva. Conecte-se e tente novamente.', 'error');
-      return false;
-    }
     ui.persistError = '';
     const timestamp = Date.now();
     slices.forEach((slice) => {
@@ -67,6 +62,20 @@ export const Persist = {
       syncState.conflicts.delete(slice);
     });
     this.pendingSnapshot = JSON.parse(JSON.stringify(S));
+    if (navigator.onLine === false) {
+      const wasEmpty = this.offlineQueuedCount === 0;
+      this.offlineQueuedCount += 1;
+      slices.forEach((slice) => this.offlineQueuedSlices.add(slice));
+      void writeOfflinePending(this.userId, {
+        snapshot: this.pendingSnapshot,
+        slices: [...this.offlineQueuedSlices],
+        count: this.offlineQueuedCount,
+      });
+      if (wasEmpty) {
+        toast('Sem conexão: alteração salva neste aparelho e será sincronizada ao reconectar.', 'info');
+      }
+      return true;
+    }
     void this.flush();
     return true;
   },
@@ -82,9 +91,16 @@ export const Persist = {
       );
     }
     if (navigator.onLine === false) {
-      syncState.pending.forEach((slice) => syncState.failed.add(slice));
+      if (this.userId) {
+        void writeOfflinePending(this.userId, {
+          snapshot: this.pendingSnapshot,
+          slices: [...(this.offlineQueuedSlices.size ? this.offlineQueuedSlices : syncState.pending)],
+          count: Math.max(1, this.offlineQueuedCount),
+        });
+      }
       return false;
     }
+    const hadOfflineQueue = this.offlineQueuedCount > 0;
     const task = (async () => {
       let supersededRetries = 0;
       while (this.pendingSnapshot) {
@@ -109,6 +125,9 @@ export const Persist = {
           }
           this.confirmedState = JSON.parse(JSON.stringify(snapshot));
           supersededRetries = 0;
+          this.offlineQueuedCount = 0;
+          this.offlineQueuedSlices.clear();
+          void clearOfflinePending(this.userId);
           syncState.pending.clear();
           syncState.failed.clear();
           syncState.conflicts.clear();
@@ -116,6 +135,17 @@ export const Persist = {
           ui.persistError = '';
         } catch (error) {
           const isVersionConflict = error instanceof Error && error.code === 'version_conflict';
+          if (navigator.onLine === false && !isVersionConflict) {
+            if (!this.pendingSnapshot) this.pendingSnapshot = snapshot;
+            this.offlineQueuedCount = Math.max(1, this.offlineQueuedCount);
+            syncState.pending.forEach((slice) => this.offlineQueuedSlices.add(slice));
+            void writeOfflinePending(this.userId, {
+              snapshot: this.pendingSnapshot,
+              slices: [...this.offlineQueuedSlices],
+              count: this.offlineQueuedCount,
+            });
+            return false;
+          }
           if (this.pendingSnapshot && !isVersionConflict && navigator.onLine !== false && supersededRetries < 2) {
             supersededRetries += 1;
             console.error('Aurora: uma gravação anterior falhou; tentando enviar a alteração mais recente.', error);
@@ -138,6 +168,9 @@ export const Persist = {
               ? error.message.replace(/^Não foi possível salvar as alterações na conta\.\s*/, '').slice(0, 200)
               : '';
           if (isVersionConflict) {
+            this.offlineQueuedCount = 0;
+            this.offlineQueuedSlices.clear();
+            void clearOfflinePending(this.userId);
             syncState.conflicts.add('account');
           } else {
             console.error('Aurora: a gravação relacional não foi confirmada.', error);
@@ -151,6 +184,9 @@ export const Persist = {
           return false;
         }
       }
+      if (hadOfflineQueue) {
+        toast('Alterações offline sincronizadas com sucesso.', 'success');
+      }
       return syncState.failed.size === 0 && ui.persistBlocked.size === 0;
     })();
     this.inFlight = task;
@@ -163,7 +199,7 @@ export const Persist = {
   },
   retryPending() {
     if (navigator.onLine === false) {
-      toast('Ainda sem conexão. As alterações não foram enviadas.', 'info');
+      toast('Ainda sem conexão. Suas alterações continuam salvas neste aparelho.', 'info');
       return;
     }
     if (this.pendingSnapshot) {
@@ -188,6 +224,9 @@ export const Persist = {
     await this.store.save(JSON.parse(JSON.stringify(S)));
     this.confirmedState = JSON.parse(JSON.stringify(S));
     this.pendingSnapshot = null;
+    this.offlineQueuedCount = 0;
+    this.offlineQueuedSlices.clear();
+    void clearOfflinePending(this.userId);
     syncState.pending.clear();
     syncState.failed.clear();
     syncState.conflicts.clear();
@@ -199,6 +238,9 @@ export const Persist = {
     if (!this.store) throw new Error('A conta não está pronta para apagar os dados.');
     await this.store.clear();
     this.pendingSnapshot = null;
+    this.offlineQueuedCount = 0;
+    this.offlineQueuedSlices.clear();
+    void clearOfflinePending(this.userId);
     this.rawTables = null;
     this.confirmedState = JSON.parse(JSON.stringify(defaults()));
     syncState.pending.clear();
@@ -206,7 +248,11 @@ export const Persist = {
     syncState.conflicts.clear();
   },
   wipe() {
+    const previousUserId = this.userId;
     this.pendingSnapshot = null;
+    this.offlineQueuedCount = 0;
+    this.offlineQueuedSlices.clear();
+    if (previousUserId) void clearOfflinePending(previousUserId);
     this.rawTables = null;
     this.store = null;
     this.userId = '';
@@ -240,6 +286,31 @@ export async function loadAccountData() {
   syncState.failed.clear();
   persistFailed.forEach((slice) => syncState.failed.add(slice));
   Persist.confirmedState = JSON.parse(JSON.stringify(S));
+  if (Persist.userId && !persistBlocked.size) {
+    const queued = await readOfflinePending(Persist.userId);
+    if (queued?.snapshot) {
+      const targetSlices = queued.slices.length ? queued.slices.filter((slice) => SLICES.includes(slice)) : SLICES;
+      let appliedAny = false;
+      for (const slice of targetSlices) {
+        if (!Object.hasOwn(queued.snapshot, slice)) continue;
+        const normalized = normalizeSlice(slice, queued.snapshot[slice]);
+        if (!normalized.invalidCount) {
+          S[slice] = normalized.value;
+          Persist.offlineQueuedSlices.add(slice);
+          syncState.pending.add(slice);
+          appliedAny = true;
+        }
+      }
+      if (appliedAny) {
+        ui.financeValuesHidden = S.settings.prefs.financeValuesHidden;
+        Persist.offlineQueuedCount = queued.count;
+        Persist.pendingSnapshot = JSON.parse(JSON.stringify(S));
+        if (navigator.onLine !== false) void Persist.flush();
+      } else {
+        void clearOfflinePending(Persist.userId);
+      }
+    }
+  }
 }
 export function initializeBirthdayFromMetadata(user) {
   const prefs = S.settings.prefs;
@@ -458,6 +529,204 @@ export function restoreTrashEntry(id) {
     }
   });
   return true;
+}
+export function deleteTrashEntryPermanently(id) {
+  const entry = S.settings.prefs.trash.find((item) => item.id === id);
+  if (!entry) return false;
+  if (ui.persistBlocked.has('settings')) {
+    toast('Não é possível excluir da lixeira enquanto as preferências estiverem bloqueadas para gravação.', 'error');
+    return false;
+  }
+  const snapshot = snapshotSlices(['settings']);
+  S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => item.id !== id);
+  if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a exclusão definitiva da lixeira')) return false;
+  toast('Item excluído permanentemente.', 'info');
+  requestAnimationFrame(() => {
+    const heading = $('#trash-title');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  });
+  return true;
+}
+export function emptyTrashEntries(ids = null) {
+  if (ui.persistBlocked.has('settings')) {
+    toast('Não é possível esvaziar a lixeira enquanto as preferências estiverem bloqueadas para gravação.', 'error');
+    return 0;
+  }
+  const current = S.settings.prefs.trash;
+  if (!current.length) return 0;
+  const targetIds = Array.isArray(ids) ? new Set(ids) : null;
+  const remaining = targetIds ? current.filter((entry) => !targetIds.has(entry.id)) : [];
+  const removedCount = current.length - remaining.length;
+  if (!removedCount) return 0;
+  const snapshot = snapshotSlices(['settings']);
+  S.settings.prefs.trash = remaining;
+  if (!remaining.length) {
+    ui.trashFilter = 'all';
+    ui.trashQuery = '';
+  }
+  if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a limpeza da lixeira')) return 0;
+  toast(
+    targetIds && remaining.length
+      ? `${removedCount} ${removedCount === 1 ? 'item excluído' : 'itens excluídos'} permanentemente.`
+      : 'Lixeira esvaziada.',
+    'info',
+  );
+  requestAnimationFrame(() => {
+    const heading = $('#trash-title');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  });
+  return removedCount;
+}
+export function restoreTrashEntries(ids) {
+  const idSet = new Set(Array.isArray(ids) ? ids : []);
+  if (!idSet.size) return { restored: 0, skipped: 0 };
+  const candidates = S.settings.prefs.trash
+    .filter((entry) => idSet.has(entry.id) && !isTrashExpired(entry) && isValidTrashEntry(entry))
+    .sort((a, b) => {
+      const rank = (entry) =>
+        entry.records.some((record) => record.collection === 'finance.accounts')
+          ? 0
+          : entry.records.some((record) => record.collection.startsWith('finance.'))
+            ? 1
+            : 2;
+      return rank(a) - rank(b) || a.deletedAt - b.deletedAt;
+    });
+  if (!candidates.length) return { restored: 0, skipped: 0 };
+
+  const allDataSlices = [
+    ...new Set(candidates.flatMap((entry) => entry.records.map((record) => trashSlice(record.collection)))),
+  ];
+  const restoresAnyCycleWeight = candidates.some((entry) =>
+    entry.records.some((record) => record.collection === 'cycleLog' && Number.isFinite(record.value.weightKg)),
+  );
+  const slices = [...new Set([...allDataSlices, 'settings', ...(restoresAnyCycleWeight ? ['habits'] : [])])];
+  if (slices.some((slice) => ui.persistBlocked.has(slice))) {
+    toast('Não é possível restaurar enquanto os dados de destino estiverem bloqueados para gravação.', 'error');
+    return { restored: 0, skipped: candidates.length };
+  }
+
+  const snapshot = snapshotSlices(slices);
+  const drafts = Object.fromEntries(allDataSlices.map((slice) => [slice, cloneSlice(slice)]));
+  const restoredIds = new Set();
+  let skipped = 0;
+
+  for (const entry of candidates) {
+    const entrySlices = [...new Set(entry.records.map((record) => trashSlice(record.collection)))];
+    const entryDrafts = Object.fromEntries(
+      entrySlices.map((slice) => [slice, JSON.parse(JSON.stringify(drafts[slice]))]),
+    );
+    const records = [...entry.records].sort((a, b) => {
+      const rank = (record) =>
+        record.collection === 'finance.accounts'
+          ? 0
+          : record.collection === 'finance.tx'
+            ? 1
+            : record.collection === 'finance.recurring'
+              ? 2
+              : 3;
+      return rank(a) - rank(b) || a.index - b.index;
+    });
+    let ok = true;
+    for (const record of records) {
+      const target = trashCollection(entryDrafts, record.collection);
+      if (Array.isArray(target)) {
+        const alreadyExists =
+          record.collection === 'cycle'
+            ? target.some((item) => cyclePeriodKey(item) === record.key)
+            : target.some((item) => item.id === record.key);
+        if (alreadyExists) {
+          ok = false;
+          break;
+        }
+        target.splice(Math.min(record.index, target.length), 0, record.value);
+      } else if (isPlainObject(target)) {
+        if (Object.hasOwn(target, record.key)) {
+          ok = false;
+          break;
+        }
+        Object.defineProperty(target, record.key, {
+          value: record.value,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
+      } else {
+        ok = false;
+        break;
+      }
+    }
+    if (ok && entryDrafts.finance) {
+      const accounts = new Set(entryDrafts.finance.accounts.map((account) => account.id));
+      for (const record of entry.records) {
+        if (record.collection === 'finance.tx') {
+          const tx = record.value;
+          if (!accounts.has(tx.accountId) || (tx.type === 'tr' && !accounts.has(tx.toAccountId))) {
+            ok = false;
+            break;
+          }
+        }
+        if (record.collection === 'finance.recurring' && !accounts.has(record.value.accountId)) {
+          ok = false;
+          break;
+        }
+        if (record.collection === 'finance.goals' && record.value.linkedAccountId) {
+          if (
+            !accounts.has(record.value.linkedAccountId) ||
+            entryDrafts.finance.goals.filter((goal) => goal.linkedAccountId === record.value.linkedAccountId).length > 1
+          ) {
+            ok = false;
+            break;
+          }
+        }
+      }
+    }
+    if (ok) {
+      entrySlices.forEach((slice) => {
+        drafts[slice] = entryDrafts[slice];
+      });
+      restoredIds.add(entry.id);
+    } else {
+      skipped++;
+    }
+  }
+
+  if (!restoredIds.size) {
+    toast('Não foi possível restaurar os itens selecionados. Eles continuam na lixeira.', 'info');
+    return { restored: 0, skipped };
+  }
+
+  allDataSlices.forEach((slice) => {
+    S[slice] = drafts[slice];
+  });
+  S.settings.prefs.trash = S.settings.prefs.trash.filter((item) => !restoredIds.has(item.id));
+  if (!S.settings.prefs.trash.length) {
+    ui.trashFilter = 'all';
+    ui.trashQuery = '';
+  }
+  if (restoresAnyCycleWeight) syncLatestCycleWeight();
+  if (!saveSlicesWithRollback(slices, snapshot)) return { restored: 0, skipped: candidates.length };
+
+  const count = restoredIds.size;
+  toast(
+    skipped
+      ? `${count} ${count === 1 ? 'item restaurado' : 'itens restaurados'}; ${skipped} ${skipped === 1 ? 'permaneceu' : 'permaneceram'} na lixeira.`
+      : `${count} ${count === 1 ? 'item restaurado' : 'itens restaurados'}.`,
+    'success',
+  );
+  requestAnimationFrame(() => {
+    const heading = $('#trash-title');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  });
+  return { restored: count, skipped };
 }
 export function purgeExpiredTrash() {
   const current = S.settings.prefs.trash;

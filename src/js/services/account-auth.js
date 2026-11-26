@@ -21,6 +21,7 @@ import {
   createLegalConsentMetadata,
   getOAuthRedirectUrl,
   hasCompleteProfile,
+  hasCurrentCycleDataConsent,
   hasCurrentLegalConsent,
   hasSocialIdentity,
 } from './account-consent.js';
@@ -81,6 +82,7 @@ export async function requireAccount(
     allowPublicReturn = false,
     onPublicReturn,
     onAccountDeleted,
+    onFormReady,
     initialNotice = '',
     initialNoticeTone = '',
     authStylesReady = Promise.resolve(),
@@ -183,6 +185,7 @@ export async function requireAccount(
     if (allowPublicReturn && publicAuthMode) {
       links.push({ label: 'Voltar à demonstração', target: 'landing' });
     }
+    onFormReady?.();
     const { form, message, submit } = createAccountForm(root, {
       title: copy[0],
       description: copy[1],
@@ -392,6 +395,17 @@ export async function requireAccount(
     } = await client.auth.getSession();
     if (error) throw error;
     if (session?.user) {
+      const canSpeculativelyLoad =
+        !passwordRecoveryRequested &&
+        hasCurrentLegalConsent(session.user) &&
+        (!hasSocialIdentity(session.user) || hasCompleteProfile(session.user)) &&
+        typeof client.rpc === 'function';
+      const prefetchedIncludeCycle = canSpeculativelyLoad ? hasCurrentCycleDataConsent(session.user) : false;
+      const prefetchedPromise = canSpeculativelyLoad
+        ? Promise.resolve(client.rpc('load_relational_account', { p_include_cycle: prefetchedIncludeCycle })).catch(
+            () => null,
+          )
+        : null;
       const {
         data: { user },
         error: userError,
@@ -440,9 +454,16 @@ export async function requireAccount(
       }
       const currentUser = await requireCurrentLegalConsent(user);
       if (!currentUser) return null;
+      const canReusePrefetch =
+        Boolean(prefetchedPromise) &&
+        currentUser.id === session.user.id &&
+        hasCurrentCycleDataConsent(currentUser) === prefetchedIncludeCycle;
       return {
         client,
         user: currentUser,
+        ...(canReusePrefetch
+          ? { prefetchedAccountLoad: { includeCycle: prefetchedIncludeCycle, promise: prefetchedPromise } }
+          : {}),
       };
     }
 
@@ -621,9 +642,20 @@ export async function requireAccount(
       }
       const currentUser = await requireCurrentLegalConsent(user);
       if (!currentUser) return null;
+      const includeCycle = hasCurrentCycleDataConsent(currentUser);
+      const prefetchedAccountLoad =
+        typeof client.rpc === 'function'
+          ? {
+              includeCycle,
+              promise: Promise.resolve(client.rpc('load_relational_account', { p_include_cycle: includeCycle })).catch(
+                () => null,
+              ),
+            }
+          : null;
       return {
         client,
         user: currentUser,
+        ...(prefetchedAccountLoad ? { prefetchedAccountLoad } : {}),
       };
     }
   } catch (error) {

@@ -41,39 +41,69 @@ export function createCycleDialogViews(dependencies) {
         log.contraceptionMethods?.length,
       );
     const testsHaveRecord = Boolean(log.ovulationTestResult || log.pregnancyTestResult);
+    const weightHasRecord = Number.isFinite(log.weightKg);
+    const medicationHasRecord = typeof log.medicationTaken === 'boolean';
     const openGroups = ui.dlg.d.openGroups || [];
     const closedGroups = ui.dlg.d.closedGroups || [];
-    const choiceStatus = (count, single) =>
-      count ? `${count} selecionado${count === 1 ? '' : 's'}` : `Opcional · ${single ? 'Escolha 1' : 'várias opções'}`;
+    const selectedSummaryPills = [];
+    if (log.flow) selectedSummaryPills.push(`Fluxo: ${cycLabel('flow', log.flow)}`);
+    for (const group of groups) {
+      const value = log[group.id];
+      if (group.single && value) {
+        selectedSummaryPills.push(CYC_SHORT_LABEL[group.id]?.[value] || cycLabel(group.id, value));
+      } else if (Array.isArray(value) && value.length) {
+        for (const item of value) {
+          selectedSummaryPills.push(CYC_SHORT_LABEL[group.id]?.[item] || cycLabel(group.id, item));
+        }
+      }
+    }
+    if (intimacyHasRecord) selectedSummaryPills.push('Intimidade');
+    if (weightHasRecord) {
+      selectedSummaryPills.push(
+        `${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`,
+      );
+    }
+    if (testsHaveRecord) selectedSummaryPills.push('Testes');
+    if (medicationHasRecord) selectedSummaryPills.push(log.medicationTaken ? 'Medicação: tomei' : 'Medicação: não');
+    if (log.note?.trim()) selectedSummaryPills.push('Anotação');
+    const totalSelected = selectedSummaryPills.length;
+    const formattedDate = (() => {
+      const rawDate = longDate(day);
+      return rawDate ? rawDate[0].toUpperCase() + rawDate.slice(1) : rawDate;
+    })();
+    const choiceStatus = (count) => `${count} selecionado${count === 1 ? '' : 's'}`;
     const choiceButton = (category, value, label, selected, id = '') => {
       return h`<button type="button" ${id ? raw(`id="${id}"`) : ''}
         class="chip cycle-choice${category === 'flow' ? ' cycle-flow-choice' : ''}" aria-label="${label}"
         title="${label}" aria-pressed="${selected ? 'true' : 'false'}" data-action="cyc-opt" data-c="${category}"
         data-category="${category}" data-v="${value}"><span class="cycle-choice-symbol"
-        aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? { spot: 14, light: 18, medium: 21, heavy: 24 }[value] || 18 : 18)}</span><span
+        aria-hidden="true">${icon(CYC_OPTION_ICON[category]?.[value] || CYC_ICON[category], category === 'flow' ? { spot: 15, light: 18, medium: 20, heavy: 22 }[value] || 18 : 15)}</span><span
         class="cycle-choice-label">${CYC_SHORT_LABEL[category]?.[value] || label}</span><span class="cycle-choice-mark"
-        aria-hidden="true">${icon('check', 14)}</span></button>`;
+        aria-hidden="true">${icon('check', 12)}</span></button>`;
     };
     const symptomGroupView = (group) => {
       const current = group.single ? (log[group.id] ? [log[group.id]] : []) : log[group.id] || [];
-      return h`<details class="sym cycle-symptom-group"
+      return h`<details class="sym cycle-symptom-group${current.length ? ' has-selection' : ''}"
         data-category="${group.id}" ${openGroups.includes(group.id) || (current.length && !closedGroups.includes(group.id)) ? raw('open') : ''}>
       <summary class="cycle-group-heading"><h3
-        id="cycle-group-${group.id}">${icon(CYC_ICON[group.id], 16)}${group.title}</h3>${
+        id="cycle-group-${group.id}"><span class="cycle-group-icon" aria-hidden="true">${icon(CYC_ICON[group.id], 15)}</span>${group.title}</h3><span
+        class="cycle-group-meta">${
           current.length
             ? h`<span
-        class="cycle-group-mode">${choiceStatus(current.length, group.single)}</span>`
+        class="cycle-group-mode is-active">${choiceStatus(current.length)}</span>`
             : ''
         }<span
-        class="cycle-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+        class="cycle-disclosure-indicator" aria-hidden="true">${icon('chevDown', 15)}</span></span></summary>
       <div class="chips" role="group"
         aria-labelledby="cycle-group-${group.id}">${group.opts.map(([value, label]) => choiceButton(group.id, value, label, current.includes(value)))}</div>
     </details>`;
     };
     const testView = (key, title) => h`<section class="cycle-tracking-part" aria-labelledby="cycle-${key}-title">
     <h4 id="cycle-${key}-title">${title}</h4>
-    <button type="button" class="chip cycle-intimacy-choice" aria-pressed="${Boolean(log[key])}"
-      data-action="cyc-test-toggle" data-k="${key}">${log[key] ? 'Teste feito' : 'Fiz este teste'}</button>
+    <div class="cycle-intimacy-choices">
+      <button type="button" class="chip cycle-intimacy-choice" aria-pressed="${Boolean(log[key])}"
+        data-action="cyc-test-toggle" data-k="${key}">${log[key] ? 'Teste feito' : 'Fiz este teste'}</button>
+    </div>
     ${
       log[key]
         ? h`<div class="cycle-intimacy-choices" role="group"
@@ -87,13 +117,27 @@ export function createCycleDialogViews(dependencies) {
   </section>`;
     return dlgWrap(
       h`<form id="dlgform" class="cycle-log-form" data-form="cycle-log">
-    <div class="cycle-log-heading"><div><span
-      class="cycle-log-eyebrow">${quickFlow ? 'Registro rápido' : 'Registro do ciclo'}</span><h2
-      id="dt">${longDate(day)}</h2><p>${quickFlow ? 'Escolha o fluxo deste dia. Os demais dados registrados serão mantidos.' : 'Registre só o que fizer sentido. Todas as opções são opcionais.'}</p></div>${closeBtn}</div>
-    <section class="cycle-flow-group" data-category="flow" role="group" aria-labelledby="cycle-flow-title">
-      <div class="cycle-group-heading"><div><h3
-        id="cycle-flow-title">${icon(CYC_ICON.flow, 16)}Fluxo menstrual</h3><p>Leve, médio ou intenso entram nas estimativas; escape, não.</p></div><span
-        class="cycle-group-mode">${log.flow ? `Selecionado: ${cycLabel('flow', log.flow)}` : 'Opcional · escolha 1'}</span></div>
+    <div class="cycle-log-heading"><div class="cycle-log-heading-copy"><div class="cycle-log-eyebrow-row"><span
+      class="cycle-log-eyebrow">${quickFlow ? 'Registro rápido' : 'Registro do dia'}</span>${
+        totalSelected && !quickFlow
+          ? h`<span class="cycle-log-count">${totalSelected} ${totalSelected === 1 ? 'selecionado' : 'selecionados'}</span>`
+          : ''
+      }</div><h2
+      id="dt">${formattedDate}</h2><p>${quickFlow ? 'Escolha o fluxo deste dia. Os demais dados registrados serão mantidos.' : 'Anote só o que fizer sentido hoje. Todas as opções são opcionais.'}</p>${
+        totalSelected && !quickFlow
+          ? h`<div class="cycle-log-selected-strip" aria-label="Itens selecionados neste dia">${selectedSummaryPills
+              .slice(0, 6)
+              .map((pill) => h`<span class="cycle-log-selected-pill">${pill}</span>`)}${
+              selectedSummaryPills.length > 6
+                ? h`<span class="cycle-log-selected-pill is-more">+${selectedSummaryPills.length - 6}</span>`
+                : ''
+            }</div>`
+          : ''
+      }</div>${closeBtn}</div>
+    <section class="cycle-flow-group${log.flow ? ' has-selection' : ''}" data-category="flow" role="group" aria-labelledby="cycle-flow-title">
+      <div class="cycle-group-heading cycle-flow-heading"><div><h3
+        id="cycle-flow-title"><span class="cycle-group-icon" aria-hidden="true">${icon(CYC_ICON.flow, 15)}</span>Fluxo menstrual</h3><p>Leve, médio ou intenso entram nas estimativas; escape, não.</p></div><span
+        class="cycle-group-mode${log.flow ? ' is-active' : ''}">${log.flow ? cycLabel('flow', log.flow) : 'Opcional'}</span></div>
       <div class="chips" role="group"
         aria-label="Intensidade do fluxo">${flow.opts.map(([value, label], index) => choiceButton('flow', value, label, log.flow === value, index === 0 ? 'f0' : ''))}</div>
     </section>
@@ -101,21 +145,23 @@ export function createCycleDialogViews(dependencies) {
       quickFlow
         ? ''
         : h`<div class="cycle-symptoms-heading"><h3
-          id="cycle-symptoms-title">Sinais e bem-estar</h3><p>Múltipla escolha, exceto em energia, sono e corrimento.</p></div>
+          id="cycle-symptoms-title">Sinais e bem-estar</h3><p>Abra apenas os temas que quiser anotar hoje.</p></div>
     <div class="cycle-symptom-grid" role="group"
       aria-labelledby="cycle-symptoms-title">${symptomGroups.map(symptomGroupView)}</div>
+    <div class="cycle-section-divider"><span>Corpo e intimidade</span></div>
     <div class="cycle-intimacy-grid">
       ${symptomGroupView(discharge)}
-      <details class="sym cycle-symptom-group cycle-intimacy-group"
+      <details class="sym cycle-symptom-group cycle-intimacy-group${intimacyHasRecord ? ' has-selection' : ''}"
         data-category="intimacy" ${openGroups.includes('intimacy') || (intimacyHasRecord && !closedGroups.includes('intimacy')) ? raw('open') : ''}>
         <summary class="cycle-group-heading"><h3
-          id="cycle-intimacy-title">${icon('heart', 16)}Intimidade</h3>${
+          id="cycle-intimacy-title"><span class="cycle-group-icon" aria-hidden="true">${icon('heart', 15)}</span>Intimidade</h3><span
+          class="cycle-group-meta">${
             intimacyHasRecord
               ? h`<span
-          class="cycle-group-mode">Registrado</span>`
+          class="cycle-group-mode is-active">Registrado</span>`
               : ''
           }<span class="cycle-disclosure-indicator"
-          aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+          aria-hidden="true">${icon('chevDown', 15)}</span></span></summary>
         <div class="cycle-intimacy-content" aria-labelledby="cycle-intimacy-title">
           <p class="cycle-intimacy-intro"
             id="cycle-intimacy-intro">Registre só o que quiser, sem detalhes. Cada opção é independente.</p>
@@ -174,52 +220,56 @@ export function createCycleDialogViews(dependencies) {
         </div>
       </details>
     </div>
+    <div class="cycle-section-divider"><span>Acompanhamento diário</span></div>
     <div class="cycle-daily-tracking-grid">
-      <details class="sym cycle-symptom-group"
-        data-category="weight" ${openGroups.includes('weight') || (Number.isFinite(log.weightKg) && !closedGroups.includes('weight')) ? raw('open') : ''}>
+      <details class="sym cycle-symptom-group${weightHasRecord ? ' has-selection' : ''}"
+        data-category="weight" ${openGroups.includes('weight') || (weightHasRecord && !closedGroups.includes('weight')) ? raw('open') : ''}>
         <summary class="cycle-group-heading"><h3
-          id="cycle-weight-title">${icon('activity', 16)}Peso</h3>${
-            Number.isFinite(log.weightKg)
+          id="cycle-weight-title"><span class="cycle-group-icon" aria-hidden="true">${icon('activity', 15)}</span>Peso</h3><span
+          class="cycle-group-meta">${
+            weightHasRecord
               ? h`<span
-          class="cycle-group-mode">${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg</span>`
+          class="cycle-group-mode is-active">${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg</span>`
               : ''
           }<span
-          class="cycle-disclosure-indicator" aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+          class="cycle-disclosure-indicator" aria-hidden="true">${icon('chevDown', 15)}</span></span></summary>
         <div class="cycle-tracking-content" aria-labelledby="cycle-weight-title">
           <label class="f">Peso do dia <span class="cycle-weight-input"><input type="text" inputmode="decimal"
             autocomplete="off" maxlength="6" data-dlg="log.weightKg"
-            value="${Number.isFinite(log.weightKg) ? log.weightKg.toFixed(1) : ''}" placeholder="Ex.: 65,5"
+            value="${weightHasRecord ? log.weightKg.toFixed(1) : ''}" placeholder="Ex.: 65,5"
             aria-describedby="cycle-weight-help"><span aria-hidden="true">kg</span></span></label>
           <p class="cycle-tracking-help"
             id="cycle-weight-help">De 20 a 400 kg. O peso registrado mais recente por data atualiza o perfil e recalcula a meta de Beber água. Você pode ajustar a meta em Hábitos; um peso mais recente a recalcula.</p>
         </div>
       </details>
-      <details class="sym cycle-symptom-group"
+      <details class="sym cycle-symptom-group${testsHaveRecord ? ' has-selection' : ''}"
         data-category="tests" ${openGroups.includes('tests') || (testsHaveRecord && !closedGroups.includes('tests')) ? raw('open') : ''}>
         <summary class="cycle-group-heading"><h3
-          id="cycle-tests-title">${icon('activity', 16)}Testes</h3>${
+          id="cycle-tests-title"><span class="cycle-group-icon" aria-hidden="true">${icon('activity', 15)}</span>Testes</h3><span
+          class="cycle-group-meta">${
             testsHaveRecord
               ? h`<span
-          class="cycle-group-mode">Registrado</span>`
+          class="cycle-group-mode is-active">Registrado</span>`
               : ''
           }<span class="cycle-disclosure-indicator"
-          aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+          aria-hidden="true">${icon('chevDown', 15)}</span></span></summary>
         <div class="cycle-tracking-content" aria-labelledby="cycle-tests-title">
           <p class="cycle-tracking-help">Marque se fez um teste; informar o resultado é opcional.</p>
           ${testView('ovulationTestResult', 'Teste de ovulação')}
           ${testView('pregnancyTestResult', 'Teste de gravidez')}
         </div>
       </details>
-      <details class="sym cycle-symptom-group"
-        data-category="medication" ${openGroups.includes('medication') || (typeof log.medicationTaken === 'boolean' && !closedGroups.includes('medication')) ? raw('open') : ''}>
+      <details class="sym cycle-symptom-group${medicationHasRecord ? ' has-selection' : ''}"
+        data-category="medication" ${openGroups.includes('medication') || (medicationHasRecord && !closedGroups.includes('medication')) ? raw('open') : ''}>
         <summary class="cycle-group-heading"><h3
-          id="cycle-medication-title">${icon('pill', 16)}Medicação</h3>${
-            typeof log.medicationTaken === 'boolean'
+          id="cycle-medication-title"><span class="cycle-group-icon" aria-hidden="true">${icon('pill', 15)}</span>Medicação</h3><span
+          class="cycle-group-meta">${
+            medicationHasRecord
               ? h`<span
-          class="cycle-group-mode">Registrado</span>`
+          class="cycle-group-mode is-active">${log.medicationTaken ? 'Tomei' : 'Não tomei'}</span>`
               : ''
           }<span class="cycle-disclosure-indicator"
-          aria-hidden="true">${icon('chevDown', 16)}</span></summary>
+          aria-hidden="true">${icon('chevDown', 15)}</span></span></summary>
         <div class="cycle-tracking-content" aria-labelledby="cycle-medication-title">
           <p class="cycle-tracking-help">Sem nome nem dose; registre apenas se tomou medicação hoje.</p>
           <div class="cycle-intimacy-choices" role="group" aria-label="Tomou medicação hoje">
@@ -231,12 +281,14 @@ export function createCycleDialogViews(dependencies) {
         </div>
       </details>
     </div>
-    ${dlgField(
-      'Anotações do dia',
-      h`<textarea data-dlg="log.note" maxlength="500" rows="3"
-      placeholder="Algo que você queira lembrar…">${log.note || ''}</textarea>`,
-      'full',
-    )}`
+    <div class="cycle-note-block">
+      ${dlgField(
+        'Anotações do dia',
+        h`<textarea data-dlg="log.note" maxlength="500" rows="3"
+        placeholder="Algo que você queira lembrar sobre hoje…">${log.note || ''}</textarea>`,
+        'full',
+      )}
+    </div>`
     }
   </form>`,
       h`<button type="button" class="btn back" data-action="dlg-close">Cancelar</button><button type="submit"

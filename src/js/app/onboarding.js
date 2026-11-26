@@ -1,6 +1,6 @@
 import { h } from '../utils/dom.js';
 import { icon } from '../utils/icons.js';
-import { AREA_GUIDES } from '../features/area-guides.js';
+import { AREA_GUIDE_IDS, AREA_GUIDES } from '../features/area-guides.js';
 import { canAccessCycle } from '../features/cycle/access.js';
 import { hexOk, PALETTES } from '../features/appearance/palettes.js';
 import { CAT_ICONS, categoryLeafName, LIST_COLORS, norm } from './core.js';
@@ -22,6 +22,7 @@ import {
   dlgWrap,
 } from './dialogs.js';
 import { dlgTx } from './finance-dialogs.js';
+import { dlgHabitOtherDay } from './habit-other-day.js';
 import { recList } from './finance-extras.js';
 import { commit } from './persistence.js';
 import { toast } from './samples-backup.js';
@@ -213,18 +214,18 @@ function dlgOnboard() {
       data-action="ob-back">Voltar</button><button class="btn primary" data-action="ob-next">Continuar</button>`;
   } else {
     const tourAreas = onboardingTourAreas(d);
-    body = h`${dots}<div class="wiz-h"><span class="eyebrow">Um tour opcional</span><h2
-      id="dt">Quer ver o Aurora em ação?</h2><p>Escolha um guia rápido para assistir ao concluir. Você também pode explorar agora e abrir os tutoriais quando quiser pelo botão “Como usar?” de cada área.</p></div>
-      <div class="onboard-tour-cards" aria-label="Tutoriais disponíveis">${tourAreas.map((area) => {
+    body = h`${dots}<div class="wiz-h"><span class="eyebrow">Guia opcional</span><h2
+      id="dt">Quer conhecer o que dá para fazer?</h2><p>Escolha uma área para abrir o guia rápido ao concluir. Você também pode abrir quando quiser pelo ícone “?” no canto superior direito de cada tela.</p></div>
+      <div class="onboard-tour-cards" aria-label="Guias disponíveis">${tourAreas.map((area) => {
         const guide = AREA_GUIDES[area.id];
         return h`<button type="button" class="opt onboard-tour-card" data-action="ob-finish-guide"
           data-route="${area.id}"><span class="mk">${icon(area.icon, 20)}</span><span
-          class="tx"><b>${guide.title}</b><span>${guide.summary}</span><small>Concluir e assistir</small></span>${icon('play', 16, 'onboard-tour-play')}</button>`;
+          class="tx"><b>${guide.title}</b><span>${guide.summary}</span><small>Concluir e abrir guia</small></span>${icon('chevRight', 16, 'onboard-tour-play')}</button>`;
       })}</div>
-      <p class="fine">${icon('info', 15)} Os vídeos não iniciam sozinhos e também têm um roteiro em texto.</p>`;
+      <p class="fine">${icon('info', 15)} Os guias mostram os principais recursos, passos e atalhos reais de cada área.</p>`;
     foot = h`<button class="btn back" data-action="ob-skip">Pular personalização</button><button class="btn back"
       data-action="ob-back">Voltar</button><button class="btn primary"
-      data-action="ob-finish">Concluir sem tour</button>`;
+      data-action="ob-finish">Concluir e começar</button>`;
   }
   return dlgWrap(body, foot, st === 0 ? 'onboard-needs-dialog' : '');
 }
@@ -269,29 +270,62 @@ function dlgImport() {
   );
 }
 function dlgAreaTutorial() {
-  const guide = AREA_GUIDES[ui.dlg.d.route];
+  const activeRoute = ui.dlg.d.route;
+  const guide = AREA_GUIDES[activeRoute];
   if (!guide)
     return dlgWrap(
-      h`<div class="head"><h2 id="dt">Tutorial indisponível</h2>${closeBtn}</div><p
-        role="alert">Não foi possível localizar o tutorial desta área.</p>`,
+      h`<div class="head"><h2 id="dt">Guia indisponível</h2>${closeBtn}</div><p
+        role="alert">Não foi possível localizar o guia desta área.</p>`,
       h`<button class="btn back" data-action="dlg-close">Fechar</button>`,
     );
-  const mobileTutorial = window.matchMedia('(width <= 700px)').matches;
-  const tutorialVideo = mobileTutorial && guide.mobileVideo ? guide.mobileVideo : guide.video;
-  const tutorialPoster = mobileTutorial && guide.mobilePoster ? guide.mobilePoster : guide.poster;
+  const availableGuides = AREA_GUIDE_IDS.filter(
+    (id) => id !== 'ciclo' || canAccessCycle(S.settings.profile, ui.preview),
+  );
+  const features = Array.isArray(guide.features) ? guide.features : [];
+  const tips = Array.isArray(guide.tips) ? guide.tips : [];
   return dlgWrap(
-    h`<div class="head area-tutorial-head"><div><p class="section-kicker">Tutorial em vídeo</p><h2
+    h`<div class="head area-tutorial-head"><div><p class="section-kicker">Guia rápido</p><h2
       id="dt">Como usar ${guide.title}</h2></div>${closeBtn}</div>
+    <div class="area-guide-tabs" role="tablist" aria-label="Escolher guia de outra área">${availableGuides.map((id) => {
+      const item = AREA_GUIDES[id];
+      const selected = id === activeRoute;
+      return h`<button type="button" class="chip area-guide-tab" role="tab" aria-selected="${String(selected)}"
+        data-action="area-guide-switch" data-area-guide="${id}">${icon(item.icon || 'help', 15)}${item.title}</button>`;
+    })}</div>
     <p class="area-tutorial-intro">${guide.summary}</p>
-    <video class="area-tutorial-video${mobileTutorial ? ' is-mobile' : ''}" controls playsinline preload="metadata"
-      poster="${tutorialPoster}" width="${mobileTutorial ? '780' : '1280'}" height="${mobileTutorial ? '1688' : '720'}"
-      aria-label="Tutorial em vídeo: ${guide.title}">
-      <source src="${tutorialVideo}" type="video/mp4">
-      Seu navegador não consegue reproduzir este vídeo.
-    </video>
-    <p class="area-tutorial-caption">Vídeo sem narração, com orientações na tela. Se preferir, abra o roteiro abaixo.</p>
-    <details class="area-tutorial-script"><summary>Ver roteiro do vídeo${icon('chevDown', 16, 'tutorial-disclosure-indicator')}</summary><ol>${guide.steps.map((step) => h`<li><strong>${step.title}</strong> — ${step.text}</li>`)}</ol>${guide.note ? h`<p>${guide.note}</p>` : ''}</details>`,
-    h`<button class="btn back" data-action="dlg-close">Fechar</button>`,
+    ${
+      features.length
+        ? h`<section class="area-guide-section" aria-labelledby="area-guide-features-title">
+      <h3 id="area-guide-features-title">O que você pode fazer aqui</h3>
+      <ul class="area-guide-grid">${features.map(
+        (feature) => h`<li class="area-guide-card">
+          <span class="area-guide-card-icon" aria-hidden="true">${icon(feature.icon || 'sparkles', 18)}</span>
+          <div class="area-guide-card-copy">
+            <b>${feature.title}</b>
+            <p>${feature.text}</p>
+            ${feature.where ? h`<span class="area-guide-where">${feature.where}</span>` : ''}
+          </div>
+        </li>`,
+      )}</ul>
+    </section>`
+        : ''
+    }
+    <section class="area-guide-section area-guide-steps-box" aria-labelledby="area-guide-steps-title">
+      <h3 id="area-guide-steps-title">Por onde começar</h3>
+      <ol class="area-guide-steps">${guide.steps.map(
+        (step) => h`<li><strong>${step.title}</strong><span>${step.text}</span></li>`,
+      )}</ol>
+    </section>
+    ${
+      tips.length
+        ? h`<section class="area-guide-section area-guide-tips" aria-labelledby="area-guide-tips-title">
+      <h3 id="area-guide-tips-title">${icon('sparkles', 16)}Dicas e atalhos</h3>
+      <ul>${tips.map((tip) => h`<li>${tip}</li>`)}</ul>
+    </section>`
+        : ''
+    }
+    ${guide.note ? h`<p class="area-guide-note">${icon('info', 16)}<span>${guide.note}</span></p>` : ''}`,
+    h`<button class="btn primary" data-action="dlg-close">Entendi</button>`,
     'area-tutorial-body',
   );
 }
@@ -404,6 +438,7 @@ export const DLG = {
   task: dlgTask,
   taskbulk: dlgTaskBulk,
   habitbulk: dlgHabitBulk,
+  'habit-other-day': dlgHabitOtherDay,
   tx: dlgTx,
   'cycle-log': dlgCycleLog,
   'cycle-period': dlgCyclePeriod,

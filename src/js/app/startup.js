@@ -50,30 +50,19 @@ import {
 
 // Arranque
 function renderAccountLoading(root) {
+  if (root.querySelector(':scope > .account-loading, :scope > .app-skeleton')) return;
   const page = document.createElement('main');
   page.className = 'account-loading';
   page.setAttribute('role', 'status');
   page.setAttribute('aria-busy', 'true');
 
   page.innerHTML = `<div class="account-loading-content">
-      <header class="account-loading-header">
-        <span class="account-loading-brand" aria-hidden="true"><img alt="" width="36" height="36"><span
-          class="wordmark">aurora.</span></span>
-      </header>
-      <div class="account-loading-preview" aria-hidden="true">
-        <div class="loading-welcome-card">
-          <span class="loading-welcome-mark"></span>
-          <span class="loading-welcome-kicker">UM DIA DE CADA VEZ</span>
-          <span class="loading-welcome-title">Vamos por partes.</span>
-          <span class="loading-welcome-copy">Planejar, cuidar e acompanhar.</span>
-          <span class="loading-welcome-areas"><span class="loading-welcome-area plan">Planejar</span><span
-            class="loading-welcome-area habits">Hábitos</span><span
-            class="loading-welcome-area finance">Finanças</span><span
-            class="loading-welcome-area cycle">Ciclo</span></span>
-        </div>
+      <span class="account-loading-brand" aria-hidden="true"><img alt="" width="40" height="40"><span
+        class="wordmark">aurora.</span></span>
+      <div class="account-loading-status">
+        <span class="account-loading-indicator" aria-hidden="true"></span>
+        <span class="account-loading-message">Preparando seu espa&#231;o&#8230;</span>
       </div>
-      <span class="account-loading-status"><span class="account-loading-indicator" aria-hidden="true"></span><span
-        class="account-loading-message">Preparando seu espa&#231;o&#8230;</span></span>
     </div>`;
   page.querySelector('.account-loading-brand img').src = new URL('../../../icons/favicon.svg', import.meta.url).href;
   root.replaceChildren(page);
@@ -139,9 +128,11 @@ function showAccountDataLoadError(root, error, user) {
 async function continueAuthenticatedAurora(root, user) {
   preloadInitialRouteModule();
   try {
-    const { purgeRemovedStudyDataFromBrowserStorage } = await import('../features/backup/removed-study-data.js');
+    const [{ purgeRemovedStudyDataFromBrowserStorage }] = await Promise.all([
+      import('../features/backup/removed-study-data.js'),
+      loadAccountData(),
+    ]);
     purgeRemovedStudyDataFromBrowserStorage(window.localStorage, user.id);
-    await loadAccountData();
     initializeBirthdayFromMetadata(user);
   } catch (error) {
     console.error('Aurora: a conta foi autenticada, mas os dados protegidos não puderam ser carregados.', error);
@@ -232,25 +223,28 @@ export async function startAuthenticatedAurora(
   authCallback = false,
   preauthenticatedAccount = null,
 ) {
-  const { requireAccount } = await import('../services/account-auth.js');
   renderAccountLoading(root);
+  preloadInitialRouteModule();
+  const storeWarmup = import('../data/relational-account-store.js').catch(() => {});
   let returnedToPublic = false;
   rememberRequestedRoute();
   const sessionExpired = readStorage(SESSION_EXPIRED_KEY) === '1';
   writeStorage(SESSION_EXPIRED_KEY, null);
-  setAccountSession(
-    preauthenticatedAccount ||
-      (await requireAccount(root, initialMode, {
-        allowPublicReturn,
-        initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
-        onPublicReturn: () => {
-          returnedToPublic = true;
-        },
-        onAccountDeleted: () => {
-          redirectToPublicLanding(location);
-        },
-      })),
-  );
+  let resolvedAccount = preauthenticatedAccount;
+  if (!resolvedAccount) {
+    const { requireAccount } = await import('../services/account-auth.js');
+    resolvedAccount = await requireAccount(root, initialMode, {
+      allowPublicReturn,
+      initialNotice: sessionExpired ? 'Sua sessão expirou. Entre novamente para continuar.' : '',
+      onPublicReturn: () => {
+        returnedToPublic = true;
+      },
+      onAccountDeleted: () => {
+        redirectToPublicLanding(location);
+      },
+    });
+  }
+  setAccountSession(resolvedAccount);
   if (!accountSession) {
     if (returnedToPublic) {
       initializePublicAppearance();
@@ -273,6 +267,7 @@ export async function startAuthenticatedAurora(
       history.replaceState(null, '', `${url.pathname}${url.search}`);
     }
   }
+  await storeWarmup;
   await Persist.attach(accountSession);
   watchSessionExpiry(accountSession.client);
   await continueAuthenticatedAurora(root, accountSession.user);
@@ -332,6 +327,7 @@ export async function startAurora() {
     S.settings.onboardingComplete = true;
     S.settings.introSeen = true;
     loadSample();
+    if (typeof window.__auroraPreviewSeed === 'function') window.__auroraPreviewSeed(S);
     if (location.pathname === '/' && (!location.hash || location.hash === '#landing')) {
       history.replaceState(null, '', `/inicio${location.search}`);
     }
@@ -487,7 +483,10 @@ export function registerStartup() {
     location.reload();
   });
   window.addEventListener('offline', () => render());
-  window.addEventListener('online', () => render());
+  window.addEventListener('online', () => {
+    if (Persist.pendingSnapshot && Persist.store) void Persist.flush();
+    render();
+  });
   window.addEventListener('beforeunload', (event) => {
     if (!ui.legacyImport.busy && !syncState.pending.size && !syncState.failed.size) return;
     event.preventDefault();

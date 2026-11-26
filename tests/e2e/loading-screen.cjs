@@ -26,12 +26,11 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
         await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
         await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
         const loader = page.locator('#app > main');
-        const spinner = loader.locator('.account-loading-indicator');
-        const preview = loader.locator('.account-loading-preview');
+        const indicator = loader.locator('.account-loading-indicator');
         await loader.waitFor({ state: 'visible' });
         const state = await loader.evaluate((element) => {
           const box = element.getBoundingClientRect();
-          const preview = element.querySelector('.loading-welcome-card').getBoundingClientRect();
+          const content = element.querySelector('.account-loading-content').getBoundingClientRect();
           const probe = document.createElement('span');
           probe.style.backgroundColor = 'var(--loading-canvas)';
           element.append(probe);
@@ -39,36 +38,48 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5179';
           probe.remove();
           return {
             box: { x: box.x, y: box.y, width: box.width, height: box.height },
-            preview: { y: preview.y, bottom: preview.bottom },
+            content: { y: content.y, bottom: content.bottom },
             document: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
             bodyOverflow: getComputedStyle(document.body).overflowY,
             background: getComputedStyle(element).backgroundColor,
             canvasBackground,
             role: element.getAttribute('role'),
+            legacyCard: element.querySelector('.loading-welcome-card'),
           };
         });
         assert.deepEqual(state.box, { x: 0, y: 0, ...viewport });
         assert.ok(
-          state.preview.y >= 0 && state.preview.bottom <= viewport.height,
-          `o cartão não deve ser cortado pela viewport ${JSON.stringify(viewport)}: ${JSON.stringify(state.preview)}`,
+          state.content.y >= 0 && state.content.bottom <= viewport.height,
+          `o conteúdo de carregamento não deve ser cortado pela viewport ${JSON.stringify(viewport)}: ${JSON.stringify(state.content)}`,
         );
         assert.deepEqual(state.document, [viewport.width, viewport.height]);
         assert.equal(state.bodyOverflow, 'hidden');
         assert.equal(state.background, state.canvasBackground);
         assert.equal(state.role, 'status');
+        assert.equal(state.legacyCard, null);
         assert.equal(await loader.locator('.account-loading-message').textContent(), 'Preparando seu espaço…');
         assert.equal(await loader.locator('.account-loading-message').evaluate((element) => getComputedStyle(element, '::after').content), 'none');
         assert.equal(await loader.locator('.account-loading-brand img').getAttribute('src'), '/icons/favicon.svg');
-        assert.equal(await preview.getAttribute('aria-hidden'), 'true');
-        assert.equal(await preview.locator('.loading-welcome-title').textContent(), 'Vamos por partes.');
-        assert.deepEqual(await preview.locator('.loading-welcome-area').allTextContents(), ['Planejar', 'Hábitos', 'Finanças', 'Ciclo']);
-        const start = await spinner.evaluate((element) => element.getAnimations()[0].currentTime);
+        const start = await indicator.evaluate((element) => element.getAnimations()[0].currentTime);
         await page.waitForTimeout(100);
-        assert.ok(await spinner.evaluate((element) => element.getAnimations()[0].currentTime) > start);
+        assert.ok(await indicator.evaluate((element) => element.getAnimations()[0].currentTime) > start);
         await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
         await page.waitForTimeout(50);
-        assert.equal(await spinner.evaluate((element) => getComputedStyle(element).animationName), 'none');
-        assert.equal(await loader.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgb(28, 27, 25)');
+        assert.equal(await indicator.evaluate((element) => getComputedStyle(element).animationName), 'none');
+        const darkState = await loader.evaluate((element) => {
+          const probe = document.createElement('span');
+          probe.style.backgroundColor = 'var(--loading-canvas)';
+          element.append(probe);
+          const canvasBackground = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return {
+            theme: document.documentElement.dataset.theme,
+            background: getComputedStyle(element).backgroundColor,
+            canvasBackground,
+          };
+        });
+        assert.equal(darkState.theme, 'dark');
+        assert.equal(darkState.background, darkState.canvasBackground);
         assert.deepEqual(await page.evaluate(() => window.loadingStorageCalls), []);
         await loader.evaluate((element) => element.remove());
         assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).overflowY), 'hidden');

@@ -1,9 +1,11 @@
 import { DIAS, longDate, pk, today } from '../../utils/dates.js';
+import { waterMlForDay } from './water-goal.js';
 import { habitInsights } from './insights.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { emptyState } from '../../utils/empty-state.js';
 import {
+  HABIT_TABS,
   featuredHabitSuggestions,
   filterSuggestedHabits,
   habitDayOverview,
@@ -33,6 +35,10 @@ export function renderHabitsView(dependencies) {
     habitCompletedFor,
     plural,
     habitRow,
+    habitManageRow,
+    habitMonthlyHistory,
+    habitYearHeat,
+    habitWaterTracker,
     habitColor,
     habitIconKey,
     habitDaysLabel,
@@ -61,6 +67,9 @@ export function renderHabitsView(dependencies) {
     ui.habitIdeaTag === 'all' &&
     !String(ui.habitIdeaQuery || '').trim();
   const live = S.habits.filter((habit) => (habit.status || 'active') !== 'archived');
+  const activeLive = live.filter((habit) => (habit.status || 'active') === 'active');
+  const pausedLive = live.filter((habit) => habit.status === 'paused');
+  const allPaused = activeLive.length === 0 && pausedLive.length > 0;
   const archived = S.habits.filter((habit) => habit.status === 'archived');
   const currentDay = today();
   const weekStart = weekStartDay();
@@ -79,11 +88,14 @@ export function renderHabitsView(dependencies) {
   const doneN = todayOverview.completed;
   const pct = eligibleToday ? Math.round((doneN / eligibleToday) * 100) : 0;
   const todaySummary = eligibleToday
-    ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : 'feitos'}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
+    ? `${doneN} de ${eligibleToday} ${plural(eligibleToday, 'hábito', 'hábitos')} ${doneN === eligibleToday ? '— tudo feito!' : plural(eligibleToday, 'feito', 'feitos')}${skippedN ? ` · ${skippedN} ${plural(skippedN, 'dia pulado', 'dias pulados')}` : ''}`
     : skippedN
       ? `${skippedN} ${plural(skippedN, 'dia pulado hoje', 'dias pulados hoje')}`
       : 'Nenhum hábito programado para hoje.';
-  const hasActiveWaterHabit = S.habits.some((habit) => (habit.status || 'active') === 'active' && isWaterHabit(habit));
+  const waterHabit = S.habits.find((habit) => (habit.status || 'active') === 'active' && isWaterHabit(habit));
+  const hasActiveWaterHabit = Boolean(waterHabit);
+  const visibleTodays = todays.filter((habit) => !isWaterHabit(habit) || habit === waterHabit);
+  const waterTodayMl = waterMlForDay(S.water, currentDay);
   const dayComplete = eligibleToday > 0 && doneN === eligibleToday;
   const ideasOpen = ui.openDetails.ideas ? raw('open') : '';
   const suggestionGroups = SUGGESTED_HABIT_CATEGORIES.map((category) => ({
@@ -146,20 +158,20 @@ export function renderHabitsView(dependencies) {
       </ul>
     </section>`.s;
   }
-  const slots = {
+  const parts = {
     'page-title': h`${areaPageTitle('habitos', 'Hábitos')}`.s,
-    'water-tracker': !hasActiveWaterHabit && S.water.length ? waterSummary().s : '',
+    'water-tracker': !hasActiveWaterHabit && waterTodayMl > 0 ? waterSummary().s : '',
     'habit-dashboard-class': live.length ? 'has-week' : '',
     'today-summary': h`${todaySummary}`.s,
     'add-button': h`<div class="habit-today-actions">${
-      live.length || todays.length
+      live.length
         ? h`<button type="button" class="btn sm"
-        data-action="habit-bulk">${icon('note', 15)}Vários</button>`
+        data-action="habit-other-open">${icon('calendarCheck', 15)}Registrar outro dia</button>`
         : ''
     }${
       todays.length
         ? h`<button type="button"
-        class="btn primary" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`
+        class="btn" data-action="habit-new">${icon('plus', 16)}Novo hábito</button>`
         : ''
     }</div>`.s,
     'habit-insights': insightsSection(),
@@ -172,24 +184,27 @@ export function renderHabitsView(dependencies) {
         aria-live="polite">${icon('check', 20)}<span><b>Dia concluído!</b><small>Você marcou todos os hábitos programados para hoje.</small></span></div>`
           .s
       : '',
-    'todays-habits': todays.length
-      ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${todays.map((habit) => habitRow(habit))}</ul>`.s
-      : emptyState({
-          title: firstUse ? 'Seu primeiro hábito começa pequeno.' : 'Hoje pode ser um dia de pausa.',
-          description: firstUse
-            ? 'Escolha uma ideia que combine com você ou crie seu próprio hábito.'
-            : 'Se quiser, ajuste sua rotina ou escolha outra ideia para começar.',
-          action: h`<button type="button" class="btn primary"
-            data-action="habit-new">${icon('plus', 16)}${firstUse ? 'Criar primeiro hábito' : 'Criar um hábito'}</button>`,
-          iconName: 'check',
-          headingLevel: 'h3',
-          className: 'habit-today-empty',
-        }).s,
+    'todays-habits': visibleTodays.length
+      ? h`<ul class="habit-list" aria-label="Hábitos de hoje">${visibleTodays.map((habit) => habitRow(habit))}</ul>`.s
+      : allPaused
+        ? h`<div class="habit-pause-banner" role="status">${icon('pause', 20)}<div class="grow"><b>Modo pausa ativo</b><p class="small muted">Todos os ${pausedLive.length} ${plural(pausedLive.length, 'hábito está pausado', 'hábitos estão pausados')}. Suas sequências ficam protegidas até você voltar.</p></div><button type="button" class="btn primary sm" data-action="habits-resume-all">${icon('play', 15)}Retomar todos</button></div>`
+            .s
+        : emptyState({
+            title: firstUse ? 'Seu primeiro hábito começa pequeno.' : 'Hoje pode ser um dia de pausa.',
+            description: firstUse
+              ? 'Escolha uma ideia que combine com você ou crie seu próprio hábito.'
+              : 'Se quiser, ajuste sua rotina ou escolha outra ideia para começar.',
+            action: h`<button type="button" class="btn primary"
+              data-action="habit-new">${icon('plus', 16)}${firstUse ? 'Criar primeiro hábito' : 'Criar um hábito'}</button>`,
+            iconName: 'check',
+            headingLevel: 'h3',
+            className: 'habit-today-empty',
+          }).s,
     'week-overview': live.length
       ? h`<section class="surface-open habit-week-overview" aria-labelledby="habit-week-overview-title">
       <div><h2 id="habit-week-overview-title">Sua semana até agora</h2><p class="small muted">${
         overview.planned
-          ? `Você marcou ${overview.completed} de ${overview.planned} dias programados até hoje.`
+          ? `Você marcou ${overview.completed} de ${overview.planned} ${plural(overview.planned, 'dia programado', 'dias programados')} até hoje.`
           : 'Ainda não há dias ativos programados nesta semana.'
       }</p></div>
       ${
@@ -209,6 +224,7 @@ export function renderHabitsView(dependencies) {
                 ? `${longDate(day)}: ${completed} de ${planned} hábitos concluídos`
                 : `${longDate(day)}: nenhum hábito programado`;
           return h`<div class="habit-week-chart-column">
+            <span class="habit-week-chart-count" aria-hidden="true">${day <= currentDay && planned ? `${completed}/${planned}` : ''}</span>
             <div class="habit-week-chart-bar${day === currentDay ? ' is-today' : ''}" role="img" aria-label="${label}">
               <span style="--week-fill:${percentage}%"></span>
             </div>
@@ -219,9 +235,8 @@ export function renderHabitsView(dependencies) {
       </div>
       ${
         weekReview.length
-          ? h`<details class="habit-review" id="d-habit-review" ${ui.openDetails['habit-review'] ? raw('open') : ''}>
-        <summary><span><span class="habit-review-title"><b>Revisar cada hábito</b><span
-          class="habit-count">${weekReview.length}</span></span><small>Veja como foi cada hábito e ajuste quando precisar.</small></span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+          ? h`<div class="habit-review">
+        <h3>Cada hábito nesta semana</h3>
         <ul aria-label="Resumo semanal por hábito">${weekReview.map(
           ({ habit, completed, planned, weeklyTarget, goalMet }) => {
             const target = weeklyTarget ?? planned;
@@ -248,27 +263,10 @@ export function renderHabitsView(dependencies) {
           </li>`;
           },
         )}</ul>
-      </details>`
-          : ''
-      }
-      ${
-        overview.paused.length
-          ? h`<details class="habit-resume-list"><summary><span
-        class="habit-summary-title"><b>Hábitos que você pode retomar</b><span
-        class="habit-count">${overview.paused.length}</span></span>${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary><ul>${overview.paused.map(
-          (habit) => h`<li><span
-        class="user-value">${habit.name}</span><button type="button" class="btn sm" data-action="habit-toggle-pause"
-        data-id="${habit.id}">${icon('play', 15)}Retomar</button></li>`,
-        )}</ul></details>`
+      </div>`
           : ''
       }
     </section>`.s
-      : '',
-    'other-habits': others.length
-      ? h`<details class="card habit-others" id="d-others" ${ui.openDetails.others ? raw('open') : ''}><summary><span
-        class="habit-summary-title"><b>Fora de hoje</b><span
-        class="habit-count">${others.length}</span></span>${icon('chevDown', 18, 'chev')}</summary><ul
-        class="habit-list">${others.map((habit) => habitRow(habit))}</ul></details>`.s
       : '',
     'habit-ideas': suggestions.length
       ? h`<details class="card habit-ideas${firstUse ? ' is-first-use' : ''}" id="d-ideas" ${ideasOpen}>
@@ -342,11 +340,10 @@ export function renderHabitsView(dependencies) {
       </details>`.s
       : '',
     'archived-habits': archived.length
-      ? h`<details class="card habit-archived"
-        id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}><summary><span
-        class="habit-summary-title"><b>Arquivados</b><span
-        class="habit-count">${archived.length}</span></span>${icon('chevDown', 18, 'chev')}</summary><ul
-        class="habit-list">${archived.map(
+      ? h`<details class="card habit-ideas habit-archived" id="d-archived" ${ui.openDetails.archived ? raw('open') : ''}>
+        <summary><span class="habit-summary-copy"><span class="habit-summary-title"><b>Arquivados</b><span
+          class="habit-count">${archived.length}</span></span><small>Histórico preservado; você pode restaurar quando quiser.</small></span>${icon('chevDown', 18, 'chev')}</summary>
+        <ul class="habit-list">${archived.map(
           (habit) => h`<li class="habit-row is-off"
         style="--hc:${habitColor(habit)}"><span
         class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span><div class="habit-main"><span
@@ -359,6 +356,92 @@ export function renderHabitsView(dependencies) {
         data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></li>`,
         )}</ul></details>`.s
       : '',
+  };
+  const tab = HABIT_TABS.some(([key]) => key === ui.habitTab) ? ui.habitTab : 'hoje';
+  const hasAny = S.habits.length > 0;
+  const tabs = hasAny
+    ? h`<div class="tabs habit-tabs" role="tablist" aria-label="Seções de Hábitos">${HABIT_TABS.map(
+        ([id, name, tabIcon]) => h`<button type="button" class="tab habit-tab" role="tab"
+        id="habit-tab-${id}" aria-controls="habit-panel" tabindex="${id === tab ? '0' : '-1'}"
+        data-action="habit-tab" data-t="${id}" aria-selected="${id === tab}">${icon(tabIcon, 18)}${name}</button>`,
+      )}</div>`.s
+    : '';
+  const historyHabit = live.find((habit) => habit.id === ui.habitHistoryId) || live[0];
+  const historySection = historyHabit
+    ? h`<section class="card habit-history" aria-labelledby="habit-history-title">
+      <h2 id="habit-history-title" class="habit-section-title">Calendário de cada hábito</h2>
+      <div class="habit-history-chips" role="group" aria-label="Escolha o hábito">${live.map(
+        (habit) => h`<button type="button" class="chip habit-history-chip" data-action="habit-history-pick"
+        data-id="${habit.id}" aria-pressed="${habit.id === historyHabit.id}"
+        style="--hc:${habitColor(habit)}">${habit.name}</button>`,
+      )}</div>
+      ${habitMonthlyHistory(historyHabit)}${habitYearHeat(historyHabit)}
+    </section>`.s
+    : '';
+  const reordering = Boolean(ui.habitReordering) && live.length >= 2;
+  const reorderSection = reordering
+    ? h`<section class="card habit-manage" aria-labelledby="habit-manage-title">
+      <header class="habit-today-head"><div><h2 id="habit-manage-title" class="habit-section-title">Reordenar hábitos<span
+        class="habit-count">${live.length}</span></h2><p class="small muted">Arraste pelo ícone ou use as setas para mudar a ordem.</p></div><div
+        class="habit-today-actions"><button type="button" class="btn primary sm"
+        data-action="habit-reorder-toggle">${icon('check', 16)}Concluir</button></div></header>
+      <ul class="habit-manage-list" aria-label="Ordem dos hábitos">${live.map((habit) => habitManageRow(habit))}</ul>
+    </section>`.s
+    : '';
+  const waterTracker =
+    waterHabit && !todays.includes(waterHabit) && !others.includes(waterHabit)
+      ? habitWaterTracker(waterHabit).s
+      : parts['water-tracker'];
+  const todaySection = h`<section class="card habit-today" aria-labelledby="habit-today-title">
+    <header class="habit-today-head">
+      <div><h2 id="habit-today-title">Hoje</h2><p class="small muted">${raw(parts['today-summary'])}</p></div>
+      ${raw(parts['add-button'])}
+    </header>
+    ${raw(parts['today-progress'])}${raw(parts['day-complete'])}${raw(parts['todays-habits'])}
+  </section>`.s;
+  const othersSection = others.length
+    ? h`<section class="card habit-others" aria-labelledby="habit-others-title">
+      <header class="habit-today-head"><div><h2 id="habit-others-title" class="habit-section-title">Outros hábitos<span
+        class="habit-count">${others.length}</span></h2><p class="small muted">Programados para outros dias ou pausados.</p></div></header>
+      <ul class="habit-list" aria-label="Outros hábitos">${others.map((habit) => habitRow(habit))}</ul>
+    </section>`.s
+    : '';
+  const utilityBar = live.length
+    ? h`<div class="habit-utility-bar" role="group" aria-label="Ações da lista de hábitos"><button type="button"
+      class="btn sm ghost" data-action="habit-bulk">${icon('note', 15)}Adicionar vários</button>${
+        live.length >= 2
+          ? h`<button type="button" class="btn sm ghost"
+      data-action="habit-reorder-toggle">${icon('grip', 15)}Reordenar</button>`
+          : ''
+      }${
+        activeLive.length
+          ? h`<button type="button" class="btn sm ghost"
+      data-action="habits-pause-all">${icon('pause', 15)}Pausar todos</button>`
+          : ''
+      }${
+        pausedLive.length
+          ? h`<button type="button" class="btn sm ghost"
+      data-action="habits-resume-all">${icon('play', 15)}Retomar pausados (${pausedLive.length})</button>`
+          : ''
+      }</div>`.s
+    : '';
+  const panels = {
+    hoje: reordering
+      ? `${reorderSection}`
+      : `${waterTracker}${todaySection}${othersSection}${utilityBar}${parts['habit-ideas']}${parts['archived-habits']}`,
+    historico: live.length
+      ? `${parts['week-overview']}${parts['habit-insights']}${historySection}`
+      : emptyState({
+          title: 'Ainda não há histórico para mostrar.',
+          description: 'Quando você tiver hábitos ativos, o calendário de cada um aparece aqui.',
+          iconName: 'calendarCheck',
+          headingLevel: 'h3',
+        }).s,
+  };
+  const slots = {
+    'page-title': parts['page-title'],
+    'habit-tabs': tabs,
+    'habit-panel': `<div id="habit-panel" class="habit-panel" role="${hasAny ? 'tabpanel' : 'region'}"${hasAny ? ` aria-labelledby="habit-tab-${tab}"` : ' aria-label="Hábitos"'}>${panels[hasAny ? tab : 'hoje']}</div>`,
   };
   return raw(renderHabitsTemplate(habitsTemplate, slots));
 }

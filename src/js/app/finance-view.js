@@ -24,6 +24,8 @@ import {
   savingsRatePercent,
 } from '../features/finance/calculations.js';
 import { ACCOUNT_TYPES } from '../features/finance/accounts.js';
+import { buildCashflowForecast, FORECAST_HORIZONS } from '../features/finance/cashflow-forecast.js';
+import { extractFinanceTags, stripFinanceTags } from '../features/finance/quick-entry.js';
 import { cycleStats, nextPeriodRange } from '../features/cycle/calculations.js';
 import { budgetReport, budgetSettingsFor } from '../features/finance/budget-insights.js';
 import { hasCurrentCycleDataConsent } from '../services/cycle-consent.js';
@@ -130,31 +132,6 @@ function donut(items, total, label) {
       fill="none" stroke="var(--soft2)" stroke-width="6"/>${segs}</svg>`,
   );
 }
-function flowChart(months) {
-  const W = 320,
-    H = 160,
-    top = 10,
-    bot = 24,
-    bw = 14,
-    n = months.length,
-    step = W / n,
-    max = Math.max(1, ...months.flatMap((m) => [m.i, m.o])) * 1.1,
-    y = (v) => top + (H - top - bot) * (1 - v / max);
-  const bars = months
-    .map((m, k) => {
-      const x = step * k + step / 2;
-      return `<rect class="bi" x="${x - bw - 1}" y="${y(m.i)}" width="${bw}" height="${Math.max(0, H - bot - y(m.i))}"
-        rx="4" tabindex="0"><title>${esc(m.l)}: receitas ${esc(brl(m.i))}</title></rect><rect class="bo" x="${x + 1}"
-        y="${y(m.o)}" width="${bw}" height="${Math.max(0, H - bot - y(m.o))}" rx="4"
-        tabindex="0"><title>${esc(m.l)}: despesas ${esc(brl(m.o))}</title></rect><text x="${x}" y="${H - 7}"
-        text-anchor="middle">${esc(m.l)}</text>`;
-    })
-    .join('');
-  return raw(
-    `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Receitas e despesas dos últimos ${n} meses. ${esc(months.map((m) => `${m.l}: receitas ${brl(m.i)}, despesas ${brl(m.o)}`).join('; '))}">${bars}</svg>`,
-  );
-}
 
 // componentes
 export const catChip = (meta) => h`<span class="ci" style="--c:${meta.c}">${icon(meta.i, 18)}</span>`;
@@ -174,7 +151,10 @@ export function finRow(t, { showDate = false } = {}) {
     ? h`<span class="user-value">${accName(t.accountId)} → ${accName(t.toAccountId)}</span>`
     : h`<span class="expense-name">${expenseTitle(t.category)}</span> · <span
       class="user-value">${accName(t.accountId)}</span>`;
-  const title = t.type === 'out' ? expenseTitle(t.desc || t.category) : t.desc || (tr ? 'Transferência' : t.category);
+  const rawTitle =
+    t.type === 'out' ? expenseTitle(t.desc || t.category) : t.desc || (tr ? 'Transferência' : t.category);
+  const tags = extractFinanceTags(t.desc);
+  const title = stripFinanceTags(rawTitle) || (t.type === 'out' ? expenseTitle(t.category) : t.category) || rawTitle;
   const canToggle = t.invoiceInstallment || (!tr && !isCredit(acc));
   const paymentAction = t.invoiceInstallment
     ? paid
@@ -186,7 +166,9 @@ export function finRow(t, { showDate = false } = {}) {
   return h`<li class="fr ${paid ? '' : 'pend'}" data-k="${t.id}">
     <button class="fr-main" data-action="${installment ? 'installment-open' : 'edit-tx'}" data-id="${t.id}"
       aria-label="${installment ? 'Ver resumo da parcela' : 'Editar lançamento'} ${t.type === 'out' ? 'despesa' : t.type === 'in' ? 'receita' : 'transferência'} de ${brl(t.cents)}: ${title}">${catChip(meta)}
-      <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}</span><span
+      <span class="grow"><span class="ttl ${t.type === 'out' ? 'expense-name' : ''}">${title}${
+        tags.length ? tags.map((tag) => h` <span class="fin-tag-pill">#${tag}</span>`) : ''
+      }</span><span
         class="meta2">${
           showDate
             ? h`<span
@@ -194,7 +176,7 @@ export function finRow(t, { showDate = false } = {}) {
             : ''
         }${sub}${paid && t.settledDate && t.settledDate !== t.date ? h` · ${t.type === 'in' ? 'recebido' : 'pago'} em ${shortDate(t.settledDate)}` : ''}${t.type === 'out' || t.invoiceInstallment ? (t.interestCents != null ? h` · ${t.interestCents === 0 ? 'Sem juros' : h`Juros ${money(t.interestCents)}`}` : '') : ''}${t.type === 'out' && t.anticipatedDate ? h` · Antecipada em ${shortDate(t.anticipatedDate)}` : ''}${
           !paid
-            ? h` · <span
+            ? h` <span
         class="m-warn">${t.type === 'in' ? 'A receber' : 'A pagar'}${t.date < today() ? ' · atrasado' : ''}</span>`
             : ''
         }</span></span>
@@ -204,7 +186,7 @@ export function finRow(t, { showDate = false } = {}) {
         ? h`<button class="pk ${paid ? 'on' : ''}" role="switch" aria-checked="${paid ? 'true' : 'false'}"
       data-action="tx-paid" data-id="${t.id}" aria-label="${paymentAction}: ${title}"
       title="${paymentAction}">${icon('check', 16)}</button>`
-        : h`<span class="pk-sp"></span>`
+        : h`<span class="pk-sp pk-badge" aria-hidden="true" title="${tr ? 'Transferência' : 'Compra no cartão'}">${icon(tr ? 'transfer' : 'card', 15)}</span>`
     }
   </li>`;
 }
@@ -296,13 +278,48 @@ export const FIN_ACCOUNT_TABS = [
   ['contas', 'Contas'],
   ['cartoes', 'Cartões'],
 ];
+export const FIN_PLAN_TABS = [
+  ['limites', 'Limites'],
+  ['objetivos', 'Objetivos'],
+  ['compromissos', 'Fixos e parcelas'],
+];
+export const FIN_REPORT_TABS = [
+  ['resumo', 'Resumo'],
+  ['projecao', 'Projeção'],
+  ['categorias', 'Por categoria'],
+  ['comparar', 'Comparar meses'],
+];
 const finAccountPicker = () => {
   const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
+  const counts = {
+    contas: S.finance.accounts.filter((account) => !isCredit(account)).length,
+    cartoes: S.finance.accounts.filter(isCredit).length,
+  };
   return h`<div class="tabs finance-account-tabs" role="tablist"
     aria-label="Contas e cartões">${FIN_ACCOUNT_TABS.map(
       ([id, label]) => h`<button type="button"
     class="tab finance-account-option" role="tab" id="fin-account-tab-${id}" aria-controls="fin-account-panel"
     tabindex="${active === id ? '0' : '-1'}" data-action="fin-account-tab" data-t="${id}"
+    aria-selected="${active === id}">${label}${counts[id] ? h`<span class="fin-tab-count">${counts[id]}</span>` : ''}</button>`,
+    )}</div>`;
+};
+const finPlanPicker = (counts) => {
+  const active = FIN_PLAN_TABS.some(([id]) => id === ui.finPlanTab) ? ui.finPlanTab : 'limites';
+  return h`<div class="tabs finance-sub-tabs finance-plan-tabs" role="tablist"
+    aria-label="Seções de planejamento">${FIN_PLAN_TABS.map(
+      ([id, label]) => h`<button type="button"
+    class="tab finance-plan-option" role="tab" id="fin-plan-tab-${id}" aria-controls="fin-plan-panel"
+    tabindex="${active === id ? '0' : '-1'}" data-action="fin-plan-tab" data-t="${id}"
+    aria-selected="${active === id}">${label}${counts[id] ? h`<span class="fin-tab-count">${counts[id]}</span>` : ''}</button>`,
+    )}</div>`;
+};
+const finReportPicker = () => {
+  const active = FIN_REPORT_TABS.some(([id]) => id === ui.finReportTab) ? ui.finReportTab : 'resumo';
+  return h`<div class="tabs finance-sub-tabs finance-report-tabs" role="tablist"
+    aria-label="Seções de relatórios">${FIN_REPORT_TABS.map(
+      ([id, label]) => h`<button type="button"
+    class="tab finance-report-option" role="tab" id="fin-report-tab-${id}" aria-controls="fin-report-panel"
+    tabindex="${active === id ? '0' : '-1'}" data-action="fin-report-tab" data-t="${id}"
     aria-selected="${active === id}">${label}</button>`,
     )}</div>`;
 };
@@ -459,16 +476,22 @@ function categoryDonut(items, total) {
     class="category-donut-center"><small>Despesas</small><b>${money(total)}</b></span></div>`;
 }
 const FLOW_CHART_MONTHS = 6;
-function monthlyFlowChart(ym) {
-  const months = Array.from({ length: FLOW_CHART_MONTHS }, (_, index) =>
-    shiftMonth(ym, index - (FLOW_CHART_MONTHS - 1)),
-  );
+function monthlyFlowChart(ym, avgOut = null) {
+  const yearMode = ui.finFlowRange === 'year';
+  const year = ym.slice(0, 4);
+  const months = yearMode
+    ? Array.from({ length: 12 }, (_, index) => `${year}-${pad(index + 1)}`)
+    : Array.from({ length: FLOW_CHART_MONTHS }, (_, index) => shiftMonth(ym, index - (FLOW_CHART_MONTHS - 1)));
   const data = months.map((month) => {
     const stats = monthStats(month);
     return { month, income: stats.inAll, expense: stats.outAll };
   });
   if (!data.some((item) => item.income || item.expense)) return '';
   const max = Math.max(...data.map((item) => Math.max(item.income, item.expense)), 1);
+  const totalIn = data.reduce((sum, item) => sum + item.income, 0);
+  const totalOut = data.reduce((sum, item) => sum + item.expense, 0);
+  const totalSaved = totalIn - totalOut;
+  const yearRate = savingsRatePercent(totalIn, totalOut);
   const hidden = S.settings.prefs.financeValuesHidden;
   const formatFlowAmount = (cents) => (hidden ? 'valor oculto' : brl(cents));
   const summary = data
@@ -484,11 +507,29 @@ function monthlyFlowChart(ym) {
       style="height:${Math.round((item.expense / max) * 100)}%"></i></span><span
       class="flow-label">${label}</span></li>`;
   });
-  return h`<section class="surface-open finance-flow-chart"><div
-    class="head"><div><h2>Últimos ${FLOW_CHART_MONTHS} meses</h2><p
-    class="small muted">Receitas e despesas lado a lado.</p></div><span class="flow-legend" aria-hidden="true"><span
-    class="is-income">Receitas</span><span class="is-expense">Despesas</span></span></div>
-    <ol class="flow-columns" role="img" aria-label="${summary}">${columns}</ol></section>`;
+  return h`<section class="card finance-flow-chart"><div
+    class="head"><div><h2>${yearMode ? `Balanço de ${year}` : `Últimos ${FLOW_CHART_MONTHS} meses`}</h2><p
+    class="small muted">Receitas e despesas lado a lado.</p></div><div class="finance-flow-head-right"><div
+    class="seg sm" role="group" aria-label="Período do balanço"><button type="button"
+    aria-pressed="${String(!yearMode)}" data-action="fin-flow-range" data-v="6m">6 meses</button><button type="button"
+    aria-pressed="${String(yearMode)}" data-action="fin-flow-range" data-v="year">Ano ${year}</button></div><span
+    class="flow-legend" aria-hidden="true"><span class="is-income">Receitas</span><span
+    class="is-expense">Despesas</span></span></div></div>
+    ${
+      yearMode
+        ? h`<div class="finance-annual-stats">
+          <div><span>Receitas no ano</span><b class="fin-income">${money(totalIn)}</b></div>
+          <div><span>Despesas no ano</span><b class="fin-expense">${money(totalOut)}</b></div>
+          <div><span>Economia anual</span><b class="${totalSaved < 0 ? 'fin-expense' : 'fin-income'}">${totalSaved < 0 ? '−' : ''}${money(Math.abs(totalSaved))}</b></div>
+          <div><span>Taxa de economia</span><b>${yearRate === null ? '—' : `${yearRate}%`}</b></div>
+        </div>`
+        : ''
+    }
+    <ol class="flow-columns${yearMode ? ' is-year' : ''}" role="img" aria-label="${summary}">${columns}</ol>${
+      avgOut !== null && !yearMode
+        ? h`<p class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p>`
+        : ''
+    }</section>`;
 }
 export const UPCOMING_WINDOW_DAYS = 14;
 export function calendarAgenda(ym) {
@@ -597,7 +638,7 @@ function finLimitesAtencao(ym) {
   if (!alerts.length) return '';
   return h`<section class="surface-open finance-limit-alerts"><div
     class="head"><div><h2>Limites em atenção</h2></div><button class="btn ghost sm" data-action="fin-go"
-    data-t="planejamento">Ver limites</button></div>
+    data-t="planejamento" data-sub="limites">Ver limites</button></div>
     <ul class="list finance-limit-alert-list">${alerts.map((row) => {
       const over = row.spent > row.limit,
         meta = outMeta(row.name);
@@ -609,6 +650,19 @@ function finLimitesAtencao(ym) {
             : h`restam ${money(row.limit - row.spent)}`
         } · ${money(row.spent)} de ${money(row.limit)}</span>${budBar(row.spent, row.limit)}</span></span></li>`;
     })}</ul></section>`;
+}
+function finQuickEntry() {
+  if (!S.finance.accounts.length) return '';
+  return h`<form class="card finance-quick-entry" data-form="finance-quick-add" aria-label="Lançamento rápido">
+    <div class="finance-quick-row">
+      <span class="finance-quick-icon" aria-hidden="true">${icon('sparkles', 16)}</span>
+      <input id="finance-quick-input" type="text" maxlength="120" autocomplete="off"
+        placeholder="Lançamento rápido: mercado 85,50 · +salario 3200 · uber 24 ontem cartao #viagem"
+        aria-label="Lançamento rápido por texto" aria-describedby="finance-quick-preview">
+      <button type="submit" class="btn sm primary" disabled>Lançar</button>
+    </div>
+    <p id="finance-quick-preview" class="finance-quick-preview" data-state="idle" aria-live="polite">Ex.: mercado 85,50 · +salario 3200 · uber 24 ontem cartao #trabalho</p>
+  </form>`;
 }
 function finResumo() {
   const F = S.finance,
@@ -655,13 +709,17 @@ function finResumo() {
       <div class="finance-projection">${
         cur
           ? h`<p
-        class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><details
-        class="finance-projection-note"><summary>Como é calculada</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details>`
+        class="section-kicker">Estimativa até o fim do mês</p><b>${money(forecast)}</b><p>Estimativa, não o saldo atual.</p><div
+        class="finance-projection-footer"><details
+        class="finance-projection-note"><summary>Como é calculada${icon('chevDown', 14)}</summary><p>Considera que os compromissos do mês serão pagos. Compras futuras no cartão não entram.</p></details><button
+        type="button" class="btn ghost sm" data-action="fin-go" data-t="relatorios"
+        data-sub="projecao">Projeção 30/60/90d</button></div>`
           : h`<p
         class="section-kicker">Mês selecionado</p><b>${cap(ymLabel(ym))}</b><p>O saldo acima é o saldo atual das contas.</p>`
       }</div>
       ${cur ? finGastoDiario(ym) : ''}
     </section>
+    ${finQuickEntry()}
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><h2 id="finance-month-title">Resumo do mês</h2></div><p
         class="small muted">${cap(ymLabel(ym))}</p></div>
@@ -690,11 +748,10 @@ function finResumo() {
       class="fin-overview-grid fin-overview-attention">${cur ? finProximos() : ''}${attentionLimits}${attentionCards}${goalFocus}</div>`
         : ''
     }
-    ${monthlyFlowChart(ym)}
     <div class="fin-overview-grid">
       <section class="surface-open finance-category-breakdown"><div
         class="head"><div><h2>Despesas por categoria</h2></div><button class="btn ghost sm" data-action="fin-go"
-        data-t="relatorios">Relatórios</button></div>
+        data-t="relatorios" data-sub="categorias">Relatórios</button></div>
         ${
           cats.length
             ? h`${categoryDonut(cats, totOut)}${categoryBars(cats, totOut)}`
@@ -732,7 +789,7 @@ function finGastoDiario(ym) {
   if (!room.hasLimits) {
     return h`<div class="finance-daily-room is-empty"><p
       class="section-kicker">Pode gastar por dia</p><p>Defina limites por categoria para ver quanto ainda cabe em cada dia.</p><button
-      type="button" class="btn ghost sm" data-action="fin-go" data-t="planejamento">Definir limites</button></div>`;
+      type="button" class="btn ghost sm" data-action="fin-go" data-t="planejamento" data-sub="limites">Definir limites</button></div>`;
   }
   if (!room.perDayCents) {
     return h`<div class="finance-daily-room is-over"><p
@@ -752,7 +809,7 @@ function finCartoesAtencao() {
   if (!alerts.length) return '';
   return h`<section class="surface-open finance-card-alerts"><div
     class="head"><div><h2>Limite do cartão</h2></div><button class="btn ghost sm" data-action="fin-go"
-    data-t="contas">Ver cartões</button></div>
+    data-t="contas" data-sub="cartoes">Ver cartões</button></div>
     <ul class="list finance-limit-alert-list">${alerts.map(
       ({ card, info }) => h`<li><span
       class="finance-limit-alert-row">${accountChip(card)}<span class="grow"><span
@@ -791,7 +848,7 @@ function finObjetivoFoco() {
   const percent = Math.min(100, Math.round((saved / goal.targetCents) * 100));
   return h`<section class="surface-open finance-goal-focus"><div class="head"><div><p
     class="section-kicker">Objetivo em foco</p><h2 class="expense-name">${goal.name}</h2></div><button
-    class="btn ghost sm" data-action="fin-go" data-t="planejamento">Ver objetivos</button></div>
+    class="btn ghost sm" data-action="fin-go" data-t="planejamento" data-sub="objetivos">Ver objetivos</button></div>
     <div class="row budget-total-row"><b>${percent}%</b><span
       class="small muted">${money(saved)} de ${money(goal.targetCents)}</span></div>
     <div class="bar goal-progress" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"
@@ -800,22 +857,31 @@ function finObjetivoFoco() {
     <p class="small muted">${goal.deadline ? `Prazo: ${shortDate(goal.deadline)}.` : 'Sem prazo definido.'}${open.length > 1 ? ` Mais ${open.length - 1} ${plural(open.length - 1, 'objetivo', 'objetivos')} em andamento.` : ''}</p></section>`;
 }
 function finFixas() {
-  const rs = recList().filter((r) => !r.paused);
-  const out = rs.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0),
-    inc = rs.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
-  return h`<section class="surface-open finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><h2
+  const all = [...recList()].sort((a, b) => Number(a.paused) - Number(b.paused) || a.day - b.day);
+  const active = all.filter((r) => !r.paused);
+  const out = active.filter((r) => r.type === 'out').reduce((t, r) => t + r.cents, 0),
+    inc = active.filter((r) => r.type === 'in').reduce((t, r) => t + r.cents, 0);
+  return h`<section class="card finance-fixas" aria-labelledby="fin-fixas-title"><div class="head"><div><h2
     id="fin-fixas-title">Lançamentos fixos</h2><p
-    class="small muted">${rs.length ? h`${rs.length} ${plural(rs.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? h` e ${money(inc)} em receitas` : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><button
-    class="btn ghost sm"
-    data-action="rec-list">${icon('repeat', 16)}${rs.length ? 'Gerenciar' : 'Configurar'}</button></div>${
-      rs.length
-        ? ''
+    class="small muted">${active.length ? h`${active.length} ${plural(active.length, 'ativo', 'ativos')}: ${money(out)} em despesas${inc ? h` e ${money(inc)} em receitas` : ''} por mês.` : 'Acompanhe contas e receitas que se repetem todo mês.'}</p></div><div class="row finance-fixas-actions"><button
+    type="button" class="btn sm primary" data-action="tx-new-fixed">${icon('plus', 15)}Nova fixa</button><button
+    type="button" class="btn ghost sm" data-action="rec-list">${icon('repeat', 15)}Gerenciar</button></div></div>${
+      all.length
+        ? h`<ul class="list finance-fixas-list">${all.map((r) => {
+            const meta = catMeta({ type: r.type, category: r.category });
+            const title = r.type === 'out' ? expenseTitle(r.desc || r.category) : r.desc || r.category;
+            return h`<li class="fr${r.paused ? ' pend' : ''}"><button type="button" class="fr-main"
+              data-action="rec-edit" data-id="${r.id}" aria-label="Editar lançamento fixo ${title}">${catChip(meta)}<span
+              class="grow"><span class="ttl ${r.type === 'out' ? 'expense-name' : ''}">${title}${
+                r.paused ? h` <span class="badge">Pausada</span>` : ''
+              }</span><span class="meta2">Todo dia ${r.day} · ${accName(r.accountId)} · ${expenseTitle(r.category)}</span></span><span
+              class="amt ${r.type}">${r.type === 'in' ? '+' : '−'}${money(r.cents)}</span>${icon('chevRight', 16)}</button></li>`;
+          })}</ul>`
         : areaEmpty(
             'Nenhum lançamento fixo cadastrado.',
-            'Se quiser, configure uma despesa ou receita mensal para acompanhar aqui.',
-            h`<button
-    type="button" class="btn primary"
-    data-action="rec-list">${icon('plus', 16)}Configurar lançamentos fixos</button>`,
+            'Configure despesas ou receitas mensais para acompanhá-las direto por aqui.',
+            h`<button type="button" class="btn primary"
+              data-action="tx-new-fixed">${icon('plus', 16)}Criar lançamento fixo</button>`,
             'repeat',
             'h3',
           )
@@ -846,6 +912,7 @@ export function filteredTx() {
       if (f === 'pendentes' ? isPaid(t) : f !== 'todos' && t.type !== f) return false;
       if (ui.finCat && t.category !== ui.finCat) return false;
       if (ui.finAcc && t.accountId !== ui.finAcc && t.toAccountId !== ui.finAcc) return false;
+      if (ui.finTag && !extractFinanceTags(t.desc).includes(ui.finTag)) return false;
       if (!q) return true;
       const accounts = [accById(t.accountId), accById(t.toAccountId)].filter(Boolean);
       const searchTerms = [
@@ -864,10 +931,13 @@ export function filteredTx() {
 }
 export function txListHtml() {
   const all = filteredTx();
-  const page = listPage('transactions', JSON.stringify([ui.finMonth, ui.finFilter, ui.finQ, ui.finAcc, ui.finCat]));
+  const page = listPage(
+    'transactions',
+    JSON.stringify([ui.finMonth, ui.finFilter, ui.finQ, ui.finAcc, ui.finCat, ui.finTag]),
+  );
   const r = all.slice(0, page.limit);
   if (!r.length) {
-    const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finFilter !== 'todos');
+    const filtered = !!(ui.finQ || ui.finAcc || ui.finCat || ui.finTag || ui.finFilter !== 'todos');
     return areaEmpty(
       filtered ? 'Nenhum lançamento encontrado.' : 'Nenhum lançamento neste mês.',
       filtered
@@ -891,10 +961,17 @@ export function txListHtml() {
   all.forEach((t) =>
     netByDay.set(t.date, (netByDay.get(t.date) || 0) + (t.type === 'in' ? t.cents : t.type === 'out' ? -t.cents : 0)),
   );
+  const selectedAccount = ui.finAcc ? accById(ui.finAcc) : null;
+  const showRunningBalance = Boolean(selectedAccount && !isCredit(selectedAccount));
   return h`<div class="finance-results-groups">${days.map((g) => {
     const net = netByDay.get(g.d);
+    const dayBalance = showRunningBalance ? accountBalanceOn(selectedAccount, S.finance.tx, g.d) : null;
     return h`<section class="grp"><h3 class="gh">${g.d === today() ? 'Hoje' : cap(longDate(g.d))}<span
-      class="grow"></span><span
+      class="grow"></span>${
+        dayBalance !== null
+          ? h`<span class="gbal ${dayBalance < 0 ? 'neg' : ''}">Saldo ${money(dayBalance)}</span>`
+          : ''
+      }<span
       class="gsum ${net > 0 ? 'pos' : ''}">${net ? h`${net > 0 ? '+' : '−'}${money(Math.abs(net))}` : ''}</span></h3><ul
       class="list">${g.items.map(finRow)}</ul></section>`;
   })}</div>
@@ -905,19 +982,121 @@ export function txListHtml() {
         : ''
     }`;
 }
+function finCalendarHtml() {
+  const ym = ui.finMonth;
+  const [year, month] = ym.split('-').map(Number);
+  const weekStart = Number(S.settings.look?.weekStart) === 0 ? 0 : 1;
+  const firstDow = new Date(year, month - 1, 1).getDay();
+  const leading = (firstDow - weekStart + 7) % 7;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const weekHeaders =
+    weekStart === 0
+      ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+      : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const all = filteredTx();
+  const byDay = new Map();
+  all.forEach((tx) => {
+    const bucket = byDay.get(tx.date) || { in: 0, out: 0, pend: 0, items: [] };
+    if (tx.type === 'in') bucket.in += tx.cents;
+    if (tx.type === 'out') bucket.out += tx.cents;
+    if (!isPaid(tx)) bucket.pend++;
+    bucket.items.push(tx);
+    byDay.set(tx.date, bucket);
+  });
+  const cardDueByDay = new Map();
+  S.finance.accounts.filter(isCredit).forEach((card) => {
+    const info = cardInfo(card);
+    if (info.due && info.due.startsWith(`${ym}-`) && info.used > 0) {
+      const list = cardDueByDay.get(info.due) || [];
+      list.push({ name: accountDisplayName(card), cents: info.total || info.used, id: card.id });
+      cardDueByDay.set(info.due, list);
+    }
+  });
+  const selectedDay =
+    ui.finCalDay && ui.finCalDay.startsWith(`${ym}-`)
+      ? ui.finCalDay
+      : today().startsWith(`${ym}-`)
+        ? today()
+        : `${ym}-01`;
+  const cells = [];
+  for (let i = 0; i < leading; i++) cells.push(h`<span class="fin-cal-empty" aria-hidden="true"></span>`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${ym}-${pad(d)}`;
+    const info = byDay.get(iso);
+    const dues = cardDueByDay.get(iso) || [];
+    const isSelected = iso === selectedDay;
+    const isTodayDay = iso === today();
+    cells.push(
+      h`<button type="button" class="fin-cal-cell${isSelected ? ' is-selected' : ''}${isTodayDay ? ' is-today' : ''}${info || dues.length ? ' has-items' : ''}"
+        data-action="fin-cal-day" data-day="${iso}" aria-pressed="${String(isSelected)}"
+        aria-label="${longDate(iso)}${info ? `, ${info.items.length} lançamentos` : ''}${dues.length ? `, vencimento de fatura` : ''}">
+        <span class="fin-cal-num">${d}</span>
+        <span class="fin-cal-dots" aria-hidden="true">${info?.in ? h`<i class="is-in"></i>` : ''}${info?.out ? h`<i class="is-out"></i>` : ''}${info?.pend || dues.length ? h`<i class="is-due"></i>` : ''}</span>
+      </button>`,
+    );
+  }
+  const dayBucket = byDay.get(selectedDay);
+  const dayDues = cardDueByDay.get(selectedDay) || [];
+  return h`<div class="finance-calendar">
+    <div class="fin-cal-head" aria-hidden="true">${weekHeaders.map((label) => h`<span>${label}</span>`)}</div>
+    <div class="fin-cal-grid" role="grid" aria-label="Calendário financeiro de ${ymLabel(ym)}">${cells}</div>
+    <div class="fin-cal-legend" aria-hidden="true"><span><i class="is-in"></i>Receita</span><span><i class="is-out"></i>Despesa</span><span><i class="is-due"></i>Pendente / fatura</span></div>
+    <div class="fin-cal-day-panel">
+      <div class="head"><div><h3>${selectedDay === today() ? 'Hoje' : cap(longDate(selectedDay))}</h3><p class="small muted">${
+        dayBucket
+          ? `${dayBucket.items.length} ${plural(dayBucket.items.length, 'lançamento', 'lançamentos')}`
+          : 'Nenhum lançamento neste dia.'
+      }</p></div><button type="button" class="btn sm" data-action="tx-new-on-date" data-date="${selectedDay}">${icon('plus', 15)}Novo neste dia</button></div>
+      ${
+        dayDues.length
+          ? h`<div class="fin-cal-dues">${dayDues.map(
+              (
+                due,
+              ) => h`<div class="notice fin-cal-due-row">${icon('card', 16)}<span class="grow">Vencimento da fatura <b>${due.name}</b> · ${money(due.cents)}</span><button
+                type="button" class="btn sm" data-action="fin-go" data-t="contas" data-sub="cartoes">Ver cartão</button></div>`,
+            )}</div>`
+          : ''
+      }
+      ${dayBucket?.items?.length ? h`<ul class="list">${dayBucket.items.map(finRow)}</ul>` : ''}
+    </div>
+  </div>`;
+}
 function finLanc() {
-  return h`${monthNav()}${finTools()}<div id="fin-view-panel">${finLancList()}</div>`;
+  return h`${monthNav()}${finQuickEntry()}<div id="fin-view-panel">${finLancList()}</div>`;
 }
 function finLancList() {
   const st = monthStats(ui.finMonth);
   const balance = st.inAll - st.outAll;
-  const activeFilters = (ui.finQ ? 1 : 0) + (ui.finAcc ? 1 : 0) + (ui.finCat ? 1 : 0);
+  const activeFilters = (ui.finQ ? 1 : 0) + (ui.finAcc ? 1 : 0) + (ui.finCat ? 1 : 0) + (ui.finTag ? 1 : 0);
   const filtersOpen = Boolean(ui.finFiltersOpen);
-  return h`<section class="card"><div class="scroll-x" role="group"
-    aria-label="Filtrar lançamentos">${FIN_FILTERS.map(
-      ([k, l]) => h`<button class="chip"
-    aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`,
-    )}</div>
+  const viewMode = ui.finViewMode === 'calendario' ? 'calendario' : 'lista';
+  const allTags = [...new Set(S.finance.tx.flatMap((tx) => extractFinanceTags(tx.desc)))].slice(0, 12);
+  const selectedAccount = ui.finAcc ? accById(ui.finAcc) : null;
+  const monthEnd = `${ui.finMonth}-${pad(new Date(Number(ui.finMonth.slice(0, 4)), Number(ui.finMonth.slice(5)), 0).getDate())}`;
+  const selectedProjected =
+    selectedAccount && !isCredit(selectedAccount) ? accountBalanceOn(selectedAccount, S.finance.tx, monthEnd) : null;
+  return h`<section class="card finance-transactions-card">
+      <div class="fin-lanc-header">
+        <div class="scroll-x" role="group" aria-label="Filtrar lançamentos">${FIN_FILTERS.map(
+          ([k, l]) => h`<button class="chip"
+        aria-pressed="${ui.finFilter === k}" data-action="fin-filter" data-f="${k}">${l}</button>`,
+        )}</div>
+        <div class="fin-lanc-right">
+          <div class="seg sm fin-view-toggle" role="group" aria-label="Modo de exibição">
+            <button type="button" aria-pressed="${String(viewMode === 'lista')}" data-action="fin-view-mode" data-mode="lista">${icon('list', 14)}Lista</button>
+            <button type="button" aria-pressed="${String(viewMode === 'calendario')}" data-action="fin-view-mode" data-mode="calendario">${icon('calendar', 14)}Calendário</button>
+          </div>
+          ${finTools()}
+        </div>
+      </div>
+      ${
+        allTags.length
+          ? h`<div class="fin-tag-filter-row" role="group" aria-label="Filtrar por etiqueta">${allTags.map(
+              (tag) => h`<button type="button" class="chip finance-tag-chip" data-action="fin-tag" data-tag="${tag}"
+                aria-pressed="${String(ui.finTag === tag)}">#${tag}</button>`,
+            )}</div>`
+          : ''
+      }
       <div class="row fin-filter-bar"><button type="button" class="btn sm fin-filter-toggle"
         data-action="fin-filters-toggle" aria-expanded="${String(filtersOpen)}"
         aria-controls="fin-filter-panel">${icon('sliders', 16)}Filtros${
@@ -925,12 +1104,10 @@ function finLancList() {
             ? h`<span class="fin-filter-count"
         aria-label="${activeFilters} ${plural(activeFilters, 'filtro ativo', 'filtros ativos')}">${activeFilters}</span>`
             : ''
-        }</button>
-        <button type="button" class="btn ghost sm" data-action="fin-csv">${icon('download', 16)}<span>Exportar <span
-          class="case-preserve">CSV</span></span></button></div>
+        }</button></div>
       <div class="row fin-filter-row" id="fin-filter-panel" ${filtersOpen ? '' : raw('data-collapsed')}><label
         class="search"><span class="sr">Buscar lançamentos</span>${icon('search', 18)}<input type="search" id="fq"
-        data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou banco" data-input="fin-search"></label>
+        data-keep value="${ui.finQ}" placeholder="Descrição, categoria, conta ou #tag" data-input="fin-search"></label>
         <label><span class="sr">Filtrar por categoria</span><select data-change="fin-cat"><option
           value="">Categorias</option>${[...new Set([...catNames('out'), ...catNames('in')])].map(
             (c) => h`<option
@@ -947,16 +1124,25 @@ function finLancList() {
           class="fin-sum-value fin-income">${money(st.inAll)}</b></div>
         <div class="fin-sum-item"><span class="fin-sum-label">Despesas</span><b
           class="fin-sum-value fin-expense">${money(st.outAll)}</b></div>
-        <div class="fin-sum-item fin-sum-balance"><span class="fin-sum-label">Saldo</span><b
-          class="fin-sum-value ${balance < 0 ? 'fin-expense' : balance > 0 ? 'fin-income' : ''}">${balance < 0 ? '−' : ''}${money(Math.abs(balance))}</b></div>
+        <div class="fin-sum-item fin-sum-balance"><span class="fin-sum-label">${selectedProjected !== null ? `Previsto (${accountDisplayName(selectedAccount)})` : 'Saldo do mês'}</span><b
+          class="fin-sum-value ${(selectedProjected !== null ? selectedProjected : balance) < 0 ? 'fin-expense' : (selectedProjected !== null ? selectedProjected : balance) > 0 ? 'fin-income' : ''}">${(selectedProjected !== null ? selectedProjected : balance) < 0 ? '−' : ''}${money(Math.abs(selectedProjected !== null ? selectedProjected : balance))}</b></div>
       </div>
-      <div id="tx-results" aria-live="polite" tabindex="-1">${txListHtml()}</div></section>`;
+      <div id="tx-results" aria-live="polite" tabindex="-1">${viewMode === 'calendario' ? finCalendarHtml() : txListHtml()}</div></section>`;
 }
 
 // Contas e cartões
-function finInvoiceDetails(card) {
+function invoiceStatusBadge(invoice, todayIso) {
+  if (!invoice.total) return h`<span class="badge">Sem compras</span>`;
+  if (invoice.dueDate && invoice.dueDate < todayIso) return h`<span class="badge bad">Vencida</span>`;
+  if (invoice.dueDate && invoice.dueDate === todayIso) return h`<span class="badge warn">Vence hoje</span>`;
+  if (invoice.closingDate && invoice.closingDate <= todayIso) return h`<span class="badge warn">Fechada</span>`;
+  return h`<span class="badge ok">Aberta</span>`;
+}
+function creditCardCard(card, paymentAccounts) {
+  const info = cardInfo(card),
+    percent = card.limitCents ? Math.min(100, Math.round((info.used / card.limitCents) * 100)) : 0;
   const shift = ui.finInvoiceShift?.[card.id] || 0;
-  const month = shiftMonth(cardInfo(card).ym, shift);
+  const month = shiftMonth(info.ym, shift);
   const invoice = calculateCardInvoice(S.finance, card, month, { shiftMonth, parseDate: pk });
   const dates = [
     invoice.closingDate ? `fecha ${shortDate(invoice.closingDate)}` : '',
@@ -964,28 +1150,6 @@ function finInvoiceDetails(card) {
   ]
     .filter(Boolean)
     .join(' · ');
-  const name = accountDisplayName(card);
-  return h`<details class="cc-invoice"
-    id="d-invoice-${card.id}" ${ui.openDetails[`invoice-${card.id}`] ? raw('open') : ''}>
-    <summary>Ver faturas por mês</summary>
-    <div class="cc-invoice-nav"><button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}"
-      data-d="-1" aria-label="Fatura anterior do cartão ${name}">${icon('chevLeft', 18)}</button>
-      <span class="cc-invoice-title"><b>Fatura de ${ymLabel(month)}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
-      <button type="button" class="iconbtn" data-action="invoice-shift" data-id="${card.id}" data-d="1"
-        aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button></div>
-    <p class="cc-invoice-total"><span
-      class="small muted">${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')}${invoice.installmentCount ? ` · ${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')}` : ''}</span><b>${money(invoice.total)}</b></p>
-    ${
-      invoice.purchases.length
-        ? h`<ul
-      class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>`
-        : empty('Nenhuma compra nesta fatura', 'As compras feitas no cartão neste período aparecem aqui.', '', 'card')
-    }
-  </details>`;
-}
-function creditCardCard(card, paymentAccounts) {
-  const info = cardInfo(card),
-    percent = card.limitCents ? Math.min(100, Math.round((info.used / card.limitCents) * 100)) : 0;
   const scheduledInstallments = S.finance.tx.filter(
     (transaction) => transaction.invoiceInstallment && transaction.toAccountId === card.id && !isPaid(transaction),
   );
@@ -1008,18 +1172,53 @@ function creditCardCard(card, paymentAccounts) {
     }${card.closingDay ? 'Fecha dia ' + card.closingDay : ''}${card.dueDay ? ' · vence dia ' + card.dueDay : ''}</span>${cardDueLabel(info.due)}</span><button
     class="ibtn" data-action="acct-edit" data-id="${card.id}"
     aria-label="Editar cartão ${name}${bankName ? ', ' + bankName : ''}">${icon('pencil', 18)}</button></div>
-    <div class="cc-inv"><span
-      class="small muted">Compras no ciclo ${MESES_L[Number(info.ym.slice(5)) - 1]}${info.due ? ' · vence ' + shortDate(info.due) : ''}</span><b
-      class="cc-v">${money(info.total)}</b></div>
-    ${finInvoiceDetails(card)}
+    <div class="cc-invoice-inline">
+      <div class="cc-invoice-nav">
+        <button type="button" class="ibtn" data-action="invoice-shift" data-id="${card.id}"
+          data-d="-1" aria-label="Fatura anterior do cartão ${name}">${icon('chevLeft', 18)}</button>
+        <span class="cc-invoice-title"><b>Fatura de ${cap(ymLabel(month))}</b>${dates ? h`<small>${dates}</small>` : ''}</span>
+        <button type="button" class="ibtn" data-action="invoice-shift" data-id="${card.id}" data-d="1"
+          aria-label="Próxima fatura do cartão ${name}">${icon('chevRight', 18)}</button>
+      </div>
+      <div class="cc-metrics">
+        <div class="cc-metric-main">
+          <span class="small muted">Valor da fatura ${invoiceStatusBadge(invoice, today())}</span>
+          <b class="cc-v">${money(invoice.total)}</b>
+        </div>
+        ${
+          card.limitCents
+            ? h`<div class="cc-metric">
+                <span class="small muted">Limite usado</span>
+                <b>${money(info.used)}</b>
+              </div>
+              <div class="cc-metric">
+                <span class="small muted">Disponível</span>
+                <b class="fin-income">${money(info.avail)}</b>
+              </div>`
+            : ''
+        }
+      </div>
+    </div>
     ${
       card.limitCents
         ? h`<div class="bar ${percent >= 100 ? 'over' : percent >= 80 ? 'near' : ''}" role="progressbar"
       aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Limite usado do cartão ${name}"><span
       style="width:${percent}%"></span></div><p
-      class="small muted">Usado ${money(info.used)} de ${money(card.limitCents)} · disponível ${money(info.avail)}</p>`
+      class="small muted">Limite total ${money(card.limitCents)} (${percent}% comprometido${info.used > invoice.total ? ', incluindo parcelas futuras' : ''})</p>`
         : ''
     }
+    <details class="cc-invoice" id="d-invoice-${card.id}" ${ui.openDetails[`invoice-${card.id}`] ? raw('open') : ''}>
+      <summary><span>${
+        invoice.purchases.length
+          ? `Ver ${invoice.purchases.length} ${plural(invoice.purchases.length, 'compra', 'compras')} desta fatura`
+          : 'Nenhuma compra nesta fatura'
+      }${invoice.installmentCount ? ` (${invoice.installmentCount} ${plural(invoice.installmentCount, 'parcela', 'parcelas')})` : ''}</span>${icon('chevDown', 14)}</summary>
+      ${
+        invoice.purchases.length
+          ? h`<ul class="list cc-invoice-list">${invoice.purchases.map((transaction) => finRow(transaction, { showDate: true }))}</ul>`
+          : empty('Nenhuma compra nesta fatura', 'As compras feitas no cartão neste período aparecem aqui.', '', 'card')
+      }
+    </details>
     ${
       paymentAccount
         ? h`<p class="small muted">Conta preferencial para pagamento: <span
@@ -1032,16 +1231,14 @@ function creditCardCard(card, paymentAccounts) {
       class="small muted">${scheduledInstallments.length} ${plural(scheduledInstallments.length, 'parcela de fatura programada', 'parcelas de fatura programadas')} · ${money(scheduledTotal)} pendentes. Não descontadas do saldo da conta.</p>`
         : ''
     }
-    <button class="btn sm" data-action="pay-inv"
-      data-id="${card.id}" ${info.used > 0 && paymentAccounts.length ? '' : raw('disabled')}>Pagar fatura</button></li>`;
+    <div class="row cc-actions"><button type="button" class="btn sm primary" data-action="tx-new-card"
+      data-id="${card.id}">${icon('plus', 15)}Nova compra</button><button type="button" class="btn sm"
+      data-action="pay-inv" data-id="${card.id}" ${info.used > 0 && paymentAccounts.length ? '' : raw('disabled')}>Pagar fatura</button></div></li>`;
 }
 function finContas() {
   const F = S.finance,
     accs = F.accounts.filter((a) => !isCredit(a));
-  return h`<section class="card flat finance-account-balance"><div><p class="small muted">Saldo atual das contas</p><p
-    class="fh-v ${netBalance() < 0 ? 'neg' : ''}">${money(netBalance())}</p><p
-    class="small muted">Cartões de crédito não entram neste saldo.</p></div></section>
-    <div class="head"><h2>Contas</h2><button class="btn sm"
+  return h`<div class="head"><div><h2>Contas</h2><p class="small muted">Toque em uma conta para ver o extrato filtrado.</p></div><button class="btn sm"
       data-action="acct-new">${icon('plus', 16)}Nova conta</button></div>
     ${
       accs.length
@@ -1054,16 +1251,18 @@ function finContas() {
                     ? BANKS[a.bank].name
                     : a.bank,
               name = accountDisplayName(a);
-            return h`<li><button class="acc" data-action="acct-edit" data-id="${a.id}"
-              aria-label="Editar conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span
+            return h`<li class="acc-row"><button type="button" class="acc" data-action="acct-statement" data-id="${a.id}"
+              aria-label="Ver extrato da conta ${name}${bankName ? ', ' + bankName : ''}, ${balance < 0 ? 'saldo negativo de ' + brl(Math.abs(balance)) : 'saldo ' + brl(balance)}">${accountChip(a)}<span
               class="grow"><span class="ttl">${name}</span><span
               class="small muted">${ACCOUNT_TYPES[a.type] || a.type}${
                 bankName
                   ? h` · <span
               class="user-value">${bankName}</span>`
                   : ''
-              }</span></span><b
-              class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button></li>`;
+              } · ver extrato</span></span><b
+              class="${balance < 0 ? 'neg' : ''}">${money(balance)}</b></button><button type="button"
+              class="ibtn acc-edit-btn" data-action="acct-edit" data-id="${a.id}"
+              aria-label="Editar conta ${name}" title="Editar conta">${icon('pencil', 16)}</button></li>`;
           })}</ul>`
         : h`<div class="card">${areaEmpty(
             'Nenhuma conta ainda.',
@@ -1074,17 +1273,12 @@ function finContas() {
             'wallet',
             'h3',
           )}</div>`
-    }
-    <p class="small muted">O saldo das contas é separado das faturas e limites dos cartões.</p>`;
+    }`;
 }
 function finCartoes() {
   const cards = S.finance.accounts.filter(isCredit);
   const paymentAccounts = S.finance.accounts.filter((account) => !isCredit(account));
-  const outstanding = cards.reduce((sum, card) => sum + cardInfo(card).used, 0);
-  return h`<section class="card flat"><p class="small muted">Total em aberto nos cartões</p><p
-    class="fh-v">${money(outstanding)}</p><p
-    class="fh-context">Esse valor não faz parte do saldo disponível das contas.</p></section>
-    <div class="head"><div><h2>Cartões de crédito</h2><p
+  return h`<div class="head"><div><h2>Cartões de crédito</h2><p
       class="small muted">Faturas, limites e pagamentos registrados manualmente.</p></div>${
         cards.length
           ? h`<button
@@ -1109,14 +1303,57 @@ function finCartoes() {
 }
 function finContasCartoes() {
   const active = ui.finAccountTab === 'cartoes' ? 'cartoes' : 'contas';
-  return h`${finAccountPicker()}<div id="fin-account-panel" role="tabpanel"
+  const accounts = S.finance.accounts.filter((account) => !isCredit(account));
+  const cards = S.finance.accounts.filter(isCredit);
+  const balance = netBalance();
+  const outstanding = cards.reduce((sum, card) => sum + cardInfo(card).used, 0);
+  return h`<div class="finance-accounts-overview" role="group" aria-label="Resumo de contas e cartões">
+      <button type="button" class="card flat finance-account-summary-tile${active === 'contas' ? ' is-active' : ''}"
+        data-action="fin-account-tab" data-t="contas">
+        <span class="small muted">Saldo em contas</span>
+        <b class="fh-v ${balance < 0 ? 'neg' : ''}">${money(balance)}</b>
+        <small class="muted">${accounts.length} ${plural(accounts.length, 'conta ativa', 'contas ativas')} · sem cartões</small>
+      </button>
+      <button type="button" class="card flat finance-account-summary-tile${active === 'cartoes' ? ' is-active' : ''}"
+        data-action="fin-account-tab" data-t="cartoes">
+        <span class="small muted">Em aberto nos cartões</span>
+        <b class="fh-v">${money(outstanding)}</b>
+        <small class="muted">${cards.length} ${plural(cards.length, 'cartão', 'cartões')} · fora do saldo em contas</small>
+      </button>
+    </div>
+    ${finAccountPicker()}<div id="fin-account-panel" role="tabpanel"
     aria-labelledby="fin-account-tab-${active}">${active === 'cartoes' ? finCartoes() : finContas()}</div>`;
 }
 
 // Orçamento e objetivos
-function finPlanejamento() {
+function budgetRowHtml(r) {
+  const m = outMeta(r.n),
+    over = r.lim > 0 && r.sp > r.lim;
+  const alertPct = budgetSettingsFor(S.settings.prefs.financeBudgetSettings, r.n).alertPct;
+  const nearLimit = r.lim > 0 && !over && (r.sp / r.lim) * 100 >= alertPct;
+  const label = `Definir limite de ${r.n}${nearLimit ? `. Atenção: atingiu pelo menos ${alertPct}% do limite mensal.` : ''}`;
+  return h`<li data-cat-name="${r.n}"><button class="fr-main" data-action="budget-edit" data-c="${r.n}"
+    aria-label="${label}">${catChip(m)}<span class="grow"><span
+    class="ttl expense-name">${expenseTitle(r.n)}</span>${
+      r.lim
+        ? h`<span
+    class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${
+      over
+        ? h` · <span
+    class="m-bad">acima em ${money(r.sp - r.lim)}</span>`
+        : h` · restam ${money(r.lim - r.sp)}`
+    }</span>${
+      nearLimit
+        ? h`<small
+    class="budget-threshold-alert">Atenção: atingiu pelo menos ${alertPct}% do limite mensal.</small>`
+        : ''
+    }${budBar(r.sp, r.lim)}`
+        : h`<span
+    class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`
+    }</span>${icon('chevRight', 16)}</button></li>`;
+}
+function finPlanLimites(ym) {
   const F = S.finance,
-    ym = ui.finMonth,
     asOfDate = today();
   const budgetTotals = expenseBudgetByCategory(F.tx, ym, asOfDate);
   const spent = Object.fromEntries(budgetTotals.total);
@@ -1134,6 +1371,10 @@ function finPlanejamento() {
       lim: (F.budgets[n] || {}).cents || 0,
     }))
     .sort((a, b) => (b.lim > 0) - (a.lim > 0) || b.sp - a.sp);
+  const activeRows = rows.filter((r) => r.lim > 0 || r.sp > 0);
+  const otherRows = rows.filter((r) => r.lim === 0 && r.sp === 0);
+  const primaryRows = activeRows.length ? activeRows : rows.filter((r) => !r.n.includes(' > '));
+  const secondaryRows = activeRows.length ? otherRows : rows.filter((r) => r.n.includes(' > '));
   const limited = rows.filter((r) => r.lim > 0),
     tl = limited.reduce((s, r) => s + r.lim, 0),
     ts = limited.reduce((s, r) => s + r.sp, 0);
@@ -1144,8 +1385,8 @@ function finPlanejamento() {
   const budgetDays = new Date(budgetYear, budgetMonth, 0).getDate();
   const daysLeft = currentMonth ? budgetDays - Number(asOfDate.slice(8)) + 1 : 0;
   const dailyRoom = daysLeft && tl > ts ? Math.floor((tl - ts) / daysLeft) : 0;
-  return h`${monthNav()}
-    <section class="card"><div class="head"><h2>Limites do mês</h2><button class="btn ghost sm"
+  const queryNeedle = norm((ui.finBudgetQ || '').trim());
+  return h`<section class="card"><div class="head"><h2>Limites do mês</h2><button class="btn ghost sm"
       data-action="category-manager">Gerenciar categorias</button></div>
       ${
         limited.length
@@ -1161,83 +1402,93 @@ function finPlanejamento() {
           : h`<p
         class="small muted">Defina um limite mensal para as categorias em que quer controlar os gastos. Toque em uma categoria abaixo.</p>`
       }
-      <ul class="list budget-list">${rows.map((r) => {
-        const m = outMeta(r.n),
-          over = r.lim > 0 && r.sp > r.lim;
-        const alertPct = budgetSettingsFor(S.settings.prefs.financeBudgetSettings, r.n).alertPct;
-        const nearLimit = r.lim > 0 && !over && (r.sp / r.lim) * 100 >= alertPct;
-        const label = `Definir limite de ${r.n}${nearLimit ? `. Atenção: atingiu pelo menos ${alertPct}% do limite mensal.` : ''}`;
-        return h`<li><button class="fr-main" data-action="budget-edit" data-c="${r.n}"
-          aria-label="${label}">${catChip(m)}<span class="grow"><span
-          class="ttl expense-name">${expenseTitle(r.n)}</span>${
-            r.lim
-              ? h`<span
-          class="meta2">Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} de ${money(r.lim)}${
-            over
-              ? h` · <span
-          class="m-bad">acima em ${money(r.sp - r.lim)}</span>`
-              : h` · restam ${money(r.lim - r.sp)}`
-          }</span>${
-            nearLimit
-              ? h`<small
-          class="budget-threshold-alert">Atenção: atingiu pelo menos ${alertPct}% do limite mensal.</small>`
-              : ''
-          }${budBar(r.sp, r.lim)}`
-              : h`<span
-          class="meta2">${r.sp ? h`Até hoje: ${money(r.realized)} · data futura: ${money(r.upcoming)} · total ${money(r.sp)} · ` : ''}sem limite</span>`
-          }</span>${icon('chevRight', 16)}</button></li>`;
-      })}</ul></section>
-    <section class="card"><div class="head"><h2>Objetivos</h2>${
-      F.goals.length
-        ? h`<button class="btn sm"
-      data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>`
-        : ''
-    }</div>
+      <ul class="list budget-list">${primaryRows.map(budgetRowHtml)}</ul>
       ${
-        F.goals.length
-          ? h`<ul class="goal-list">${F.goals.map((g) => {
-              const savedCents = linkedGoalProgressCents(g, F.accounts, F.tx);
-              const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
-              const pc = g.targetCents ? Math.min(100, Math.round((savedCents / g.targetCents) * 100)) : 0;
-              const complete = savedCents >= g.targetCents;
-              return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span
-                class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${
-                  complete
-                    ? h` <span
-                class="badge ok">Concluído</span>`
-                    : ''
-                }</span><b class="goal-percent">${pc}%</b></div><div
-                class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"
-                aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span
-                class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span>${goalPlanLine(g, savedCents)}<div
-                class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}"
-                aria-label="Editar objetivo ${g.name}">Editar</button>${
-                  linkedAccount
-                    ? h`<span
-                class="small muted">Saldo sincronizado com a conta</span>`
-                    : h`<button class="btn sm"
-                data-action="goal-dep" data-id="${g.id}">Guardar</button>`
-                }<button class="ibtn" data-action="goal-del"
-                data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
-            })}</ul>`
-          : areaEmpty(
-              'Nenhum objetivo ainda.',
-              'Defina um objetivo e acompanhe o quanto já separou para ele.',
-              h`<button type="button" class="btn primary"
-                data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`,
-              'target',
-              'h3',
-            )
-      }</section>
-    ${finInstallments()}${finFixas()}`;
+        secondaryRows.length
+          ? h`<details class="finance-other-categories" id="d-budget-other" ${ui.openDetails['budget-other'] ? raw('open') : ''}>
+            <summary><span>Outras categorias sem limite (${secondaryRows.length})</span>${icon('chevDown', 16)}</summary>
+            <label class="search finance-budget-search"><span class="sr">Buscar categoria</span>${icon('search', 16)}<input
+              id="budget-cat-search" type="search" data-keep value="${ui.finBudgetQ || ''}"
+              placeholder="Buscar categoria para definir limite…" data-input="budget-cat-search"></label>
+            <ul class="list budget-other-list" id="budget-other-list">${secondaryRows.map((r) => {
+              const hidden = queryNeedle && !norm(r.n).includes(queryNeedle);
+              return hidden ? raw(budgetRowHtml(r).s.replace('<li ', '<li hidden ')) : budgetRowHtml(r);
+            })}</ul>
+          </details>`
+          : ''
+      }</section>`;
+}
+function finPlanObjetivos() {
+  const F = S.finance;
+  return h`<section class="card"><div class="head"><h2>Objetivos</h2>${
+    F.goals.length
+      ? h`<button class="btn sm"
+    data-action="goal-new">${icon('plus', 16)}Novo objetivo</button>`
+      : ''
+  }</div>
+    ${
+      F.goals.length
+        ? h`<ul class="goal-list">${F.goals.map((g) => {
+            const savedCents = linkedGoalProgressCents(g, F.accounts, F.tx);
+            const linkedAccount = F.accounts.find((account) => account.id === g.linkedAccountId);
+            const pc = g.targetCents ? Math.min(100, Math.round((savedCents / g.targetCents) * 100)) : 0;
+            const complete = savedCents >= g.targetCents;
+            return h`<li class="goal-item${complete ? ' is-complete' : ''}"><div class="goal-heading"><span
+              class="ttl">${g.name}${g.sample ? h` <span class="badge">Exemplo</span>` : ''}${
+                complete
+                  ? h` <span
+              class="badge ok">Concluído</span>`
+                  : ''
+              }</span><b class="goal-percent">${pc}%</b></div><div
+              class="bar goal-progress" role="progressbar" aria-valuenow="${pc}" aria-valuemin="0" aria-valuemax="100"
+              aria-label="Progresso de ${g.name}"><span style="width:${pc}%"></span></div><span
+              class="small muted">${money(savedCents)} de ${money(g.targetCents)} · ${linkedAccount ? `saldo acompanhado: ${accountDisplayName(linkedAccount)}` : g.linkedAccountId ? 'conta vinculada indisponível' : 'acompanhamento manual'} · ${g.deadline ? 'até ' + shortDate(g.deadline) : 'Sem prazo'}</span>${goalPlanLine(g, savedCents)}<div
+              class="goal-actions"><button class="btn sm" data-action="goal-edit" data-id="${g.id}"
+              aria-label="Editar objetivo ${g.name}">Editar</button>${
+                linkedAccount
+                  ? h`<span
+              class="small muted">Saldo sincronizado com a conta</span>`
+                  : h`<button class="btn sm"
+              data-action="goal-dep" data-id="${g.id}">Guardar</button>`
+              }<button class="ibtn" data-action="goal-del"
+              data-id="${g.id}" aria-label="Excluir objetivo ${g.name}">${icon('trash', 18)}</button></div></li>`;
+          })}</ul>`
+        : areaEmpty(
+            'Nenhum objetivo ainda.',
+            'Defina um objetivo e acompanhe o quanto já separou para ele.',
+            h`<button type="button" class="btn primary"
+              data-action="goal-new">${icon('plus', 16)}Criar primeiro objetivo</button>`,
+            'target',
+            'h3',
+          )
+    }</section>`;
+}
+function finPlanejamento() {
+  const F = S.finance,
+    ym = ui.finMonth;
+  const active = FIN_PLAN_TABS.some(([id]) => id === ui.finPlanTab) ? ui.finPlanTab : 'limites';
+  const limitCount = Object.values(F.budgets || {}).filter((b) => (b?.cents || 0) > 0).length;
+  const goalCount = (F.goals || []).length;
+  const commitmentCount = financeInstallmentPlans().length + recList().filter((r) => !r.paused).length;
+  const content =
+    active === 'objetivos'
+      ? finPlanObjetivos()
+      : active === 'compromissos'
+        ? h`${finInstallments()}${finFixas()}`
+        : finPlanLimites(ym);
+  return h`${active === 'limites' ? monthNav() : ''}${finPlanPicker({
+    limites: limitCount,
+    objetivos: goalCount,
+    compromissos: commitmentCount,
+  })}<div id="fin-plan-panel" role="tabpanel" aria-labelledby="fin-plan-tab-${active}">${content}</div>`;
 }
 
 // Relatórios
 function finMonthClose(ym) {
   const close = summarizeMonthlyClose(S.finance.tx, ym, accById);
-  return h`<details class="card finance-month-close">
+  return h`<details class="card finance-month-close" id="d-month-close" ${ui.openDetails['month-close'] ? raw('open') : ''}>
     <summary class="finance-month-close-summary"><span><b>Fechamento do mês</b><small>${cap(ymLabel(ym))} · revisão por competência</small></span><span
-      class="finance-close-summary-hint">Ver detalhes</span></summary>
+      class="finance-close-summary-hint">Detalhes${icon('chevDown', 14)}</span></summary>
     <p class="small muted">Compras no cartão entram no mês da compra; o pagamento da fatura é uma transferência.</p>
     <dl class="finance-close-stats">
       <div><dt>Resultado do mês</dt><dd
@@ -1260,7 +1511,7 @@ function finMonthClose(ym) {
     }
       <div class="row"><button type="button" class="btn ghost sm" data-action="fin-go" data-t="lancamentos"
         data-f="pendentes" data-clear-fin-filters>Conferir pendências</button><button type="button" class="btn ghost sm"
-        data-action="fin-go" data-t="relatorios">Comparar meses</button></div>
+        data-action="fin-go" data-t="relatorios" data-sub="comparar">Comparar meses</button></div>
     </div>
   </details>`;
 }
@@ -1275,7 +1526,7 @@ function finRelatorioMensal(ym) {
     previousMonth: shiftMonth(ym, -1),
     throughDay: cur ? Number(today().slice(8)) : null,
     accountForId: accById,
-    formatMoney: money,
+    formatMoney: brl,
     shiftMonth,
   });
   if (!items.length) return '';
@@ -1286,6 +1537,25 @@ function finRelatorioMensal(ym) {
       (item) => h`<li
       class="finance-report-item is-${item.tone}">${item.text}</li>`,
     )}</ul></section>`;
+}
+function finTagBreakdown(txs, kind) {
+  const totals = new Map();
+  txs
+    .filter((tx) => tx.type === kind)
+    .forEach((tx) => {
+      extractFinanceTags(tx.desc).forEach((tag) => {
+        totals.set(tag, (totals.get(tag) || 0) + tx.cents);
+      });
+    });
+  const rows = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (!rows.length) return '';
+  const max = Math.max(1, rows[0][1]);
+  return h`<section class="card finance-tag-report"><h2>Por etiqueta (#tags)</h2><ul class="category-bars">${rows.map(
+    ([tag, cents]) =>
+      h`<li><span class="category-bar-icon" style="--category-tone:var(--accent)">${icon('tag', 15)}</span><span
+        class="category-bar-copy"><span>#${tag}</span><span class="category-bar-track"><i
+        style="width:${Math.round((cents / max) * 100)}%;--category-tone:var(--accent)"></i></span></span><b>${money(cents)}</b><small></small></li>`,
+  )}</ul></section>`;
 }
 function finTopExpenses(st) {
   const top = st.tx
@@ -1326,9 +1596,153 @@ function finCategoryTrend(txs, ym) {
     )}</ul>
     <p class="small muted">Média de ${money(average)} por mês nos últimos 6 meses.</p></section>`;
 }
+function forecastChartSvg(forecast, hidden) {
+  if (hidden) {
+    return h`<div class="finance-forecast-chart is-hidden" role="img"
+      aria-label="Gráfico de projeção oculto no modo discreto"><p class="small muted">Gráfico oculto enquanto os valores estiverem escondidos.</p></div>`;
+  }
+  const points = forecast.points;
+  if (!points.length) return '';
+  const width = 600;
+  const height = 156;
+  const padX = 12;
+  const padY = 16;
+  const values = points.map((point) => point.balanceCents);
+  const minVal = Math.min(...values, 0);
+  const maxVal = Math.max(...values, 0);
+  const span = Math.max(100, maxVal - minVal);
+  const xFor = (index) => padX + (index / Math.max(1, points.length - 1)) * (width - padX * 2);
+  const yFor = (cents) => height - padY - ((cents - minVal) / span) * (height - padY * 2);
+  const coords = points.map((point, index) => [xFor(index), yFor(point.balanceCents)]);
+  const line = coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const baseY = yFor(0);
+  const area = `${coords[0][0].toFixed(1)},${baseY.toFixed(1)} ${line} ${coords[coords.length - 1][0].toFixed(1)},${baseY.toFixed(1)}`;
+  const lowIndex = points.findIndex((point) => point.date === forecast.lowestPoint.date);
+  const lowCoord = lowIndex >= 0 ? coords[lowIndex] : null;
+  const dipsNegative = forecast.lowestPoint.balanceCents < 0;
+  const midPoint = points[Math.floor(points.length / 2)];
+  const summary = `Projeção de ${forecast.horizonDays} dias: saldo inicial ${brl(forecast.startBalanceCents)}, saldo final previsto ${brl(forecast.endBalanceCents)}, menor saldo ${brl(forecast.lowestPoint.balanceCents)} em ${shortDate(forecast.lowestPoint.date)}.`;
+  return h`<div class="finance-forecast-chart">
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${summary}">
+      ${
+        minVal < 0 && maxVal > 0
+          ? raw(
+              `<line class="forecast-zero-line" x1="${padX}" y1="${baseY.toFixed(1)}" x2="${width - padX}" y2="${baseY.toFixed(1)}" />`,
+            )
+          : ''
+      }
+      ${raw(`<polygon class="forecast-area${dipsNegative ? ' is-warn' : ''}" points="${area}" />`)}
+      ${raw(`<polyline class="forecast-line${dipsNegative ? ' is-warn' : ''}" points="${line}" />`)}
+      ${
+        lowCoord
+          ? raw(
+              `<circle class="forecast-low-dot${dipsNegative ? ' is-warn' : ''}" cx="${lowCoord[0].toFixed(1)}" cy="${lowCoord[1].toFixed(1)}" r="4.5"><title>Menor saldo: ${esc(brl(forecast.lowestPoint.balanceCents))} em ${esc(shortDate(forecast.lowestPoint.date))}</title></circle>`,
+            )
+          : ''
+      }
+    </svg>
+    <div class="finance-forecast-axis" aria-hidden="true">
+      <span>Hoje (${shortDate(forecast.asOfDate)})</span>
+      <span>${midPoint ? shortDate(midPoint.date) : ''}</span>
+      <span>${shortDate(forecast.endDate)}</span>
+    </div>
+  </div>`;
+}
+function finCashflowForecast() {
+  const F = S.finance;
+  const now = today();
+  const horizonDays = FORECAST_HORIZONS.includes(ui.finForecastDays) ? ui.finForecastDays : 30;
+  const forecast = buildCashflowForecast({
+    accounts: F.accounts,
+    transactions: F.tx,
+    recurring: F.recurring || [],
+    asOfDate: now,
+    horizonDays,
+    shiftMonth,
+    parseDate: pk,
+    accountDisplayName,
+  });
+  const hidden = Boolean(ui.financeValuesHidden);
+  const LIMIT = 12;
+  const shownDays = ui.finForecastExpanded ? forecast.eventDays : forecast.eventDays.slice(0, LIMIT);
+  return h`<section class="card finance-forecast" aria-labelledby="finance-forecast-title">
+    <div class="head">
+      <div>
+        <p class="section-kicker">Fluxo futuro</p>
+        <h2 id="finance-forecast-title">Projeção de saldo (${horizonDays} dias)</h2>
+        <p class="small muted">De hoje (${shortDate(forecast.asOfDate)}) até ${shortDate(forecast.endDate)}.</p>
+      </div>
+      <div class="seg sm" role="group" aria-label="Horizonte da projeção">${FORECAST_HORIZONS.map(
+        (days) => h`<button type="button" aria-pressed="${String(horizonDays === days)}"
+          data-action="fin-forecast-days" data-v="${days}">${days} dias</button>`,
+      )}</div>
+    </div>
+    ${
+      forecast.firstNegativeDate
+        ? h`<aside class="notice finance-forecast-alert is-warn" role="status">${icon('alert', 17)}<span>O saldo previsto fica negativo a partir de <b>${shortDate(forecast.firstNegativeDate)}</b>${hidden ? '.' : h` (menor ponto: <b>${money(forecast.lowestPoint.balanceCents)}</b> em ${shortDate(forecast.lowestPoint.date)}).`}</span></aside>`
+        : forecast.eventDays.length
+          ? h`<aside class="notice finance-forecast-alert is-ok" role="status">${icon('check', 17)}<span>Com os compromissos cadastrados, seu saldo se mantém positivo nos próximos ${horizonDays} dias.</span></aside>`
+          : ''
+    }
+    <div class="finance-forecast-kpis">
+      <div class="finance-forecast-kpi"><span>Saldo hoje</span><b class="${forecast.startBalanceCents < 0 ? 'fin-expense' : ''}">${money(forecast.startBalanceCents)}</b></div>
+      <div class="finance-forecast-kpi"><span>Em ${horizonDays} dias</span><b class="${forecast.endBalanceCents < 0 ? 'fin-expense' : 'fin-income'}">${money(forecast.endBalanceCents)}</b></div>
+      <div class="finance-forecast-kpi"><span>Entradas previstas</span><b class="fin-income">+${money(forecast.totalInCents)}</b></div>
+      <div class="finance-forecast-kpi"><span>Saídas previstas</span><b class="fin-expense">−${money(forecast.totalOutCents)}</b></div>
+    </div>
+    ${forecastChartSvg(forecast, hidden)}
+    <p class="small muted finance-forecast-low">Menor saldo previsto no período: <b class="${forecast.lowestPoint.balanceCents < 0 ? 'fin-expense' : ''}">${money(forecast.lowestPoint.balanceCents)}</b> em ${forecast.lowestPoint.date === now ? 'hoje' : shortDate(forecast.lowestPoint.date)}.</p>
+  </section>
+  <section class="card finance-forecast-timeline" aria-labelledby="finance-forecast-timeline-title">
+    <div class="head">
+      <div>
+        <h3 id="finance-forecast-timeline-title">Linha do tempo prevista</h3>
+        <p class="small muted">${
+          forecast.eventDays.length
+            ? `${forecast.eventDays.length} ${plural(forecast.eventDays.length, 'dia com movimentação prevista', 'dias com movimentações previstas')}.`
+            : `Nenhuma conta pendente, fatura ou lançamento fixo previsto nos próximos ${horizonDays} dias.`
+        }</p>
+      </div>
+    </div>
+    ${
+      shownDays.length
+        ? h`<ol class="finance-forecast-days">${shownDays.map(
+            (entry) => h`<li class="finance-forecast-day${entry.balanceCents < 0 ? ' is-negative' : ''}">
+              <div class="finance-forecast-day-head">
+                <b>${entry.date === now ? `Hoje · ${shortDate(entry.date)}` : shortDate(entry.date)}</b>
+                <span class="finance-forecast-day-balance">Saldo: <b class="${entry.balanceCents < 0 ? 'fin-expense' : ''}">${money(entry.balanceCents)}</b></span>
+              </div>
+              <ul class="finance-forecast-day-items">${entry.items.map(
+                (item) => h`<li>
+                  <span class="grow">
+                    <span class="ttl ${item.deltaCents < 0 ? 'expense-name' : ''}">${item.label}</span>
+                    <small class="small muted">${item.overdue ? h`<span class="m-warn">Atrasado (${shortDate(item.originalDate)})</span>${item.detail ? ` · ${item.detail}` : ''}` : item.detail}</small>
+                  </span>
+                  <b class="amt ${item.deltaCents >= 0 ? 'in' : 'out'}">${item.deltaCents >= 0 ? '+' : '−'}${money(Math.abs(item.deltaCents))}</b>
+                </li>`,
+              )}</ul>
+            </li>`,
+          )}</ol>${
+            forecast.eventDays.length > LIMIT
+              ? h`<button type="button" class="btn sm ghost" data-action="fin-forecast-more">${ui.finForecastExpanded ? 'Mostrar menos dias' : `Ver todos os ${forecast.eventDays.length} dias`}</button>`
+              : ''
+          }`
+        : areaEmpty(
+            'Sem movimentações futuras no período.',
+            'Cadastre lançamentos fixos, parcelas ou contas pendentes para acompanhar sua projeção de caixa aqui.',
+            h`<button type="button" class="btn primary" data-action="fin-go" data-t="planejamento"
+              data-sub="compromissos">Gerenciar fixos e parcelas</button>`,
+            'trendUp',
+            'h4',
+          )
+    }
+    <p class="fine muted">Considera contas pendentes, parcelas, faturas de cartão e lançamentos fixos ativos. Novas compras à vista ou no cartão entram assim que forem registradas.</p>
+  </section>`;
+}
 function finRel() {
   const ym = ui.finMonth,
     kind = ui.repKind;
+  const active = FIN_REPORT_TABS.some(([id]) => id === ui.finReportTab) ? ui.finReportTab : 'resumo';
   const reportTx =
     ui.repAcc && accById(ui.repAcc)
       ? S.finance.tx.filter((t) => t.accountId === ui.repAcc || t.toAccountId === ui.repAcc)
@@ -1344,31 +1758,34 @@ function finRel() {
   });
   const avgOut = Math.round(months.reduce((s, m) => s + m.o, 0) / 6);
   const monthTransactions = monthStats(ym);
-  return h`${monthNav()}
-    ${finRitmo(ym, monthTransactions, ym === today().slice(0, 7))}
-    ${finRelatorioMensal(ym)}
-    ${finMonthClose(ym)}
-    <section class="card"><div class="seg" role="group" aria-label="Período do relatório"><button type="button"
-      aria-pressed="${ui.repBasis === 'competence'}" data-action="rep-basis"
-      data-b="competence">Competência</button><button type="button" aria-pressed="${ui.repBasis === 'cash'}"
-      data-action="rep-basis" data-b="cash">Caixa</button></div>
+  let content;
+  if (active === 'projecao') {
+    content = finCashflowForecast();
+  } else if (active === 'categorias') {
+    content = h`<section class="card finance-report-categories">
+      <div class="finance-report-controls">
+        <div class="seg" role="group" aria-label="Período do relatório"><button type="button"
+          aria-pressed="${ui.repBasis === 'competence'}" data-action="rep-basis"
+          data-b="competence">Competência</button><button type="button" aria-pressed="${ui.repBasis === 'cash'}"
+          data-action="rep-basis" data-b="cash">Caixa</button></div>
+        <div class="seg" role="group" aria-label="Tipo"><button type="button" aria-pressed="${kind === 'out'}"
+          data-action="rep-kind" data-k="out">Despesas</button><button type="button" aria-pressed="${kind === 'in'}"
+          data-action="rep-kind" data-k="in">Receitas</button></div>
+        <label class="finance-report-account"><span class="sr">Filtrar relatório por conta</span><select
+          data-change="rep-acc"><option value="">Todas as contas</option>${S.finance.accounts.map(
+            (a) => h`<option
+          class="user-value"
+          value="${a.id}" ${ui.repAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`,
+          )}</select></label>
+      </div>
       <p class="fine">${
         ui.repBasis === 'cash'
           ? 'Por data de pagamento ou recebimento. Pagamentos de fatura entram como saída no dia em que foram registrados; lançamentos antigos sem data de liquidação usam a data do lançamento.'
           : 'Por data em que a receita ou despesa aconteceu. Compras no cartão aparecem neste mês, independentemente do pagamento da fatura.'
       }</p>
-      <div class="seg" role="group" aria-label="Tipo"><button type="button" aria-pressed="${kind === 'out'}"
-        data-action="rep-kind" data-k="out">Despesas</button><button type="button" aria-pressed="${kind === 'in'}"
-        data-action="rep-kind" data-k="in">Receitas</button></div>
-      <label class="finance-report-account"><span class="sr">Filtrar relatório por conta</span><select
-        data-change="rep-acc"><option value="">Todas as contas</option>${S.finance.accounts.map(
-          (a) => h`<option
-        class="user-value"
-        value="${a.id}" ${ui.repAcc === a.id ? raw('selected') : ''}>${accountOptionLabel(a)}</option>`,
-        )}</select></label>
       ${
         list.length
-          ? h`<div class="donut-row"><div class="donut-w">${donut(
+          ? h`<div class="finance-report-donut-layout"><div class="donut-row"><div class="donut-w">${donut(
               list.map(([n, v]) => ({ v, c: col(n) })),
               total,
               (kind === 'out' ? 'Despesas' : 'Receitas') + ' do mês por categoria',
@@ -1377,7 +1794,7 @@ function finRel() {
           ([n, v]) => h`<li><span class="sw" style="background:${col(n)}"></span><span
           class="grow ttl ${kind === 'out' ? 'expense-name' : ''}">${kind === 'out' ? expenseTitle(n) : n}</span><span
           class="small muted">${Math.round((v / total) * 100)}%</span><b>${money(v)}</b></li>`,
-        )}</ul>`
+        )}</ul></div>`
           : areaEmpty(
               kind === 'out' ? 'Nenhuma despesa neste mês.' : 'Nenhuma receita neste mês.',
               'Quando houver lançamentos, este relatório mostrará a divisão por categoria.',
@@ -1387,12 +1804,19 @@ function finRel() {
               'h3',
             )
       }</section>
-    ${finTopExpenses(st)}
-    ${finCategoryTrend(reportTx, ym)}
-    ${finCompare()}
-    <section class="card"><h2>Últimos 6 meses</h2>${flowChart(months)}<p class="fine"><span
-      class="lg finance-income"></span>receitas <span class="lg finance-expense"></span>despesas</p><p
-      class="small muted">Média de despesas: <b>${money(avgOut)}</b> por mês.</p></section>`;
+      ${finTagBreakdown(st.tx, kind)}
+      ${finTopExpenses(st)}
+      ${finCategoryTrend(reportTx, ym)}`;
+  } else if (active === 'comparar') {
+    content = finCompare();
+  } else {
+    content = h`${finRelatorioMensal(ym)}
+      ${finRitmo(ym, monthTransactions, ym === today().slice(0, 7))}
+      ${finMonthClose(ym)}
+      ${monthlyFlowChart(ym, avgOut)}`;
+  }
+  return h`${active !== 'comparar' && active !== 'projecao' ? monthNav() : ''}${finReportPicker()}<div id="fin-report-panel" role="tabpanel"
+    aria-labelledby="fin-report-tab-${active}">${content}</div>`;
 }
 
 export function viewFinancas() {

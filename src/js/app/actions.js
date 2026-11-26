@@ -37,7 +37,7 @@ export function recordWaterEntry(amount, habit) {
   const saved = saveSlicesWithRollback(slices, snapshot, false, 'o registro de água');
   if (!saved) return false;
   render();
-  vibrateFeedback();
+  vibrateFeedback(completing ? 'success' : 'light');
   toast(
     completing
       ? `Meta diária atingida! ${amount.toLocaleString('pt-BR')} mL registrados.`

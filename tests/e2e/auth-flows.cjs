@@ -146,12 +146,10 @@ async function main() {
       };
     });
     assert.equal(layout.minHeight, '0px', `${label}: a tela não deve reservar um viewport vazio`);
-    if (layout.isMobile) {
-      assert.equal(layout.introDisplay, 'none', `${label}: a introdução não deve empurrar o formulário no celular`);
-    } else {
-      assert.ok(layout.introTop <= layout.cardTop + 1, `${label}: a introdução deve começar junto ao formulário`);
-      assert.ok(layout.introRight <= layout.cardLeft + 1, `${label}: o formulário deve ficar ao lado do painel de boas-vindas`);
-      assert.ok(layout.cardWidth >= layout.introWidth * 0.9, `${label}: o formulário deve ter espaço proporcional ao painel`);
+    assert.equal(layout.introDisplay, 'none', `${label}: autenticação deve manter foco limpo e centralizado sem coluna decorativa`);
+    if (!layout.isMobile) {
+      assert.ok(layout.cardLeft > 0, `${label}: o formulário deve ficar centralizado no desktop`);
+      assert.ok(layout.cardWidth <= 480, `${label}: o formulário deve manter largura de leitura confortável`);
     }
   };
   const assertAuthHeaderSpacing = async (label) => {
@@ -510,16 +508,16 @@ async function main() {
         await onboarding.locator('[data-action="ob-next"]').click();
         await onboarding.locator('[data-action="ob-next"]').click();
         await onboarding.locator('[data-action="ob-next"]').click();
-        assert.ok(await onboarding.getByRole('heading', { name: 'Quer ver o Aurora em ação?' }).count(),
-          'depois da personalização o primeiro acesso oferece um tour opcional');
+        assert.ok(await onboarding.getByRole('heading', { name: 'Quer conhecer o que dá para fazer?' }).count(),
+          'depois da personalização o primeiro acesso oferece um guia opcional');
         assert.ok(await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').count());
         await onboarding.locator('[data-action="ob-finish-guide"][data-route="inicio"]').click();
         const onboardingGuide = page.locator('#dlg[data-dialog-type="area-tutorial"]');
         await onboardingGuide.waitFor({ state: 'visible' });
-        assert.equal(await onboardingGuide.locator('.area-tutorial-video').getAttribute('autoplay'), null,
-          'tutorial escolhido não inicia automaticamente');
+        assert.ok((await onboardingGuide.locator('.area-guide-card').count()) >= 3,
+          'guia escolhido mostra os recursos principais da área');
         await onboardingGuide.locator('[data-action="dlg-close"]').first().click();
-        await page.locator('.area-tutorial-video').waitFor({ state: 'detached' });
+        await onboardingGuide.waitFor({ state: 'detached' });
         await page.waitForFunction(() => !document.querySelector('.sync-status'));
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
@@ -546,6 +544,7 @@ async function main() {
           'menu da conta fecha ao pressionar Escape');
         await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
         await page.locator('#profile-menu a[href="/ajustes"]').click();
+        await page.locator('.settings-mobile-trigger').click();
         await page.locator('.settings-link[data-settings-tab="account"]').click();
         await page.locator('.account-session-card [data-account-signout]').waitFor({ state: 'visible' });
         await page.locator('.nav a[href="/inicio"]').click();
@@ -742,11 +741,14 @@ async function main() {
       } else {
         const habit = page.locator('.habit-row').filter({ hasText: 'Hábito teste' });
         await habit.waitFor();
-        await habit.locator('.habit-more > summary').evaluate((element) => element.click());
-        await habit.locator('.habit-month > summary').evaluate((element) => element.click());
-        await habit.locator('.habit-month [data-action="habit-month"][data-n="-1"]').evaluate((button) => button.click());
-        assert.equal(await habit.locator('.habit-month').evaluate((element) => element.open), true,
-          'Histórico mensal deve permanecer aberto ao mudar de mês');
+        await page.locator('.habit-tab[data-t="historico"]').click();
+        const month = page.locator('.habit-month');
+        await month.waitFor();
+        const before = await month.locator('.mnav b').textContent();
+        await month.locator('[data-action="habit-month"][data-n="-1"]').click();
+        assert.notEqual(await month.locator('.mnav b').textContent(), before,
+          'Histórico mensal deve mudar de mês');
+        assert.equal(await page.locator('.habit-year').count(), 1, 'Calendário anual visível no Histórico');
       }
     }
     assert.equal(pkceRequests, 5);

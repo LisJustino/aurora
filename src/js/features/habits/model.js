@@ -1,6 +1,6 @@
 import { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
 export { HABIT_COLORS, SUGGESTED_HABITS } from './catalog.js';
-import { addDays, isDay, pk } from '../../utils/dates.js';
+import { addDays, dayDiff, isDay, pk } from '../../utils/dates.js';
 import { weekDays } from '../planning/week.js';
 import { isPlainObject } from '../../core/data-integrity.js';
 import { estimateWaterGoal, isValidWaterGoalMl, normalizeWaterHabit } from './water-goal.js';
@@ -618,3 +618,57 @@ export function habitStats(
     })),
   };
 }
+
+export function pauseHabitRecord(habit, day) {
+  if (!habit || !isDay(day) || (habit.status || 'active') !== 'active') return false;
+  habit.status = 'paused';
+  habit.pausedFrom = day;
+  habit.pausedDays = [...habit.days];
+  return true;
+}
+
+export function resumeHabitRecord(habit, day) {
+  if (!habit || !isDay(day) || habit.status !== 'paused') return false;
+  if (isDay(habit.pausedFrom)) {
+    const pausedDays = new Set(habit.skipped || []);
+    const scheduledDays = Array.isArray(habit.pausedDays) ? habit.pausedDays : habit.days;
+    const pauseLength = Math.min(Math.max(dayDiff(day, habit.pausedFrom) + 1, 0), 10000);
+    for (let offset = 0; offset < pauseLength; offset++) {
+      const target = addDays(habit.pausedFrom, offset);
+      if (
+        scheduledDays.includes(pk(target).getDay()) &&
+        !habit.completions.includes(target) &&
+        (pausedDays.size < 10000 || pausedDays.has(target))
+      )
+        pausedDays.add(target);
+    }
+    habit.skipped = [...pausedDays].sort();
+    delete habit.pausedFrom;
+  }
+  delete habit.pausedDays;
+  habit.status = 'active';
+  return true;
+}
+
+export function pauseAllActiveHabits(habits, day) {
+  if (!Array.isArray(habits) || !isDay(day)) return 0;
+  let count = 0;
+  for (const habit of habits) {
+    if (pauseHabitRecord(habit, day)) count++;
+  }
+  return count;
+}
+
+export function resumeAllPausedHabits(habits, day) {
+  if (!Array.isArray(habits) || !isDay(day)) return 0;
+  let count = 0;
+  for (const habit of habits) {
+    if (resumeHabitRecord(habit, day)) count++;
+  }
+  return count;
+}
+
+export const HABIT_TABS = [
+  ['hoje', 'Meus hábitos', 'check'],
+  ['historico', 'Histórico', 'calendarCheck'],
+];

@@ -46,23 +46,31 @@ const ACCOUNT_ART = {
     </g>
   </svg>`,
   preview: `<div class="account-preview">
-    <div class="account-preview-card is-tasks">
-      <p class="account-preview-title">Hoje</p>
-      <ul>
-        <li class="is-done"><span></span>Revisar a semana</li>
-        <li class="is-done"><span></span>Caminhada de 20 min</li>
-        <li><span></span>Planejar o mês</li>
-      </ul>
-    </div>
-    <div class="account-preview-card is-habits">
-      <svg viewBox="0 0 44 44" role="presentation" focusable="false"><circle class="ring-bg" cx="22" cy="22"
-        r="17"/><circle class="ring-fg" cx="22" cy="22" r="17"/></svg>
-      <p><b>5 de 7</b>hábitos na semana</p>
-    </div>
-    <div class="account-preview-card is-money">
-      <p class="account-preview-title">Saldo do mês</p>
-      <p class="account-preview-value">R$ 1.240,00</p>
-      <div class="account-preview-bars"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="account-preview-shell">
+      <div class="account-preview-topbar">
+        <span class="account-preview-kicker">Hoje no Aurora</span>
+        <span class="account-preview-pill">2 de 3 concluídas</span>
+      </div>
+      <div class="account-preview-card is-tasks">
+        <p class="account-preview-title">Foco do dia</p>
+        <ul>
+          <li class="is-done"><span></span>Revisar a semana</li>
+          <li class="is-done"><span></span>Caminhada de 20 min</li>
+          <li class="is-next"><span></span>Planejar o mês</li>
+        </ul>
+      </div>
+      <div class="account-preview-metrics">
+        <div class="account-preview-card is-habits">
+          <p class="account-preview-title">Hábitos</p>
+          <p class="account-preview-stat"><b>5 de 7</b><span>dias nesta semana</span></p>
+          <div class="account-preview-progress"><span style="width: 72%"></span></div>
+        </div>
+        <div class="account-preview-card is-money">
+          <p class="account-preview-title">Saldo do mês</p>
+          <p class="account-preview-value">R$ 1.240,00</p>
+          <span class="account-preview-delta">Sob controle</span>
+        </div>
+      </div>
     </div>
   </div>`,
 };

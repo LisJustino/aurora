@@ -33,6 +33,7 @@ import { hexOk } from '../features/appearance/palettes.js';
 import { MENU_ITEMS, normalizeVisibleMenuItems } from '../features/navigation/menu.js';
 import { REPEATS } from '../features/planning/recurrence.js';
 import { parseQuickDate } from '../features/planning/quick-date.js';
+import { weekDays } from '../features/planning/week.js';
 import { ACTIONS, focusQuickActionsTrigger, recordWaterEntry } from './actions.js';
 import { isTime, norm, parseTags, plural, PRIO, saveActiveHomeMode } from './core.js';
 import { cycleLogDraft, cyclePeriodKey, dayLog, hasAnyLog, syncLatestCycleWeight } from './cycle.js';
@@ -65,6 +66,7 @@ import {
   settingsView,
   ui,
   updateSettingsDraft,
+  weekStartDay,
 } from './state.js';
 
 // Formulários
@@ -131,6 +133,18 @@ export const FORMS = {
   'dlg-taskbulk': () => reviewBulkTasks(),
   'dlg-habitbulk': () => reviewBulkHabits(),
   'dlg-txbulk': () => reviewBulkEntry(),
+  'weekly-reflection-custom': (form, data) => {
+    const text = String(data.get('text') || '')
+      .trim()
+      .slice(0, 500);
+    if (!text) return fieldError('Escreva uma reflexão curta antes de salvar.', '#weekly-reflection-text');
+    const weekStart = weekDays(today(), weekStartDay())[0];
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.prefs.weeklyReflection = { weekOf: weekStart, text };
+    ui.reflectionEditing = false;
+    if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a reflexão semanal')) return;
+    toast('Reflexão semanal salva.', 'success');
+  },
   'finance-category-rule': (form, data) => {
     const phrase = String(data.get('phrase') || '')
       .trim()
@@ -393,6 +407,17 @@ export const FORMS = {
     const tracksWater = Boolean(
       draft?.tracking === 'water' || draft?.waterSuggestion || isWaterHabit(habit) || isWaterHabit({ name }),
     );
+    if (!habit && tracksWater) {
+      const existingWater = S.habits.find(isWaterHabit);
+      if (existingWater) {
+        return fieldError(
+          existingWater.status === 'archived'
+            ? 'Você já tem um hábito de água arquivado. Restaure-o na aba Gerenciar.'
+            : 'Você já tem um hábito de água. Edite o existente na aba Gerenciar.',
+          '[data-dlg="name"]',
+        );
+      }
+    }
     let waterGoalMl = tracksWater
       ? Number(
           d.has('waterGoalMl')
@@ -421,6 +446,7 @@ export const FORMS = {
     const enableHabits = recordWaterAfterSave && draft.enableHabits && !areaOn('habits');
     const slices = ['habits', ...(enableHabits || draft?.waterWeightPersistent ? ['settings'] : [])];
     const snapshot = recordWaterAfterSave ? snapshotSlices(slices) : weightSnapshot;
+    const isEdit = Boolean(habit);
     if (habit) {
       Object.assign(habit, {
         name: name.slice(0, 60),
@@ -468,7 +494,7 @@ export const FORMS = {
       ? saveSlicesWithRollback(slices, snapshot, false, 'o peso e a meta de água')
       : saveSlices('habits');
     render();
-    if (saved) toast(habit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
+    if (saved) toast(isEdit ? 'Hábito atualizado.' : 'Hábito adicionado.', 'success');
   },
   'tg-add': (f, d) => {
     const v = String(d.get('tg') || '')
@@ -495,12 +521,22 @@ export const FORMS = {
     if (i) i.focus();
   },
   'dlg-task': () => {
-    const d = ui.dlg.d,
-      title = String(d.title || '').trim();
+    const d = ui.dlg.d;
+    const domDue = document.querySelector('#dlg [data-dlg="due"]');
+    const domTime = document.querySelector('#dlg [data-dlg="time"]');
+    const domTitle = document.querySelector('#dlg [data-dlg="title"]');
+    const domPriority = document.querySelector('#dlg [data-dlg="priority"]');
+    const domRepeat = document.querySelector('#dlg [data-dlg="repeat"]');
+    if (domDue instanceof HTMLInputElement) d.due = domDue.value;
+    if (domTime instanceof HTMLInputElement) d.time = domTime.value;
+    if (domTitle instanceof HTMLInputElement) d.title = domTitle.value;
+    if (domPriority instanceof HTMLSelectElement) d.priority = domPriority.value;
+    if (domRepeat instanceof HTMLSelectElement) d.repeat = domRepeat.value;
+    const title = String(d.title || '').trim();
     if (!title) return fieldError('Escreva um título.', '[data-dlg="title"]');
     const parsed = parseTags(title),
       repeat = REPEATS[d.repeat] && d.repeat !== 'none' ? d.repeat : null;
-    if (document.querySelector('#dlg [data-dlg="time"]')?.validity.badInput || (d.time && !isTime(d.time)))
+    if (domTime?.validity.badInput || (d.time && !isTime(d.time)))
       return fieldError('Informe uma hora válida.', '[data-dlg="time"]');
     const time = isTime(d.time) ? d.time : null;
     if ((repeat || time) && !isDay(d.due))

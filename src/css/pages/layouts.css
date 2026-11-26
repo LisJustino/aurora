@@ -240,7 +240,8 @@
 .main[data-route="planejar"] > .qa-card {
   border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
 }
-.main[data-route="planejar"] > .card.plain {
+.main[data-route="planejar"] > .card.plain,
+.main[data-route="planejar"] > .surface-open.plain {
   gap: var(--space-4);
   padding: 0;
   border-color: transparent;

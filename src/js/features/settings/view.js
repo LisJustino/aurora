@@ -84,6 +84,8 @@ export function renderSettingsView({ S, ui, sections, sectionGroups, settingsTab
   const requestedTab = settingsTabId(ui.settingsTab);
   const selectedSection = sections.find(([id]) => id === requestedTab) || sections[0];
   const selected = selectedSection[0];
+  const selectedGroup = sectionGroups.find((group) => group.items.includes(selected));
+  const menuOpen = Boolean(ui.settingsMenuOpen);
   const content = renderSettingsSectionContent(s, p, selected, renderers);
   const menuGroups = sectionGroups.map(
     (group) =>
@@ -91,18 +93,28 @@ export function renderSettingsView({ S, ui, sections, sectionGroups, settingsTab
         (id) => {
           const section = sections.find(([item]) => item === id);
           if (!section) return '';
-          const [key, label, ic, description] = section;
+          const [key, label, ic] = section;
           return h`<a class="settings-link" href="${routePathFor(`config?section=${encodeURIComponent(key)}`)}"
             data-action="settings-section" data-settings-tab="${key}"
             aria-controls="settings-content" ${selected === key ? raw('aria-current="page"') : ''}><span
-            class="settings-link-icon">${icon(ic, 19)}</span><span
-            class="settings-link-copy"><b>${tabLabel(label)}</b><small>${description}</small></span>${icon('chevRight', 16, 'settings-link-arrow')}</a>`;
+            class="settings-link-icon">${icon(ic, 18)}</span><span
+            class="settings-link-copy"><b>${tabLabel(label)}</b></span></a>`;
         },
       )}</div>`,
   );
   return h`${pageTitle('Ajustes')}
     <div class="settings-layout">
-      <nav class="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
+      <div class="settings-nav-shell${menuOpen ? ' is-open' : ''}">
+        <button type="button" class="settings-mobile-trigger" data-action="settings-menu-toggle"
+          aria-expanded="${String(menuOpen)}" aria-controls="settings-menu">
+          <span class="settings-mobile-trigger-icon" aria-hidden="true">${icon(selectedSection[2], 18)}</span>
+          <span class="settings-mobile-trigger-copy">${
+            selectedGroup ? h`<small>${selectedGroup.label}</small>` : ''
+          }<b>${selectedSection[1]}</b></span>
+          <span class="settings-mobile-trigger-action" aria-hidden="true">${menuOpen ? 'Fechar' : 'Seções'}${icon('chevDown', 18, 'settings-mobile-chevron')}</span>
+        </button>
+        <nav class="settings-menu" id="settings-menu" aria-label="Opções de Ajustes">${menuGroups}</nav>
+      </div>
       <div class="settings-content" id="settings-content" role="region"
         aria-label="Seção de ajustes: ${selectedSection[1]}">${content}</div>
     </div>`;

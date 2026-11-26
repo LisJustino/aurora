@@ -3,6 +3,7 @@ import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { shortDate } from '../../utils/dates.js';
 import { bulkRowCount, bulkRowInstallmentCents, MAX_BULK_LINES } from './bulk-entry.js';
+import { extractFinanceTags, parseTagsInput } from './quick-entry.js';
 
 const BULK_EXAMPLE = [
   { label: 'Despesa única', text: 'Mercado - 230,50 - dia 15/12 - categoria alimentação' },
@@ -127,6 +128,24 @@ export function createFinanceDialogViews(dependencies) {
         placeholder="${tr ? 'Ex.: Reserva do mês' : 'Ex.: Mercado'}" autocomplete="off">`,
         'full',
       )}
+      ${(() => {
+        const existingTags = [...new Set(S.finance.tx.flatMap((item) => extractFinanceTags(item.desc)))].slice(0, 8);
+        const currentTags = new Set(parseTagsInput(d.tags || ''));
+        return dlgField(
+          'Etiquetas (opcional)',
+          h`<input type="text" data-dlg="tags" value="${d.tags || ''}" maxlength="80"
+            placeholder="Ex.: #viagem #reembolso" autocomplete="off">${
+              existingTags.length
+                ? h`<div class="finance-tag-suggestions" role="group" aria-label="Etiquetas existentes">${existingTags.map(
+                    (tag) =>
+                      h`<button type="button" class="chip finance-tag-chip" data-action="tx-tag-toggle"
+                        data-tag="${tag}" aria-pressed="${String(currentTags.has(tag))}">#${tag}</button>`,
+                  )}</div>`
+                : ''
+            }`,
+          'full',
+        );
+      })()}
       ${
         tr
           ? ''

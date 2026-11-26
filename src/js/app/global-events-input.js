@@ -4,18 +4,25 @@ import { today, longDate } from '../utils/dates.js';
 import { linkedGoalProgressCents } from '../features/finance/calculations.js';
 import { filterWeightInput } from '../features/profile/weight.js';
 import { HOME_MESSAGE_MAX_LENGTH } from '../features/home/personalization.js';
+import { parseQuickFinanceEntry } from '../features/finance/quick-entry.js';
 import { parseQuickDate } from '../features/planning/quick-date.js';
 import { LIST_COLORS, OTHER_BANK, findBankByName } from './core.js';
-import { createDialog, setPath, updateWaterSuggestionWeight, globalSearchResults } from './dialogs.js';
-import { moneyIn, invoicePlanPreviewText } from './finance-dialogs.js';
-import { impRecalc } from './finance-extras.js';
-import { accById, txListHtml } from './finance-view.js';
+import {
+  createDialog,
+  dialogTracksDirty,
+  setPath,
+  updateWaterSuggestionWeight,
+  globalSearchResults,
+} from './dialogs.js';
+import { moneyIn, invoicePlanPreviewText, recentTransactionDefaults } from './finance-dialogs.js';
+import { guessCategory, impRecalc } from './finance-extras.js';
+import { accById, accountDisplayName, isCredit, txListHtml } from './finance-view.js';
 import { SETTINGS_INPUT_CHANGES, CHANGES } from './forms.js';
 import { updateHabitIdeaFilters } from './habits.js';
 import { listArr } from './onboarding.js';
 import { taskListHtml, updateAnnualIdeaFilters } from './planning.js';
 import { render } from './render.js';
-import { firstName, profileDraftFromSettings, profileDraftHasChanges } from './settings.js';
+import { firstName, profileDraftFromSettings, profileDraftHasChanges, trashResultsHtml } from './settings.js';
 import { profileGreeting } from './shell.js';
 import { ui, S, scheduleProfileAutosave, categoryMatch } from './state.js';
 
@@ -69,8 +76,7 @@ export function registerInputEvents() {
     const opensCategoryDialog = isTransactionCategoryField && el.value === '__new';
     if (isTransactionCategoryField && !opensCategoryDialog) ui.dlg.d.categoryTouched = true;
     if (
-      ui.dlg &&
-      ui.dlg.type !== 'search' &&
+      dialogTracksDirty(ui.dlg) &&
       !opensCategoryDialog &&
       el instanceof Element &&
       el.closest('#dlg') &&
@@ -219,10 +225,68 @@ export function registerInputEvents() {
       const submit = el.form?.querySelector('button[type="submit"]');
       if (submit) submit.disabled = !el.value.trim();
     }
+    if (el.id === 'finance-quick-input') {
+      const outDefaults = recentTransactionDefaults('out');
+      const inDefaults = recentTransactionDefaults('in');
+      const parsed = parseQuickFinanceEntry(el.value, {
+        todayIso: today(),
+        accounts: S.finance.accounts,
+        accountDisplayName,
+        isCredit,
+        guessCategory,
+        defaultOutAccountId: outDefaults.accountId,
+        defaultInAccountId: inDefaults.accountId,
+      });
+      const preview = $('#finance-quick-preview');
+      const submit = el.form?.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = !parsed.valid;
+      if (preview) {
+        if (parsed.empty) {
+          preview.textContent = 'Ex.: mercado 85,50 · +salario 3200 · uber 24 ontem cartao #trabalho';
+          preview.dataset.state = 'idle';
+        } else if (!parsed.valid) {
+          preview.textContent = parsed.error || 'Digite descrição e valor.';
+          preview.dataset.state = 'hint';
+        } else {
+          const moneyStr = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+            parsed.cents / 100,
+          );
+          const parts = [
+            parsed.kind === 'in' ? `Receita ${moneyStr}` : `Despesa ${moneyStr}`,
+            parsed.category,
+            parsed.accountName,
+            parsed.date === today() ? 'Hoje' : longDate(parsed.date),
+            ...(parsed.installments > 1 ? [`${parsed.installments}x`] : []),
+            ...(!parsed.paid ? ['Pendente'] : []),
+            ...parsed.tags.map((tag) => `#${tag}`),
+          ];
+          preview.textContent = parts.join(' · ');
+          preview.dataset.state = 'ready';
+        }
+      }
+    }
     if (el.dataset.input === 'fin-search') {
       ui.finQ = el.value;
       const r = $('#tx-results');
       if (r) r.innerHTML = txListHtml().s;
+    }
+    if (el.dataset.input === 'budget-cat-search') {
+      ui.finBudgetQ = el.value;
+      const list = $('#budget-other-list');
+      if (list) {
+        const needle = el.value
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .trim();
+        list.querySelectorAll('li[data-cat-name]').forEach((item) => {
+          const text = (item.dataset.catName || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+          item.hidden = Boolean(needle && !text.includes(needle));
+        });
+      }
     }
     if (el.dataset.input === 'search') {
       ui.filters.q = el.value;
@@ -236,6 +300,13 @@ export function registerInputEvents() {
     if (el.dataset.input === 'annual-ideas-search') {
       ui.annualIdeaQuery = el.value;
       updateAnnualIdeaFilters();
+    }
+    if (el.dataset.input === 'trash-search') {
+      ui.trashQuery = el.value;
+      const results = $('#trash-results');
+      if (results) results.innerHTML = trashResultsHtml(S.settings.prefs).s;
+      const clearBtn = $('#trash-search-clear');
+      if (clearBtn) clearBtn.hidden = !el.value.trim();
     }
   });
 }

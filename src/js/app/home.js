@@ -63,7 +63,7 @@ function homeUpcomingTasks() {
   const remaining = upcoming.length - preview.length;
   return h`<section class="card home-upcoming-card" aria-labelledby="home-upcoming-title">
     <div class="head"><div><h2 id="home-upcoming-title">Próximos 7 dias</h2></div><a class="btn ghost sm"
-      href="/planejar">Ver planejamento</a></div>
+      href="/planejar">Ver tudo</a></div>
     <ul class="list">${preview.map((task) => taskRow(task))}</ul>
     ${
       remaining
@@ -92,18 +92,33 @@ function homeHabitCheckins(highlightNext = false, onlyNext = false) {
     <ul class="list">${(onlyNext ? [nextHabit] : pending).map((habit) => {
       const completed = habitCompletedFor(habit, day);
       const skipped = habitIsSkipped(habit, day, day);
+      const water = isWaterHabit(habit);
+      const waterCurrent = water ? waterMlForDay(S.water, day) : 0;
+      const waterTarget = water ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
+      const subtitle = completed
+        ? 'Concluído hoje'
+        : skipped
+          ? 'Dia pulado hoje'
+          : water
+            ? `${waterCurrent.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL hoje`
+            : 'Ainda não marcado';
       return h`<li class="home-habit-row${habit.id === nextHabit?.id ? ' is-next' : ''}">
         <span class="home-habit-icon" style="--hc:${habitColor(habit)}">${icon(habitIconKey(habit), 18)}</span>
         <span class="grow"><b>${habit.name}</b><span
-          class="small muted">${completed ? 'Concluído hoje' : skipped ? 'Dia pulado hoje' : 'Ainda não marcado'}</span>${
+          class="small muted">${subtitle}</span>${
             habit.id === nextHabit?.id
               ? h`<span
           class="home-next-step-label">Próximo passo</span>`
               : ''
           }</span>
-        <button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}"
+        ${
+          water && !completed && !skipped
+            ? h`<button type="button" class="btn sm primary" data-action="water-quick" data-id="${habit.id}"
+          data-ml="250">${icon('water', 16)}+250 mL</button>`
+            : h`<button type="button" class="btn sm ${completed || skipped ? 'back' : 'primary'}"
           data-action="${skipped ? 'habit-skip' : 'habit-check'}" data-id="${habit.id}"
-          aria-pressed="${String(completed || skipped)}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>
+          aria-pressed="${String(completed || skipped)}">${icon(completed ? 'check' : skipped ? 'close' : 'plus', 16)}${completed ? 'Concluído' : skipped ? 'Desfazer pulo' : 'Marcar'}</button>`
+        }
       </li>`;
     })}</ul>
   </section>`;
@@ -203,7 +218,6 @@ export function viewInicio() {
   const greeting = profileGreeting(profileAppearance.greeting);
   const tt = todayTasks(),
     pend = tt.filter((t) => !t.done);
-  const todayPlanTasks = tt.filter((task) => task.dueDate === todayKey);
   const calendarEvents = todayCalendarEvents({ respectFilters: false }).map((event) => {
     const key = calendarEventTaskKey(event);
     return {
@@ -250,7 +264,9 @@ export function viewInicio() {
           ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
           : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
   const waterTotal = waterMlForDay(S.water, todayKey);
-  const waterHabit = S.habits.find(isWaterHabit);
+  const waterHabit =
+    S.habits.find((habit) => (habit.status || 'active') === 'active' && isWaterHabit(habit)) ||
+    S.habits.find(isWaterHabit);
   const waterGoal = waterGoalForHabit(waterHabit, S.settings.prefs.waterGoalMl);
   const showWaterSummary =
     areaOn('habits') && (S.habits.some((habit) => isWaterHabit(habit) && habit.status === 'active') || waterTotal > 0);
@@ -258,7 +274,7 @@ export function viewInicio() {
     !ui.preview && !S.settings.prefs.sample && areaOn('cycle') && hasCurrentCycleDataConsent(accountSession?.user);
   const showFinanceSummary = areaOn('finances') && S.finance.accounts.length > 0;
   const daySummary = createHomeDaySummary({
-    todayTasks: todayPlanTasks,
+    todayTasks: tt,
     overdueTasks: overdue,
     dueTodayTasks: dueToday,
     calendarEvents,

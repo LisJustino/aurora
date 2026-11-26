@@ -178,7 +178,8 @@ for (const screenshot of manifest.screenshots) {
   await assertNotRedirected(urlPath, 'manifest screenshot');
 }
 await assertServed('/offline.html', 'fallback offline');
-await assertServed('/src/fonts/dm-sans-latin.woff2', 'fonte das páginas estáticas 404/offline');
+await assertServed('/src/fonts/figtree-latin.woff2', 'fonte operacional das páginas estáticas 404/offline');
+await assertServed('/src/fonts/newsreader-latin.woff2', 'fonte editorial das páginas estáticas 404/offline');
 for (const href of ['/favicon.ico', '/icons/apple-touch-icon.png', '/icons/favicon-32.png', '/icons/favicon-512.png']) {
   await assertServed(href, 'ícone');
   await assertNotRedirected(href, 'ícone');

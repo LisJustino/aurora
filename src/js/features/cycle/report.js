@@ -10,12 +10,39 @@ const BUCKET_LABELS = Object.freeze({
 const average = (values) =>
   values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
 
-// O resumo usa só período, duração do ciclo e sintomas. Registros de intimidade,
-// testes, medicação e anotações livres ficam de fora de propósito.
-export function buildCycleReport({ cycleLog, stats, asOfDate, getLabel }) {
+// Por padrão, o resumo usa só período, duração do ciclo e sintomas.
+// Registros de intimidade e estimativas de fertilidade nunca entram;
+// medicação e anotações só entram se a usuária marcar explicitamente.
+export function buildCycleReport({
+  cycleLog,
+  stats,
+  asOfDate,
+  getLabel,
+  includeMedication = false,
+  includeNotes = false,
+}) {
   const history = cycleHistory(stats.starts, stats.set, 12);
   const completed = history.filter((row) => row.length).slice(0, RECENT_CYCLES);
   const from = addDays(asOfDate, -90);
+  const windowEntries = Object.entries(cycleLog || {})
+    .filter(([day, entry]) => day >= from && day <= asOfDate && entry && typeof entry === 'object')
+    .sort((a, b) => b[0].localeCompare(a[0]));
+  const medication = includeMedication
+    ? windowEntries.reduce(
+        (acc, [, entry]) => {
+          if (entry.medicationTaken === true) acc.taken += 1;
+          else if (entry.medicationTaken === false) acc.missed += 1;
+          return acc;
+        },
+        { taken: 0, missed: 0 },
+      )
+    : null;
+  const notes = includeNotes
+    ? windowEntries
+        .filter(([, entry]) => typeof entry.note === 'string' && entry.note.trim())
+        .slice(0, 30)
+        .map(([day, entry]) => ({ day, text: entry.note.trim() }))
+    : null;
   return {
     asOfDate,
     lastStart: stats.starts[stats.starts.length - 1] || null,
@@ -31,7 +58,9 @@ export function buildCycleReport({ cycleLog, stats, asOfDate, getLabel }) {
     cycles: completed,
     symptoms: topSymptoms(cycleLog, asOfDate, getLabel),
     patterns: symptomPhasePatterns(cycleLog, stats, asOfDate, getLabel),
-    loggedDays: Object.keys(cycleLog || {}).filter((day) => day >= from && day <= asOfDate).length,
+    loggedDays: windowEntries.length,
+    medication,
+    notes,
   };
 }
 
@@ -51,6 +80,23 @@ export function cycleReportHtml(report, { esc, longDate, shortDate, plural }) {
         `<li>${esc(item.label)} · ${item.inBucket} de ${item.count} ${plural(item.count, 'registro', 'registros')} ${BUCKET_LABELS[item.bucket]}</li>`,
     )
     .join('');
+  const medicationSection = report.medication
+    ? (() => {
+        const total = report.medication.taken + report.medication.missed;
+        return `<h3>Medicação (últimos 90 dias)</h3>${
+          total
+            ? `<p>${report.medication.taken} ${plural(report.medication.taken, 'dia tomado', 'dias tomados')}${report.medication.missed ? ` · ${report.medication.missed} ${plural(report.medication.missed, 'dia não tomado', 'dias não tomados')}` : ''} (${total} ${plural(total, 'registro', 'registros')}).</p>`
+            : '<p>Nenhum registro de medicação nos últimos 90 dias.</p>'
+        }`;
+      })()
+    : '';
+  const notesSection = report.notes
+    ? `<h3>Anotações registradas (últimos 90 dias)</h3>${
+        report.notes.length
+          ? `<ul>${report.notes.map((item) => `<li><b>${esc(shortDate(item.day))}:</b> ${esc(item.text)}</li>`).join('')}</ul>`
+          : '<p>Nenhuma anotação registrada nos últimos 90 dias.</p>'
+      }`
+    : '';
   const range =
     report.minCycle === report.maxCycle ? `${report.minCycle} dias` : `${report.minCycle} a ${report.maxCycle} dias`;
   return `<article class="cycle-report">
@@ -67,6 +113,8 @@ ${rows ? `<table><thead><tr><th>Início</th><th>Ciclo</th><th>Período</th></tr>
 <h3>Sintomas mais registrados (últimos 90 dias)</h3>
 ${symptoms ? `<ul>${symptoms}</ul>` : '<p>Nenhum sintoma registrado no período.</p>'}
 ${patterns ? `<h3>Padrões nos seus registros</h3><ul>${patterns}</ul>` : ''}
+${medicationSection}
+${notesSection}
 <p class="cycle-report-note">As contagens refletem o que foi registrado; não registrar um sinal não significa que ele não ocorreu. Estimativas de ovulação e janela fértil não fazem parte deste resumo.</p>
 </article>`;
 }

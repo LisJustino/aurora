@@ -19,7 +19,7 @@
   height: 44px;
   flex: none;
   place-items: center;
-  border-radius: var(--r-control);
+  border-radius: 50%;
   background: color-mix(in srgb, var(--profile-avatar-color) 14%, var(--surface));
   color: var(--profile-avatar-color);
 }
@@ -132,56 +132,10 @@
 }
 
 @media (width <= 700px) {
-  .settings-overview { margin-top: -12px; padding: 0 4px; }
+  .settings-overview { margin-top: -12px; padding: 0 var(--space-1); }
   .main[data-route="config"] .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-  .main[data-route="config"] .settings-menu {
-    display: flex;
-    flex-direction: row;
-    grid-template-columns: none;
-    overflow-x: auto;
-    gap: var(--space-2);
-    padding: 6px var(--gut-r) 8px var(--gut-l);
-    overscroll-behavior-inline: contain;
-    scrollbar-color: var(--accent) transparent;
-    scrollbar-width: auto;
-  }
-  .main[data-route="config"] .settings-menu::after {
-    position: sticky;
-    right: 0;
-    display: grid;
-    flex: 0 0 28px;
-    align-self: stretch;
-    place-items: center;
-    margin-left: -28px;
-    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 82%, var(--bg)) 70%);
-    color: var(--accent);
-    content: '›';
-    font-size: var(--text-3xl);
-    font-weight: var(--weight-bold);
-    pointer-events: none;
-  }
-  .main[data-route="config"] .settings-link {
-    width: auto;
-    min-width: 100px;
-    flex: 0 0 100px;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    padding: 7px 4px;
-    text-align: center;
-  }
-  .main[data-route="config"] .settings-link-copy { width: 100%; align-items: center; }
-  .main[data-route="config"] .settings-link-copy b {
-    width: 100%;
-    font-size: var(--text-xs);
-    line-height: 1.2;
-  }
-  .main[data-route="config"] .settings-link-copy b .tab-label-group {
-    display: inline;
-    white-space: normal;
-  }
-  .main[data-route="config"] .settings-link-icon { width: var(--icon-box-sm); height: var(--icon-box-sm); }
   .main[data-route="config"] .profile-settings-actions {
-    padding-block: 12px;
+    padding-block: var(--space-3);
   }
   .main[data-route="config"] .profile-settings-actions > .btn {
     flex: 1 1 auto;

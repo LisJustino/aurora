@@ -1,4 +1,6 @@
 import { $ } from '../utils/dom.js';
+import { today } from '../utils/dates.js';
+import { taskCompletedOn } from '../features/planning/task-selection.js';
 import { AREA_GUIDES } from '../features/area-guides.js';
 import { prefersReducedMotion } from '../utils/motion.js';
 import { showPwaInstallPrompt } from '../services/pwa-install.js';
@@ -11,16 +13,31 @@ import {
   dlgDiscardChanges,
   dlgKeepEditing,
   dlgOpen,
+  requestActionConfirmation,
   settleDialogConfirmation,
 } from './dialogs.js';
 import { newTxDlg } from './finance-dialogs.js';
 import { shiftMonth, txListHtml } from './finance-view.js';
-import { commit, restoreTrashEntry, saveSlicesWithRollback, snapshotSlices } from './persistence.js';
+import {
+  commit,
+  deleteTrashEntryPermanently,
+  emptyTrashEntries,
+  restoreTrashEntries,
+  restoreTrashEntry,
+  saveSlicesWithRollback,
+  snapshotSlices,
+} from './persistence.js';
 import { showMoreResults } from './planning.js';
 import { applyPwaUpdate, nav, openFinanceQuickAction, render, renderPwaUpdateNotice, renderToast } from './render.js';
 import { findTask, openTaskDialog, toast } from './samples-backup.js';
-import { setAreaEnabled } from './shell.js';
+import { setAreaEnabled, vibrateFeedback } from './shell.js';
 import { S, settingsDraftDirty, settingsView, ui } from './state.js';
+import {
+  filterTrashEntries,
+  isTrashExpired,
+  sortTrashEntriesByExpiry,
+  trashEntryDisplay,
+} from '../features/trash/model.js';
 
 export const GENERAL_ACTIONS = {
   'footer-scroll-top': () => {
@@ -86,10 +103,22 @@ export const GENERAL_ACTIONS = {
     const route = el.dataset.areaGuide;
     if (!AREA_GUIDES[route]) {
       console.error('Aurora: tutorial solicitado para uma área desconhecida.', route);
-      toast('Não foi possível abrir o tutorial desta área.', 'info');
+      toast('Não foi possível abrir o guia desta área.', 'info');
       return;
     }
     dlgOpen('area-tutorial', { route });
+  },
+  'area-guide-switch': (el) => {
+    const route = el.dataset.areaGuide;
+    if (!AREA_GUIDES[route] || ui.dlg?.type !== 'area-tutorial') return;
+    ui.dlg.d.route = route;
+    render();
+    requestAnimationFrame(() => {
+      document.querySelector(`.area-guide-tab[data-area-guide="${route}"]`)?.focus({ preventScroll: true });
+    });
+  },
+  'release-notes-open': () => {
+    dlgOpen('release-notes');
   },
   'first-steps-dismiss': async () => {
     if (!(await confirmInDialog('Dispensar o cartão “Comece em 3 passos”? Ele não aparecerá novamente.'))) return;
@@ -154,9 +183,33 @@ export const GENERAL_ACTIONS = {
       const task = findTask(el.dataset.id);
       if (!task) return toast('Esta tarefa não está mais disponível.', 'info');
       ui.planView = 'lista';
-      ui.filters.f = 'todas';
+      ui.filters.f = task.done && !taskCompletedOn(task, today()) ? 'historico' : 'todas';
       ui.filters.q = task.title || query;
       nav('planejar');
+      return;
+    }
+    if (el.dataset.kind === 'annual-goal') {
+      const [year] = String(el.dataset.id || '').split(':');
+      if (!year || !S.settings.prefs.annualPlans?.[year])
+        return toast('Esta conquista não está mais disponível.', 'info');
+      ui.planView = 'anual';
+      ui.annualYear = year;
+      nav('planejar');
+      return;
+    }
+    if (el.dataset.kind === 'account') {
+      if (!S.finance.accounts.some((account) => account.id === el.dataset.id))
+        return toast('Esta conta não está mais disponível.', 'info');
+      ui.finTab = 'contas';
+      nav('financas');
+      return;
+    }
+    if (el.dataset.kind === 'finance-goal') {
+      if (!S.finance.goals.some((goal) => goal.id === el.dataset.id))
+        return toast('Este objetivo não está mais disponível.', 'info');
+      ui.finTab = 'planejamento';
+      ui.finPlanTab = 'objetivos';
+      nav('financas');
       return;
     }
     if (el.dataset.kind === 'habit') {
@@ -181,7 +234,78 @@ export const GENERAL_ACTIONS = {
     ui.finFiltersOpen = true;
     nav('financas');
   },
-  'trash-restore': (el) => restoreTrashEntry(el.dataset.id),
+  'trash-restore': (el) => {
+    if (restoreTrashEntry(el.dataset.id)) vibrateFeedback('success');
+  },
+  'trash-delete-permanent': (el) => {
+    const id = el.dataset.id;
+    const entry = S.settings.prefs.trash.find((item) => item.id === id);
+    if (!entry) return;
+    const info = trashEntryDisplay(entry);
+    if (ui.confirmedAction !== 'trash-delete-permanent') {
+      return requestActionConfirmation(
+        'trash-delete-permanent',
+        { id },
+        'Excluir permanentemente?',
+        `“${info.title}” será removido da lixeira e não poderá ser recuperado.`,
+        'Excluir permanentemente',
+      );
+    }
+    if (deleteTrashEntryPermanently(id)) vibrateFeedback('light');
+  },
+  'trash-restore-all': () => {
+    const active = sortTrashEntriesByExpiry(S.settings.prefs.trash.filter((entry) => !isTrashExpired(entry)));
+    const filtered = filterTrashEntries(active, { category: ui.trashFilter, query: ui.trashQuery });
+    if (!filtered.length) return;
+    const isFiltered = filtered.length < active.length;
+    if (filtered.length > 1 && ui.confirmedAction !== 'trash-restore-all') {
+      return requestActionConfirmation(
+        'trash-restore-all',
+        {},
+        isFiltered ? 'Restaurar itens filtrados?' : 'Restaurar toda a lixeira?',
+        `${filtered.length} itens serão restaurados para suas áreas de origem.`,
+        'Restaurar itens',
+      );
+    }
+    const result = restoreTrashEntries(filtered.map((entry) => entry.id));
+    if (result.restored) vibrateFeedback('success');
+  },
+  'trash-empty': () => {
+    const active = sortTrashEntriesByExpiry(S.settings.prefs.trash.filter((entry) => !isTrashExpired(entry)));
+    const filtered = filterTrashEntries(active, { category: ui.trashFilter, query: ui.trashQuery });
+    if (!filtered.length) return;
+    const isFiltered = filtered.length < active.length;
+    if (ui.confirmedAction !== 'trash-empty') {
+      return requestActionConfirmation(
+        'trash-empty',
+        {},
+        isFiltered ? 'Excluir itens filtrados?' : 'Esvaziar lixeira?',
+        isFiltered
+          ? `${filtered.length} ${filtered.length === 1 ? 'item exibido será apagado' : 'itens exibidos serão apagados'} permanentemente e não poderão ser recuperados.`
+          : `Todos os ${active.length} ${active.length === 1 ? 'item da lixeira serão apagados' : 'itens da lixeira serão apagados'} permanentemente e não poderão ser recuperados.`,
+        isFiltered ? 'Excluir filtrados' : 'Esvaziar lixeira',
+      );
+    }
+    const removed = emptyTrashEntries(isFiltered ? filtered.map((entry) => entry.id) : null);
+    if (removed) vibrateFeedback('light');
+  },
+  'trash-filter': (el) => {
+    const category = el.dataset.trashCategory || 'all';
+    if (ui.trashFilter === category) return;
+    ui.trashFilter = category;
+    render();
+    requestAnimationFrame(() => {
+      document.querySelector(`.trash-filter-pill[data-trash-category="${category}"]`)?.focus({ preventScroll: true });
+    });
+  },
+  'trash-search-clear': () => {
+    ui.trashQuery = '';
+    ui.trashFilter = 'all';
+    render();
+    requestAnimationFrame(() => {
+      $('#trash-search')?.focus({ preventScroll: true });
+    });
+  },
   'enable-area': (el) => {
     if (setAreaEnabled(S.settings, el.dataset.area, true)) commit('settings');
   },

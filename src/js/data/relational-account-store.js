@@ -144,12 +144,19 @@ async function legacyLoad(client, includeCycle) {
   return Object.fromEntries(result);
 }
 
-async function loadTables(client, includeCycle) {
+async function loadTables(client, includeCycle, prefetchedAccountLoad = null) {
   if (typeof client.rpc !== 'function') return legacyLoad(client, includeCycle);
 
-  const { data, error } = await client.rpc('load_relational_account', {
-    p_include_cycle: includeCycle,
-  });
+  let rpcResult = null;
+  if (prefetchedAccountLoad && prefetchedAccountLoad.includeCycle === includeCycle && prefetchedAccountLoad.promise) {
+    rpcResult = await prefetchedAccountLoad.promise;
+  }
+  const { data, error } =
+    rpcResult && typeof rpcResult === 'object'
+      ? rpcResult
+      : await client.rpc('load_relational_account', {
+          p_include_cycle: includeCycle,
+        });
   if (error) {
     if (error.code !== 'PGRST202') {
       console.error('Aurora: a leitura relacional agrupada falhou.', error);
@@ -1112,10 +1119,11 @@ function buildState(tables, idMap) {
 }
 
 export class RelationalAccountStore {
-  constructor(client, userId) {
+  constructor(client, userId, { prefetchedAccountLoad = null } = {}) {
     if (!client || !userId) throw new Error('Uma sessão autenticada é necessária para acessar os dados.');
     this.client = client;
     this.userId = userId;
+    this.prefetchedAccountLoad = prefetchedAccountLoad;
     this.idMap = getIdMap();
     this.rowVersions = new Map(TABLES.map((table) => [table, new Map()]));
   }
@@ -1124,7 +1132,9 @@ export class RelationalAccountStore {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error('Sem conexão com a internet. Os dados da conta não foram carregados.');
     }
-    const tables = await loadTables(this.client, includeCycle);
+    const prefetched = this.prefetchedAccountLoad;
+    this.prefetchedAccountLoad = null;
+    const tables = await loadTables(this.client, includeCycle, prefetched);
     this.rawTables = tables;
     for (const table of TABLES) {
       this.rowVersions.get(table).clear();

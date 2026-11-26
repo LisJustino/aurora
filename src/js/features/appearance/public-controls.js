@@ -49,7 +49,8 @@ export function renderPublicHeader({ demo = false, authMode = '' } = {}) {
       class="btn ${variant} public-account-action ${isCurrentMode ? 'is-current' : ''}" ${action}
       aria-label="${accessibleLabel}" ${current}>${label}</button>`;
   };
-  const accountSignupLabel = 'Criar conta<span class="landing-header-free"> grátis</span>';
+  const accountSignupLabel =
+    '<span class="public-signup-label">Criar conta<span class="landing-header-free"> grátis</span></span>';
   return `
     <header class="topbar public-topbar ${authMode ? 'account-public-header' : ''}">
       <a class="brand public-brand-link" href="${isLanding ? `${APP_URL}/` : './'}" data-public-action="landing"

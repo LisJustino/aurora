@@ -60,8 +60,12 @@ export function renderWeeklyReviewView(model, { taskRow }) {
         : ''
     }
     <section class="card weekly-review-tasks" aria-labelledby="weekly-overdue-title">
-      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3><span
-        class="small muted">${review.tasks.overdue}</span></div>
+      <div class="head"><h3 id="weekly-overdue-title">Tarefas atrasadas</h3>${
+        review.tasks.overdue > 0
+          ? h`<button type="button" class="btn sm" data-action="tasks-reschedule-overdue"
+              data-when="today">Mover para hoje</button>`
+          : h`<span class="small muted">0</span>`
+      }</div>
       ${
         review.tasks.overdueTasks.length
           ? h`<ul class="list">${review.tasks.overdueTasks.map((task) => taskRow(task))}</ul>`
@@ -89,7 +93,7 @@ export function renderWeeklyReviewView(model, { taskRow }) {
         : h`<section class="card weekly-reflection" aria-labelledby="weekly-reflection-title">
       <div class="head"><div><p class="section-kicker">Um convite, sem pressa</p><h2
         id="weekly-reflection-title">O que você quer levar para a próxima semana?</h2></div></div>
-      <p class="small muted">Se quiser, escolha uma opção. Sua resposta ficará salva na revisão semanal.</p>
+      <p class="small muted">Se quiser, escolha um atalho ou escreva uma nota curta para a próxima semana.</p>
       <div class="weekly-review-choices" role="group" aria-label="Respostas rápidas">
         ${['Menos tarefas', 'Mais pausas', 'Manter assim'].map(
           (choice) => h`<button type="button" class="btn"
@@ -97,6 +101,14 @@ export function renderWeeklyReviewView(model, { taskRow }) {
           aria-pressed="${String(currentReflection === choice)}">${choice}</button>`,
         )}
       </div>
+      <form class="weekly-reflection-form" data-form="weekly-reflection-custom">
+        <label class="sr" for="weekly-reflection-text">Escreva sua própria reflexão</label>
+        <textarea id="weekly-reflection-text" name="text" rows="2" maxlength="500"
+          placeholder="Ou escreva o que quer priorizar na próxima semana…">${
+            ['Menos tarefas', 'Mais pausas', 'Manter assim'].includes(currentReflection) ? '' : currentReflection
+          }</textarea>
+        <button type="submit" class="btn sm primary">Salvar nota</button>
+      </form>
     </section>`
     }
   </div>`;

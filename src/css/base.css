@@ -31,6 +31,13 @@ html {
   font-size: 100%;
 }
 
+@media (width >= 900px) and (hover: hover) and (pointer: fine) {
+  html:has(.app) {
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
 :root[data-fs="s"] { font-size: var(--text-sm); }
 :root[data-fs="l"] { font-size: var(--text-lg); }
 
@@ -54,6 +61,14 @@ img, svg { max-width: 100%; }
   color: var(--ink);
 }
 
+mark {
+  padding-inline: var(--space-1);
+  border-radius: var(--r-sm);
+  background: var(--soft2);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
 html body [hidden]:not([hidden="until-found" i]) { display: none; }
 
 h1, h2, h3 {
@@ -66,7 +81,14 @@ h1, h2, h3 {
   text-wrap: balance;
 }
 
-h1 { font-size: var(--text-page-title); }
+h1, h2 {
+  font-family: var(--font-editorial);
+  font-weight: var(--font-editorial-weight);
+  letter-spacing: var(--tracking-editorial);
+  font-variation-settings: "opsz" 32;
+}
+
+h1 { font-size: var(--text-page-title); line-height: var(--leading-editorial); font-variation-settings: "opsz" 40; }
 h2 { font-size: var(--text-title); }
 h3 { font-size: var(--text-lg); }
 .wordmark i { color: var(--accent); font-style: normal; }
@@ -87,7 +109,7 @@ a.inline-link:hover,
 a.inline-link:focus-visible { color: var(--accent); text-decoration-thickness: 2px; }
 
 :focus-visible {
-  outline: 3px solid var(--focus);
+  outline: var(--focus-ring-width) solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -106,8 +128,5 @@ a.inline-link:focus-visible { color: var(--accent); text-decoration-thickness: 2
 .tiny { font-size: var(--text-xs); }
 
 body {
-  background:
-    radial-gradient(ellipse at 10% -12%, var(--canvas-glow), transparent 36rem),
-    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--area-cycle) 2%, transparent), transparent 42rem),
-    var(--bg);
+  background: var(--bg);
 }

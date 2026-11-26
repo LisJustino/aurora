@@ -1,5 +1,6 @@
 import { today } from '../utils/dates.js';
 import { installmentSummary as summarizeInstallments } from '../features/finance/calculations.js';
+import { extractFinanceTags, parseTagsInput, stripFinanceTags } from '../features/finance/quick-entry.js';
 import { ACTIONS } from './actions.js';
 import { dlgOpen, dlgClose } from './dialogs.js';
 import {
@@ -20,7 +21,20 @@ export function registerFinanceTransactionActions() {
   Object.assign(ACTIONS, {
     'tx-new': () => newTxDlg('out'),
     'tx-new-installment': () => newTxDlg('out', false, 'parcel'),
+    'tx-new-fixed': () => newTxDlg('out', false, 'fixed'),
+    'tx-new-card': (el) => newTxDlg('out', true, 'none', { accountId: el.dataset.id }),
+    'tx-new-on-date': (el) => newTxDlg('out', false, 'none', { date: el.dataset.date }),
     'tx-new-in': () => newTxDlg('in'),
+    'tx-tag-toggle': (el) => {
+      if (ui.dlg?.type !== 'tx') return;
+      const tag = el.dataset.tag;
+      if (!tag) return;
+      const current = parseTagsInput(ui.dlg.d.tags || '');
+      const next = current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag];
+      ui.dlg.d.tags = next.map((item) => `#${item}`).join(' ');
+      ui.dlg.dirty = true;
+      render();
+    },
     'tx-bulk': () => {
       const accounts = S.finance.accounts;
       if (!accounts.length) return toast('Cadastre uma conta antes de lançar despesas.', 'info');
@@ -74,7 +88,10 @@ export function registerFinanceTransactionActions() {
           kind: t.type,
           amount: moneyIn(t.cents),
           interest: t.interestCents == null ? '' : moneyIn(t.interestCents) || '0,00',
-          desc: t.desc || '',
+          desc: stripFinanceTags(t.desc || ''),
+          tags: extractFinanceTags(t.desc || '')
+            .map((tag) => `#${tag}`)
+            .join(' '),
           category: t.category || catNames('out')[0],
           accountId: t.accountId,
           toAccountId: t.toAccountId || '',

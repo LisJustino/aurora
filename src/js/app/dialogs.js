@@ -1,4 +1,5 @@
 import { $, esc, h, raw } from '../utils/dom.js';
+import { morphHtml } from '../utils/dom-morph.js';
 import { icon } from '../utils/icons.js';
 import { DIAS, isDay, pk, shortDate, today } from '../utils/dates.js';
 import { newId } from '../utils/ids.js';
@@ -25,7 +26,7 @@ import { searchRecords } from '../features/search/search.js';
 import { finishOnboard } from './actions.js';
 import { norm, plural } from './core.js';
 import { CYC, cycLabel, hasAnyLog, isBleeding } from './cycle.js';
-import { HABIT_COLOR_NAMES, habitMonthlyHistory } from './habits.js';
+import { HABIT_COLOR_NAMES } from './habits.js';
 import { homeFirstTaskSlices } from './home.js';
 import { DLG } from './onboarding.js';
 import { commit, saveSlices, saveSlicesWithRollback, snapshotSlices } from './persistence.js';
@@ -65,6 +66,29 @@ export function openProfileSetup() {
   ui.dlg = createDialog('onboard', profileSetupDraft());
   render();
 }
+export const NON_EDITABLE_DIALOGS = new Set([
+  'action-confirm',
+  'account-delete',
+  'acctdelete',
+  'area-tutorial',
+  'confirmation',
+  'cycle-report',
+  'discard',
+  'export',
+  'habit-other-day',
+  'import',
+  'installment-summary',
+  'onboard',
+  'recurlist',
+  'release-notes',
+  'search',
+  'txdel',
+  'wipe',
+  'wipe-complete',
+]);
+export function dialogTracksDirty(dialog) {
+  return Boolean(dialog && !NON_EDITABLE_DIALOGS.has(dialog.type));
+}
 export function createDialog(type, d) {
   return { type, d, dirty: false, initial: JSON.stringify(d) };
 }
@@ -83,7 +107,7 @@ export function askDiscardDialog(next = null, onDiscard = null) {
 }
 export const dlgOpen = (type, d = {}) => {
   const next = createDialog(type, d);
-  if (ui.dlg?.dirty) {
+  if (dialogTracksDirty(ui.dlg) && ui.dlg.dirty) {
     askDiscardDialog(next);
     return;
   }
@@ -99,7 +123,7 @@ export function confirmInDialog(message) {
     console.error('Aurora: já existe uma confirmação pendente.');
     return Promise.resolve(false);
   }
-  if (ui.dlg?.dirty) {
+  if (dialogTracksDirty(ui.dlg) && ui.dlg.dirty) {
     console.error('Aurora: não é possível abrir uma confirmação durante uma edição pendente.');
     toast('Salve ou feche a edição antes de confirmar esta ação.', 'info');
     return Promise.resolve(false);
@@ -132,6 +156,9 @@ export const CONFIRMABLE_ACTIONS = new Set([
   'goal-del',
   'habit-delete',
   'menu-reset',
+  'trash-delete-permanent',
+  'trash-empty',
+  'trash-restore-all',
 ]);
 export function requestActionConfirmation(action, data, title, message, confirmLabel = 'Confirmar') {
   if (!CONFIRMABLE_ACTIONS.has(action)) {
@@ -173,7 +200,7 @@ export const dlgClose = () => {
     returnToTransaction();
     return;
   }
-  if (ui.dlg?.dirty) {
+  if (dialogTracksDirty(ui.dlg) && ui.dlg.dirty) {
     askDiscardDialog();
     return;
   }
@@ -246,11 +273,29 @@ export function dlgConfirmation() {
 }
 export function dlgReleaseNotes() {
   const notes = getReleaseNotes();
+  if (!notes) {
+    return dlgWrap(
+      h`<div class="head head-nowrap"><h2 id="dt">Novidades</h2>${closeBtn}</div><p
+        class="muted">Você já está usando a versão mais recente do Aurora.</p>`,
+      h`<button type="button" class="btn primary" data-action="dlg-close">Fechar</button>`,
+    );
+  }
   return dlgWrap(
-    h`<div class="release-notes-heading"><p class="release-notes-version">Atualização do Aurora</p><h2
-      id="dt">${notes.title}</h2></div>
-    <p class="release-notes-intro">Veja o que há de novo nesta versão do Aurora.</p>
-    <ul class="release-notes-list">${notes.items.map((item) => h`<li><strong>${item.title}</strong>${item.description ? h`<p>${item.description}</p>` : ''}</li>`)}</ul>`,
+    h`<div class="head release-notes-head"><span class="release-notes-mark"
+      aria-hidden="true">${icon('sparkles', 20)}</span><div class="release-notes-heading"><p
+      class="release-notes-version">Novidades${notes.dateLabel ? ` · ${notes.dateLabel}` : ''}</p><h2
+      id="dt">${notes.title}</h2></div>${closeBtn}</div>
+    <p class="release-notes-intro">${notes.intro}</p>
+    <ul class="release-notes-list">${notes.items.map(
+      (item) => h`<li class="release-notes-item"><span class="release-notes-item-icon"
+        aria-hidden="true">${icon(item.icon || 'sparkles', 18)}</span><div class="release-notes-item-copy"><div
+        class="release-notes-item-head"><strong>${item.title}</strong>${
+          item.badge
+            ? h`<span
+        class="release-notes-badge is-${item.tone || 'new'}">${item.badge}</span>`
+            : ''
+        }</div>${item.description ? h`<p>${item.description}</p>` : ''}</div></li>`,
+    )}</ul>`,
     h`<button type="button" class="btn primary" data-action="dlg-close">Entendi</button>`,
     'release-notes-dialog',
   );
@@ -424,18 +469,29 @@ export function applyBulkHabits() {
   const d = ui.dlg?.type === 'habitbulk' ? ui.dlg.d : null;
   const chosen = (d?.rows || []).filter((row) => !row.error && row.on);
   if (!chosen.length) return toast('Marque ao menos um hábito.', 'info');
+  let hasWaterHabit = S.habits.some(isWaterHabit);
   const base = Date.now(),
     start = S.habits.length;
-  const created = chosen.map((row, index) => ({
-    id: newId(),
-    name: row.name.slice(0, 60),
-    days: [...row.days],
-    completions: [],
-    createdAt: base + index,
-    status: 'active',
-    color: HABIT_COLORS[(start + index) % HABIT_COLORS.length],
-    ...(row.weeklyGoal ? { weeklyGoal: row.weeklyGoal } : {}),
-  }));
+  const created = [];
+  chosen.forEach((row, index) => {
+    const water = isWaterHabit({ name: row.name });
+    if (water && hasWaterHabit) return;
+    if (water) hasWaterHabit = true;
+    created.push({
+      id: newId(),
+      name: row.name.slice(0, 60),
+      days: [...row.days],
+      completions: [],
+      createdAt: base + index,
+      status: 'active',
+      color: HABIT_COLORS[(start + created.length) % HABIT_COLORS.length],
+      ...(water ? { tracking: 'water', icon: 'droplet', waterGoalMl: S.settings.prefs.waterGoalMl } : {}),
+      ...(row.weeklyGoal ? { weeklyGoal: row.weeklyGoal } : {}),
+    });
+  });
+  if (!created.length) {
+    return toast('Você já tem um hábito de água cadastrado.', 'info');
+  }
   S.habits.push(...created);
   ui.dlg = null;
   const saved = saveSlices('habits');
@@ -559,8 +615,16 @@ export function dlgCyclePeriod() {
   return cycleDialogViews.period();
 }
 export function dlgCycleReport() {
+  const d = ui.dlg.d;
   return dlgWrap(
-    h`<div class="head head-nowrap"><h2 id="dt">Resumo para consulta</h2>${closeBtn}</div>${raw(ui.dlg.d.html)}`,
+    h`<div class="head head-nowrap"><h2 id="dt">Resumo para consulta</h2>${closeBtn}</div>
+    <div class="cycle-report-options" role="group" aria-label="Campos opcionais do resumo">
+      <button type="button" class="chip" data-action="cyc-report-option" data-k="includeMedication"
+        aria-pressed="${String(Boolean(d.includeMedication))}">Incluir medicação</button>
+      <button type="button" class="chip" data-action="cyc-report-option" data-k="includeNotes"
+        aria-pressed="${String(Boolean(d.includeNotes))}">Incluir anotações (90 dias)</button>
+    </div>
+    ${raw(d.html)}`,
     h`<button class="btn back" data-action="dlg-close">Fechar</button><button class="btn primary"
       data-action="cyc-report-print">${icon('list', 16)}Imprimir ou salvar PDF</button>`,
     'cycle-report-body',
@@ -656,6 +720,18 @@ export function dlgHabitEdit() {
       </fieldset>`
           : ''
       }
+      <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div
+        class="habit-weekday-picker">${DIAS.map(
+          (day, index) => h`<label
+        class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days"
+        value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`,
+        )}</div></fieldset>
+      <label class="f full">Meta na semana (opcional)<select name="weeklyGoal"><option
+        value="" ${d.weeklyGoal ? '' : raw('selected')}>Todos os dias marcados</option>${[1, 2, 3, 4, 5, 6, 7].map(
+          (n) => h`<option
+        value="${n}" ${Number(d.weeklyGoal) === n ? raw('selected') : ''}>${n} ${plural(n, 'vez', 'vezes')} por semana</option>`,
+        )}</select><span
+        class="small muted">Com meta, a semana conta como cumprida ao atingir esse número de dias, mesmo sem marcar todos.</span></label>
       <fieldset class="habit-look full"><legend>Ícone</legend><div
         class="habit-icon-picker">${HABIT_ICONS.map(
           ([key, label]) => h`<label title="${label}"><input type="radio"
@@ -671,20 +747,7 @@ export function dlgHabitEdit() {
         style="--c:${color}"><i
         class="sr">${HABIT_COLOR_NAMES[index]}</i>${icon('check', 16)}</span></label>`,
         )}</div></fieldset>
-      <fieldset class="habit-schedule full"><legend>Em quais dias?</legend><div
-        class="habit-weekday-picker">${DIAS.map(
-          (day, index) => h`<label
-        class="${index === pk(today()).getDay() ? 'is-today' : ''}"><input type="checkbox" name="days"
-        value="${index}" ${d.days.includes(index) ? raw('checked') : ''}><span>${day}</span></label>`,
-        )}</div></fieldset>
-      <label class="f full">Meta na semana (opcional)<select name="weeklyGoal"><option
-        value="" ${d.weeklyGoal ? '' : raw('selected')}>Todos os dias marcados</option>${[1, 2, 3, 4, 5, 6, 7].map(
-          (n) => h`<option
-        value="${n}" ${Number(d.weeklyGoal) === n ? raw('selected') : ''}>${n} ${plural(n, 'vez', 'vezes')} por semana</option>`,
-        )}</select><span
-        class="small muted">Com meta, a semana conta como cumprida ao atingir esse número de dias, mesmo sem marcar todos.</span></label>
-    </form>
-    ${habit ? h`<div class="habit-edit-history">${habitMonthlyHistory(habit)}</div>` : ''}`,
+    </form>`,
     h`${
       edit
         ? h`<button type="button" class="btn danger back"
@@ -720,6 +783,8 @@ export function updateWaterSuggestionWeight(weightInput) {
 }
 function highlightSearchText(value, query) {
   const text = String(value || '');
+  const needle = norm(query);
+  if (!needle) return h`${text}`;
   const chars = Array.from(text);
   const positions = [];
   let folded = '';
@@ -728,13 +793,34 @@ function highlightSearchText(value, query) {
     folded += normalized;
     for (let offset = 0; offset < normalized.length; offset += 1) positions.push(index);
   });
-  const index = folded.indexOf(norm(query));
-  if (index < 0 || !norm(query)) return h`${text}`;
-  const start = positions[index];
-  const end = positions[index + norm(query).length - 1] + 1;
-  return raw(
-    `${esc(chars.slice(0, start).join(''))}<mark>${esc(chars.slice(start, end).join(''))}</mark>${esc(chars.slice(end).join(''))}`,
-  );
+  const tokens = folded.includes(needle)
+    ? [needle]
+    : [...new Set(needle.split(/\s+/).filter(Boolean))].sort((a, b) => b.length - a.length);
+  const ranges = [];
+  for (const token of tokens) {
+    const idx = folded.indexOf(token);
+    if (idx < 0) continue;
+    const start = positions[idx];
+    const end = positions[idx + token.length - 1] + 1;
+    ranges.push([start, end]);
+  }
+  if (!ranges.length) return h`${text}`;
+  ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  const merged = [];
+  for (const [start, end] of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  let out = '';
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    if (start > cursor) out += esc(chars.slice(cursor, start).join(''));
+    out += `<mark>${esc(chars.slice(start, end).join(''))}</mark>`;
+    cursor = end;
+  }
+  if (cursor < chars.length) out += esc(chars.slice(cursor).join(''));
+  return raw(out);
 }
 function globalSearchAreas() {
   return ['Planejar', ...(areaOn('habits') ? ['Hábitos'] : []), 'Finanças', ...(areaOn('cycle') ? ['Ciclo'] : [])].join(
@@ -762,8 +848,10 @@ export function globalSearchResults(query) {
   const results = searchRecords(
     {
       tasks: S.tasks,
+      annualPlans: S.settings.prefs.annualPlans || {},
       transactions: S.finance.tx,
       accounts: S.finance.accounts,
+      financeGoals: S.finance.goals || [],
       habits: areaOn('habits') ? S.habits : [],
       water: [],
       cycleLogs: searchableCycleLogs,
@@ -818,12 +906,16 @@ export function globalSearchResults(query) {
     );
   const resultIcons = {
     task: 'check',
+    'annual-goal': 'target',
     transaction: 'wallet',
+    account: 'bank',
+    'finance-goal': 'target',
     habit: 'sparkles',
     cycle: 'heart',
     action: 'plus',
     water: 'droplet',
   };
+  const queryTerms = norm(query).split(/\s+/).filter(Boolean);
   const groups = [
     ...results.reduce((map, item) => {
       if (!map.has(item.area)) map.set(item.area, []);
@@ -836,8 +928,10 @@ export function globalSearchResults(query) {
       h`<section class="global-search-group"
         aria-label="Resultados em ${area}"><h3>${area}<span>${items.length}</span></h3><ul class="list">${items.map(
           (item) => {
-            const titleMatches = norm(item.title).includes(norm(query));
-            const detailMatches = norm(item.detail).includes(norm(query));
+            const titleText = norm(item.title);
+            const detailText = norm(item.detail);
+            const titleMatches = queryTerms.some((token) => titleText.includes(token));
+            const detailMatches = queryTerms.some((token) => detailText.includes(token));
             const snippet =
               !titleMatches && !detailMatches && item.matchText
                 ? highlightSearchText(item.matchText, query)
@@ -859,7 +953,7 @@ export function dlgSearch() {
       class="small muted">${searchAreas}</p></div>${closeBtn}</div>
     <label class="search global-search-input"><span
       class="sr">Buscar em todas as áreas</span>${icon('search', 18)}<input id="f0" type="search" data-dlg="query"
-      value="${query}" placeholder="Tarefa, hábito, conta ou descrição" autocomplete="off"></label>
+      value="${query}" placeholder="Tarefa, meta, hábito, conta ou descrição" autocomplete="off"></label>
     <div id="global-search-results" aria-live="polite">${globalSearchResults(query)}</div>`,
     h`    <span class="small muted">Atalho: Ctrl+K ou ⌘K · Esc para fechar</span><button class="btn back"
       data-action="dlg-close">Fechar</button>`,
@@ -1164,9 +1258,10 @@ export function renderDialog() {
   fitDlg();
   el.setAttribute('aria-labelledby', 'dt');
   const isCardAccount = ui.dlg.type === 'account' && ui.dlg.d?.type === 'credit';
-  el.innerHTML = `<div
+  const dialogHtml = `<div
     class="dlg${isIntro ? ' intro-dialog' : ''}${isCycleLog ? ' cycle-log-dialog' : ''}${isCyclePeriod ? ' cycle-period-dialog' : ''}${isCardAccount ? ' card-account-dialog' : ''}"
     tabindex="-1"><span class="dlg-handle" aria-hidden="true"></span>${DLG[ui.dlg.type]().s}</div>`;
+  morphHtml(el, dialogHtml, { forceReplace: opening || typeChanged });
   if (!el.open) el.showModal();
   el.dataset.dialogType = ui.dlg.type;
   $('#app').inert = true;

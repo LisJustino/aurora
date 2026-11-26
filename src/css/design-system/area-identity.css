@@ -1,14 +1,14 @@
 /* Identidade por área: cada página ganha a cor da sua área (--area) em poucos pontos, sem trocar a base neutra. */
 .main[data-route] > .page-title {
-  border-bottom-color: color-mix(in srgb, var(--area, var(--accent)) 38%, var(--line-strong));
+  border-bottom-color: color-mix(in srgb, var(--area, var(--accent)) 22%, var(--line));
 }
 .main[data-route] > .page-title .page-title-eyebrow { color: var(--area, var(--accent)); }
 .main[data-route] > .page-title h1 i { color: var(--area, var(--accent)); }
 
-/* Um destaque por tela: o bloco principal de Finanças ganha um leve tom da área. */
+/* Um destaque por tela: o bloco principal de Finanças preserva superfície limpa e nítida. */
 .main[data-route="financas"] .fin-hero {
-  background: color-mix(in srgb, var(--area) 6%, var(--surface-strong));
-  border-color: color-mix(in srgb, var(--area) 22%, var(--line));
+  background: var(--surface-strong);
+  border-color: var(--line);
 }
 
 /* Valores monetários nunca quebram no meio. */
@@ -35,6 +35,3 @@
 /* Botões do topo: ícones simples, sem círculo rosa. O fundo aparece ao tocar ou quando o menu está aberto. */
 :where(.topbar .header-actions) .iconbtn { background: transparent; }
 :where(.topbar .header-actions) .iconbtn:active { background: var(--soft); }
-
-/* Cards com borda mais discreta sobre o fundo claro; a sombra continua separando do fundo. */
-.card { border-color: color-mix(in srgb, var(--accent) 8%, var(--line)); }

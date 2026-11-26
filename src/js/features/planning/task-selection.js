@@ -8,15 +8,20 @@ export function taskCompletedOn(task, day) {
 
 export function todayTasks(tasks, day) {
   return tasks
-    .filter((task) => task.dueDate && task.dueDate <= day && (!task.done || taskCompletedOn(task, day)))
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.time || '99:99').localeCompare(b.time || '99:99'));
+    .filter((task) => (task.done ? taskCompletedOn(task, day) : Boolean(task.dueDate && task.dueDate <= day)))
+    .sort(
+      (a, b) =>
+        (a.dueDate || day).localeCompare(b.dueDate || day) || (a.time || '99:99').localeCompare(b.time || '99:99'),
+    );
 }
 
 export function filteredTasks(tasks, { f, q, sort }, day, { normalize, orderOf }) {
   const query = normalize(q.trim());
   const nextWeek = addDays(day, 7);
+  const isHistory = f === 'historico';
   const result = tasks.filter((task) => {
-    if (task.done && !taskCompletedOn(task, day)) return false;
+    if (!isHistory && task.done && !taskCompletedOn(task, day)) return false;
+    if (isHistory && !task.done) return false;
     if (f === 'pendentes' && task.done) return false;
     if (f === 'concluidas' && (!task.done || !taskCompletedOn(task, day))) return false;
     if (f === 'atrasadas' && (task.done || !task.dueDate || task.dueDate >= day)) return false;
@@ -33,17 +38,20 @@ export function filteredTasks(tasks, { f, q, sort }, day, { normalize, orderOf }
     );
   });
   const priority = { high: 0, normal: 1, low: 2 };
+  const completionKey = (task) => (task.doneAt ? isoDay(task.doneAt) : task.dueDate || '');
   result.sort(
     (a, b) =>
       a.done - b.done ||
-      (sort === 'manual'
-        ? orderOf(a) - orderOf(b)
-        : sort === 'prioridade'
-          ? priority[a.priority] - priority[b.priority]
-          : sort === 'recentes'
-            ? (b.createdAt || 0) - (a.createdAt || 0)
-            : (a.dueDate || '9999').localeCompare(b.dueDate || '9999') ||
-              (a.time || '99:99').localeCompare(b.time || '99:99')),
+      (isHistory && sort === 'prazo'
+        ? completionKey(b).localeCompare(completionKey(a)) || (b.doneAt || '').localeCompare(a.doneAt || '')
+        : sort === 'manual'
+          ? orderOf(a) - orderOf(b)
+          : sort === 'prioridade'
+            ? priority[a.priority] - priority[b.priority]
+            : sort === 'recentes'
+              ? (b.createdAt || 0) - (a.createdAt || 0)
+              : (a.dueDate || '9999').localeCompare(b.dueDate || '9999') ||
+                (a.time || '99:99').localeCompare(b.time || '99:99')),
   );
   return result;
 }

@@ -18,6 +18,7 @@ import { confirmInDialog, dlgOpen, requestActionConfirmation, saveCycleLogDay } 
 import { commit, createTrashRecord, moveRecordsToTrash, restoreTrashEntry, saveSlices } from './persistence.js';
 import { render } from './render.js';
 import { toast } from './samples-backup.js';
+import { vibrateFeedback } from './shell.js';
 import { accountSession, S, ui } from './state.js';
 
 export const CYCLE_ACTIONS = {
@@ -67,7 +68,17 @@ export const CYCLE_ACTIONS = {
     const current = Array.isArray(log[category]) ? log[category] : [];
     log[category] = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
     if (!log[category].length) delete log[category];
-    saveCycleLogDay(day, log);
+    if (saveCycleLogDay(day, log)) vibrateFeedback('light');
+  },
+  'cyc-flow-quick': (el) => {
+    const value = el.dataset.v;
+    const flowGroup = CYC.find(({ id }) => id === 'flow');
+    if (!flowGroup?.opts.some(([optionValue]) => optionValue === value)) return;
+    const day = ui.cycDay && ui.cycDay <= today() ? ui.cycDay : today();
+    const log = structuredClone(dayLog(day));
+    if (log.flow === value) delete log.flow;
+    else log.flow = value;
+    if (saveCycleLogDay(day, log)) vibrateFeedback('light');
   },
   'cyc-med-quick': (el) => {
     if (!['yes', 'no'].includes(el.dataset.v)) return;
@@ -75,17 +86,53 @@ export const CYCLE_ACTIONS = {
     const log = structuredClone(dayLog(day));
     if (typeof log.medicationTaken === 'boolean') return;
     log.medicationTaken = el.dataset.v === 'yes';
-    if (saveCycleLogDay(day, log)) toast('Medicação de hoje registrada.', 'success');
+    if (saveCycleLogDay(day, log)) {
+      vibrateFeedback('light');
+      toast('Medicação de hoje registrada.', 'success');
+    }
+  },
+  'cyc-symptom-filter': (el) => {
+    const key = String(el.dataset.k || '');
+    ui.cycSymptomFilter = ui.cycSymptomFilter === key ? '' : key;
+    if (ui.cycSymptomFilter) ui.openDetails['cycle-symptoms'] = true;
+    render();
   },
   'cyc-report-open': () => {
+    const todayKey = today();
+    const buildHtml = (includeMedication, includeNotes) =>
+      cycleReportHtml(
+        buildCycleReport({
+          cycleLog: S.cycleLog,
+          stats: cycleStats(S.cycleLog, S.cycle, todayKey),
+          asOfDate: todayKey,
+          getLabel: cycLabel,
+          includeMedication,
+          includeNotes,
+        }),
+        { esc, longDate, shortDate, plural },
+      );
+    dlgOpen('cycle-report', {
+      includeMedication: false,
+      includeNotes: false,
+      html: buildHtml(false, false),
+    });
+  },
+  'cyc-report-option': (el) => {
+    if (ui.dlg?.type !== 'cycle-report') return;
+    const key = el.dataset.k;
+    if (key !== 'includeMedication' && key !== 'includeNotes') return;
+    ui.dlg.d[key] = !ui.dlg.d[key];
     const todayKey = today();
     const report = buildCycleReport({
       cycleLog: S.cycleLog,
       stats: cycleStats(S.cycleLog, S.cycle, todayKey),
       asOfDate: todayKey,
       getLabel: cycLabel,
+      includeMedication: Boolean(ui.dlg.d.includeMedication),
+      includeNotes: Boolean(ui.dlg.d.includeNotes),
     });
-    dlgOpen('cycle-report', { html: cycleReportHtml(report, { esc, longDate, shortDate, plural }) });
+    ui.dlg.d.html = cycleReportHtml(report, { esc, longDate, shortDate, plural });
+    render();
   },
   'cyc-report-print': () => {
     const html = ui.dlg?.type === 'cycle-report' ? ui.dlg.d.html : '';
@@ -137,7 +184,10 @@ export const CYCLE_ACTIONS = {
     ui.calMonth = day.slice(0, 7);
     const saved = saveSlices('cycle');
     render();
-    if (saved) toast('Início registrado para hoje. Você pode ajustar o último dia depois.', 'success');
+    if (saved) {
+      vibrateFeedback('success');
+      toast('Início registrado para hoje. Você pode ajustar o último dia depois.', 'success');
+    }
   },
   'cyc-period-edit': (el) => {
     const index = Number(el.dataset.index);

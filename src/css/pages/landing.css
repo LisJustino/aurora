@@ -573,12 +573,12 @@
   --p: oklch(0.736 0.092 357.2);
   --pd: oklch(0.492 0.103 354);
   --plum: oklch(0.369 0.068 346.2);
-  --bg: oklch(0.957 0.011 76.6);
-  --bg-strong: oklch(0.929 0.014 67.7);
-  --surface: oklch(0.994 0.006 84.6);
+  --bg: oklch(0.946 0.008 76.6);
+  --bg-strong: oklch(0.912 0.011 67.7);
+  --surface: oklch(1 0 0);
   --surface-strong: var(--surface);
   --surface-raised: oklch(1 0 0);
-  --surface-soft: oklch(0.964 0.012 75.4);
+  --surface-soft: oklch(0.962 0.009 75.4);
   --soft: color-mix(in oklch, var(--p) 7%, var(--surface));
   --soft2: color-mix(in oklch, var(--p) 14%, var(--surface));
   --brand-surface: color-mix(in oklch, var(--p) 4%, var(--surface));
@@ -612,8 +612,8 @@
   --landing-phone-screen-radius: 34px;
   --landing-tab-icon-size: 28px;
   --landing-dot-size: 9px;
-  --elev-1: 0 2px 6px oklch(0.33 0.06 355 / 4%), 0 14px 32px -24px oklch(0.33 0.06 355 / 22%);
-  --elev-2: 0 24px 58px -34px oklch(0.28 0.01 60 / 28%), 0 5px 16px -12px oklch(0.33 0.06 355 / 14%);
+  --elev-1: 0 1px 2px oklch(0.25 0.01 60 / 5%), 0 8px 20px -10px oklch(0.25 0.01 60 / 9%);
+  --elev-2: 0 2px 6px oklch(0.25 0.01 60 / 6%), 0 20px 44px -18px oklch(0.25 0.01 60 / 18%);
   width: 100%;
   background: var(--bg);
   color: var(--ink);
@@ -623,11 +623,11 @@
   :root:not([data-theme]) .public-site.landing-marketing {
     color-scheme: dark;
     --brand-ink: color-mix(in oklch, var(--p) 72%, white);
-    --bg: oklch(0.222 0.004 84.6);
-    --bg-strong: oklch(0.256 0.006 91.6);
-    --surface: oklch(0.266 0.006 78.2);
+    --bg: oklch(0.195 0.004 84.6);
+    --bg-strong: oklch(0.225 0.005 91.6);
+    --surface: oklch(0.248 0.005 78.2);
     --surface-strong: var(--surface);
-    --surface-raised: oklch(0.296 0.009 67.5);
+    --surface-raised: oklch(0.285 0.007 67.5);
     --surface-soft: var(--surface-raised);
     --soft: color-mix(in oklch, var(--p) 12%, var(--surface));
     --soft2: color-mix(in oklch, var(--p) 20%, var(--surface));
@@ -654,11 +654,11 @@
 :root[data-theme="dark"] .public-site.landing-marketing {
   color-scheme: dark;
   --brand-ink: color-mix(in oklch, var(--p) 72%, white);
-  --bg: oklch(0.222 0.004 84.6);
-  --bg-strong: oklch(0.256 0.006 91.6);
-  --surface: oklch(0.266 0.006 78.2);
+  --bg: oklch(0.195 0.004 84.6);
+  --bg-strong: oklch(0.225 0.005 91.6);
+  --surface: oklch(0.248 0.005 78.2);
   --surface-strong: var(--surface);
-  --surface-raised: oklch(0.296 0.009 67.5);
+  --surface-raised: oklch(0.285 0.007 67.5);
   --surface-soft: var(--surface-raised);
   --soft: color-mix(in oklch, var(--p) 12%, var(--surface));
   --soft2: color-mix(in oklch, var(--p) 20%, var(--surface));
@@ -701,7 +701,7 @@ html:has(.landing-marketing) {
   align-items: center;
   gap: var(--space-3);
   border-bottom: 1px solid var(--line);
-  background: var(--surface-raised);
+  background: color-mix(in oklch, var(--surface-raised) 88%, transparent);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
@@ -720,7 +720,8 @@ html:has(.landing-marketing) {
 
 .landing-marketing .public-main {
   display: flex;
-  width: min(100%, var(--content-width));
+  width: min(100%, 1180px);
+  max-width: 1180px;
   flex-direction: column;
   justify-content: flex-start;
   gap: clamp(var(--space-8), 9vw, var(--space-12));
@@ -747,8 +748,8 @@ html:has(.landing-marketing) {
   z-index: -1;
   inset: -10% -12%;
   background:
-    radial-gradient(ellipse at 82% 18%, color-mix(in oklch, var(--p) 22%, transparent), transparent 37%),
-    radial-gradient(ellipse at 12% 8%, color-mix(in oklch, var(--p) 10%, transparent), transparent 34%);
+    radial-gradient(ellipse at 82% 18%, color-mix(in oklch, var(--p) 13%, transparent), transparent 36%),
+    radial-gradient(ellipse at 12% 8%, color-mix(in oklch, var(--p) 6%, transparent), transparent 32%);
   content: "";
   pointer-events: none;
 }
@@ -766,11 +767,11 @@ html:has(.landing-marketing) {
   max-width: 11ch;
   margin: var(--space-3) 0 0;
   color: var(--ink);
-  font-family: var(--font-editorial);
+  font-family: var(--font-h);
   font-size: var(--text-landing-hero);
   font-style: normal;
-  font-weight: var(--weight-regular);
-  letter-spacing: -.015em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-editorial);
   line-height: 1.08;
 }
 
@@ -948,11 +949,11 @@ html:has(.landing-marketing) {
   max-width: 22ch;
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-editorial);
+  font-family: var(--font-h);
   font-size: var(--text-landing-section);
   font-style: normal;
-  font-weight: var(--weight-regular);
-  letter-spacing: -.01em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-editorial);
   line-height: 1.08;
 }
 
@@ -1651,7 +1652,7 @@ html:has(.landing-marketing) {
 .demo-finance-summary article { display: grid; min-width: 0; gap: var(--space-2); padding: var(--space-4); border-radius: var(--r-control); background: var(--surface-raised); }
 .demo-finance-summary span { color: var(--ink); font-size: var(--text-sm); }
 .demo-finance-summary strong { overflow-wrap: anywhere; font-size: var(--text-lg); }
-.demo-list-heading { margin-top: var(--space-5); font-family: var(--font-editorial); font-size: var(--text-editorial-title); font-weight: var(--weight-regular); letter-spacing: -.04em; line-height: var(--leading-tight); }
+.demo-list-heading { margin-top: var(--space-5); font-family: var(--font-h); font-size: var(--text-editorial-title); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); }
 .demo-finance-list { display: grid; margin: var(--space-2) 0 0; padding: 0; list-style: none; }
 .demo-finance-list li { display: flex; min-width: 0; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .demo-finance-list li > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: var(--space-1); }
@@ -3375,13 +3376,13 @@ html:has(.landing-marketing) { overflow-x: clip; }
 }
 .landing-footer-nav { align-content: start; }
 
-/* Demonstração: mesma tipografia editorial do app (título em serifa, ponto na cor da marca). */
+/* Demonstração: mesma tipografia DM Sans do app (ponto na cor da marca). */
 .demo-app .home-head h1.type-editorial-display,
 .demo-app .demo-page-heading h1 {
   color: var(--ink);
-  font-family: var(--font-editorial);
+  font-family: var(--font-h);
   font-size: var(--text-page-title);
-  font-weight: var(--weight-regular);
+  font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-editorial);
   line-height: var(--leading-editorial);
 }
@@ -3392,10 +3393,10 @@ html:has(.landing-marketing) { overflow-x: clip; }
 .demo-app .home-quick-card h2.type-editorial-title,
 .demo-app .demo-area-panel > .head h2 {
   color: var(--ink);
-  font-family: var(--font-editorial);
+  font-family: var(--font-h);
   font-size: var(--text-editorial-title);
-  font-weight: var(--weight-regular);
-  letter-spacing: -.04em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
 }
 .demo-app .home-quick-card h2 i { color: var(--accent); font-style: normal; }
@@ -3490,4 +3491,933 @@ html:has(.landing-marketing) { overflow-x: clip; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) .landing-area-preview .landing-screen-light { display: none; }
   :root:not([data-theme]) .landing-area-preview .landing-screen-dark { display: block; }
+}
+
+/* ==========================================================================
+   Vitrine calma do produto (landing) e demonstração fiel ao Aurora por dentro
+   ========================================================================== */
+
+.public-signup-label { display: inline; }
+.public-account-action { gap: 0; }
+
+.public-site.landing-marketing {
+  background: var(--bg);
+}
+
+/* Cabeçalho silencioso e direto: sem cápsula flutuante exagerada nem pílulas em excesso */
+.landing-marketing .public-topbar {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  box-shadow: none;
+}
+.landing-marketing .public-header-nav {
+  flex: 0 1 auto;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-marketing .public-header-nav a {
+  min-height: var(--control-sm);
+  padding-inline: var(--space-3);
+  border-radius: var(--button-radius);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.landing-marketing .public-header-nav a:hover,
+.landing-marketing .public-header-nav a:focus-visible {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.landing-marketing .public-account-action {
+  min-height: var(--control-sm);
+  padding-inline: var(--space-4);
+  border-radius: var(--button-radius);
+  font-size: var(--text-sm);
+}
+.landing-marketing .public-topbar .btn.public-account-action:not(.primary) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+.landing-marketing .public-topbar .btn.public-account-action:not(.primary):hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-color: transparent;
+}
+@media (width >= 1200px) {
+  .landing-marketing > .public-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .landing-marketing > .public-topbar > .brand {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .landing-marketing > .public-topbar > .public-header-nav {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .landing-marketing > .public-topbar > .public-header-actions {
+    grid-column: 3;
+    justify-self: end;
+    margin-left: 0;
+  }
+}
+.landing-marketing .public-account-action.primary {
+  min-height: var(--control-sm);
+  border-color: transparent;
+  background: var(--btn);
+  color: var(--on-btn);
+  box-shadow: none;
+}
+.landing-marketing .public-account-action.primary:hover {
+  background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+}
+.landing-marketing .public-header-tools .theme-trigger {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-marketing .public-header-tools .theme-trigger:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+/* Ritmo editorial aberto diretamente sobre o canvas */
+.public-site.landing-marketing .public-main {
+  width: min(100%, 1080px);
+  max-width: 1080px;
+  gap: clamp(var(--space-9), 8vw, var(--space-12));
+  padding-block: clamp(var(--space-7), 6vw, var(--space-11)) var(--space-11);
+}
+
+/* Hero centralizado estilo Things 3 / Bear: título calmo + tela grande do Aurora logo abaixo */
+.public-site.landing-marketing .public-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: none;
+  justify-items: center;
+  gap: clamp(var(--space-6), 5vw, var(--space-9));
+  padding-block: 0;
+  border: 0;
+  text-align: center;
+}
+.public-site.landing-marketing .public-hero::before {
+  display: none;
+}
+.landing-marketing .landing-hero-copy {
+  grid-area: auto;
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  max-width: 680px;
+}
+.landing-marketing .public-hero h1 em,
+.landing-marketing .landing-final-cta h2 em {
+  color: var(--accent);
+  font-style: normal;
+}
+.public-site.landing-marketing .public-hero h1.type-editorial-display {
+  max-width: 16ch;
+  margin-top: 0;
+  color: var(--ink);
+  letter-spacing: var(--tracking-editorial);
+  line-height: 1.05;
+}
+.landing-marketing .landing-hero-lead {
+  max-width: 52ch;
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+}
+.landing-marketing .landing-hero-actions {
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+.landing-marketing .landing-hero-actions .btn.primary,
+.landing-marketing .landing-final-actions .btn.primary {
+  min-height: var(--control-md);
+  padding-inline: var(--space-5);
+  border-color: transparent;
+  border-radius: var(--button-radius);
+  background: var(--btn);
+  color: var(--on-btn);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--elev-1);
+}
+.landing-marketing .landing-hero-actions .btn.primary:hover,
+.landing-marketing .landing-final-actions .btn.primary:hover {
+  background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+}
+.landing-marketing .landing-hero-secondary {
+  display: inline-flex;
+  min-height: var(--target-size);
+  align-items: center;
+  padding-inline: var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ink) 28%, transparent);
+  text-underline-offset: .25em;
+  transition: color var(--duration-fast) var(--ease-standard), text-decoration-color var(--duration-fast) var(--ease-standard);
+}
+.landing-marketing .landing-hero-secondary:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* Linha de apoio discreta em texto puro (sem chips nem checks verdes) */
+.landing-marketing .landing-proof-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-4);
+}
+.landing-marketing .landing-proof-list li {
+  display: inline-flex;
+  min-height: 0;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.landing-marketing .landing-proof-list li::before {
+  display: none;
+}
+.landing-marketing .landing-proof-list li + li::before {
+  display: inline;
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: var(--line-strong);
+  content: "·";
+}
+
+/* Vitrine principal do produto: captura Retina 2x grande, nítida e sem enfeites */
+.landing-marketing .landing-hero-visual {
+  grid-area: auto;
+  width: 100%;
+  max-width: 1020px;
+  padding: 0;
+}
+.landing-hero-desktop {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-2);
+}
+.landing-hero-desktop::before {
+  display: none;
+}
+.landing-hero-desktop picture {
+  width: 100%;
+}
+.landing-hero-desktop img {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding-top: 0;
+  background: transparent;
+}
+
+/* Cabeçalhos de seção serenos e limpos (sem linha dupla entre seções) */
+.landing-marketing .landing-section {
+  padding-top: clamp(var(--space-6), 5vw, var(--space-8));
+  border-top: 1px solid var(--line);
+}
+.landing-marketing .landing-section::before {
+  display: none;
+}
+.landing-marketing .public-section-heading {
+  gap: var(--space-2);
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.landing-marketing .public-section-heading h2,
+.landing-marketing .landing-final-cta h2 {
+  max-width: 24ch;
+  color: var(--ink);
+  font-family: var(--font-h);
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-editorial);
+  line-height: 1.08;
+}
+
+/* Seção de áreas: abas com linha inferior limpa + tela em largura real */
+.landing-marketing .landing-tutorial-tabs {
+  width: 100%;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  scrollbar-width: none;
+}
+.landing-marketing .landing-tutorial-tabs::-webkit-scrollbar { display: none; }
+.landing-marketing .landing-tutorial-tab {
+  position: relative;
+  min-height: var(--target-size);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.landing-marketing .landing-tab-icon {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  color: currentColor;
+}
+.landing-marketing .landing-tutorial-tab:hover:not([aria-selected="true"]) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+.landing-marketing .landing-tutorial-tab[aria-selected="true"] {
+  border-color: transparent;
+  border-bottom-color: var(--accent);
+  background: transparent;
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  box-shadow: none;
+}
+.landing-marketing .landing-tutorial-tab[aria-selected="true"] .landing-tab-icon {
+  background: transparent;
+  color: var(--accent);
+}
+
+/* Painel aberto (sem cartão dentro de cartão): texto direto + captura nítida em tamanho real */
+.landing-marketing .landing-tutorial-panel {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-area-copy {
+  display: grid;
+  max-width: none;
+  gap: var(--space-3);
+}
+.landing-area-copy h3 {
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -.015em;
+  line-height: 1.25;
+}
+.landing-area-copy > p {
+  max-width: 64ch;
+  margin-top: 0;
+  color: var(--muted);
+  font-size: var(--text-base);
+}
+.landing-area-copy ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin-top: var(--space-1);
+  padding: 0;
+  border: 0;
+}
+.landing-area-copy li {
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+.landing-area-copy li::before {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  content: "—";
+  font-weight: var(--weight-regular);
+  line-height: 1;
+}
+.landing-area-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-2);
+}
+.landing-preview-chrome {
+  display: none;
+}
+.landing-area-preview img {
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+/* "Comece em um minuto": tipografia aberta direto no canvas, sem 3 cartões genéricos */
+.landing-marketing .landing-steps {
+  margin-inline: 0;
+  padding-inline: 0;
+  padding-bottom: 0;
+  border-inline: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.landing-steps-grid {
+  gap: var(--space-6);
+}
+.landing-steps-grid li {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-steps-grid li > span {
+  display: block;
+  width: auto;
+  height: auto;
+  margin-bottom: var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-h);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+.landing-steps-grid h3 {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.landing-steps-grid p {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+@media (width >= 900px) {
+  .landing-steps-grid {
+    gap: 0;
+  }
+  .landing-steps-grid li + li {
+    padding-inline-start: var(--space-6);
+    border-inline-start: 1px solid var(--line);
+  }
+  .landing-steps-grid li:not(:last-child) {
+    padding-inline-end: var(--space-6);
+  }
+}
+
+/* "Feito para dar paz": manifesto editorial em 2 colunas, sem 4 caixas com ícones coloridos */
+.landing-marketing .landing-trust {
+  padding-inline: 0;
+  padding-bottom: 0;
+  border-inline: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+}
+.landing-marketing .landing-trust .public-section-heading h2 {
+  color: var(--ink);
+}
+.landing-trust-privacy {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.landing-trust-privacy a {
+  color: var(--ink);
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
+  text-underline-offset: .22em;
+}
+.landing-trust-privacy a:hover {
+  color: var(--accent);
+}
+.landing-trust-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.landing-trust-grid article {
+  padding: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-trust-grid article:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.landing-marketing .landing-trust-grid h3 {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.landing-marketing .landing-trust-grid p {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+@media (width >= 900px) {
+  .landing-marketing .landing-trust {
+    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+    align-items: start;
+    gap: clamp(var(--space-6), 6vw, var(--space-10));
+  }
+}
+
+/* FAQ direto no canvas com divisórias finas (sem caixa ao redor) */
+.landing-marketing .public-faq-list {
+  gap: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-marketing .public-faq-item {
+  padding: var(--space-1) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-marketing .public-faq-item > summary {
+  padding-inline-end: var(--space-1);
+}
+.landing-marketing .public-faq-item:hover,
+.landing-marketing .public-faq-item[open] {
+  border-color: var(--line);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Fechamento silencioso e direto no canvas */
+.landing-marketing .landing-final-cta {
+  padding: clamp(var(--space-7), 6vw, var(--space-10)) 0 var(--space-3);
+  border-inline: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-marketing .landing-final-cta > p {
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: var(--text-base);
+}
+.landing-marketing .landing-text-link {
+  justify-content: center;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration-color: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.landing-marketing .landing-text-link:hover {
+  color: var(--accent);
+}
+
+/* Rodapé aberto diretamente no canvas (sem cartão branco genérico) */
+.landing-footer {
+  width: min(100%, 1080px);
+  padding-inline: var(--gut-l);
+}
+.landing-footer-card {
+  padding: var(--space-7) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.landing-footer-cta {
+  border-radius: var(--button-radius);
+}
+
+/* Responsividade da landing */
+@media (width <= 900px) {
+  .landing-marketing .public-header-nav {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: center;
+    overflow-x: auto;
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--line);
+    scrollbar-width: none;
+  }
+  .landing-marketing .public-header-nav::-webkit-scrollbar { display: none; }
+  .landing-marketing .public-header-nav a {
+    min-height: var(--control-sm);
+    padding-inline: var(--space-3);
+    font-size: var(--text-xs);
+  }
+}
+
+@media (width <= 700px) {
+  .landing-marketing .public-topbar {
+    padding-block: var(--space-2);
+  }
+  .landing-marketing .public-hero {
+    text-align: center;
+    justify-items: center;
+  }
+  .landing-marketing .landing-hero-copy {
+    justify-items: center;
+  }
+  .landing-marketing .landing-hero-actions {
+    width: 100%;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  .landing-marketing .landing-hero-secondary {
+    justify-content: center;
+    width: 100%;
+  }
+  .landing-marketing .landing-proof-list {
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  .landing-marketing .landing-proof-list li {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+  }
+  .landing-marketing .landing-proof-list li + li::before {
+    display: none;
+  }
+  .landing-marketing .landing-final-actions {
+    align-items: center;
+  }
+  .landing-marketing .landing-text-link {
+    width: 100%;
+    justify-content: center;
+  }
+  .landing-marketing .landing-hero-desktop {
+    width: min(100%, 340px);
+    margin-inline: auto;
+  }
+  .landing-marketing .landing-tutorial-tabs {
+    padding-inline-end: var(--space-5);
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - var(--space-6)), transparent);
+  }
+  .landing-area-preview {
+    width: min(100%, 340px);
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface-strong);
+    box-shadow: var(--elev-1);
+  }
+  .landing-area-preview img {
+    border-radius: var(--r-card);
+  }
+}
+
+/* ==========================================================================
+   Demonstração interativa (/demonstracao): fiel ao Aurora real por dentro
+   ========================================================================== */
+
+.app.demo-app .main.demo-main,
+.app.demo-app .main.demo-main[data-route="inicio"] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-5);
+}
+.demo-app .demo-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Cabeçalho da demonstração no desktop: 2 linhas limpas, zero recorte nas 8 abas */
+@media (width >= 900px) {
+  .app.demo-app > .topbar.public-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "brand actions"
+      "navigation navigation";
+    align-items: center;
+    row-gap: var(--space-2);
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+  }
+  .app.demo-app > .topbar.public-topbar > .brand { grid-area: brand; }
+  .app.demo-app > .topbar.public-topbar > .public-header-actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav {
+    position: static;
+    grid-area: navigation;
+    display: flex;
+    width: fit-content;
+    max-width: 100%;
+    justify-self: center;
+    justify-content: flex-start;
+    gap: var(--space-1);
+    overflow-x: auto;
+    margin: 0;
+    padding: var(--space-1);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--surface-strong);
+    box-shadow: var(--elev-1);
+    scrollbar-width: none;
+  }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav::-webkit-scrollbar { display: none; }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link {
+    min-height: var(--control-sm);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--r-pill);
+    color: var(--muted);
+    font-size: var(--text-meta);
+    font-weight: var(--weight-medium);
+  }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link .ni {
+    width: var(--space-5);
+    height: var(--space-5);
+    background: transparent;
+  }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link:hover {
+    background: var(--surface-soft);
+    color: var(--ink);
+  }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link.is-current {
+    border-color: var(--line);
+    background: var(--surface-soft);
+    color: var(--accent);
+    font-weight: var(--weight-semibold);
+    box-shadow: var(--seg-thumb-shadow);
+  }
+}
+
+.demo-app .public-account-action {
+  min-height: var(--control-sm);
+  border-radius: var(--button-radius);
+}
+.demo-app .public-account-action.primary {
+  border-color: transparent;
+  background: var(--btn);
+  color: var(--on-btn);
+}
+
+@media (width <= 700px) {
+  .app.demo-app > .topbar.public-topbar {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+  .demo-app .landing-header-free { display: none; }
+  .demo-app .public-account-action {
+    min-width: 0;
+    padding-inline: var(--space-3);
+    font-size: var(--text-xs);
+  }
+  .demo-app .public-header-actions > .public-account-action + .public-account-action {
+    margin-left: var(--space-1);
+  }
+  .demo-app .public-header-tools {
+    margin-left: var(--space-1);
+  }
+  .demo-app .public-header-tools .theme-trigger {
+    width: var(--control-sm);
+    height: var(--control-sm);
+    min-width: var(--control-sm);
+    min-height: var(--control-sm);
+  }
+}
+
+@media (width <= 480px) {
+  .app.demo-app > .topbar.public-topbar .wordmark { display: none; }
+  .demo-app .public-brand-icon { width: var(--space-6); height: var(--space-6); }
+}
+
+/* Nota silenciosa de demonstração: sem cartão promocional gritando no topo */
+.app.demo-app .notice.sample-banner.demo-mode-strip {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app.demo-app .notice.sample-banner.demo-mode-strip .sample-banner-copy {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* Cabeçalho "Hoje" idêntico ao Aurora por dentro */
+.demo-app .home-head {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0 0 var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.demo-app .home-head .date {
+  min-height: 0;
+  margin-bottom: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+}
+.demo-app .home-head .lead {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-base);
+}
+
+/* Bento limpo no desktop para a tela Hoje da demonstração */
+.demo-app .home-primary {
+  gap: var(--space-5);
+}
+@media (width >= 900px) {
+  .demo-app .home-primary {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, .85fr);
+    align-items: start;
+  }
+  .demo-app .home-primary > .home-today-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .demo-app .home-primary > .home-habit-checkins {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .app.demo-app .main.demo-main .home-dashboard .home-primary > .strip {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: var(--space-4) var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--surface-strong);
+    box-shadow: var(--elev-1);
+  }
+  .app.demo-app .main.demo-main .home-dashboard .home-primary > .strip > a {
+    min-width: 0;
+    padding-inline: var(--space-2);
+    text-align: center;
+  }
+  .demo-app .home-primary > .home-quick-card {
+    grid-column: 1 / -1;
+  }
+}
+
+.demo-app .home-habit-checkins,
+.demo-app .demo-area-panel,
+.demo-app .demo-habit-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1);
+}
+.demo-app .home-today-card .task .chk {
+  cursor: pointer;
+}
+.demo-app .home-today-card .task .meta {
+  color: var(--muted);
+}
+
+/* Fechamento discreto da demonstração (sem caixa promocional) */
+.demo-app .demo-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-5) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.demo-app .demo-cta > div:first-child {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.demo-app .demo-cta h2 {
+  margin-top: var(--space-1);
+  color: var(--ink);
+  font-family: var(--font-h);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-editorial);
+}
+.demo-app .demo-cta p {
+  margin-top: var(--space-1);
+  color: var(--muted);
+}
+.demo-app .demo-cta .public-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.demo-app .demo-cta .public-actions .btn {
+  border-radius: var(--button-radius);
+}
+
+/* Barra inferior da demonstração no celular */
+@media (width < 900px) {
+  .demo-app .topbar .demo-nav {
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - var(--space-6)), transparent);
+  }
+  .demo-app .topbar .demo-nav > .demo-nav-link {
+    min-width: 74px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--r-control);
+  }
+  .demo-app .topbar .demo-nav > .demo-nav-link.is-current {
+    border-color: var(--seg-thumb-border);
+    background: var(--soft);
+    color: var(--accent);
+  }
 }

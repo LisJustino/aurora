@@ -68,7 +68,10 @@ function setActiveOption(control, index, scroll = true) {
 function setOptionContent(element, option) {
   const label = normalizeText(option.label);
   if (!option.dataset.icon) {
-    element.textContent = label;
+    const text = element.ownerDocument.createElement('span');
+    text.className = 'ds-select__label';
+    text.textContent = label;
+    element.replaceChildren(text);
     return;
   }
   const marker = element.ownerDocument.createElement('span');

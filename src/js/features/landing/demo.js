@@ -92,16 +92,17 @@ function renderPageHeading(eyebrow, title, description = '') {
 }
 
 function demoNotice() {
-  return `<div class="notice sample-banner" role="note"><span
-    class="sample-banner-copy">Demonstração com dados fictícios.</span><a class="btn sm" href="/criar-conta"
-    data-public-action="signup">Criar conta</a></div>`;
+  return `<div class="notice sample-banner demo-mode-strip" role="note"><span
+    class="sample-banner-copy">Demonstração interativa · alterações não ficam salvas ao sair.</span></div>`;
 }
 
 function renderHomeTask(task) {
   return `<li class="task ${task.done ? 'done' : ''}">
-      <span class="chk" aria-hidden="true"><span>${demoIcon('check', 15)}</span></span>
+      <button type="button" class="chk" role="checkbox" aria-checked="${String(task.done)}"
+        aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluída'}: ${escapeDemoText(task.title)}"
+        data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
       <div class="tt"><span class="ttl">${escapeDemoText(task.title)}</span><span
-        class="meta"><span>Exemplo</span></span></div>
+        class="meta"><span>${task.done ? 'Concluída' : 'Hoje'}</span></span></div>
     </li>`;
 }
 
@@ -110,13 +111,10 @@ function renderToday(state) {
   const open = state.tasks.filter((task) => !task.done);
   const todayIndex = (new Date().getDay() + 6) % 7;
   const habitDone = state.habitDays[todayIndex];
-  const completed = done.length;
   const total = state.tasks.length;
-  const circumference = 2 * Math.PI * 32;
-  const offset = circumference * (1 - completed / total);
   const lead = open.length
-    ? `Você tem ${open.length} ${open.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}.`
-    : 'Tudo concluído. Aproveite o resto do dia.';
+    ? `${open.length} ${open.length === 1 ? 'tarefa pendente para hoje' : 'tarefas pendentes para hoje'} · ${done.length} ${done.length === 1 ? 'concluída' : 'concluídas'}`
+    : 'Tudo concluído por hoje.';
   const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'long' })
     .format(new Date())
     .replace(/[.,]/g, '')
@@ -127,16 +125,8 @@ function renderToday(state) {
       <div>
         <p class="date">${escapeDemoText(shortDate.charAt(0).toUpperCase() + shortDate.slice(1))}</p>
         <h1 id="demo-greeting" class="type-editorial-display" tabindex="-1">${timeBasedGreeting()}, <span
-          class="proper-name">Pessoa</span><i>.</i></h1>
+          class="proper-name">Marina</span><i>.</i></h1>
         <p class="lead" aria-live="polite">${lead}</p>
-      </div>
-      <div class="demo-home-progress">
-        <div class="ringw" role="img" aria-label="${completed} de ${total} tarefas de hoje concluídas"><svg width="76"
-          height="76" viewBox="0 0 76 76" aria-hidden="true"><circle class="ring-bg" cx="38" cy="38" r="32" fill="none"
-          stroke-width="7"/><circle class="ring-fg" cx="38" cy="38" r="32" fill="none" stroke-width="7"
-          stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
-          transform="rotate(-90 38 38)"/></svg><div class="rt">${completed}/${total}</div></div>
-        <span class="demo-home-progress-label" aria-hidden="true">Tarefas</span>
       </div>
     </header>
     <div class="home-dashboard no-optional-areas">
@@ -438,9 +428,9 @@ export function renderLandingDemo(root) {
       <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
         <div class="demo-screen" data-demo-screen></div>
         <section class="demo-cta" id="demo-help"><div><p
-          class="section-kicker">Gostou do que viu?</p><h2>Acesse seus próprios registros</h2><p>Crie sua conta para organizar tarefas, hábitos, ciclo e finanças. A demonstração continua sem salvar seus dados.</p></div><div
+          class="section-kicker">Gostou da experiência?</p><h2>Comece a organizar sua rotina no Aurora</h2><p>Crie sua conta grátis para salvar suas tarefas, hábitos, finanças e ciclo com segurança.</p></div><div
           class="public-actions"><a class="btn primary" href="/criar-conta"
-          data-public-action="signup">Criar conta</a><a class="btn" href="/"
+          data-public-action="signup">Criar conta grátis</a><a class="btn" href="/"
           data-public-action="landing">Voltar à página inicial</a></div></section>
         <footer class="demo-footer"><button type="button" class="footer-link"
           data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">·</span><button type="button"

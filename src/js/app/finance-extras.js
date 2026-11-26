@@ -91,11 +91,14 @@ const recWhen = (r) => `dia ${r.day} · ${accName(r.accountId)} · ${r.category}
 
 // ferramentas da aba Lançamentos
 export function finTools() {
-  return h`<div class="fin-tools"><div class="row fin-tools-actions"><button type="button" class="btn sm"
+  return h`<div class="fin-tools"><div class="row fin-tools-actions"><button type="button" class="btn sm primary"
+      data-action="tx-new">${icon('plus', 16)}Novo</button><button type="button" class="btn sm"
       data-action="tx-bulk">${icon('list', 16)}Cadastrar vários</button><label
-      class="btn sm fin-import-action">${icon('download', 16)}Importar extrato<input type="file" class="sr"
+      class="btn sm fin-import-action">${icon('upload', 16)}Importar extrato<input type="file" class="sr"
       accept=".csv,.ofx,.txt,text/csv,text/plain" data-change="fin-import"
-      aria-label="Importar extrato CSV ou OFX"></label></div></div>`;
+      aria-label="Importar extrato CSV ou OFX"></label><button type="button" class="btn ghost sm"
+      data-action="fin-csv">${icon('download', 16)}<span>Exportar <span
+      class="case-preserve">CSV</span></span></button></div></div>`;
 }
 // fixas: lista e edição
 function dlgRecurList() {
@@ -304,7 +307,7 @@ export function finCompare() {
     const d = a - b,
       p = b ? Math.round((d / b) * 100) : null;
     return h`<span
-      class="${d === 0 ? 'muted' : d > 0 === good ? 'okc' : 'err'}">${d > 0 ? '+' : d < 0 ? '−' : ''}${money(Math.abs(d))}${p !== null ? ' (' + (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(p) + '%)' : ''}</span>`;
+      class="cmp-delta ${d === 0 ? 'muted' : d > 0 === good ? 'okc' : 'err'}"><span>${d > 0 ? '+' : d < 0 ? '−' : ''}${money(Math.abs(d))}</span>${p !== null ? h`<small class="cmp-pct">(${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(p)}%)</small>` : ''}</span>`;
   };
   const sel = (k, v) =>
     h`<select data-change="cmp-${k}"

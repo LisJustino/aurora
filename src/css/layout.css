@@ -19,7 +19,7 @@
 .main {
   display: flex;
   flex-direction: column;
-  gap: clamp(var(--space-6), 3vw, var(--space-7));
+  gap: var(--section-gap);
   width: 100%;
   max-width: none;
   min-width: 0;
@@ -27,19 +27,16 @@
   padding: clamp(var(--space-6), 3vw, var(--space-7)) var(--gut-r) calc(var(--nav-h) + 36px + env(safe-area-inset-bottom, 0px)) var(--gut-l);
 }
 
-.main.route-enter { animation: route-enter var(--duration-base) var(--ease-standard) both; }
+.main.route-enter { animation: route-enter var(--duration-fast) var(--ease-standard) both; }
 @keyframes route-enter {
-  from { opacity: 0; transform: translateX(var(--route-shift, 0px)); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .main { view-transition-name: route-page; }
-/* A direção segue a ordem das abas: avançar entra pela direita, voltar entra pela esquerda. */
-:root[data-route-dir="forward"] { --route-shift: 22px; }
-:root[data-route-dir="back"] { --route-shift: -22px; }
-::view-transition-old(route-page) { animation: 140ms var(--ease-standard) both route-page-out; }
-::view-transition-new(route-page) { animation: 220ms var(--ease-standard) both route-page-in; }
-@keyframes route-page-out { to { opacity: 0; transform: translateX(calc(var(--route-shift, 6px) * -.6)); } }
-@keyframes route-page-in { from { opacity: 0; transform: translateX(var(--route-shift, 6px)); } }
+::view-transition-old(route-page) { animation: 100ms var(--ease-standard) both route-page-out; }
+::view-transition-new(route-page) { animation: 150ms var(--ease-standard) both route-page-in; }
+@keyframes route-page-out { to { opacity: 0; } }
+@keyframes route-page-in { from { opacity: 0; } }
 
 .topbar {
   position: sticky;
@@ -91,8 +88,9 @@
 }
 
 .wordmark {
-  font: var(--weight-bold) var(--text-xl)/1 var(--font-h);
-  letter-spacing: -.035em;
+  font: var(--font-editorial-weight) var(--text-xl)/1 var(--font-editorial);
+  letter-spacing: var(--tracking-editorial);
+  font-variation-settings: "opsz" 32;
 }
 
 .pill {
@@ -144,7 +142,7 @@
   height: var(--icon-box-sm);
   place-items: center;
   border-radius: var(--r-pill);
-  transition: background-color .18s ease, color .18s ease, transform .18s ease;
+  transition: background-color var(--duration-base) var(--ease-standard), color var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }
 
 .nav-enable-areas .ni { background: var(--soft2); color: var(--accent); }

@@ -70,6 +70,7 @@
 :root[data-readable="true"] {
   --font: var(--font-readable);
   --font-h: var(--font-readable);
+  --font-editorial: var(--font-readable);
   --leading-body: 1.8;
 }
 :root[data-readable="true"] body { letter-spacing: .02em; }

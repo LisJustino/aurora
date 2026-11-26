@@ -90,6 +90,7 @@ const swipe = async (page, locator, direction) => {
   'subseção de cartões mantém estado e associação acessíveis');
   await page.locator('.finance-account-option[data-t="contas"]').click();
   await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  await page.locator('#fin-plan-tab-compromissos').click();
   check(await page.locator('.finance-installments').count() === 1
     && await page.locator('.finance-fixas').count() === 1,
   'planejamento reúne parcelas e lançamentos fixos');
@@ -97,6 +98,7 @@ const swipe = async (page, locator, direction) => {
   check(await page.locator('.fin-tools-actions [data-action="rec-list"]').count() === 0,
     'lançamentos não duplica o acesso à gestão de fixas do planejamento');
   await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  await page.locator('#fin-plan-tab-limites').click();
   check((await page.locator('.budget-list').textContent()).includes('Até hoje:')
     && (await page.locator('.budget-list').textContent()).includes('data futura:')
     && (await page.locator('.budget-list').textContent()).includes('total'),
@@ -267,6 +269,7 @@ const swipe = async (page, locator, direction) => {
   await page.locator('.finance-week-chart').waitFor();
 
   await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  await page.locator('#fin-plan-tab-compromissos').click();
   await page.locator('.finance-installments-empty-state [data-action="tx-new-installment"]').click();
   check(await page.locator('#dlg [data-dlg="repeat"]').inputValue() === 'parcel'
     && await page.locator('#dlg .finance-installment-fields').count() === 1,
@@ -779,6 +782,7 @@ const swipe = async (page, locator, direction) => {
     'nova despesa aplica a regra automática atualizada');
 
   await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  await page.locator('#fin-plan-tab-objetivos').click();
   await page.locator('[data-action="goal-new"]').first().click();
   await page.locator('#dlg [data-dlg="name"]').fill('Meta vinculada de teste');
   await page.locator('#dlg [data-dlg="target"]').fill('1,00');
@@ -883,7 +887,7 @@ const swipe = async (page, locator, direction) => {
     return recent.left >= categories.right - 1 && Math.abs(recent.top - categories.top) < 2;
   });
   check(overviewDesktopLayout, 'composição do mês e últimos lançamentos ficam lado a lado no desktop');
-  check(await page.locator('.finance-recent .list').evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length === 2), 'últimos lançamentos organizados em duas colunas no desktop');
+  check(await page.locator('.finance-recent .list').evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(' ').length === 1), 'últimos lançamentos organizados em lista limpa de largura inteira no desktop');
   await page.setViewportSize({ width: 390, height: 844 });
   const overviewMobileLayout = await page.evaluate(() => {
     const categories = document.querySelector('.finance-category-breakdown').getBoundingClientRect();
@@ -904,6 +908,7 @@ const swipe = async (page, locator, direction) => {
   await page.locator('#dlg [data-dlg="category"]').selectOption({ label: 'Alimentação personalizada' });
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   await page.locator('.fin-section-option[data-t="planejamento"]').click();
+  await page.locator('#fin-plan-tab-limites').click();
   const budgetAlert = page.locator('.budget-list .budget-threshold-alert');
   check(await budgetAlert.count() === 1
     && (await budgetAlert.first().textContent()).includes('pelo menos 80%')

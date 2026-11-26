@@ -6,7 +6,7 @@ App web para organizar a rotina num lugar só: tarefas, hábitos, finanças e ci
 
 - **Início**: o resumo do dia, com tarefas, hábitos, água e o que vence na semana. Os blocos podem ser reordenados.
 - **Planejar**: tarefas (inclusive várias de uma vez), eventos do Google Agenda, revisão semanal e plano anual com balanço no fim do ano.
-- **Hábitos**: marcação diária, registro de água, análise dos últimos 28 dias e criação em lote.
+- **Hábitos**: três abas (Hoje, Histórico e Gerenciar). Hoje tem a marcação diária e a água; Histórico, o calendário mensal e anual de cada hábito e a análise dos últimos 28 dias; Gerenciar, edição, pausa, ordem e criação em lote. Um botão abre a janela para registrar outro dia, marcando vários hábitos de uma vez.
 - **Finanças**: contas, cartões e faturas, lançamentos (inclusive em lote), orçamentos, metas, parcelas e relatórios do mês.
 - **Ciclo**: calendário, previsão em faixa, padrões e registros diários, com modo discreto. A área só aparece para perfis elegíveis.
 - **Ajustes**: perfil e foto, aparência, preferências, backup e exportação dos dados, lixeira e exclusão da conta.

@@ -7,68 +7,92 @@
 }
 
 .main[data-route="config"] .settings-layout {
-  grid-template-columns: minmax(220px, 252px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 232px) minmax(0, 1fr);
   align-items: start;
-  gap: clamp(var(--space-4), 2.8vw, var(--space-6));
+  gap: clamp(var(--space-5), 3vw, var(--space-6));
+}
+
+.main[data-route="config"] .settings-nav-shell {
+  display: contents;
+}
+
+.main[data-route="config"] .settings-mobile-trigger {
+  display: none;
 }
 
 .main[data-route="config"] .settings-menu {
-  top: 84px;
+  top: 88px;
   max-height: none;
-  gap: var(--space-2);
-  padding: 10px;
+  gap: var(--space-4);
+  padding: 0;
   overflow: visible;
-  border-color: var(--line);
-  border-radius: var(--r-control);
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
 .main[data-route="config"] .settings-menu-heading {
-  margin: 0 2px 2px;
-  padding: 4px 8px 8px;
-  border-bottom: 1px solid var(--line);
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-1);
+  border-bottom: 0;
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: .02em;
+  letter-spacing: .04em;
 }
 
 .main[data-route="config"] .settings-menu-group { gap: var(--space-1); }
 .main[data-route="config"] .settings-menu-group + .settings-menu-group {
-  margin-top: 2px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .main[data-route="config"] .settings-link {
-  min-height: var(--settings-link-height);
-  grid-template-columns: var(--icon-box-sm) minmax(0, 1fr) 14px;
+  min-height: var(--control-sm);
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-2);
-  padding: 7px;
-  border-radius: var(--r-group);
-}
-
-.main[data-route="config"] .settings-link:hover {
-  border-color: var(--line);
-  background: var(--surface-soft);
-}
-
-
-.main[data-route="config"] .settings-link-icon {
-  width: var(--icon-box-sm);
-  height: var(--icon-box-sm);
-  border-color: transparent;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
   border-radius: var(--r-control);
-  background: var(--surface-soft);
   color: var(--muted);
 }
 
+.main[data-route="config"] .settings-link:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
 
-.main[data-route="config"] .settings-link-copy { gap: var(--space-1); }
-.main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); font-weight: var(--weight-bold); }
-.main[data-route="config"] .settings-link-copy small { font-size: var(--text-xs); line-height: 1.35; }
-.main[data-route="config"] .settings-link-arrow { width: 14px; color: var(--muted); }
+.main[data-route="config"] .settings-link[aria-current="page"] {
+  border-color: var(--seg-thumb-border);
+  background: var(--seg-thumb);
+  color: var(--accent);
+  box-shadow: var(--seg-thumb-shadow);
+  font-weight: var(--weight-semibold);
+}
+
+.main[data-route="config"] .settings-link-icon {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: currentcolor;
+}
+
+.main[data-route="config"] .settings-link[aria-current="page"] .settings-link-icon {
+  background: var(--soft2);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.main[data-route="config"] .settings-link-copy { gap: 0; }
+.main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.main[data-route="config"] .settings-link-copy small { display: none; }
+.main[data-route="config"] .settings-link-arrow { display: none; }
 
 .main[data-route="config"] .settings-content {
   gap: var(--space-4);
@@ -190,15 +214,263 @@
 
 .main[data-route="config"] .appearance-preset[aria-pressed="true"] { border-color: var(--accent); }
 
+.main[data-route="config"] .areas-navigation-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
 .main[data-route="config"] .areas-navigation-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--r);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-0);
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+}
+
+.main[data-route="config"] .areas-navigation-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--line));
+}
+
+.main[data-route="config"] .areas-navigation-item.is-inactive {
+  background: color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
+}
+
+.main[data-route="config"] .areas-navigation-item.is-inactive .areas-navigation-icon,
+.main[data-route="config"] .areas-navigation-item.is-inactive .areas-navigation-main {
+  opacity: .72;
+}
+
+.main[data-route="config"] .areas-navigation-icon {
+  display: grid;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  place-items: center;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--area-tone, var(--accent)) 12%, var(--surface));
+  color: var(--area-tone, var(--accent));
+}
+
+.main[data-route="config"] .areas-navigation-icon[data-area="inicio"] { --area-tone: var(--accent); }
+.main[data-route="config"] .areas-navigation-icon[data-area="planejar"] { --area-tone: var(--area-plan); }
+.main[data-route="config"] .areas-navigation-icon[data-area="finances"] { --area-tone: var(--area-finances); }
+.main[data-route="config"] .areas-navigation-icon[data-area="habits"] { --area-tone: var(--area-habits); }
+.main[data-route="config"] .areas-navigation-icon[data-area="cycle"] { --area-tone: var(--area-cycle); }
+.main[data-route="config"] .areas-navigation-icon[data-area="water"] { --area-tone: var(--area-water); }
+
+.main[data-route="config"] .areas-navigation-main {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-half);
+}
+
+.main[data-route="config"] .areas-navigation-desc {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: 1.35;
 }
 
 .main[data-route="config"] .areas-navigation-settings { gap: var(--settings-card-gap); }
-.main[data-route="config"] .areas-navigation-controls { gap: var(--space-3); }
+.main[data-route="config"] .areas-navigation-controls {
+  grid-column: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: 0;
+  border-top: 0;
+}
+
+.main[data-route="config"] .areas-navigation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  padding-inline: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.main[data-route="config"] .areas-navigation-toggle > input {
+  margin-top: 0;
+}
+
+.main[data-route="config"] .menu-visibility {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+
+.main[data-route="config"] .menu-visibility > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.main[data-route="config"] .menu-visibility > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.main[data-route="config"] .menu-visibility.is-on {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.main[data-route="config"] .menu-visibility:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.main[data-route="config"] .settings-switch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 24px;
+  flex: none;
+  margin: 0;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 14%, var(--surface));
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.main[data-route="config"] .settings-switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--on-solid);
+  box-shadow: var(--elev-1);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.main[data-route="config"] .settings-switch:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.main[data-route="config"] .settings-switch:checked::before {
+  transform: translateX(16px);
+}
+
+.main[data-route="config"] .settings-switch:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.main[data-route="config"] .routine-settings-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.main[data-route="config"] .routine-settings-options > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.main[data-route="config"] .home-message-wrap {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 760px;
+}
+
+.main[data-route="config"] .home-message-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .home-message-preset {
+  min-height: var(--control-sm);
+  font-size: var(--text-xs);
+}
+
+.main[data-route="config"] .home-message-preset[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.main[data-route="config"] .settings-data-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.main[data-route="config"] .settings-data-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--surface);
+}
+
+.main[data-route="config"] .settings-data-stat-icon {
+  display: grid;
+  width: var(--icon-box-sm);
+  height: var(--icon-box-sm);
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--stat-tone, var(--accent)) 12%, var(--surface));
+  color: var(--stat-tone, var(--accent));
+}
+
+.main[data-route="config"] .settings-data-stat[data-tone="planning"] { --stat-tone: var(--area-plan); }
+.main[data-route="config"] .settings-data-stat[data-tone="habits"] { --stat-tone: var(--area-habits); }
+.main[data-route="config"] .settings-data-stat[data-tone="finances"] { --stat-tone: var(--area-finances); }
+.main[data-route="config"] .settings-data-stat[data-tone="cycle"] { --stat-tone: var(--area-cycle); }
+.main[data-route="config"] .settings-data-stat[data-tone="neutral"] { --stat-tone: var(--muted); }
+
+.main[data-route="config"] .settings-data-stat > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-quarter);
+}
+
+.main[data-route="config"] .settings-data-stat b {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.main[data-route="config"] .settings-data-stat span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+}
+
 .main[data-route="config"] .settings-data-action {
   gap: var(--space-3);
   padding: var(--space-5);
@@ -207,10 +479,212 @@
 
 .main[data-route="config"] .settings-data-action h3 { font-size: var(--text-lg); }
 
+.main[data-route="config"] .settings-data-trash {
+  container-type: inline-size;
+}
+
+.main[data-route="config"] .settings-trash-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.main[data-route="config"] .settings-trash-header > div {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .settings-trash-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .btn.danger-outline {
+  border-color: color-mix(in srgb, var(--bad) 36%, var(--line));
+  background: color-mix(in srgb, var(--bad-soft) 40%, var(--surface));
+  color: var(--bad);
+}
+
+.main[data-route="config"] .btn.danger-outline:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--bad) 56%, var(--line));
+  background: var(--bad-soft);
+}
+
+.main[data-route="config"] .settings-trash-toolbar {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.main[data-route="config"] .settings-trash-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .trash-filter-pill {
+  min-height: var(--control-sm);
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.main[data-route="config"] .trash-filter-pill[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent);
+}
+
+.main[data-route="config"] .trash-filter-count {
+  padding: var(--space-quarter) var(--space-1);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.main[data-route="config"] .trash-filter-pill[aria-pressed="true"] .trash-filter-count {
+  background: var(--soft2);
+}
+
+.main[data-route="config"] .settings-trash-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.main[data-route="config"] .settings-trash-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.main[data-route="config"] .settings-trash-search input {
+  width: 100%;
+  min-height: var(--control-md);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-7);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.main[data-route="config"] .settings-trash-search-clear {
+  position: absolute;
+  right: var(--space-1);
+  width: var(--control-sm);
+  height: var(--control-sm);
+}
+
+.main[data-route="config"] .settings-trash-search-clear[hidden] {
+  display: none;
+}
+
+.main[data-route="config"] .settings-trash-no-match {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-group);
+  background: var(--surface-soft);
+  color: var(--muted);
+  text-align: center;
+}
+
+.main[data-route="config"] .settings-trash-no-match p {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
 .main[data-route="config"] .settings-data-trash .trash-list > li {
-  padding: var(--space-3);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-color: var(--line);
   background: var(--surface);
+}
+
+.main[data-route="config"] .settings-trash-icon {
+  display: grid;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--trash-tone, var(--accent)) 12%, var(--surface));
+  color: var(--trash-tone, var(--accent));
+}
+
+.main[data-route="config"] .settings-trash-icon[data-tone="planning"],
+.main[data-route="config"] .settings-trash-badge[data-tone="planning"] { --trash-tone: var(--area-plan); }
+.main[data-route="config"] .settings-trash-icon[data-tone="habits"],
+.main[data-route="config"] .settings-trash-badge[data-tone="habits"] { --trash-tone: var(--area-habits); }
+.main[data-route="config"] .settings-trash-icon[data-tone="water"],
+.main[data-route="config"] .settings-trash-badge[data-tone="water"] { --trash-tone: var(--area-water); }
+.main[data-route="config"] .settings-trash-icon[data-tone="finances"],
+.main[data-route="config"] .settings-trash-badge[data-tone="finances"] { --trash-tone: var(--area-finances); }
+.main[data-route="config"] .settings-trash-icon[data-tone="cycle"],
+.main[data-route="config"] .settings-trash-badge[data-tone="cycle"] { --trash-tone: var(--area-cycle); }
+
+.main[data-route="config"] .settings-trash-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .settings-trash-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-quarter) var(--space-2);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--trash-tone, var(--accent)) 12%, var(--surface));
+  color: var(--trash-tone, var(--accent));
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.main[data-route="config"] .settings-trash-extra {
+  padding: var(--space-quarter) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.main[data-route="config"] .settings-trash-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .settings-trash-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .settings-trash-delete {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  color: var(--muted);
+}
+
+.main[data-route="config"] .settings-trash-delete:hover {
+  border-color: color-mix(in srgb, var(--bad) 36%, var(--line));
+  background: var(--bad-soft);
+  color: var(--bad);
 }
 
 .main[data-route="config"] .settings-data-care .settings-data-danger {
@@ -226,11 +700,45 @@
 }
 
 .main[data-route="config"] .account-session-email {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
+
+.main[data-route="config"] .account-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.main[data-route="config"] .account-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.main[data-route="config"] .account-status-pill.is-ok {
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--line));
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.main[data-route="config"] .account-status-pill.is-warn {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
 .main[data-route="config"] .account-feedback-card {
-  gap: var(--space-5);
+  gap: var(--settings-card-gap);
 }
 .main[data-route="config"] .account-feedback-card .footer-faq-content {
   gap: var(--space-4);
@@ -439,6 +947,38 @@
   .main[data-route="config"] .profile-appearance-option:first-child > .appearance-settings-label {
     padding-top: 0;
   }
+
+  .main[data-route="config"] .areas-navigation-item {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .main[data-route="config"] .areas-navigation-controls {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--line);
+  }
+
+  .main[data-route="config"] .settings-trash-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main[data-route="config"] .settings-trash-bulk {
+    justify-content: flex-start;
+  }
+
+  .main[data-route="config"] .settings-data-trash .trash-list > li {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .main[data-route="config"] .settings-trash-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--line);
+  }
 }
 
 @media (width <= 900px) and (width > 700px) {
@@ -460,79 +1000,195 @@
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
   }
-  .main[data-route="config"] .settings-menu {
+  .main[data-route="config"] .settings-nav-shell {
     position: relative;
-    top: auto;
-    display: flex;
-    gap: var(--space-1);
-    max-height: none;
-    margin-inline: calc(-1 * var(--gut-l)) calc(-1 * var(--gut-r));
-    padding: 4px var(--gut-r) 8px var(--gut-l);
-    overflow-x: auto;
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    background: var(--bg);
-    box-shadow: none;
-    scrollbar-width: thin;
-    overscroll-behavior-inline: contain;
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
   }
-
-  .main[data-route="config"] .settings-menu-group {
-    display: contents;
-  }
-
-  .main[data-route="config"] .settings-menu-heading {
-    display: flex;
-    flex: 0 0 76px;
+  .main[data-route="config"] .settings-mobile-trigger {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--row-height-compact);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    max-width: 76px;
-    margin: 0;
-    padding: 0 var(--space-2);
-    border: 0;
-    border-inline-start: 1px solid var(--line);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--settings-edge);
+    border-radius: var(--r-card);
+    background: var(--surface-strong);
+    color: var(--ink);
+    box-shadow: var(--card-shadow);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+  }
+  .main[data-route="config"] .settings-mobile-trigger:hover {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+    background: var(--surface-soft);
+  }
+  .main[data-route="config"] .settings-mobile-trigger:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .main[data-route="config"] .settings-mobile-trigger-icon {
+    display: grid;
+    width: var(--icon-box-sm);
+    height: var(--icon-box-sm);
+    place-items: center;
+    border-radius: var(--r-pill);
+    background: var(--soft2);
+    color: var(--accent);
+  }
+  .main[data-route="config"] .settings-mobile-trigger-copy {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-quarter);
+  }
+  .main[data-route="config"] .settings-mobile-trigger-copy small {
     color: var(--muted);
     font-size: var(--text-xs);
-    line-height: 1.25;
+    font-weight: var(--weight-medium);
+    line-height: 1.2;
   }
-  .main[data-route="config"] .settings-menu-group + .settings-menu-group { margin: 0; padding: 0; border: 0; }
+  .main[data-route="config"] .settings-mobile-trigger-copy b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+  }
+  .main[data-route="config"] .settings-mobile-trigger-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+  }
+  .main[data-route="config"] .settings-mobile-chevron {
+    transition: transform var(--duration-fast) var(--ease-standard);
+  }
+  .main[data-route="config"] .settings-nav-shell.is-open .settings-mobile-trigger {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  }
+  .main[data-route="config"] .settings-nav-shell.is-open .settings-mobile-chevron {
+    transform: rotate(180deg);
+  }
+  .main[data-route="config"] .settings-menu {
+    display: none;
+    position: static;
+    top: auto;
+    max-height: none;
+    margin-inline: 0;
+    padding: var(--space-3);
+    overflow: visible;
+    border: 1px solid var(--settings-edge);
+    border-radius: var(--r-card);
+    background: var(--surface-strong);
+    box-shadow: var(--elev-2);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+  .main[data-route="config"] .settings-nav-shell.is-open .settings-menu {
+    display: grid;
+  }
+  .main[data-route="config"] .settings-menu::after {
+    content: none;
+    display: none;
+  }
+  .main[data-route="config"] .settings-menu-group {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .main[data-route="config"] .settings-menu-group + .settings-menu-group {
+    margin-top: 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .main[data-route="config"] .settings-menu-heading {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0 var(--space-2) var(--space-1);
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: .04em;
+    white-space: normal;
+  }
   .main[data-route="config"] .settings-link {
     display: grid;
-    width: 180px;
-    min-width: 180px;
-    max-width: 180px;
-    flex: 0 0 180px;
-    min-height: var(--control-field);
-    grid-template-columns: 24px minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: none;
+    min-height: var(--target-size);
+    grid-template-columns: 28px minmax(0, 1fr);
     justify-items: start;
+    align-items: center;
     gap: var(--space-2);
-    padding: 6px 10px;
+    padding: var(--space-2) var(--space-3);
     border: 1px solid transparent;
     border-radius: var(--r-control);
     background: transparent;
     color: var(--muted);
+    font-weight: var(--weight-medium);
     text-align: left;
     white-space: normal;
   }
-
   .main[data-route="config"] .settings-link:hover {
-    border-color: var(--line);
-    background: var(--surface);
+    border-color: transparent;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--ink);
   }
-
+  .main[data-route="config"] .settings-link[aria-current="page"] {
+    border-color: var(--seg-thumb-border);
+    border-radius: var(--r-control);
+    background: var(--seg-thumb);
+    color: var(--accent);
+    box-shadow: var(--seg-thumb-shadow);
+    font-weight: var(--weight-semibold);
+  }
   .main[data-route="config"] .settings-link-arrow { display: none; }
   .main[data-route="config"] .settings-link-icon {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border: 0;
+    border-radius: var(--r-pill);
     background: transparent;
     color: currentcolor;
   }
-  .main[data-route="config"] .settings-link-copy { width: auto; align-items: flex-start; }
-  .main[data-route="config"] .settings-link-copy b { font-size: var(--text-sm); }
+  .main[data-route="config"] .settings-link[aria-current="page"] .settings-link-icon {
+    background: var(--soft2);
+    color: var(--accent);
+  }
+  .main[data-route="config"] .settings-link-copy {
+    width: 100%;
+    min-width: 0;
+    align-items: start;
+  }
+  .main[data-route="config"] .settings-link-copy b {
+    width: auto;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+    white-space: normal;
+  }
+  .main[data-route="config"] .settings-link-copy small { display: none; }
 }
 
 @media (width <= 480px) {
+  .main[data-route="config"] .settings-link { min-height: var(--target-size); }
   .main[data-route="config"] {
     --settings-card-padding: var(--space-4);
   }
@@ -564,20 +1220,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .main[data-route="config"] .appearance-preset { transition: none; }
-}
-
-/* Menu dos Ajustes no celular: faixa horizontal com ícone e nome; a descrição ficava por cima do item seguinte. */
-@media (width <= 700px) {
-  .main[data-route="config"] .settings-link {
-    width: auto;
-    min-width: 0;
-    max-width: none;
-    flex: none;
-    grid-template-columns: 24px auto;
-    padding-inline: 10px 14px;
-  }
-  .main[data-route="config"] .settings-link-copy { min-width: 0; }
-  .main[data-route="config"] .settings-link-copy b { white-space: nowrap; }
-  .main[data-route="config"] .settings-link-copy small { display: none; }
+  .main[data-route="config"] .appearance-preset,
+  .main[data-route="config"] .settings-mobile-trigger,
+  .main[data-route="config"] .settings-mobile-chevron,
+  .main[data-route="config"] .areas-navigation-item,
+  .main[data-route="config"] .menu-visibility,
+  .main[data-route="config"] .settings-switch,
+  .main[data-route="config"] .settings-switch::before { transition: none; }
 }

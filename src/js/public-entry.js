@@ -15,7 +15,12 @@ import { renderLanding } from './features/landing/view.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { normalizeSuggestionMessage } from './features/footer/suggestions.js';
 import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
-import { getSupabaseClient, hasStoredAuthSession, hasSupabaseConfig } from './data/supabase-client.js';
+import {
+  getSupabaseClient,
+  hasStoredAuthSession,
+  hasSupabaseConfig,
+  preconnectSupabase,
+} from './data/supabase-client.js';
 import { isNativeApp } from './utils/platform.js';
 
 const root = document.getElementById('app');
@@ -109,6 +114,7 @@ function showEntryError(rootElement) {
 let accountEntryWarmed = false;
 function warmAccountEntry() {
   if (accountEntryWarmed || isDemoLocation(location)) return;
+  preconnectSupabase();
   const href = import.meta.env.DEV
     ? '/src/js/account-entry.js'
     : document.querySelector('meta[name="aurora-account-chunk"]')?.content;
@@ -292,6 +298,14 @@ if (
   savedSessionLanding ||
   document.documentElement.dataset.auroraAuthCallback === 'true'
 ) {
+  if (!localPreview) {
+    preconnectSupabase();
+    void import('./services/account-auth.js').catch(() => {});
+    void import('./data/relational-account-store.js').catch(() => {});
+    if (hasSavedAccountSession() || document.documentElement.dataset.auroraAuthCallback === 'true') {
+      void getSupabaseClient().catch(() => {});
+    }
+  }
   import('./main.js').catch((error) => {
     console.error('Aurora: não foi possível carregar a aplicação.', error);
     showEntryError(root);
@@ -337,6 +351,7 @@ if (
   };
   if (isPublicLandingLocation(location)) renderPublicRoute();
   else {
+    preconnectSupabase();
     import('./account-entry.js')
       .then(({ startAccountEntry }) =>
         startAccountEntry(root, accountModeFromLocation(location) || 'login', {
@@ -353,7 +368,7 @@ if (
   if (isPublicLandingLocation(location) && !isDemoLocation(location)) {
     startPwaInstallPrompt();
     startPublicPwaSupport();
-    ['focusin', 'touchstart'].forEach((type) => {
+    ['pointerenter', 'focusin', 'touchstart'].forEach((type) => {
       root.addEventListener(
         type,
         (event) => {
@@ -363,7 +378,7 @@ if (
           )
             warmAccountEntry();
         },
-        { passive: true },
+        { passive: true, capture: type === 'pointerenter' },
       );
     });
     window.addEventListener('online', updatePublicConnectionNotice);
@@ -482,11 +497,11 @@ if (
       else control.removeAttribute('aria-disabled');
     };
     setBusy(trigger, true);
-    trigger.setAttribute('aria-busy', 'true');
-    const label = trigger.textContent?.trim();
-    if (label && !trigger.dataset.defaultLabel) trigger.dataset.defaultLabel = label;
-    if (trigger.dataset.defaultLabel)
-      trigger.textContent = trigger.dataset.defaultLabel === 'Entrar' ? 'Entrando…' : 'Criando conta…';
+    const busyIndicatorTimer = window.setTimeout(() => {
+      if (publicAccountNavigationPending && trigger.isConnected) {
+        trigger.setAttribute('aria-busy', 'true');
+      }
+    }, 180);
 
     try {
       const sessionReady = await sessionRestore;
@@ -496,11 +511,10 @@ if (
       console.error('Aurora: a inicialização segura falhou.', error);
       showEntryError(root);
     } finally {
+      window.clearTimeout(busyIndicatorTimer);
       publicAccountNavigationPending = false;
       setBusy(trigger, false);
       trigger.removeAttribute('aria-busy');
-      const defaultLabel = trigger.dataset.defaultLabel;
-      if (defaultLabel) trigger.textContent = defaultLabel;
     }
   });
 

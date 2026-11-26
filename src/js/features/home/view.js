@@ -46,21 +46,22 @@ export function renderHomeView(model, renderers) {
   const weekPercent = weekTotal ? Math.round((weekProgress.completed / weekTotal) * 100) : 0;
 
   return h`
-    <header class="home-head" aria-labelledby="hi"><div><p class="date">${dateLabel}</p><div
+    <header class="home-head" aria-labelledby="hi"><div class="home-head-inner"><div
       class="home-greeting">${profileAvatarMarkup(profileAppearance, 'home-profile-avatar')}<h1 id="hi"
       class="type-editorial-display">${greeting}${
         name
           ? h`, <span
       class="proper-name">${name}</span>`
           : ''
-      }<i>.</i></h1></div>${
+      }<i>.</i></h1><div class="home-head-controls"><div
+      class="home-head-actions"><a class="home-action"
+      href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a></div>${areaGuideButton('inicio')}</div></div><div
+      class="home-head-meta"><p class="date">${dateLabel}</p>${lead ? h`<p class="lead">${lead}</p>` : ''}</div>${
         homeMessage
           ? h`<p
       class="home-personal-message">${homeMessage}</p>`
           : ''
-      }${lead ? h`<p class="lead">${lead}</p>` : ''}<div
-      class="home-head-actions"><a class="home-action"
-      href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a>${areaGuideButton('inicio')}</div></div></header>
+      }</div></header>
     ${homeFirstSteps()}
     ${sampleBanner()}
     ${
@@ -81,9 +82,26 @@ export function renderHomeView(model, renderers) {
           <h2 id="home-day-summary-title">Resumo do dia</h2>
           ${
             daySummary.tasks.next
-              ? h`<a class="home-day-next-task" href="/planejar"
-                aria-label="Próxima tarefa: ${daySummary.tasks.next.title}">${icon('calendarCheck', 18)}<span><small>PRÓXIMA TAREFA</small><b>${daySummary.tasks.next.title}</b></span>${icon('chevRight', 16)}</a>`
-              : h`<p class="home-day-next-task is-empty">Nenhuma tarefa atrasada ou para hoje.</p>`
+              ? h`<div class="home-day-next-task has-quick-action${overdue.some((task) => task.id === daySummary.tasks.next.id) ? ' is-overdue' : ''}"><button
+                type="button" class="chk p-${daySummary.tasks.next.priority || 'normal'}" role="checkbox"
+                aria-checked="false" aria-label="Concluir: ${daySummary.tasks.next.title}" data-action="toggle"
+                data-id="${daySummary.tasks.next.id}"><span>${icon('check', 15)}</span></button><button type="button"
+                class="home-day-next-task-body" data-action="edit-task" data-id="${daySummary.tasks.next.id}"
+                aria-label="Próxima tarefa: ${daySummary.tasks.next.title}"><span><small>${overdue.some((task) => task.id === daySummary.tasks.next.id) ? 'ATRASADA' : 'PRÓXIMA TAREFA'}</small><b>${daySummary.tasks.next.title}</b></span>${icon('chevRight', 16)}</button></div>`
+              : pendingCalendarEvents[0]
+                ? h`<a class="home-day-next-task" href="/planejar"
+                  aria-label="Próximo compromisso: ${pendingCalendarEvents[0].title}">${icon('calendar', 18)}<span><small>AGENDA DE HOJE</small><b>${pendingCalendarEvents[0].title}</b></span>${icon('chevRight', 16)}</a>`
+                : daySummary.tasks.total > 0 && daySummary.tasks.done === daySummary.tasks.total
+                  ? h`<a class="home-day-next-task" href="/planejar"
+                    aria-label="Todas as tarefas de hoje concluídas">${icon('check', 18)}<span><small>TUDO FEITO</small><b>Tarefas de hoje concluídas</b></span>${icon('chevRight', 16)}</a>`
+                  : inbox[0]
+                    ? h`<div class="home-day-next-task has-quick-action"><button type="button"
+                      class="chk p-${inbox[0].priority || 'normal'}" role="checkbox" aria-checked="false"
+                      aria-label="Concluir: ${inbox[0].title}" data-action="toggle"
+                      data-id="${inbox[0].id}"><span>${icon('check', 15)}</span></button><button type="button"
+                      class="home-day-next-task-body" data-action="edit-task" data-id="${inbox[0].id}"
+                      aria-label="Tarefa sem prazo: ${inbox[0].title}"><span><small>SEM PRAZO · ${inbox.length} ${inbox.length === 1 ? 'PENDENTE' : 'PENDENTES'}</small><b>${inbox[0].title}</b></span>${icon('chevRight', 16)}</button></div>`
+                    : h`<p class="home-day-next-task is-empty">Nenhuma tarefa atrasada ou para hoje.</p>`
           }
           <div class="home-day-chips" role="group" aria-label="Resumo das áreas de hoje">
             <a class="home-day-chip home-day-chip--plan" href="/planejar"

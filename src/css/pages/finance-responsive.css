@@ -36,7 +36,7 @@
 
 .fin-filter-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 145px 145px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 175px) minmax(175px, 200px);
   align-items: center;
   gap: var(--space-2);
 }
@@ -44,8 +44,8 @@
 .fin-filter-row > label { min-width: 0; }
 
 /* Filtros recolhíveis: no celular só o botão aparece e a lista sobe na tela. */
-.fin-filter-bar { align-items: center; justify-content: space-between; gap: var(--space-2); }
-.fin-filter-toggle { display: none; }
+.main[data-route="financas"] .fin-filter-bar { display: none; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.main[data-route="financas"] .fin-filter-toggle { display: none; }
 .fin-filter-bar > .btn.ghost { margin-left: auto; }
 .fin-filter-count {
   display: inline-grid;
@@ -64,7 +64,8 @@
 @media (width < 700px) {
   .fin-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fin-filter-row .search { grid-column: 1 / -1; }
-  .fin-filter-toggle { display: inline-flex; gap: var(--space-2); }
+  .main[data-route="financas"] .fin-filter-bar { display: flex; }
+  .main[data-route="financas"] .fin-filter-toggle { display: inline-flex; gap: var(--space-2); }
   .fin-filter-toggle[aria-expanded="true"] {
     border-color: color-mix(in srgb, var(--area-finances) 40%, var(--line));
     background: color-mix(in srgb, var(--area-finances) 9%, var(--surface));
@@ -72,24 +73,31 @@
   }
   .fin-filter-row[data-collapsed] { display: none; }
 
-  /* Dica de rolagem: degradê fixo na borda direita dos chips (some ao chegar no fim). */
+  /* Dica de rolagem suave na borda direita dos chips sem cobrir bordas. */
   .main[data-route="financas"] .scroll-x[role="group"] {
-    -webkit-mask-image: none;
-    mask-image: none;
+    -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - 24px), transparent);
   }
-  .main[data-route="financas"] .scroll-x[role="group"]::after {
-    position: sticky;
-    right: 0;
-    flex: 0 0 28px;
-    background: linear-gradient(to right, transparent, var(--surface-strong));
-    content: "";
-    pointer-events: none;
+}
+
+@media (width < 900px) {
+  .main[data-route="financas"] .fin-section-menu {
+    padding-right: var(--space-5);
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+  }
+  .main[data-route="financas"] .fin-section-menu > .tab {
+    padding-inline: var(--space-3);
+    font-size: var(--text-meta);
   }
 }
 
 @media (width <= 480px) {
   .main[data-route="financas"] .fin-section-content {
     gap: var(--space-4);
+  }
+  .main[data-route="financas"] .finance-account-tabs {
+    width: 100%;
   }
   .main[data-route="financas"] .fin-section-menu {
     flex-wrap: nowrap;
@@ -101,15 +109,6 @@
   .main[data-route="financas"] .fin-section-option {
     min-height: var(--target-size);
     scroll-snap-align: start;
-  }
-  /* Dica de rolagem nas abas de Finanças: degradê fixo na borda direita. */
-  .main[data-route="financas"] .fin-section-menu::after {
-    position: sticky;
-    right: 0;
-    flex: 0 0 24px;
-    background: linear-gradient(to right, transparent, var(--surface-strong));
-    content: "";
-    pointer-events: none;
   }
   .main[data-route="financas"] .fin-tools-actions { flex-wrap: wrap; }
   .main[data-route="financas"] .fin-tools-actions > * { flex: 1 1 140px; justify-content: center; }
@@ -228,14 +227,14 @@
 }
 .app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-fab-trigger {
   display: grid;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: var(--area-finances);
-  box-shadow: var(--shadow);
-  color: var(--surface-strong);
+  background: var(--btn);
+  box-shadow: var(--elev-2);
+  color: var(--on-btn);
 }
 .app:has(> .main[data-route="financas"]) > .finance-quick-control .finance-fab-trigger .ic {
   width: 26px;

@@ -102,8 +102,8 @@ try {
   appPage.on('pageerror', (error) => pageErrors.push(error));
   videoPage.on('pageerror', (error) => pageErrors.push(error));
   await videoPage.goto(`${baseUrl}/terms.html`);
-  await videoPage.setContent(`<!doctype html><html lang="pt-BR"><head><style>@font-face{font-family:"DM Sans";src:url("/src/fonts/dm-sans-latin.woff2") format("woff2");font-weight:100 1000}</style></head><body></body></html>`);
-  await videoPage.evaluate(() => document.fonts.load('400 20px "DM Sans"'));
+  await videoPage.setContent(`<!doctype html><html lang="pt-BR"><head><style>@font-face{font-family:"Figtree";src:url("/src/fonts/figtree-latin.woff2") format("woff2");font-weight:400 700}@font-face{font-family:"Newsreader";src:url("/src/fonts/newsreader-latin.woff2") format("woff2");font-weight:400 700}</style></head><body></body></html>`);
+  await videoPage.evaluate(() => Promise.all([document.fonts.load('400 20px "Figtree"'), document.fonts.load('500 34px "Newsreader"')]));
 
   for (const [id, guide] of guides) {
     const fileId = `${id}${MOBILE_SUFFIX}`;
@@ -342,9 +342,9 @@ try {
           context.fillRect(0, height - captionHeight, width, captionHeight);
           context.textAlign = 'left';
           context.fillStyle = '#ffffff';
-          context.font = `700 ${16 * captionFontScale}px "DM Sans", Arial, sans-serif`;
+          context.font = `700 ${16 * captionFontScale}px "Figtree", Arial, sans-serif`;
           context.fillText(slide.label, captionX, height - (mobileMode ? 276 : 126));
-          context.font = `700 ${34 * captionFontScale}px "DM Sans", Arial, sans-serif`;
+          context.font = `500 ${34 * captionFontScale}px "Newsreader", Georgia, serif`;
           const titleLines = [];
           let titleLine = '';
           for (const word of slide.title.split(/\s+/)) {
@@ -372,7 +372,7 @@ try {
             height - (mobileMode ? 208 : 88) + index * (mobileMode ? 58 : 40),
           ));
           context.fillStyle = 'rgba(255,255,255,.88)';
-          context.font = `400 ${20 * captionFontScale}px "DM Sans", Arial, sans-serif`;
+          context.font = `400 ${20 * captionFontScale}px "Figtree", Arial, sans-serif`;
           const words = slide.text.split(/\s+/);
           const lines = [];
           let line = '';

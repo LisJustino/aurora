@@ -6,41 +6,82 @@
 .tab, .seg button, .chip {
   min-height: var(--target-size);
   border-radius: var(--r-control);
-  transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-.tab:hover, .seg button:hover, .chip:hover {
-  background: var(--soft);
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .tab:hover {
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    color: var(--ink);
+  }
+  .seg button:hover {
+    color: var(--ink);
+  }
+  .chip:hover {
+    border-color: var(--border-hover);
+    background: var(--soft);
+    color: var(--accent);
+  }
 }
 .tab:active, .seg button:active, .chip:active { transform: translateY(1px); }
-.seg button[aria-pressed="true"],
+.seg button[aria-pressed="true"] {
+  border: 1px solid var(--seg-thumb-border);
+  background: var(--seg-thumb);
+  color: var(--ink);
+  box-shadow: var(--seg-thumb-shadow);
+  font-weight: var(--weight-semibold);
+}
 .chip[aria-pressed="true"],
 .chip.on {
   background: var(--soft2);
   color: var(--accent);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
 }
-.tabs { display: flex; min-width: 0; gap: var(--space-1); overflow-x: auto; }
+.tabs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  overflow-x: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--seg-track);
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: var(--space-2);
+  scroll-snap-type: x proximity;
+}
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
   display: inline-flex;
   flex: none;
+  min-height: var(--control-sm);
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   cursor: pointer;
+  scroll-snap-align: start;
 }
-.tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); font-weight: var(--weight-bold); }
+.tab[aria-selected="true"] {
+  border-color: var(--seg-thumb-border);
+  background: var(--seg-thumb);
+  color: var(--accent);
+  box-shadow: var(--seg-thumb-shadow);
+  font-weight: var(--weight-semibold);
+}
 .tab:focus-visible { outline-offset: -3px; }
+@media (width <= 480px) {
+  .tabs > .tab { min-height: var(--target-size); }
+}
 
 @media (pointer: coarse) and (width > 480px) {
   .fin-section-menu,
@@ -50,29 +91,34 @@
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
   display: inline-flex;
-  min-height: var(--control-md);
+  min-height: var(--control-sm);
   flex: none;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-control);
-  background: var(--surface);
-  color: var(--ink);
+  border: 1px solid var(--border-chip);
+  border-radius: var(--r-pill);
+  background: var(--surface-chip);
+  color: var(--muted);
   font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease;
+  transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
 .chip[aria-pressed="true"], .chip.on {
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) var(--surface-chip-active-tint), var(--surface-chip-active-base));
+  color: var(--accent);
+  box-shadow: var(--btn-surface-shadow);
+  font-weight: var(--weight-semibold);
 }
 
 :is(.main, .dlg-back):is([data-route="planejar"], [data-route="habitos"], [data-route="agua"], [data-route="financas"], [data-route="ciclo"]) .chip:not(.cycle-choice, .cycle-intimacy-choice):is([aria-pressed="true"], .on) {
   border-color: var(--area, var(--accent));
-  background: var(--surface);
+  background: color-mix(in srgb, var(--area, var(--accent)) var(--surface-chip-active-tint), var(--surface-chip-active-base));
   color: var(--area, var(--accent));
+  box-shadow: var(--btn-surface-shadow);
 }
 
 .seg { min-width: 0; }
@@ -139,7 +185,7 @@
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: var(--r-group);
-  background: var(--surface-soft);
+  background: var(--seg-track);
 }
 .seg button {
   position: relative;

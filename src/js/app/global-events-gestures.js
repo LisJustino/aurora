@@ -1,18 +1,55 @@
 import { ACTIONS } from './actions.js';
+import { vibrateFeedback } from './shell.js';
 import { ui } from './state.js';
 
 const PULL_REFRESH_THRESHOLD = 80;
+const PULL_REFRESH_MAX_OFFSET = 88;
+const PULL_REFRESH_ACTIVATE_Y = 12;
 let pullRefreshState = null;
-const resetPullRefresh = () => {
+let pullRefreshSettleTimer = 0;
+
+function hasScrolledVerticalAncestor(target) {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== document.body && node !== document.documentElement) {
+    if (node.scrollTop > 0) {
+      const overflowY = getComputedStyle(node).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function dampedPullOffset(deltaY) {
+  if (deltaY <= 0) return 0;
+  return PULL_REFRESH_MAX_OFFSET * (1 - Math.exp(-deltaY / 100));
+}
+
+function clearPullRefreshProps(app, indicator, { animate = false } = {}) {
+  clearTimeout(pullRefreshSettleTimer);
+  app.classList.remove('is-pulling-to-refresh', 'is-pull-refresh-ready', 'is-refreshing');
+  if (animate) {
+    app.classList.add('is-pull-settling');
+    pullRefreshSettleTimer = setTimeout(() => {
+      app.classList.remove('is-pull-settling');
+    }, 280);
+  } else {
+    app.classList.remove('is-pull-settling');
+  }
+  app.style.removeProperty('--pull-refresh-offset');
+  app.style.removeProperty('--pull-refresh-content-offset');
+  app.style.removeProperty('--pull-refresh-rotation');
+  app.style.removeProperty('--pull-refresh-progress');
+  indicator.setAttribute('aria-hidden', 'true');
+  const label = indicator.querySelector('.pull-refresh-label');
+  if (label) label.textContent = '';
+}
+
+const resetPullRefresh = (animate = false) => {
   if (!pullRefreshState) return;
-  pullRefreshState.app.classList.remove('is-pulling-to-refresh');
-  pullRefreshState.app.classList.remove('is-pull-refresh-ready');
-  pullRefreshState.app.classList.remove('is-refreshing');
-  pullRefreshState.app.style.removeProperty('--pull-refresh-offset');
-  pullRefreshState.app.style.removeProperty('--pull-refresh-rotation');
-  pullRefreshState.indicator.setAttribute('aria-hidden', 'true');
-  pullRefreshState.indicator.querySelector('.pull-refresh-label').textContent = '';
+  const { app, indicator, engaged } = pullRefreshState;
   pullRefreshState = null;
+  clearPullRefreshProps(app, indicator, { animate: animate && engaged });
 };
 let listSwipeState = null;
 let suppressSwipeClickUntil = 0;
@@ -57,14 +94,27 @@ export function registerGestureEvents() {
       const target = event.target instanceof Element ? event.target : null;
       if (
         !target?.closest('#main') ||
-        target.closest('button, a[href], input, textarea, select, summary, [contenteditable="true"], [role="button"]')
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], .habit-drag-handle, .habit-menu[open], .task-menu[open]',
+        ) ||
+        hasScrolledVerticalAncestor(target)
       )
         return;
       const app = document.querySelector('.app');
       const indicator = app?.querySelector('.pull-refresh-indicator');
       if (!app || !indicator) return;
+      clearTimeout(pullRefreshSettleTimer);
+      app.classList.remove('is-pull-settling');
       const touch = event.touches[0];
-      pullRefreshState = { app, indicator, startX: touch.clientX, startY: touch.clientY, deltaY: 0 };
+      pullRefreshState = {
+        app,
+        indicator,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        deltaY: 0,
+        engaged: false,
+        ready: false,
+      };
     },
     { passive: true },
   );
@@ -73,26 +123,43 @@ export function registerGestureEvents() {
     (event) => {
       if (!pullRefreshState) return;
       if (event.touches.length !== 1) {
-        resetPullRefresh();
+        resetPullRefresh(true);
         return;
       }
       const touch = event.touches[0];
       const deltaX = touch.clientX - pullRefreshState.startX;
       const deltaY = touch.clientY - pullRefreshState.startY;
-      if (deltaY <= 0 || Math.abs(deltaX) > deltaY || window.scrollY > 0) {
-        resetPullRefresh();
+      if (deltaY <= 0 || window.scrollY > 0) {
+        resetPullRefresh(true);
         return;
       }
-      if (deltaY < 10) return;
+      if (!pullRefreshState.engaged) {
+        if (Math.abs(deltaX) > Math.max(10, deltaY * 0.75)) {
+          resetPullRefresh(false);
+          return;
+        }
+        if (deltaY < PULL_REFRESH_ACTIVATE_Y) return;
+        pullRefreshState.engaged = true;
+      }
       if (event.cancelable) event.preventDefault();
       pullRefreshState.deltaY = deltaY;
+      const offset = dampedPullOffset(deltaY);
+      const progress = Math.min(1, deltaY / PULL_REFRESH_THRESHOLD);
+      const ready = deltaY >= PULL_REFRESH_THRESHOLD;
+      if (ready && !pullRefreshState.ready) {
+        vibrateFeedback('light');
+      }
+      pullRefreshState.ready = ready;
       pullRefreshState.app.classList.add('is-pulling-to-refresh');
-      pullRefreshState.app.style.setProperty('--pull-refresh-offset', `${Math.min(70, deltaY * 0.55)}px`);
-      pullRefreshState.app.style.setProperty('--pull-refresh-rotation', `${Math.min(180, deltaY * 2)}deg`);
-      pullRefreshState.app.classList.toggle('is-pull-refresh-ready', deltaY >= PULL_REFRESH_THRESHOLD);
+      pullRefreshState.app.classList.toggle('is-pull-refresh-ready', ready);
+      pullRefreshState.app.style.setProperty('--pull-refresh-offset', `${offset.toFixed(1)}px`);
+      pullRefreshState.app.style.setProperty('--pull-refresh-content-offset', `${(offset * 0.85).toFixed(1)}px`);
+      pullRefreshState.app.style.setProperty('--pull-refresh-rotation', `${Math.round(progress * 300)}deg`);
+      pullRefreshState.app.style.setProperty('--pull-refresh-progress', `${Math.round(progress * 100)}%`);
       pullRefreshState.indicator.setAttribute('aria-hidden', 'false');
-      pullRefreshState.indicator.querySelector('.pull-refresh-label').textContent =
-        deltaY >= PULL_REFRESH_THRESHOLD ? 'Solte para atualizar' : 'Continue puxando para atualizar';
+      pullRefreshState.indicator.querySelector('.pull-refresh-label').textContent = ready
+        ? 'Solte para atualizar'
+        : 'Continue puxando para atualizar';
     },
     { passive: false },
   );
@@ -101,31 +168,39 @@ export function registerGestureEvents() {
     (event) => {
       if (!pullRefreshState) return;
       if (event.touches.length !== 0) {
-        resetPullRefresh();
+        resetPullRefresh(true);
         return;
       }
-      const shouldRefresh = pullRefreshState.deltaY >= PULL_REFRESH_THRESHOLD;
+      const shouldRefresh = pullRefreshState.engaged && pullRefreshState.deltaY >= PULL_REFRESH_THRESHOLD;
+      const wasEngaged = pullRefreshState.engaged;
       const { app, indicator } = pullRefreshState;
-      resetPullRefresh();
-      if (shouldRefresh) {
-        app.classList.add('is-pulling-to-refresh', 'is-pull-refresh-ready', 'is-refreshing');
-        app.style.setProperty('--pull-refresh-offset', '56px');
-        indicator.setAttribute('aria-hidden', 'false');
-        indicator.querySelector('.pull-refresh-label').textContent = 'Atualizando…';
-        requestAnimationFrame(() => {
-          ACTIONS['reload-app']();
-          if (ui.dlg) {
-            app.classList.remove('is-pulling-to-refresh', 'is-pull-refresh-ready', 'is-refreshing');
-            app.style.removeProperty('--pull-refresh-offset');
-            indicator.setAttribute('aria-hidden', 'true');
-            indicator.querySelector('.pull-refresh-label').textContent = '';
-          }
-        });
+      if (wasEngaged) {
+        suppressSwipeClickUntil = Date.now() + 350;
+        suppressSwipeClickRow = app;
       }
+      if (!shouldRefresh) {
+        resetPullRefresh(true);
+        return;
+      }
+      pullRefreshState = null;
+      vibrateFeedback('success');
+      app.classList.remove('is-pulling-to-refresh');
+      app.classList.add('is-pull-settling', 'is-pull-refresh-ready', 'is-refreshing');
+      app.style.setProperty('--pull-refresh-offset', '54px');
+      app.style.setProperty('--pull-refresh-content-offset', '56px');
+      app.style.setProperty('--pull-refresh-progress', '100%');
+      indicator.setAttribute('aria-hidden', 'false');
+      indicator.querySelector('.pull-refresh-label').textContent = 'Atualizando…';
+      requestAnimationFrame(() => {
+        ACTIONS['reload-app']();
+        if (ui.dlg) {
+          clearPullRefreshProps(app, indicator, { animate: true });
+        }
+      });
     },
     { passive: true },
   );
-  document.addEventListener('touchcancel', resetPullRefresh, { passive: true });
+  document.addEventListener('touchcancel', () => resetPullRefresh(true), { passive: true });
   document.addEventListener('pointerdown', (event) => {
     if (suppressSwipeClickRow) {
       suppressSwipeClickUntil = 0;
@@ -147,7 +222,7 @@ export function registerGestureEvents() {
       };
       return;
     }
-    const habitSummary = event.target.closest('.habit-more > summary');
+    const habitSummary = event.target.closest('.habit-row .habit-main');
     const habit = habitSummary?.closest('.habit-row');
     if (habit && habit.querySelector('.habit-circle:not(:disabled)')) {
       listSwipeState = {

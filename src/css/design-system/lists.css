@@ -23,7 +23,9 @@
 
 .list > li:first-child { border-top: 1px solid var(--line); }
 
-.list > li:hover {
-  border-color: var(--list-row-hover-border);
-  background: var(--list-row-hover);
+@media (hover: hover) and (pointer: fine) {
+  .list > li:hover {
+    border-color: var(--list-row-hover-border);
+    background: var(--list-row-hover);
+  }
 }

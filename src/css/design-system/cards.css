@@ -4,11 +4,11 @@
   flex-direction: column;
   gap: var(--card-content-gap);
   padding: var(--card-padding);
-  border: 1px solid color-mix(in srgb, var(--accent) 6%, var(--line));
+  border: 1px solid var(--border-card);
   border-radius: var(--r-card);
   background: var(--surface-strong);
-  box-shadow: var(--elev-0);
-  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
+  box-shadow: var(--elev-1);
+  transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
 
 .card.flat {
@@ -118,8 +118,18 @@
 @media (hover: hover) and (pointer: fine) {
   .shortcut-card:hover {
     border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-    background: var(--surface-soft);
+    background: var(--surface-hover);
   }
+  .strip a:hover {
+    border-color: var(--border-hover);
+    background: var(--soft);
+  }
+  .hero .btn:hover { background: var(--soft); }
+}
+
+.shortcut-card:active,
+.strip a:active {
+  background: var(--surface-press);
 }
 
 .strip {
@@ -143,10 +153,6 @@
   transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard);
 }
 
-.strip a:hover {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
-  background: var(--soft);
-}
 .strip b { font: var(--weight-bold) var(--text-2xl)/var(--leading-tight) var(--font-h); font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
 .strip span { color: var(--muted); font-size: var(--text-meta); line-height: 1.4; }
 
@@ -194,7 +200,6 @@
 .hero .date { margin-bottom: 6px; color: var(--muted); font-size: var(--text-sm); }
 .hero .lead { max-width: 48ch; color: var(--muted); }
 .hero .btn { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
-.hero .btn:hover { background: var(--soft); }
 .hero .btn.primary { border-color: var(--btn); background: var(--btn); color: var(--on-btn); }
 
 .ringw { position: relative; width: 76px; height: 76px; flex: none; }

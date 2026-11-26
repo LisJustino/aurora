@@ -34,10 +34,15 @@ export function syncNativeAppearance(mode) {
     });
 }
 
-export function triggerHapticFeedback() {
+export function triggerHapticFeedback(kind = 'light') {
+  const isSuccess = kind === 'success';
   if (Capacitor.isNativePlatform()) {
     void import('@capacitor/haptics')
-      .then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light }))
+      .then(({ Haptics, ImpactStyle, NotificationType }) =>
+        isSuccess && NotificationType?.Success
+          ? Haptics.notification({ type: NotificationType.Success })
+          : Haptics.impact({ style: isSuccess ? ImpactStyle.Medium : ImpactStyle.Light }),
+      )
       .catch((error) => {
         console.warn('Aurora: não foi possível emitir o retorno tátil.', error);
       });
@@ -45,7 +50,7 @@ export function triggerHapticFeedback() {
   }
   if (typeof navigator.vibrate !== 'function') return;
   try {
-    navigator.vibrate(15);
+    navigator.vibrate(isSuccess ? [14, 32, 18] : 12);
   } catch (error) {
     console.warn('Aurora: não foi possível emitir o retorno tátil.', error);
   }

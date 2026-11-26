@@ -1,3 +1,76 @@
+.main[data-route="planejar"] .plan-view-segments {
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-group);
+  background: var(--seg-track);
+  scrollbar-width: none;
+}
+.main[data-route="planejar"] .plan-view-segments::-webkit-scrollbar { display: none; }
+.main[data-route="planejar"] .plan-view-segments > .tab {
+  min-height: var(--control-sm);
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+}
+.main[data-route="planejar"] .plan-view-segments > .tab[aria-selected="true"] {
+  border-color: var(--seg-thumb-border);
+  background: var(--seg-thumb);
+  color: var(--accent);
+  box-shadow: var(--seg-thumb-shadow);
+}
+@media (width < 700px) {
+  .main[data-route="planejar"] .plan-view-segments {
+    padding-right: var(--space-5);
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+  }
+  .main[data-route="planejar"] .plan-view-segments > .tab {
+    padding-inline: var(--space-3);
+    font-size: var(--text-meta);
+  }
+  .main[data-route="planejar"] .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-right: var(--space-5);
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent);
+  }
+  .main[data-route="planejar"] .chips::-webkit-scrollbar { display: none; }
+  .main[data-route="planejar"] .chips > .chip { flex: none; }
+}
+@media (width >= 700px) {
+  .main[data-route="planejar"] .plan-view-segments {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .main[data-route="planejar"] .plan-view-segments > .tab { width: 100%; min-width: 0; }
+}
+
+.overdue-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--bad) 22%, var(--line));
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+}
+.overdue-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.annual-goal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .annual-planner {
   display: grid;
   gap: var(--space-4);
@@ -11,12 +84,10 @@
   justify-content: space-between;
   gap: var(--space-5);
   padding: clamp(20px, 3vw, 32px);
-  border: 0;
-  border-radius: var(--r-control);
-  background:
-    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--p) 20%, transparent), transparent 48%),
-    var(--surface);
-  box-shadow: var(--card-shadow);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1);
 }
 .annual-plan-hero-copy { min-width: 0; }
 .annual-plan-hero h2 {
@@ -47,6 +118,7 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
+.annual-year-select > span { white-space: nowrap; }
 .annual-year-select select { width: auto; min-width: 100px; }
 .annual-plan-progress-card {
   display: flex;

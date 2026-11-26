@@ -29,6 +29,7 @@ const blockSelectors = [
     ]) {
       await page.locator('.header-account-trigger:visible').click();
       await page.locator('.header-account-panel a[href="/ajustes"]').click();
+      await page.locator('.settings-mobile-trigger').click();
       await page.locator('.settings-menu [data-settings-tab="home"]').click();
       await page.locator(`[data-action="home-mode"][data-home-mode="${mode}"]`).click();
       await page.getByText('Salvo nesta demonstração.').waitFor({ state: 'visible' });
@@ -66,6 +67,9 @@ const blockSelectors = [
         await description.waitFor({ state: 'visible' });
         copy[route] = { description: await description.innerText() };
         if (route === 'ajustes') {
+          if (width <= 700) {
+            await page.locator('.settings-mobile-trigger').click();
+          }
           copy[route].menu = await page.locator('.settings-menu').innerText();
         }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${width}px ${route} sem overflow horizontal`);

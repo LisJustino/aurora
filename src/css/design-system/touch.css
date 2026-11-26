@@ -16,8 +16,8 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 .weekly-review-hero,
 .profile-intro {
   border-radius: var(--r-hero);
-  background: var(--hero);
-  box-shadow: var(--elev-2);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1);
 }
 .fin-hero { border-inline-start-width: 1px; }
 
@@ -31,7 +31,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     font-size: var(--text-xs);
     line-height: 1.4;
   }
-  .home-quick-card { gap: var(--space-3); padding-block: 16px; }
+  .home-quick-card { gap: var(--space-3); padding-block: var(--space-4); }
 }
 
 /* Conclusão: o círculo marcado dá um pulo curto, além do anel verde */
@@ -42,28 +42,17 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 }
 :root[data-motion="reduce"] .habit-circle.completion-feedback, :root[data-motion="reduce"] button.habit-dot.completion-feedback { animation: none; }
 
-/* Calendário anual: células maiores e fim da fileira sempre à vista */
-.habit-year-grid { grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: var(--space-1); }
+/* Legenda do calendário anual */
+
 .habit-year-cell { width: 14px; height: 14px; }
 
 /* Finanças: valores alinhados à direita, tabulares */
 .fr .amt, .fr-main .amt { min-width: 6.5ch; text-align: right; white-space: nowrap; }
 
-/* Tema escuro: cartões se destacam pelo contorno */
-:root[data-theme="dark"] .card:not(.surface-open) {
-  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
-  box-shadow: var(--elev-1);
-}
-
-/* Erro ao lado do campo */
-.field-err { display: block; margin-top: 2px; }
-.f > input[aria-invalid="true"], .f > select[aria-invalid="true"] { border-color: var(--bad); }
-.f > input[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
-
 /* Rolagem dos diálogos: borda suave em vez de corte seco, margens simétricas */
 /* A camada .dlg-back já respeita as áreas seguras; somar env() aqui deixava o conteúdo torto e o rodapé alto demais. */
-.dlg-body { padding-inline: 20px; padding-bottom: 24px; }
-.dlg-foot { position: relative; padding-inline: 20px; padding-bottom: 14px; }
+.dlg-body { padding-inline: var(--dialog-padding); padding-bottom: var(--space-5); }
+.dlg-foot { position: relative; padding-inline: var(--dialog-padding); padding-bottom: var(--space-3); }
 .dlg-foot::before {
   content: "";
   position: absolute;
@@ -73,8 +62,8 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
   pointer-events: none;
 }
 @media (width < 700px) {
-  .dlg-body { padding-inline: 16px; padding-bottom: 24px; }
-  .dlg-foot { padding-inline: 16px; }
+  .dlg-body { padding-inline: var(--dialog-padding-compact); padding-bottom: var(--space-5); }
+  .dlg-foot { padding-inline: var(--dialog-padding-compact); }
 }
 
 /* ---- Diálogos nunca andam para os lados ----
@@ -154,13 +143,13 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     justify-content: flex-start;
     align-items: stretch;
     gap: var(--space-2);
-    padding: 8px max(var(--dialog-padding-compact), env(safe-area-inset-right, 0px)) 8px
+    padding: var(--space-2) max(var(--dialog-padding-compact), env(safe-area-inset-right, 0px)) var(--space-2)
       max(var(--dialog-padding-compact), env(safe-area-inset-left, 0px));
   }
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot .btn {
     width: auto;
     min-width: 0;
-    min-height: 44px;
+    min-height: var(--target-size);
     flex: 0 0 auto;
     padding-inline: var(--space-4);
     white-space: nowrap;
@@ -172,7 +161,7 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
      pouco para eles caberem numa linha só. Se mesmo assim não couberem, o principal desce (flex-wrap). */
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn:not(:has(> svg:only-child)) {
     padding-inline: var(--space-2);
-    font-size: var(--text-md, 0.9375rem);
+    font-size: var(--text-md);
   }
   .dlg-back.is-keyboard-open .dlg:not(.intro-dialog) .dlg-foot:has(> .btn:nth-child(3)) .btn.primary {
     flex: 1 1 96px;
@@ -185,11 +174,11 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
 
   .dlg-back.is-keyboard-open .dlg-body {
     gap: var(--space-3);
-    padding-top: 10px;
-    padding-bottom: 8px;
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-2);
   }
   .dlg-back.is-keyboard-open .dlg-body.task-dialog {
-    padding: 10px 16px 8px;
+    padding: var(--space-3) var(--space-4) var(--space-2);
   }
   .dlg-back.is-keyboard-open .dlg-body.task-dialog > .task-dialog-head {
     padding-bottom: 0;
@@ -204,17 +193,17 @@ a.inline-link::after { content: ""; position: absolute; inset: -14px -6px; }
     display: none;
   }
   .dlg-back.is-keyboard-open .dlg .head.task-dialog-head h2 {
-    font-size: var(--text-lg, 1.125rem);
+    font-size: var(--text-lg);
   }
   .dlg-back.is-keyboard-open .task-dialog .task-form {
-    padding: 8px 12px 12px;
+    padding: var(--space-2) var(--space-3) var(--space-3);
     gap: var(--space-2);
   }
   /* A grade de ícones vira uma fileira que rola para o lado, para os demais campos aparecerem acima do teclado. */
   .dlg-back.is-keyboard-open .task-icon-picker {
     display: flex;
     overflow-x: auto;
-    padding-bottom: 4px;
+    padding-bottom: var(--space-1);
     scroll-snap-type: x proximity;
     scrollbar-width: none;
   }

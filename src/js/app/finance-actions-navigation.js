@@ -1,7 +1,17 @@
 import { $ } from '../utils/dom.js';
 import { today } from '../utils/dates.js';
 import { ACTIONS } from './actions.js';
-import { filteredTx, accName, isPaid, FIN_TABS, FIN_ACCOUNT_TABS, isCredit, shiftMonth } from './finance-view.js';
+import {
+  filteredTx,
+  accName,
+  isPaid,
+  FIN_TABS,
+  FIN_ACCOUNT_TABS,
+  FIN_PLAN_TABS,
+  FIN_REPORT_TABS,
+  isCredit,
+  shiftMonth,
+} from './finance-view.js';
 import { render } from './render.js';
 import { toast, downloadFile } from './samples-backup.js';
 import { ui, S } from './state.js';
@@ -77,6 +87,71 @@ export function registerFinanceNavigationActions() {
         selected?.focus({ preventScroll: true });
       });
     },
+    'fin-plan-tab': (el) => {
+      if (!FIN_PLAN_TABS.some(([key]) => key === el.dataset.t)) return;
+      ui.finPlanTab = el.dataset.t;
+      render();
+      requestAnimationFrame(() => {
+        $(`.finance-plan-option[data-t="${ui.finPlanTab}"]`)?.focus({ preventScroll: true });
+      });
+    },
+    'fin-report-tab': (el) => {
+      if (!FIN_REPORT_TABS.some(([key]) => key === el.dataset.t)) return;
+      ui.finReportTab = el.dataset.t;
+      render();
+      requestAnimationFrame(() => {
+        $(`.finance-report-option[data-t="${ui.finReportTab}"]`)?.focus({ preventScroll: true });
+      });
+    },
+    'fin-view-mode': (el) => {
+      const mode = el.dataset.mode === 'calendario' ? 'calendario' : 'lista';
+      if (ui.finViewMode === mode) return;
+      ui.finViewMode = mode;
+      if (mode === 'calendario' && (!ui.finCalDay || !ui.finCalDay.startsWith(`${ui.finMonth}-`))) {
+        ui.finCalDay = today().startsWith(`${ui.finMonth}-`) ? today() : `${ui.finMonth}-01`;
+      }
+      render();
+    },
+    'fin-cal-day': (el) => {
+      const day = el.dataset.day;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) return;
+      ui.finCalDay = day;
+      render();
+    },
+    'fin-tag': (el) => {
+      const tag = el.dataset.tag || '';
+      ui.finTag = ui.finTag === tag ? '' : tag;
+      render();
+    },
+    'fin-flow-range': (el) => {
+      ui.finFlowRange = el.dataset.v === 'year' ? 'year' : '6m';
+      render();
+    },
+    'fin-forecast-days': (el) => {
+      const days = Number(el.dataset.v);
+      if (![30, 60, 90].includes(days)) return;
+      ui.finForecastDays = days;
+      ui.finForecastExpanded = false;
+      render();
+    },
+    'fin-forecast-more': () => {
+      ui.finForecastExpanded = !ui.finForecastExpanded;
+      render();
+    },
+    'acct-statement': (el) => {
+      const id = el.dataset.id;
+      if (!S.finance.accounts.some((account) => account.id === id)) return;
+      ui.finTab = 'lancamentos';
+      ui.finViewMode = 'lista';
+      ui.finFilter = 'todos';
+      ui.finAcc = id;
+      ui.finCat = '';
+      ui.finQ = '';
+      ui.finTag = '';
+      ui.finFiltersOpen = true;
+      render();
+      window.scrollTo(0, 0);
+    },
     'invoice-shift': (el) => {
       const id = el.dataset.id,
         step = Number(el.dataset.d) === 1 ? 1 : -1;
@@ -93,10 +168,18 @@ export function registerFinanceNavigationActions() {
       const target = el.dataset.t;
       ui.finTab = target === 'cartoes' ? 'contas' : target === 'orcamento' ? 'planejamento' : target;
       if (target === 'cartoes' || el.dataset.sub === 'cartoes') ui.finAccountTab = 'cartoes';
+      if (el.dataset.sub === 'contas') ui.finAccountTab = 'contas';
+      if (ui.finTab === 'planejamento' && FIN_PLAN_TABS.some(([key]) => key === el.dataset.sub)) {
+        ui.finPlanTab = el.dataset.sub;
+      }
+      if (ui.finTab === 'relatorios' && FIN_REPORT_TABS.some(([key]) => key === el.dataset.sub)) {
+        ui.finReportTab = el.dataset.sub;
+      }
       if (el.hasAttribute('data-clear-fin-filters')) {
         ui.finQ = '';
         ui.finAcc = '';
         ui.finCat = '';
+        ui.finTag = '';
       }
       if (el.dataset.f) ui.finFilter = el.dataset.f;
       render();
@@ -120,6 +203,7 @@ export function registerFinanceNavigationActions() {
       ui.finQ = '';
       ui.finAcc = '';
       ui.finCat = '';
+      ui.finTag = '';
       const search = $('#fq');
       if (search) search.value = '';
       render();
@@ -127,6 +211,9 @@ export function registerFinanceNavigationActions() {
     'fin-month': (el) => {
       const n = Number(el.dataset.n);
       ui.finMonth = n === 0 ? today().slice(0, 7) : shiftMonth(ui.finMonth, n);
+      if (ui.finViewMode === 'calendario') {
+        ui.finCalDay = today().startsWith(`${ui.finMonth}-`) ? today() : `${ui.finMonth}-01`;
+      }
       render();
     },
     'rep-kind': (el) => {

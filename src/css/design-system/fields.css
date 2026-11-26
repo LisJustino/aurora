@@ -41,7 +41,7 @@ select {
   padding-right: 38px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  transition: border-color .15s ease;
+  transition: border-color var(--duration-fast) var(--ease-standard);
   background-image:
     linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
@@ -52,11 +52,16 @@ select {
 
 textarea { min-height: 92px; resize: vertical; }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--line-strong) 65%, var(--accent)); }
-select:disabled { cursor: not-allowed; opacity: .58; }
-select[aria-invalid="true"]:not(:disabled),
-select[aria-invalid="true"]:not(:disabled):hover { border-color: var(--bad); }
-select[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
+input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: .58; }
+:is(input, select, textarea)[aria-invalid="true"]:not(:disabled),
+:is(input, select, textarea)[aria-invalid="true"]:not(:disabled):hover { border-color: var(--bad); }
+:is(input, select, textarea)[aria-invalid="true"]:focus {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 16%, transparent);
+}
+:is(input, select, textarea)[aria-invalid="true"]:focus-visible { outline-color: var(--focus); }
+.field-err { display: block; margin-top: var(--space-half); color: var(--bad); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.field-help { display: block; margin-top: var(--space-half); color: var(--muted); font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: var(--leading-heading); }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: .82; }
 input[type="checkbox"] {
   display: inline-grid;
@@ -95,8 +100,10 @@ input[type="checkbox"]:checked::before {
   transform: translateY(-1px) rotate(45deg) scale(1);
 }
 
-input[type="checkbox"]:hover:not(:disabled) {
-  border-color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
 }
 
 input[type="checkbox"]:focus-visible {

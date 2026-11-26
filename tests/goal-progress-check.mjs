@@ -49,8 +49,28 @@ assert.ok(!isValidGoalTrack({ kind: 'habit', habitId: 'x', targetPct: 75 }));
 assert.ok(isValidGoalTrack({ kind: 'count', target: 12, current: 0 }));
 assert.ok(!isValidGoalTrack({ kind: 'count', target: 0, current: 0 }));
 assert.ok(!isValidGoalTrack({ kind: 'count', target: 1.5, current: 0 }));
+assert.ok(isValidGoalTrack({ kind: 'finance-goal', goalId: 'fg-1' }));
+assert.ok(!isValidGoalTrack({ kind: 'finance-goal', goalId: '' }));
 assert.ok(!isValidGoalTrack({ kind: 'outro' }));
 assert.ok(!isValidGoalTrack(null));
+
+// objetivo financeiro
+const fg = { done: false, track: { kind: 'finance-goal', goalId: 'fg-1' } };
+const finCtx = (today, savedCents, extra = {}) => ({
+  today,
+  year: '2026',
+  financeGoals: [{ id: 'fg-1', name: 'Reserva', targetCents: 100000, savedCents }],
+  ...extra,
+});
+let fr = goalProgress(fg, finCtx('2026-06-01', 60000));
+assert.equal(fr.status, 'on-track');
+assert.equal(fr.pct, 60);
+assert.match(fr.detail, /Reserva/);
+assert.equal(goalProgress(fg, finCtx('2026-06-01', 10000)).status, 'behind');
+assert.equal(goalProgress(fg, finCtx('2026-06-01', 100000)).status, 'done');
+assert.equal(goalProgress(fg, finCtx('2027-01-02', 50000)).status, 'missed');
+assert.equal(goalProgress(fg, finCtx('2026-06-01', 60000, { hideFinanceValues: true })).detail, '60% · Reserva');
+assert.equal(goalProgress(fg, ctx('2026-06-01')).status, 'open');
 
 // balanço
 const b = yearBalance([{ done: true }, { done: false }, c(12)], ctx('2027-01-01'));

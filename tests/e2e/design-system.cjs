@@ -28,7 +28,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             probe.remove();
             const heroStyle = getComputedStyle(document.querySelector(selector));
             const card = document.querySelector(selector === '.public-hero'
-              ? '.landing-tutorial-panel:not([hidden])'
+              ? '.landing-tutorial-panel:not([hidden]) .landing-area-preview'
               : '.home-quick-card');
             const cardStyle = getComputedStyle(card);
             const dialog = document.createElement('div');
@@ -83,7 +83,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
         await page.waitForFunction((expected) => document.querySelector('.main[data-route]')?.dataset.route === expected, route);
         await page.waitForFunction(() => {
           const heading = document.querySelector('.main > .page-title h1') || document.querySelector('.home-head h1');
-          return heading && getComputedStyle(heading).fontFamily.includes('Georgia');
+          return heading && getComputedStyle(heading).fontFamily.includes('Newsreader');
         });
         const cohesion = await page.evaluate(() => {
           const title = document.querySelector('.main > .page-title') || document.querySelector('.home-head');
@@ -96,6 +96,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
           const selectedTab = document.querySelector('.fin-section-menu .tab[aria-selected="true"]');
           return {
             font: getComputedStyle(heading).fontFamily,
+            bodyFont: getComputedStyle(document.body).fontFamily,
             background: getComputedStyle(title).backgroundColor,
             borderBottom: getComputedStyle(title).borderBottomStyle,
             selectedTabColor: selectedTab && getComputedStyle(selectedTab).color,
@@ -103,7 +104,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5179';
             overflow: document.documentElement.scrollWidth > innerWidth,
           };
         });
-        assert.ok(cohesion.font.includes('Georgia'), `${route} ${width}px: título editorial compartilhado`);
+        assert.ok(cohesion.font.includes('Newsreader'), `${route} ${width}px: tipografia editorial Newsreader`);
+        assert.ok(cohesion.bodyFont.includes('Figtree'), `${route} ${width}px: tipografia operacional Figtree`);
         assert.equal(cohesion.background, 'rgba(0, 0, 0, 0)', `${route} ${width}px: cabeçalho aberto`);
         assert.equal(cohesion.borderBottom, 'solid', `${route} ${width}px: divisor editorial`);
         assert.equal(cohesion.overflow, false, `${route} ${width}px: sem rolagem horizontal`);

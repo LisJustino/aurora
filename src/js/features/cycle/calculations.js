@@ -52,11 +52,11 @@ export function cycleDayNumber(day, starts) {
   return previousStart ? dayDiff(day, previousStart) + 1 : null;
 }
 
-export function topSymptoms(cycleLog, asOfDate, getLabel) {
-  const from = addDays(asOfDate, -90);
+export function topSymptoms(cycleLog, asOfDate, getLabel, windowDays = 90, limit = 5) {
+  const from = addDays(asOfDate, -windowDays);
   const counts = {};
   Object.entries(cycleLog || {}).forEach(([day, log]) => {
-    if (day < from) return;
+    if (day < from || day > asOfDate) return;
     const entry = log || {};
     ['pain', 'mood', 'digestion', 'skin'].forEach((category) => {
       (entry[category] || []).forEach((value) => {
@@ -71,12 +71,28 @@ export function topSymptoms(cycleLog, asOfDate, getLabel) {
     });
   });
   return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
     .map(([key, count]) => {
       const [category, value] = key.split(':');
-      return { category, value, label: getLabel(category, value), count };
+      return { key, category, value, label: getLabel(category, value), count };
     });
+}
+
+export function daysWithSymptom(cycleLog, symptomKey, asOfDate, windowDays = 180) {
+  if (typeof symptomKey !== 'string' || !symptomKey.includes(':')) return [];
+  const [category, value] = symptomKey.split(':');
+  if (!category || !value) return [];
+  const from = addDays(asOfDate, -windowDays);
+  const matched = [];
+  Object.entries(cycleLog || {}).forEach(([day, log]) => {
+    if (day < from || day > asOfDate || !log || typeof log !== 'object') return;
+    const field = log[category];
+    if (Array.isArray(field) ? field.includes(value) : field === value) {
+      matched.push(day);
+    }
+  });
+  return matched.sort((a, b) => b.localeCompare(a));
 }
 
 export function cycleHistory(starts, periodSet, limit = 12) {

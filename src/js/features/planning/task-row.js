@@ -1,4 +1,4 @@
-import { dayDiff, shortDate, today } from '../../utils/dates.js';
+import { addDays, dayDiff, isoDay, shortDate, today } from '../../utils/dates.js';
 import { h, raw } from '../../utils/dom.js';
 import { icon } from '../../utils/icons.js';
 import { taskIconKey } from './task-icons.js';
@@ -7,13 +7,25 @@ import { REPEATS } from './recurrence.js';
 export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, { route, sort } = {}) {
   const isReviewNextWeek = reviewNextWeek === true;
   const isHomeNextStep = homeNextStep === true;
-  const d = t.dueDate ? dayDiff(t.dueDate, today()) : null;
+  const todayKey = today();
+  const tomorrowKey = addDays(todayKey, 1);
+  const d = t.dueDate ? dayDiff(t.dueDate, todayKey) : null;
   const tm = t.time ? ` ${t.time}` : '';
   const subs = t.subtasks || [];
   const sd = subs.filter((x) => x.done).length;
   const manual = route === 'planejar' && sort === 'manual' && !t.done;
   const taskIcon = taskIconKey(t.icon);
   const metadata = [];
+  if (t.done && t.doneAt) {
+    const doneDay = isoDay(t.doneAt);
+    if (doneDay && doneDay !== todayKey) {
+      metadata.push({
+        icon: 'check',
+        label: `Concluída · ${shortDate(doneDay)}`,
+        tone: '',
+      });
+    }
+  }
   if (t.dueDate) {
     const dateLabel =
       !t.done && d < 0
@@ -75,8 +87,36 @@ export function renderTaskRow(t, reviewNextWeek = false, homeNextStep = false, {
         aria-label="${extraMetadata} metadados adicionais">+${extraMetadata}</span>`
           : ''
       }</span></button>
-    <button class="ibtn" data-action="del-task" data-id="${t.id}"
-      aria-label="Excluir ${t.title}">${icon('trash', 18)}</button>
+    <details class="task-menu">
+      <summary class="ibtn task-menu-trigger" aria-label="Mais ações para ${t.title}" title="Mais ações">${icon('more', 18)}</summary>
+      <div class="task-menu-panel" role="group" aria-label="Ações de ${t.title}">
+        ${
+          !t.done
+            ? h`${
+                t.dueDate !== todayKey
+                  ? h`<button type="button" class="task-menu-item" data-action="task-reschedule"
+          data-id="${t.id}" data-when="today">${icon('calendarCheck', 15)}<span>Para hoje</span></button>`
+                  : ''
+              }${
+                t.dueDate !== tomorrowKey
+                  ? h`<button type="button" class="task-menu-item" data-action="task-reschedule"
+          data-id="${t.id}" data-when="tomorrow">${icon('calendar', 15)}<span>Para amanhã</span></button>`
+                  : ''
+              }<button type="button" class="task-menu-item" data-action="task-reschedule"
+          data-id="${t.id}" data-when="next-week">${icon('arrow', 15)}<span>Próxima semana</span></button>${
+            t.dueDate
+              ? h`<button type="button" class="task-menu-item" data-action="task-reschedule"
+          data-id="${t.id}" data-when="none">${icon('inbox', 15)}<span>Sem prazo</span></button>`
+              : ''
+          }<hr class="task-menu-sep">`
+            : ''
+        }
+        <button type="button" class="task-menu-item" data-action="edit-task"
+          data-id="${t.id}">${icon('pencil', 15)}<span>Editar</span></button>
+        <button type="button" class="task-menu-item is-danger" data-action="del-task"
+          data-id="${t.id}">${icon('trash', 15)}<span>Excluir</span></button>
+      </div>
+    </details>
     ${
       isReviewNextWeek
         ? h`<div class="weekly-plan-actions" role="group" aria-label="Ações para ${t.title}"><button

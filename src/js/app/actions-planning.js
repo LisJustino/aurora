@@ -8,6 +8,7 @@ import { playMotion, prefersReducedMotion } from '../utils/motion.js';
 import { weekDays } from '../features/planning/week.js';
 import { nextDue } from '../features/planning/recurrence.js';
 import { ACTIONS } from './actions.js';
+import { plural } from './core.js';
 
 import { applyBulkTasks, askDiscardDialog, dlgClose, dlgOpen, requestActionConfirmation } from './dialogs.js';
 import { shiftMonth } from './finance-view.js';
@@ -79,6 +80,7 @@ export const PLANNING_ACTIONS = {
     task.doneAt = task.done ? new Date().toISOString() : undefined;
     if (!saveSlicesWithRollback(['tasks'], snapshot, false, 'a conclusão do evento')) return;
     render();
+    if (task.done) vibrateFeedback('light');
     toast(task.done ? 'Evento marcado como concluído.' : 'Evento reaberto.', task.done ? 'success' : 'info');
   },
   'tasks-show-more': () => showMoreResults('tasks', '#task-results', taskListHtml),
@@ -160,7 +162,7 @@ export const PLANNING_ACTIONS = {
           playMotion(document.querySelector('.home-head'), 'is-day-completion');
         }
       }
-      vibrateFeedback();
+      vibrateFeedback(completesLastTaskOfDay ? 'success' : 'light');
       completionFeedback(`.task[data-k="${task.id}"]`);
       const message = nextTask ? `Concluída. Próxima: ${shortDate(nextTask.dueDate)}.` : 'Tarefa concluída.';
       toast(message, 'action', () => {
@@ -273,7 +275,7 @@ export const PLANNING_ACTIONS = {
     if (!goal) return;
     const snapshot = snapshotSlices(['settings']);
     goal.done = !goal.done;
-    saveSlicesWithRollback(['settings'], snapshot);
+    if (saveSlicesWithRollback(['settings'], snapshot) && goal.done) vibrateFeedback('success');
   },
   'annual-goal-count': (el) => {
     const goal = S.settings.prefs.annualPlans?.[ui.annualYear]?.goals.find((item) => item.id === el.dataset.id);
@@ -308,6 +310,11 @@ export const PLANNING_ACTIONS = {
     if (saveSlicesWithRollback(['settings', 'tasks'], snapshot, true, 'a tarefa do plano anual')) {
       toast('Tarefa criada e vinculada à conquista.', 'success');
     }
+  },
+  'annual-goal-finance': () => {
+    ui.finTab = 'planejamento';
+    ui.finPlanTab = 'objetivos';
+    nav('financas');
   },
   'annual-goal-delete': (el) => {
     const plan = S.settings.prefs.annualPlans?.[ui.annualYear];
@@ -378,6 +385,84 @@ export const PLANNING_ACTIONS = {
       }
       const current = snapshotSlices(['tasks']);
       currentTask.dueDate = previousDate;
+      saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
+    });
+  },
+  'tasks-reschedule-overdue': (el) => {
+    const when = el.dataset.when === 'tomorrow' ? 'tomorrow' : 'today';
+    const todayKey = today();
+    const targetDate = when === 'tomorrow' ? addDays(todayKey, 1) : todayKey;
+    const overdue = S.tasks.filter(
+      (task) =>
+        !task.done &&
+        isDay(task.dueDate) &&
+        task.dueDate < todayKey &&
+        !String(task.groupId || '').startsWith('google-calendar:'),
+    );
+    if (!overdue.length) return;
+    const previous = overdue.map((task) => ({ id: task.id, dueDate: task.dueDate }));
+    const snapshot = snapshotSlices(['tasks']);
+    overdue.forEach((task) => {
+      task.dueDate = targetDate;
+    });
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o reagendamento das tarefas atrasadas')) return;
+    vibrateFeedback('light');
+    const whenLabel = when === 'tomorrow' ? 'amanhã' : 'hoje';
+    toast(
+      `${overdue.length} ${plural(overdue.length, 'tarefa atrasada movida', 'tarefas atrasadas movidas')} para ${whenLabel}.`,
+      'action',
+      () => {
+        const undoSnapshot = snapshotSlices(['tasks']);
+        let restored = 0;
+        previous.forEach(({ id, dueDate }) => {
+          const currentTask = findTask(id);
+          if (!currentTask || currentTask.dueDate !== targetDate) return;
+          currentTask.dueDate = dueDate;
+          restored++;
+        });
+        if (!restored) return;
+        saveSlicesWithRollback(['tasks'], undoSnapshot, true, 'a restauração das tarefas atrasadas');
+      },
+    );
+  },
+  'task-reschedule': (el) => {
+    const task = findTask(el.dataset.id);
+    if (!task || task.done) return;
+    const when = el.dataset.when;
+    const todayKey = today();
+    let targetDate;
+    let label;
+    if (when === 'today') {
+      targetDate = todayKey;
+      label = 'Tarefa reagendada para hoje.';
+    } else if (when === 'tomorrow') {
+      targetDate = addDays(todayKey, 1);
+      label = 'Tarefa reagendada para amanhã.';
+    } else if (when === 'next-week') {
+      targetDate = addDays(task.dueDate && task.dueDate >= todayKey ? task.dueDate : todayKey, 7);
+      label = `Tarefa reagendada para ${shortDate(targetDate)}.`;
+    } else if (when === 'none') {
+      targetDate = null;
+      label = 'Data removida. A tarefa ficou sem prazo.';
+    } else {
+      return;
+    }
+    const previousDate = task.dueDate || null;
+    if (previousDate === targetDate) return;
+    const snapshot = snapshotSlices(['tasks']);
+    if (targetDate) task.dueDate = targetDate;
+    else delete task.dueDate;
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'o reagendamento da tarefa')) return;
+    vibrateFeedback('light');
+    toast(label, 'action', () => {
+      const currentTask = findTask(task.id);
+      if (!currentTask || (currentTask.dueDate || null) !== targetDate) {
+        toast('A tarefa mudou depois do reagendamento; as alterações atuais foram preservadas.', 'warning');
+        return;
+      }
+      const current = snapshotSlices(['tasks']);
+      if (previousDate) currentTask.dueDate = previousDate;
+      else delete currentTask.dueDate;
       saveSlicesWithRollback(['tasks'], current, true, 'a restauração da tarefa');
     });
   },

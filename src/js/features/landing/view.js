@@ -11,71 +11,73 @@ const LANDING_TUTORIALS = [
     title: 'Hoje',
     icon: 'sun',
     color: 'var(--area-plan)',
-    heading: 'O seu dia, numa tela só',
-    description: 'Ao abrir o Aurora, você vê na hora o que é para hoje: tarefas e hábitos organizados na sua tela.',
+    heading: 'Veja o dia inteiro sem abrir três telas',
+    description:
+      'O que vence hoje, seus hábitos da semana e os próximos compromissos aparecem logo de cara — só o essencial, sem poluição.',
     steps: [
-      'Tarefas atrasadas e do dia em destaque',
-      'Anote algo novo sem sair da tela',
-      'Escolha quais blocos aparecem',
+      'Prioridades e prazos do dia em destaque',
+      'Anote uma ideia nova sem sair da tela',
+      'Escolha exatamente quais blocos aparecem',
     ],
     image: '/src/assets/tutorials/landing/hoje.webp',
     imageMobile: '/assets/landing-areas/hoje-mobile.webp',
-    alt: 'Tela inicial do Aurora com tarefas e hábitos para o dia.',
+    alt: 'Tela inicial do Aurora mostrando o dia da Marina com tarefas, próximos compromissos e resumo da semana.',
   },
   {
     id: 'tarefas',
     title: 'Tarefas',
     icon: 'calendarCheck',
     color: 'var(--area-plan)',
-    heading: 'Tire as pendências da cabeça',
+    heading: 'Tire da cabeça sem transformar tudo em urgência',
     description:
-      'Anote o que precisa fazer, com prazo e prioridade se quiser, e veja tudo em lista, calendário ou semana.',
-    steps: [
-      'Prazo e prioridade em segundos',
-      'Lista, calendário ou visão da semana',
-      'Busca e filtros para achar qualquer coisa',
-    ],
+      'Anote rápido o que precisa resolver, defina prazo só quando fizer sentido e alterne entre lista, calendário ou visão semanal.',
+    steps: ['Prazo, prioridade e tags em segundos', 'Lista, calendário mensal ou semana', 'Busca e filtros diretos'],
     image: '/src/assets/tutorials/landing/tarefas.webp',
     imageMobile: '/assets/landing-areas/tarefas-mobile.webp',
-    alt: 'Tela de tarefas do Aurora com opções de lista, calendário e semana.',
+    alt: 'Tela de tarefas do Aurora com tarefas organizadas por prazo e prioridade.',
   },
   {
     id: 'habitos',
     title: 'Hábitos',
     icon: 'repeat',
     color: 'var(--area-habits)',
-    heading: 'Hábitos que cabem na sua semana',
-    description: 'Escolha o que quer repetir e em quais dias. Quando a rotina mudar, é só ajustar.',
-    steps: ['Dias da semana para cada hábito', 'Marque o que fez ou pule um dia', 'Sequência e meta de água'],
+    heading: 'Constância leve, no ritmo da sua semana',
+    description:
+      'Escolha em quais dias quer praticar cada hábito, acompanhe sua hidratação e registre até dias anteriores quando esquecer.',
+    steps: ['Dias flexíveis para cada hábito', 'Marque, pule ou registre outro dia', 'Meta diária de água integrada'],
     image: '/src/assets/tutorials/landing/habitos.webp',
     imageMobile: '/assets/landing-areas/habitos-mobile.webp',
-    alt: 'Tela de hábitos do Aurora com acompanhamento semanal.',
+    alt: 'Tela de hábitos do Aurora com acompanhamento semanal de leitura, caminhada, alongamento e água.',
   },
   {
     id: 'financas',
     title: 'Finanças',
     icon: 'wallet',
     color: 'var(--area-finances)',
-    heading: 'Saiba para onde vai o dinheiro',
+    heading: 'Clareza sobre o mês, sem conectar seu banco',
     description:
-      'Anote contas, receitas e despesas para acompanhar o que entra e o que sai. O Aurora não acessa seu banco.',
-    steps: ['Contas e saldos num só lugar', 'Receitas, despesas e transferências', 'Relatórios para entender o mês'],
+      'Acompanhe contas, cartões, entradas, gastos e metas num só lugar para saber quanto ainda cabe no mês com tranquilidade.',
+    steps: ['Contas, cartões e saldos claros', 'Orçamentos por categoria e metas', 'Nenhuma senha bancária solicitada'],
     image: '/src/assets/tutorials/landing/financas.webp',
     imageMobile: '/assets/landing-areas/financas-mobile.webp',
-    alt: 'Tela de finanças do Aurora com contas e lançamentos.',
+    alt: 'Tela de finanças do Aurora com saldo mensal, contas, movimentações e metas.',
   },
   {
     id: 'ciclo',
     title: 'Ciclo',
     icon: 'heart',
     color: 'var(--area-cycle)',
-    heading: 'Seu ciclo junto com o resto da rotina',
+    heading: 'Seu ciclo ao lado do resto da rotina',
     description:
-      'Anote períodos e sintomas e consulte datas e médias. É um acompanhamento informativo e as estimativas podem variar.',
-    steps: ['Início e fim de cada período', 'Sintomas e observações do dia', 'Calendário e médias do ciclo'],
+      'Registre períodos, fluxo e sintomas e consulte o calendário e as médias com privacidade. Acompanhamento informativo que não substitui orientação médica.',
+    steps: [
+      'Registro simples de dias e sintomas',
+      'Calendário claro e médias do ciclo',
+      'Opcional e controlado por você',
+    ],
     image: '/src/assets/tutorials/landing/ciclo.webp',
     imageMobile: '/assets/landing-areas/ciclo-mobile.webp',
-    alt: 'Tela de Ciclo do Aurora com calendário e registros informativos.',
+    alt: 'Tela de ciclo do Aurora com calendário e acompanhamento informativo.',
   },
 ];
 
@@ -197,32 +199,31 @@ export function landingMarkup() {
       <main class="public-main" id="landing-main" tabindex="-1">
         <section class="public-hero landing-hero" aria-labelledby="landing-title">
           <div class="landing-hero-copy">
-            <p class="public-eyebrow">App de organização pessoal</p>
             <h1 id="landing-title" class="type-editorial-display">Sua rotina inteira,<br><em>num app só.</em></h1>
-            <p class="landing-hero-lead">Tarefas, hábitos, finanças e ciclo no mesmo lugar. Abra, veja o que é para hoje e deixe o resto para depois, sem planilha e sem cinco apps diferentes.</p>
+            <p class="landing-hero-lead">Abra pela manhã e veja em segundos o que realmente importa hoje — tarefas, hábitos, finanças e ciclo num espaço calmo, sem planilhas nem cinco apps disputando sua atenção.</p>
             <div class="landing-hero-actions">
               <a class="btn primary large" href="${signup}"
-                data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
-              <a class="btn ghost large" href="${demo}" data-public-action="demo">Testar sem cadastro</a>
+                data-public-action="signup">Criar minha conta grátis</a>
+              <a class="landing-hero-secondary" href="${demo}" data-public-action="demo">Testar na demonstração</a>
             </div>
             <ul class="landing-proof-list" aria-label="Informações rápidas">
-              <li>Grátis, sem cartão</li><li>Funciona no celular</li><li>Em português</li>
+              <li>Grátis, sem cartão</li><li>No navegador ou no celular</li><li>Em português</li>
             </ul>
           </div>
           <figure class="landing-hero-visual">
             <div class="landing-hero-desktop">
-              <img class="landing-screen-light" src="${desktopLight}" width="1280" height="720"
-                alt="Visão clara do Aurora no computador, com tarefas e áreas da rotina organizadas."
-                fetchpriority="high">
-              <img class="landing-screen-dark" src="${desktopDark}" width="1280" height="720"
-                alt="Visão escura do Aurora no computador, com tarefas e áreas da rotina organizadas."
-                loading="lazy" decoding="async">
-            </div>
-            <div class="landing-hero-phone">
-              <img class="landing-screen-light" src="${mobileLight}" width="612" height="680"
-                alt="Visão clara do Aurora no celular, com tarefas do dia." decoding="async">
-              <img class="landing-screen-dark" src="${mobileDark}" width="612" height="680"
-                alt="Visão escura do Aurora no celular, com tarefas do dia." loading="lazy" decoding="async">
+              <picture class="landing-screen-light">
+                <source media="(max-width: 700px)" srcset="${mobileLight}" type="image/webp">
+                <img src="${desktopLight}" width="1280" height="760"
+                  alt="Tela inicial do Aurora no modo claro, com tarefas do dia, próximos compromissos e resumo da semana."
+                  fetchpriority="high">
+              </picture>
+              <picture class="landing-screen-dark">
+                <source media="(max-width: 700px)" srcset="${mobileDark}" type="image/webp">
+                <img src="${desktopDark}" width="1280" height="760"
+                  alt="Tela inicial do Aurora no modo escuro, com tarefas do dia, próximos compromissos e resumo da semana."
+                  decoding="async">
+              </picture>
             </div>
             <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
           </figure>
@@ -231,9 +232,8 @@ export function landingMarkup() {
         <section class="public-tutorials landing-section" id="areas" aria-labelledby="public-tutorials-title"
           data-landing-areas>
           <div class="public-section-heading landing-section-heading">
-            <p class="public-eyebrow">O que dá para organizar</p>
             <h2 id="public-tutorials-title"
-              class="type-editorial-title">Cinco partes da sua vida, sem trocar de app.</h2>
+              class="type-editorial-title">Um lugar calmo para cada parte do dia.</h2>
           </div>
           <div class="landing-tutorial-tabs" role="tablist" aria-label="Áreas da sua rotina">
             ${LANDING_TUTORIALS.map((area) => {
@@ -276,37 +276,32 @@ export function landingMarkup() {
 
         <section class="landing-steps landing-section" id="steps" aria-labelledby="landing-steps-title">
           <div class="public-section-heading landing-section-heading">
-            <p class="public-eyebrow">Como começar</p>
-            <h2 id="landing-steps-title" class="type-editorial-title">Três passos e o dia já fica mais leve.</h2>
+            <h2 id="landing-steps-title" class="type-editorial-title">Comece em um minuto.</h2>
           </div>
           <ol class="landing-steps-grid">
-            <li><span>1</span><h3>Crie sua conta</h3><p>É grátis e não pede cartão. Funciona direto no navegador.</p></li>
-            <li><span>2</span><h3>Anote o que está pendente</h3><p>Tarefas, contas, hábitos: coloque tudo do jeito que vier à cabeça.</p></li>
-            <li><span>3</span><h3>Escolha o que cabe hoje</h3><p>O Aurora mostra o seu dia. O resto fica guardado para quando der.</p></li>
+            <li><span>01</span><h3>Crie sua conta grátis</h3><p>Sem cartão e sem precisar baixar nada — abre direto no navegador ou como app no celular.</p></li>
+            <li><span>02</span><h3>Despeje o que está na cabeça</h3><p>Anote tarefas, contas, hábitos e compromissos sem se preocupar em organizar tudo de uma vez.</p></li>
+            <li><span>03</span><h3>Abra todo dia com clareza</h3><p>O Aurora traz para a frente só o que importa hoje. O resto espera com calma até a hora certa.</p></li>
           </ol>
-          <a class="btn primary large landing-steps-cta" href="${signup}"
-            data-public-action="signup">Começar agora, é grátis</a>
         </section>
 
         <section class="public-trust landing-trust landing-section" aria-labelledby="public-trust-title">
           <div class="public-section-heading landing-section-heading">
-            <p class="public-eyebrow">Pode confiar</p>
-            <h2 id="public-trust-title" class="type-editorial-title">Simples de usar, tranquilo de confiar.</h2>
+            <h2 id="public-trust-title" class="type-editorial-title">Feito para dar paz, não para prender sua atenção.</h2>
+            <p class="landing-trust-privacy">Quer ler os detalhes? <a
+              href="${privacy}">Política de Privacidade</a>.</p>
           </div>
           <div class="landing-trust-grid">
-            <article><span>${iconSvg('sparkles', 22)}</span><div><h3>Grátis de verdade</h3><p>Você usa tudo sem pagar e sem informar cartão.</p></div></article>
-            <article><span>${iconSvg('download', 22)}</span><div><h3>Seus dados são seus</h3><p>Baixe uma cópia dos seus registros ou exclua a conta quando quiser, nos Ajustes.</p></div></article>
-            <article><span>${iconSvg('bank', 22)}</span><div><h3>Não acessa seu banco</h3><p>Você anota receitas e despesas. Nenhuma conta bancária é conectada.</p></div></article>
-            <article><span>${iconSvg('grid', 22)}</span><div><h3>Vira app no celular</h3><p>Adicione o Aurora à tela inicial no Android ou no iPhone e abra com um toque.</p></div></article>
+            <article><div><h3>Grátis de verdade</h3><p>Você usa todas as áreas sem assinatura, sem anúncios e sem informar cartão.</p></div></article>
+            <article><div><h3>Seus dados pertencem a você</h3><p>Exporte uma cópia completa dos seus registros ou apague sua conta quando quiser, direto nos Ajustes.</p></div></article>
+            <article><div><h3>Sem conexão com bancos</h3><p>Você anota apenas o que quiser acompanhar. Nenhuma conta bancária ou senha financeira é pedida.</p></div></article>
+            <article><div><h3>Funciona no computador e no celular</h3><p>Adicione à tela inicial no Android ou no iPhone e abra com um toque, igual a um app nativo.</p></div></article>
           </div>
-          <p class="landing-trust-privacy">Quer os detalhes? <a
-            href="${privacy}">Leia a Política de Privacidade.</a></p>
         </section>
 
         <section class="public-faq landing-faq landing-section" id="faq" aria-labelledby="public-faq-title">
           <div class="public-section-heading landing-section-heading">
-            <p class="public-eyebrow">Perguntas</p>
-            <h2 id="public-faq-title" class="type-editorial-title">Antes de começar.</h2>
+            <h2 id="public-faq-title" class="type-editorial-title">Perguntas frequentes.</h2>
           </div>
           <div class="public-faq-list">
             <details class="public-faq-item" name="landing-faq">
@@ -339,11 +334,11 @@ export function landingMarkup() {
         <section class="public-closing landing-final-cta landing-section" aria-labelledby="public-closing-title">
           <h2 id="public-closing-title"
             class="type-editorial-title">Menos coisa na cabeça.<br><em>Mais dia para viver.</em></h2>
-          <p>Crie sua conta grátis e organize o que importa hoje.</p>
+          <p>Crie sua conta grátis e comece a organizar o que importa hoje.</p>
           <div class="landing-final-actions">
             <a class="btn primary large" href="${signup}"
-              data-public-action="signup">Criar minha conta grátis ${iconSvg('arrow', 20)}</a>
-            <a class="landing-text-link" href="${demo}" data-public-action="demo">ou testar sem cadastro</a>
+              data-public-action="signup">Criar minha conta grátis</a>
+            <a class="landing-text-link" href="${demo}" data-public-action="demo">ou explorar a demonstração</a>
           </div>
         </section>
       </main>

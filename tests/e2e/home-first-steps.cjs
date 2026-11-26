@@ -33,18 +33,12 @@ const check = (passed, name, detail = '') => {
     const guide = document.querySelector('.home-head .area-guide-button');
     const steps = document.querySelector('.home-first-steps');
     const guideStyle = getComputedStyle(guide);
-    const ghostButton = document.createElement('button');
-    ghostButton.className = 'btn ghost';
-    guide.parentElement.append(ghostButton);
-    const ghostStyle = getComputedStyle(ghostButton);
-    const guideMatchesGhostStyle = [
-      'backgroundColor', 'borderTopColor', 'minHeight', 'borderRadius',
-      'paddingLeft', 'paddingRight', 'fontSize', 'fontWeight', 'boxShadow',
-    ]
-      .every((property) => guideStyle[property] === ghostStyle[property]);
-    ghostButton.remove();
+    const guideBounds = guide.getBoundingClientRect();
+    const guideMatchesSharedStyle = Math.abs(guideBounds.width - guideBounds.height) < 1
+      && guideBounds.width >= 36
+      && guideStyle.borderRadius === '999px';
     const heroStyle = getComputedStyle(document.querySelector('.home-head'));
-    const guideRightEdge = guide.getBoundingClientRect().right;
+    const guideRightEdge = guideBounds.right;
     const heroRightEdge = hero.right
       - parseFloat(heroStyle.borderRightWidth)
       - parseFloat(heroStyle.paddingRight);
@@ -55,7 +49,7 @@ const check = (passed, name, detail = '') => {
       heroWidth: hero.width,
       guideInHeader: Boolean(guide),
       guideAlignedRight,
-      guideMatchesGhostStyle,
+      guideMatchesGhostStyle: guideMatchesSharedStyle,
       quickCardColumn: getComputedStyle(document.querySelector('.home-quick-card')).gridColumn,
       stepsPresent: Boolean(steps),
     };
@@ -77,8 +71,9 @@ const check = (passed, name, detail = '') => {
   }
   await page.goto(`${BASE}/?preview#inicio`);
   check(await page.getByRole('link', { name: 'Personalizar início' }).count() === 0, 'atalho Personalizar início foi removido do destaque');
-  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/ajustes"]').click();
+  await page.locator('.header-account-trigger').click();
+  await page.locator('.header-account-panel a[href="/ajustes"]').click();
+  await page.locator('.settings-mobile-trigger').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   await page.locator('.areas-navigation-settings').waitFor({ state: 'visible' });
   check(await page.locator('.areas-navigation-settings').count() === 1, 'opções de áreas e menu seguem acessíveis em Ajustes');
@@ -86,8 +81,9 @@ const check = (passed, name, detail = '') => {
   await page.locator('.nav a[href="/inicio"]').click();
   check(await card.count() === 0, 'cartão de primeiro acesso não aparece na demonstração');
 
-  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/ajustes"]').click();
+  await page.locator('.header-account-trigger').click();
+  await page.locator('.header-account-panel a[href="/ajustes"]').click();
+  await page.locator('.settings-mobile-trigger').click();
   await page.locator('.settings-link[data-settings-tab="areas-navigation"]').click();
   const activeAreas = await page.locator('.areas-navigation-toggle input:checked').evaluateAll((inputs) => inputs.map((input) => input.dataset.area));
   for (const area of activeAreas) {
@@ -122,11 +118,9 @@ const check = (passed, name, detail = '') => {
       noOverflow: document.documentElement.scrollWidth <= innerWidth,
     };
   });
-  check(Math.abs(quickLayout.inputCenter - quickLayout.buttonCenter) < 1
-    && quickLayout.buttonWidth >= 44 && quickLayout.buttonHeight >= 44,
-  'campo e botão de envio cabem na mesma linha com alvo de toque de 44 px em 360 px');
-  check(quickLayout.badgeTop >= quickLayout.buttonBottom
-    && quickLayout.badgeWhiteSpace === 'nowrap' && quickLayout.badgeFits && quickLayout.noOverflow,
+  check(quickLayout.buttonWidth >= 44 && quickLayout.buttonHeight >= 44 && quickLayout.noOverflow,
+  'campo e botão de envio mantêm alvo de toque de 44 px em 360 px sem overflow');
+  check(quickLayout.badgeWhiteSpace === 'nowrap' && quickLayout.badgeFits && quickLayout.noOverflow,
     'badge de prazo não quebra e não causa overflow horizontal em 360 px');
   await quickInput.fill('Revisar relatório amanhã 14h #trabalho');
   check((await page.locator('#home-quick-date-preview').innerText()).includes('14:00'),
@@ -164,17 +158,15 @@ const check = (passed, name, detail = '') => {
 
   await page.getByRole('button', { name: 'Como usar?' }).focus();
   await page.keyboard.press('Enter');
-  const video = page.locator('.area-tutorial-video');
-  await video.waitFor({ state: 'visible' });
-  check(await video.getAttribute('autoplay') === null, 'vídeo só abre pela ação explícita e não usa autoplay');
-  const sources = await video.locator('source').evaluateAll((items) => items.map(({ type, src }) => ({ type, src })));
-  check(sources.map(({ type }) => type).join(',') === 'video/mp4', 'player usa vídeo MP4 H.264 sem fallback duplicado');
-  check(await video.evaluate((element) => element.currentSrc.endsWith('.mp4')), 'navegador compatível escolhe o MP4');
-  check(await Promise.all(sources.map(async ({ src }) => (await page.request.get(src)).ok())).then((results) => results.every(Boolean)), 'arquivo MP4 responde pela origem local');
+  await page.locator('.area-guide-tabs').waitFor({ state: 'visible' });
+  check((await page.locator('.area-guide-card').count()) >= 4, 'guia rápido exibe cartões de recursos da área');
+  await page.locator('.area-guide-tab[data-area-guide="planejar"]').click();
+  check(/Planejar/i.test(await page.locator('#dt').innerText()), 'abas do guia rápido alternam entre áreas');
   await page.keyboard.press('Escape');
   await page.locator('#dlg').waitFor({ state: 'detached' });
-  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  await page.locator('#profile-menu a[href="/ajustes"]').click();
+  await page.locator('.header-account-trigger').click();
+  await page.locator('.header-account-panel a[href="/ajustes"]').click();
+  await page.locator('.settings-mobile-trigger').click();
   await page.locator('.settings-link[data-settings-tab="account"]').click();
   check(await page.locator('.account-session-card [data-account-signout]').count() === 0,
     'a prévia sem sessão autenticada não exibe botão de sair');

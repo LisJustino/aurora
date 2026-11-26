@@ -180,8 +180,8 @@ export function cycleLogDraft(log = {}) {
     Object.entries(log).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]),
   );
 }
-function cycleLogSummary(log) {
-  if (!hasAnyLog(log)) return 'Nenhum registro para este dia.';
+function cycleLogSummaryItems(log) {
+  if (!hasAnyLog(log)) return [];
   const orgasmOccurred = Object.hasOwn(log, 'orgasmOccurred')
     ? log.orgasmOccurred
     : Number.isInteger(log.orgasmCount)
@@ -194,36 +194,75 @@ function cycleLogSummary(log) {
     },
     0,
   );
-  return [
-    log.flow ? `Fluxo: ${cycLabel('flow', log.flow)}` : '',
-    Number.isFinite(log.weightKg)
-      ? `Peso: ${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`
-      : '',
-    log.mood?.length ? `Mente e sentimentos: ${log.mood.map((value) => cycLabel('mood', value)).join(', ')}` : '',
-    log.social?.length ? `Vida social: ${log.social.map((value) => cycLabel('social', value)).join(', ')}` : '',
-    log.ovulationTestResult ? `Teste de ovulação: ${cycleTestResultLabel(log.ovulationTestResult)}` : '',
-    log.pregnancyTestResult ? `Teste de gravidez: ${cycleTestResultLabel(log.pregnancyTestResult)}` : '',
-    log.medicationTaken === true ? 'Tomou medicação' : log.medicationTaken === false ? 'Não tomou medicação' : '',
-    log.sexualActivity === true
-      ? 'Relação com outra pessoa'
-      : log.sexualActivity === false
-        ? 'Sem relação com outra pessoa'
-        : '',
-    log.masturbationActivity ? 'Masturbação registrada' : '',
-    log.sexToysUsed ? 'Brinquedos registrados' : '',
-    log.contraceptionMethods?.includes('none')
-      ? 'Sem método contraceptivo'
-      : log.contraceptionMethods?.some((method) => !['undisclosed'].includes(method))
-        ? 'Método contraceptivo registrado'
-        : log.contraceptionMethods?.includes('undisclosed')
-          ? 'Método contraceptivo não informado'
-          : '',
-    log.libido === 'high' ? 'Libido alta' : log.libido === 'low' ? 'Libido baixa' : '',
-    orgasmOccurred === true ? 'Orgasmo' : orgasmOccurred === false ? 'Sem orgasmo' : '',
-    symptomCount ? `${symptomCount} ${plural(symptomCount, 'sintoma', 'sintomas')}` : '',
-    log.note ? 'com anotação' : '',
-  ]
-    .filter(Boolean)
+  const items = [];
+  if (log.flow) items.push({ tone: 'flow', icon: CYC_ICON.flow, text: `Fluxo: ${cycLabel('flow', log.flow)}` });
+  if (Number.isFinite(log.weightKg)) {
+    items.push({
+      tone: 'meta',
+      icon: 'activity',
+      text: `Peso: ${log.weightKg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`,
+    });
+  }
+  if (log.mood?.length) {
+    items.push({
+      tone: 'mood',
+      icon: CYC_ICON.mood,
+      text: `Mente e sentimentos: ${log.mood.map((value) => cycLabel('mood', value)).join(', ')}`,
+    });
+  }
+  if (log.social?.length) {
+    items.push({
+      tone: 'meta',
+      icon: CYC_ICON.social,
+      text: `Vida social: ${log.social.map((value) => cycLabel('social', value)).join(', ')}`,
+    });
+  }
+  if (log.ovulationTestResult) {
+    items.push({
+      tone: 'meta',
+      icon: 'activity',
+      text: `Teste de ovulação: ${cycleTestResultLabel(log.ovulationTestResult)}`,
+    });
+  }
+  if (log.pregnancyTestResult) {
+    items.push({
+      tone: 'meta',
+      icon: 'activity',
+      text: `Teste de gravidez: ${cycleTestResultLabel(log.pregnancyTestResult)}`,
+    });
+  }
+  if (log.medicationTaken === true) items.push({ tone: 'meta', icon: 'pill', text: 'Tomou medicação' });
+  else if (log.medicationTaken === false) items.push({ tone: 'meta', icon: 'pill', text: 'Não tomou medicação' });
+  if (log.sexualActivity === true) items.push({ tone: 'intimacy', icon: 'heart', text: 'Relação com outra pessoa' });
+  else if (log.sexualActivity === false)
+    items.push({ tone: 'meta', icon: 'heart', text: 'Sem relação com outra pessoa' });
+  if (log.masturbationActivity) items.push({ tone: 'intimacy', icon: 'heart', text: 'Masturbação registrada' });
+  if (log.sexToysUsed) items.push({ tone: 'intimacy', icon: 'heart', text: 'Brinquedos registrados' });
+  if (log.contraceptionMethods?.includes('none')) {
+    items.push({ tone: 'meta', icon: 'shield', text: 'Sem método contraceptivo' });
+  } else if (log.contraceptionMethods?.some((method) => !['undisclosed'].includes(method))) {
+    items.push({ tone: 'meta', icon: 'shield', text: 'Método contraceptivo registrado' });
+  } else if (log.contraceptionMethods?.includes('undisclosed')) {
+    items.push({ tone: 'meta', icon: 'shield', text: 'Método contraceptivo não informado' });
+  }
+  if (log.libido === 'high') items.push({ tone: 'intimacy', icon: 'sparkles', text: 'Libido alta' });
+  else if (log.libido === 'low') items.push({ tone: 'meta', icon: 'sparkles', text: 'Libido baixa' });
+  if (orgasmOccurred === true) items.push({ tone: 'intimacy', icon: 'sparkles', text: 'Orgasmo' });
+  else if (orgasmOccurred === false) items.push({ tone: 'meta', icon: 'sparkles', text: 'Sem orgasmo' });
+  if (symptomCount) {
+    items.push({
+      tone: 'symptom',
+      icon: 'activity',
+      text: `${symptomCount} ${plural(symptomCount, 'sintoma', 'sintomas')}`,
+    });
+  }
+  if (log.note) items.push({ tone: 'note', icon: 'note', text: 'com anotação' });
+  return items;
+}
+function cycleLogSummary(log) {
+  if (!hasAnyLog(log)) return 'Nenhum registro para este dia.';
+  return cycleLogSummaryItems(log)
+    .map((item) => item.text)
     .join(' · ');
 }
 export function syncLatestCycleWeight() {
@@ -260,7 +299,9 @@ export function viewCiclo() {
     clamp,
     plural,
     cycleLogSummary,
+    cycleLogSummaryItems,
     CYC_ICON,
+    CYC_OPTION_ICON,
     cap,
     ymLabel,
   });

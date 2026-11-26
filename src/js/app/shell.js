@@ -103,9 +103,9 @@ export function completionFeedback(selector) {
     setTimeout(() => target.classList.remove('completion-feedback'), 760);
   });
 }
-export function vibrateFeedback() {
-  if (!S.settings.prefs.vibrationEnabled) return;
-  triggerHapticFeedback();
+export function vibrateFeedback(kind = 'light') {
+  if (S.settings.prefs.vibrationEnabled === false) return;
+  triggerHapticFeedback(kind);
 }
 export function updateAccessibilityLook(updates, focusId) {
   updateSettingsDraft((settings) => {
@@ -314,17 +314,15 @@ function persistenceStatus() {
     action = h`<a class="btn ghost sm" href="${routePathFor('config?section=data')}">Revisar dados</a>`;
   } else if (navigator.onLine === false) {
     status = 'warning';
+    const queuedCount = Persist.offlineQueuedCount || (Persist.pendingSnapshot ? 1 : 0);
     message = Persist.pendingSnapshot
-      ? 'Sem conexão. Alterações não confirmadas estão somente nesta página.'
-      : ui.persistFailed.size || syncState.failed.size
-        ? 'Sem conexão. A última alteração não foi salva.'
-        : 'Sem conexão. Alterações não serão salvas.';
-    action = Persist.pendingSnapshot
-      ? h`<button type="button" class="btn ghost sm" data-action="persist-retry" disabled>Tentar novamente</button>`
-      : '';
+      ? `Sem conexão · ${queuedCount} ${queuedCount === 1 ? 'alteração salva' : 'alterações salvas'} neste aparelho. Sincronizaremos ao reconectar.`
+      : 'Sem conexão · alterações serão salvas neste aparelho e sincronizadas ao reconectar.';
+    action = '';
   } else if (syncState.pending.size) {
     status = 'pending';
-    message = 'Salvando alterações…';
+    message =
+      Persist.offlineQueuedCount > 0 ? 'Reconectado · sincronizando alterações offline…' : 'Salvando alterações…';
   } else if (syncState.failed.size || ui.persistFailed.size) {
     status = 'error';
     message = Persist.pendingSnapshot
@@ -446,8 +444,11 @@ export function gate(area, name) {
 export function areaGuideButton(route) {
   if (!AREA_GUIDES[route]) return '';
   return h`<button type="button" class="btn ghost area-guide-button" data-action="area-guide-open"
-    data-area-guide="${route}">${icon('play', 16)}<span class="area-guide-label">Como usar?</span></button>`;
+    data-area-guide="${route}" title="Como usar?">${icon('help', 18)}<span class="area-guide-label">Como usar?</span></button>`;
 }
 export function areaPageTitle(route, title, action = '') {
-  return pageTitle(title, h`<div class="area-page-actions">${action}${areaGuideButton(route)}</div>`);
+  return pageTitle(
+    title,
+    h`${action ? h`<div class="area-page-extra">${action}</div>` : ''}<div class="area-page-actions">${areaGuideButton(route)}</div>`,
+  );
 }

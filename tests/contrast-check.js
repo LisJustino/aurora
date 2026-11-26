@@ -110,7 +110,7 @@ for (const [paletteKey, [, p, pd]] of Object.entries(PALETTES)) {
       const emptyBackground = colorToRgb(emptyStyle.backgroundColor);
       const descriptionStyle = getComputedStyle(emptyDescription);
       probe.style.backgroundColor = 'var(--soft)';
-      probe.style.borderTopColor = 'var(--line-strong)';
+      probe.style.borderTopColor = 'color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line))';
       probe.style.borderRadius = 'var(--r-card)';
       const emptyIconStyle = getComputedStyle(emptyIcon);
       if (emptyStyle.borderStyle !== 'dashed'
@@ -146,8 +146,8 @@ for (const [paletteKey, [, p, pd]] of Object.entries(PALETTES)) {
         [navItem, 'color', 'menu', brandColor],
         [navItem.querySelector('.ni'), 'color', 'ícone do menu', brandColor],
         [navItem.querySelector('.tab-period'), 'color', 'ponto do menu', brandColor],
-        [main.querySelector('.page-title-eyebrow'), 'color', 'kicker', brandColor],
-        [main.querySelector('h1 i'), 'color', 'ponto do título', brandColor],
+        [main.querySelector('.page-title-eyebrow'), 'color', 'kicker', areaColor],
+        [main.querySelector('h1 i'), 'color', 'ponto do título', areaColor],
         [main.querySelector('.chip'), 'color', 'chip', areaColor],
         [main.querySelector('.chip'), 'borderTopColor', 'borda do chip', areaColor],
         [dialog.querySelector('.chip'), 'color', 'chip do diálogo', areaColor],

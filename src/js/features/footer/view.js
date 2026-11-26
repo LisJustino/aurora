@@ -71,10 +71,14 @@ export function renderFooterContent({
         <h2>Conta</h2>
         <div class="footer-link-list">${accountLinks}</div>
       </nav>
-      <nav class="footer-nav" aria-label="Demonstração e app">
+      ${
+        demoLink || installLink
+          ? `<nav class="footer-nav" aria-label="Demonstração e app">
         <h2>Uso</h2>
         <div class="footer-link-list">${demoLink}${installLink}</div>
-      </nav>
+      </nav>`
+          : ''
+      }
       <nav class="footer-nav" aria-label="Informações legais">
         <h2>Informações legais</h2>
         <div class="footer-link-list">

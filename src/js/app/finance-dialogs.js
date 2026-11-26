@@ -175,10 +175,11 @@ export function applyBulkEntry() {
     },
   );
 }
-export function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
+export function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none', overrides = {}) {
   const accs = S.finance.accounts;
   const defaults = recentTransactionDefaults(kind, preferCredit);
   const first =
+    (overrides.accountId ? accs.find((account) => account.id === overrides.accountId) : null) ||
     accs.find((account) => account.id === defaults.accountId) ||
     (preferCredit ? accs.find(isCredit) : null) ||
     accs.find((account) => !isCredit(account)) ||
@@ -186,17 +187,19 @@ export function newTxDlg(kind = 'out', preferCredit = false, repeat = 'none') {
   const second =
     accs.find((account) => account.id === defaults.toAccountId && account.id !== first?.id) ||
     accs.find((account) => account.id !== first?.id);
+  const initialDate = overrides.date || today();
   dlgOpen('tx', {
     kind,
     amount: '',
     desc: '',
+    tags: '',
     category: defaults.category,
     categoryTouched: false,
     accountId: first ? first.id : '',
     toAccountId: second?.id || '',
-    date: today(),
-    settledDate: today(),
-    paid: true,
+    date: initialDate,
+    settledDate: initialDate <= today() ? initialDate : today(),
+    paid: initialDate <= today(),
     interest: '0,00',
     repeat,
     currentInstallment: '1',
@@ -208,6 +211,7 @@ export function prepareTransactionDialogForAnother(d, category) {
   Object.assign(d, {
     amount: '',
     desc: '',
+    tags: '',
     category,
     interest: '0,00',
     repeat: 'none',

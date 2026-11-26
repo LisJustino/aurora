@@ -29,10 +29,10 @@ select.ds-select__native {
   align-items: center;
   padding: 10px 40px 10px 12px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-strong) 40%, var(--line));
   border-radius: var(--r-control);
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
-  box-shadow: inset 0 1px 1px rgb(30 25 22 / 3%);
+  background: var(--surface-strong);
+  box-shadow: none;
   color: var(--ink);
   font-size: max(16px, var(--text-base));
   font-weight: var(--weight-regular);
@@ -62,8 +62,10 @@ select.ds-select__native {
   transform: translateY(-20%) rotate(225deg);
 }
 
-.ds-select__trigger:hover:not([aria-disabled="true"]) {
-  border-color: color-mix(in srgb, var(--line-strong) 65%, var(--accent));
+@media (hover: hover) and (pointer: fine) {
+  .ds-select__trigger:hover:not([aria-disabled="true"]) {
+    border-color: color-mix(in srgb, var(--line-strong) 65%, var(--accent));
+  }
 }
 
 .ds-select__trigger:focus-visible {
@@ -96,10 +98,10 @@ select.ds-select__native {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--border-card);
   border-radius: var(--r-control);
   background: var(--surface-raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--surface-highlight), var(--elev-2);
   color: var(--ink);
   font: var(--text-base)/var(--leading-body) var(--font);
   scrollbar-color: var(--line-strong) transparent;
@@ -146,9 +148,17 @@ select.ds-select__native {
   color: var(--select-option-color, var(--accent));
 }
 
+.ds-select__label,
 .ds-select__category-label {
   min-width: 0;
   flex: 1;
+}
+
+.ds-select__trigger .ds-select__label,
+.ds-select__trigger .ds-select__category-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ds-select__trigger:has(.ds-select__category-icon) {
@@ -166,10 +176,15 @@ select.ds-select__native {
   padding-block: 6px;
 }
 
-.ds-select__option:hover,
 .ds-select__option[data-active="true"] {
   background: var(--soft);
   color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ds-select__option:hover {
+    background: var(--soft);
+    color: var(--accent);
+  }
 }
 
 .ds-select__option[aria-selected="true"] {

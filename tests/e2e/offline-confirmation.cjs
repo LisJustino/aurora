@@ -70,6 +70,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('#toast .toast-message')
     .filter({ hasText: 'Alterações aplicadas nesta demonstração' })
     .waitFor({ state: 'visible' });
+  await page.locator('.settings-mobile-trigger').click();
   await page.locator('.settings-link[data-settings-tab="personalization"]').click();
   await page.waitForFunction(() => location.pathname === '/ajustes/aparencia' && !location.search);
   await page.locator('#settings-content[role="region"][aria-label="Seção de ajustes: Aparência e leitura"]').waitFor();
@@ -146,37 +147,47 @@ const check = (passed, name, detail = '') => {
         history.pushState(null, '', `/config?section=${id}`);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }, section);
-      await page.locator(`.settings-link[data-settings-tab="${section}"][aria-current="page"]`).waitFor();
+      await page.locator(`.settings-link[data-settings-tab="${section}"][aria-current="page"]`).waitFor({ state: 'attached' });
       const regionLabel = await page.locator('#settings-content').getAttribute('aria-label');
       if (regionLabel !== `Seção de ajustes: ${sectionNames[section]}`) {
         unlabeledSettingsSections.push(`${section} em ${width}px`);
       }
-      if (width <= 760 && section === 'profile') {
+      if (width <= 700 && section === 'profile') {
         if (width === 390) {
           check(
             (await page.locator('#settings-profile-title').innerText()) === 'Seu perfil',
             'título do perfil sem pontuação duplicada',
           );
         }
+        const trigger = page.locator('.settings-mobile-trigger');
+        await trigger.waitFor({ state: 'visible' });
+        await trigger.click();
         const menuLayout = await page.evaluate(() => {
           const menu = document.querySelector('.settings-menu');
           const links = [...menu.querySelectorAll('.settings-link')];
+          const headings = [...menu.querySelectorAll('.settings-menu-heading')];
           return {
-            scrollable: getComputedStyle(menu).overflowX === 'auto' && menu.scrollWidth > menu.clientWidth,
+            visible: getComputedStyle(menu).display !== 'none',
             count: links.length,
+            headingsVisible: headings.every((heading) => heading.getBoundingClientRect().height > 4),
           };
         });
         check(
-          menuLayout.scrollable && menuLayout.count === Object.keys(sectionNames).length,
-          'menu móvel permite rolar por todas as abas',
+          menuLayout.visible && menuLayout.count === Object.keys(sectionNames).length && menuLayout.headingsVisible,
+          'menu móvel expande verticalmente com grupos e todas as seções',
         );
         await page.locator('.settings-link[data-settings-tab="account"]').click();
-        await page.locator('.settings-link[data-settings-tab="account"][aria-current="page"]').waitFor();
+        await page.locator('.settings-link[data-settings-tab="account"][aria-current="page"]').waitFor({ state: 'attached' });
+        check(
+          (await trigger.getAttribute('aria-expanded')) === 'false',
+          'menu móvel fecha após selecionar uma seção',
+        );
+        await trigger.click();
         await page.locator('.settings-link[data-settings-tab="profile"]').click();
-        await page.locator('.settings-link[data-settings-tab="profile"][aria-current="page"]').waitFor();
+        await page.locator('.settings-link[data-settings-tab="profile"][aria-current="page"]').waitFor({ state: 'attached' });
       }
       const cardSpacing = await page.locator(
-        '.settings-content > .card, .settings-content > .profile-settings-container > .card, .settings-content > .settings-account-list > .card',
+        '.settings-content > .card, .settings-content > .surface-open, .settings-content > .profile-settings-container > .card, .settings-content > .settings-account-list > .card',
       ).evaluateAll((cards) => cards.map((card) => {
         const style = getComputedStyle(card);
         return { gap: style.gap, padding: style.padding };

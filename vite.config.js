@@ -116,8 +116,31 @@ export default defineConfig({
   },
   plugins: [accountChunkHint(), cloudflareHeadersForLocalTests(), pagesPreviewNotFound()],
   build: {
+    chunkSizeWarningLimit: 550,
     rollupOptions: {
       input: ['index.html', ...pageEntries].map((path) => resolve(root, path)),
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/@supabase/')) return 'vendor-supabase';
+          if (id.includes('/src/js/features/finance/view.js') || id.includes('/src/js/features/finance/dialogs.js'))
+            return 'feature-finance';
+          if (
+            id.includes('/src/js/features/cycle/view.js') ||
+            id.includes('/src/js/features/cycle/dialogs.js') ||
+            id.includes('/src/js/features/cycle/phases.js')
+          )
+            return 'feature-cycle';
+          if (id.includes('/src/js/features/habits/view.js') || id.includes('/src/js/features/habits/template.js'))
+            return 'feature-habits';
+          if (
+            id.includes('/src/js/features/') &&
+            !id.includes('/src/js/features/landing/') &&
+            !id.includes('/src/js/features/backup/')
+          )
+            return 'aurora-features';
+          return undefined;
+        },
+      },
     },
   },
 });

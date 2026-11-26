@@ -17,6 +17,8 @@ export const PROFILE_AVATARS = Object.freeze([
   Object.freeze(['leaf', 'Folha']),
   Object.freeze(['flower', 'Flor']),
   Object.freeze(['activity', 'Energia']),
+  Object.freeze(['sun', 'Sol']),
+  Object.freeze(['moon', 'Lua']),
 ]);
 
 export const PROFILE_AVATAR_COLORS = Object.freeze([

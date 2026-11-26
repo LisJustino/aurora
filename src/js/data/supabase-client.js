@@ -96,6 +96,26 @@ const isSafeSupabaseConfig = () => {
 
 let clientPromise;
 let rememberSession = false;
+let preconnected = false;
+
+export function preconnectSupabase() {
+  if (preconnected || typeof document === 'undefined' || !isSafeSupabaseConfig()) return;
+  try {
+    const { origin } = new URL(supabaseUrl);
+    if (document.head?.querySelector(`link[rel="preconnect"][href="${origin}"]`)) {
+      preconnected = true;
+      return;
+    }
+    const link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = origin;
+    link.crossOrigin = 'anonymous';
+    document.head?.append(link);
+    preconnected = true;
+  } catch {
+    /* preconnect opcional */
+  }
+}
 
 function authStorageKey(url) {
   if (!url) return '';
@@ -153,6 +173,7 @@ export async function getSupabaseClient() {
     );
   }
   if (!clientPromise) {
+    preconnectSupabase();
     clientPromise = import('@supabase/supabase-js')
       .then(({ createClient }) =>
         createClient(supabaseUrl, supabaseAnonKey, {

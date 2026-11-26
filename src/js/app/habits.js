@@ -1,6 +1,6 @@
 import { h, raw } from '../utils/dom.js';
 import { icon } from '../utils/icons.js';
-import { addDays, DIAS, isoDay, longDate, pk, today } from '../utils/dates.js';
+import { addDays, DIAS, isoDay, longDate, MESES, pk, today } from '../utils/dates.js';
 import { habitStartedOnOrBefore } from '../features/habits/dates.js';
 import {
   filterSuggestedHabits,
@@ -17,13 +17,7 @@ import {
   isWeightHabit,
   remainingHabitSuggestions,
 } from '../features/habits/model.js';
-import {
-  waterGoalForHabit,
-  waterGoalReached,
-  waterMlForDay,
-  waterWeekProgress,
-} from '../features/habits/water-goal.js';
-import { weekDays } from '../features/planning/week.js';
+import { waterGoalForHabit, waterGoalReached, waterMlForDay } from '../features/habits/water-goal.js';
 import { plural, preserveCopyTerms } from './core.js';
 import { ymLabel } from './finance-view.js';
 import { habitCompletedFor } from './home.js';
@@ -63,9 +57,7 @@ function habitDaysLabel(habit) {
 export function habitMonthlyHistory(habit) {
   const days = habitMonthDays(ui.habitMonth, weekStartDay());
   const stats = habitMonthStats(habit, ui.habitMonth, today(), (day) => habitCompletedFor(habit, day));
-  return h`<details class="habit-month"
-    id="d-month-${habit.id}" ${ui.openDetails[`month-${habit.id}`] ? raw('open') : ''}>
-    <summary>Histórico mensal · ${cap(ymLabel(ui.habitMonth))}${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+  return h`<section class="habit-month" aria-label="Calendário mensal de ${habit.name}">
     <div class="mnav"><button class="ibtn" type="button" data-action="habit-month" data-n="-1"
       aria-label="Mês anterior">${icon('chevLeft', 18)}</button><b>${cap(ymLabel(ui.habitMonth))}</b><button
       class="ibtn" type="button" data-action="habit-month" data-n="1"
@@ -95,38 +87,47 @@ export function habitMonthlyHistory(habit) {
       })}
     </div>
     <p class="small muted">Toque em um dia programado que já passou para marcar ou desmarcar.</p>
-  </details>`;
+  </section>`;
 }
-function habitYearHeat(habit) {
-  const start = weekStartDay();
+export function habitYearHeat(habit) {
   const end = today();
-  const firstWeek = weekDays(addDays(end, -52 * 7), start)[0];
-  const days = [];
-  for (let day = firstWeek; day <= end; day = addDays(day, 1)) days.push(day);
   let done = 0,
     planned = 0;
-  const cells = days.map((day) => {
-    const started = habitStartedOnOrBefore(habit, day);
-    const scheduled = started && habit.days.includes(pk(day).getDay());
-    const completed = started && habitCompletedFor(habit, day);
-    const skipped = started && habitIsSkipped(habit, day, end);
-    if (scheduled && !skipped) planned += 1;
-    if (completed) done += 1;
-    return { day, scheduled, completed, skipped };
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const first = pk(end);
+    first.setDate(1);
+    first.setMonth(first.getMonth() - (11 - index));
+    const month = isoDay(first).slice(0, 7);
+    const lead = (first.getDay() - weekStartDay() + 7) % 7;
+    const cells = [];
+    for (let day = isoDay(first); day.startsWith(month) && day <= end; day = addDays(day, 1)) {
+      const started = habitStartedOnOrBefore(habit, day);
+      const scheduled = started && habit.days.includes(pk(day).getDay());
+      const completed = started && habitCompletedFor(habit, day);
+      const skipped = started && habitIsSkipped(habit, day, end);
+      if (scheduled && !skipped) planned += 1;
+      if (completed) done += 1;
+      cells.push({ day, scheduled, completed, skipped });
+    }
+    const label = `${MESES[first.getMonth()]}${first.getMonth() === 0 ? ` ${first.getFullYear()}` : ''}`;
+    return { label, lead, cells };
   });
-  return h`<details class="habit-year" id="d-year-${habit.id}" ${ui.openDetails[`year-${habit.id}`] ? raw('open') : ''}>
-    <summary>Ano em calendário${icon('chevDown', 16, 'habit-disclosure-indicator')}</summary>
+  return h`<section class="habit-year" aria-label="Últimos 12 meses de ${habit.name}">
+    <h3>Últimos 12 meses</h3>
     <p class="small muted">${done} de ${planned} ${plural(planned, 'dia programado concluído', 'dias programados concluídos')} nos últimos 12 meses.</p>
-    <div class="habit-year-grid" role="img"
-      aria-label="Calendário de 12 meses de ${habit.name}: ${done} de ${planned} dias programados concluídos">${cells.map(
-        (cell) => h`<span
-      class="habit-year-cell${cell.completed ? ' is-done' : cell.skipped ? ' is-skipped' : cell.scheduled ? ' is-missed' : ''}"
-      title="${longDate(cell.day)}${cell.skipped ? ' · pulado' : ''}"></span>`,
+    <div class="habit-year-months" role="img"
+      aria-label="Calendário de 12 meses de ${habit.name}: ${done} de ${planned} dias programados concluídos">${months.map(
+        ({ label, lead, cells }) => h`<div class="habit-year-month"><b>${label}</b><div
+        class="habit-year-grid">${Array.from({ length: lead }, () => h`<span class="habit-year-pad"></span>`)}${cells.map(
+          (cell) => h`<span
+        class="habit-year-cell${cell.completed ? ' is-done' : cell.skipped ? ' is-skipped' : cell.scheduled ? ' is-missed' : ''}"
+        title="${longDate(cell.day)}${cell.skipped ? ' · pulado' : ''}"></span>`,
+        )}</div></div>`,
       )}</div>
     <p class="habit-year-legend small muted"><span class="habit-year-cell"></span>não programado <span
       class="habit-year-cell is-missed"></span>não feito <span class="habit-year-cell is-skipped"></span>pulado <span
       class="habit-year-cell is-done"></span>feito</p>
-  </details>`;
+  </section>`;
 }
 export function updateHabitIdeaFilters() {
   const remaining = remainingHabitSuggestions(S.habits);
@@ -202,41 +203,46 @@ export function undoLastWaterEntry(habit) {
   render();
   toast(`${Math.round(last.ml).toLocaleString('pt-BR')} mL removidos do dia.`, 'success');
 }
-function habitWaterTracker(habit) {
+function waterQuickControls(habit, { compact = false } = {}) {
+  if (habit.status !== 'active') return '';
+  const hasUndo = Boolean(lastWaterEntryToday());
+  return h`<div class="water-controls-bar${compact ? ' is-compact' : ''}">
+    <div class="water-quick-amounts" role="group"
+      aria-label="Registrar quantidade rápida">${[150, 250, 330, 500].map(
+        (ml) => h`<button type="button"
+      class="btn sm water-chip-btn" data-action="water-quick" data-id="${habit.id}"
+      data-ml="${ml}">+${ml} mL</button>`,
+      )}</div>
+    <div class="water-custom-row">
+      <form class="water-add-form" data-form="water-add" data-id="${habit.id}">
+        <label class="sr" for="water-amount-${habit.id}">Quantidade consumida em mL</label>
+        <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1"
+          max="10000" step="1" inputmode="numeric" placeholder="Outro (mL)" required><button type="submit"
+          class="btn sm">Adicionar</button></div>
+      </form>${
+        hasUndo
+          ? h`<button type="button" class="btn sm ghost water-undo-btn"
+      data-action="water-undo" data-id="${habit.id}" aria-label="Desfazer último registro de água">${icon('undo', 14)}Desfazer</button>`
+          : ''
+      }
+    </div>
+  </div>`;
+}
+export function habitWaterTracker(habit) {
   if (!isWaterHabit(habit)) return '';
   const currentDay = today();
   const total = waterMlForDay(S.water, currentDay);
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
-  const week = waterWeekProgress(S.water, target, currentDay, weekStartDay());
-  const goalDays = week.filter(({ goalReached }) => goalReached).length;
-  return h`<section class="water-tracker" aria-label="Acompanhamento de água">
-    <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
+  const percent = target ? Math.min(100, Math.round((total / target) * 100)) : 0;
+  return h`<section class="water-tracker" style="--hc:${habitColor(habit)}" aria-label="Acompanhamento de água">
+    <div class="water-tracker-head">
+      <div class="water-tracker-summary"><b>${habit.name}</b><span>${total.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div>
+      <span class="water-tracker-pct" aria-hidden="true">${percent}%</span>
+    </div>
     <progress value="${Math.min(total, target)}" max="${target}"
       aria-label="Progresso da meta diária de água"></progress>
-    ${
-      habit.status === 'active'
-        ? h`<div class="water-quick-amounts" role="group"
-          aria-label="Registrar quantidade rápida">${[150, 250, 330, 500].map(
-            (ml) => h`<button type="button"
-          class="btn sm" data-action="water-quick" data-id="${habit.id}"
-          data-ml="${ml}">+${ml} mL</button>`,
-          )}${
-            lastWaterEntryToday()
-              ? h`<button type="button" class="btn sm ghost"
-          data-action="water-undo" data-id="${habit.id}">Desfazer último</button>`
-              : ''
-          }</div>
-    <form class="water-add-form" data-form="water-add" data-id="${habit.id}">
-      <label for="water-amount-${habit.id}">Quantidade consumida (mL)</label>
-      <div class="water-add-controls"><input id="water-amount-${habit.id}" name="amount" type="number" min="1"
-        max="10000" step="1" inputmode="numeric" placeholder="Ex.: 250" required><button type="submit"
-        class="btn sm">Adicionar</button></div>
-    </form>`
-        : ''
-    }
-    <p class="small muted"
-      aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'} · Meta diária cumprida em ${goalDays} de 7 dias nesta semana.</p>
+    ${waterQuickControls(habit)}
   </section>`;
 }
 function waterSummary() {
@@ -244,17 +250,19 @@ function waterSummary() {
   const habit = S.habits.find(isWaterHabit);
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
+  const percent = target ? Math.min(100, Math.round((total / target) * 100)) : 0;
   return h`<section class="water-tracker water-tracker--quick" style="--hc:var(--area-water)"
     aria-label="Acompanhamento de água">
-    <div class="water-tracker-summary"><b>${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL hoje</span></div>
+    <div class="water-tracker-head">
+      <div class="water-tracker-summary"><b>Água</b><span>${total.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div>
+      <span class="water-tracker-pct" aria-hidden="true">${percent}%</span>
+    </div>
     <progress value="${Math.min(total, target)}" max="${target}"
       aria-label="Progresso da meta diária de água"></progress>
     <button type="button" class="btn sm" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
-    <p class="small muted"
-      aria-live="polite">${remaining ? `Faltam ${remaining.toLocaleString('pt-BR')} mL para a meta.` : 'Meta diária atingida. Você pode continuar registrando.'}</p>
   </section>`;
 }
-function habitRow(habit) {
+export function habitRow(habit) {
   const status = habit.status || 'active';
   const saved = S.habits.includes(habit);
   const dayOn = habit.days.includes(pk(today()).getDay());
@@ -264,18 +272,20 @@ function habitRow(habit) {
   const pending = canCheck && !done;
   const stats = habitStats(habit, today(), weekStartDay(), (day) => habitCompletedFor(habit, day));
   const color = habitColor(habit);
-  const open = ui.openDetails[`hab-${habit.id}`] ? raw('open') : '';
   const target = stats.weeklyTarget ?? stats.scheduledThisWeek;
-  const waterTotal = isWaterHabit(habit) ? waterMlForDay(S.water, today()) : 0;
-  const waterTarget = isWaterHabit(habit) ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
+  const water = isWaterHabit(habit);
+  const waterTotal = water ? waterMlForDay(S.water, today()) : 0;
+  const waterTarget = water ? waterGoalForHabit(habit, S.settings.prefs.waterGoalMl) : 0;
+  const waterRemaining = water ? Math.max(0, waterTarget - waterTotal) : 0;
+  const waterPercent = water && waterTarget ? Math.min(100, Math.round((waterTotal / waterTarget) * 100)) : 0;
   const weightEntry = isWeightHabit(habit) ? S.weight.find((entry) => entry.date === today()) : null;
   const sub =
     status === 'paused'
       ? 'Pausado'
       : skipped
         ? 'Dia pulado'
-        : isWaterHabit(habit)
-          ? `${waterTotal.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL hoje`
+        : water
+          ? `${waterTotal.toLocaleString('pt-BR')} de ${waterTarget.toLocaleString('pt-BR')} mL${waterRemaining ? ` · faltam ${waterRemaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}`
           : isWeightHabit(habit)
             ? weightEntry
               ? `Peso registrado: ${weightEntry.kg.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`
@@ -287,65 +297,89 @@ function habitRow(habit) {
                   ? 'Escolha uma opção hoje'
                   : 'Escreva o registro de hoje'
               : habitDaysLabel(habit);
+  const weekOpen = Boolean(ui.habitWeekOpen[habit.id]);
   const orderList = S.habits.filter((item) => item.status !== 'archived');
   const orderIndex = orderList.indexOf(habit);
   const circleLabel = `${skipped ? 'Dia pulado' : done ? 'Desmarcar' : 'Marcar como feito'}: ${habit.name}`;
-  return h`<li class="habit-row${done ? ' is-done' : ''}${pending ? ' is-pending' : ''}${canCheck ? '' : ' is-off'}"
+  return h`<li class="habit-row${water ? ' is-water' : ''}${done ? ' is-done' : ''}${pending ? ' is-pending' : ''}${canCheck ? '' : ' is-off'}"
     data-habit-id="${habit.id}" style="--hc:${color}">
     <button type="button" class="habit-circle" data-action="habit-check" data-id="${habit.id}"
       aria-pressed="${String(done)}" aria-label="${circleLabel}" ${canCheck ? '' : raw('disabled')}>
       <span class="habit-circle-icon">${icon(habitIconKey(habit), 22)}</span><span
         class="habit-circle-check">${icon('check', 22)}</span>
     </button>
-    <details class="habit-more" id="d-hab-${habit.id}" ${open}>
-      <summary><span class="habit-main"><span class="habit-title">${habit.name}${
-        status === 'paused'
-          ? h` <span
-        class="badge">Pausado</span>`
+    <div class="habit-main"><span class="habit-title">${habit.name}${
+      status === 'paused'
+        ? h` <span
+      class="badge">Pausado</span>`
+        : ''
+    }</span><span
+      class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span>${
+        stats.streak >= 2
+          ? h`<span
+      class="habit-streak">${stats.streak} dias seguidos</span>`
           : ''
-      }</span><span
-        class="habit-sub">${canCheck && stats.goalMet ? h`${icon('sparkles', 13)}Meta da semana cumprida · ` : ''}${sub}</span>${
-          stats.streak >= 2
-            ? h`<span
-        class="habit-streak">${stats.streak} dias seguidos</span>`
-            : ''
-        }</span>${icon('chevDown', 18, 'chev')}</summary>
-      <div class="habit-more-body">
-        ${habitWaterTracker(habit)}
-        <p class="small muted">${habitDaysLabel(habit)}<br>${stats.completedThisWeek} de ${target} nesta semana</p>
-        ${habitMonthlyHistory(habit)}${saved ? habitYearHeat(habit) : ''}
-        ${
-          saved
-            ? h`<details
-          class="habit-management"><summary>Gerenciar hábito${icon('chevDown', 16, 'habit-management-indicator')}</summary><div
-          class="habit-actions" role="group"
-          aria-label="Ações de ${habit.name}">${
-            status === 'active' && dayOn && !done
-              ? h`<button type="button"
-          class="btn sm habit-action-wide" data-action="habit-skip" data-id="${habit.id}"
-          aria-pressed="${skipped}">${icon(skipped ? 'undo' : 'chevRight', 15)}${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>`
+      }</div>
+    ${
+      saved
+        ? h`<div class="habit-row-controls">${
+            status === 'active'
+              ? h`<button type="button" class="ibtn habit-week-toggle" data-action="habit-week-toggle"
+            data-id="${habit.id}" aria-expanded="${weekOpen}" aria-controls="habit-week-${habit.id}"
+            aria-label="${weekOpen ? 'Esconder' : 'Ver'} a semana de ${habit.name}">${icon('chevDown', 18)}</button>`
               : ''
-          }<button
-          type="button" class="btn sm" data-action="habit-edit-open"
-          data-id="${habit.id}">${icon('pencil', 15)}Editar</button><button type="button" class="btn sm"
-          data-action="habit-toggle-pause"
-          data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 15)}${status === 'active' ? 'Pausar' : 'Retomar'}</button>${
-            status !== 'archived'
-              ? h`<button
-          type="button" class="btn sm" data-action="habit-move" data-dir="-1" data-id="${habit.id}"
-          aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 15)}Subir</button><button
-          type="button" class="btn sm" data-action="habit-move" data-dir="1" data-id="${habit.id}"
-          aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 15)}Descer</button>`
-              : ''
-          }<button
-          type="button" class="btn sm" data-action="habit-archive"
-          data-id="${habit.id}">${icon('archive', 15)}Arquivar</button><button type="button" class="btn sm danger"
-          data-action="habit-delete" data-id="${habit.id}">${icon('trash', 15)}Excluir</button></div></details>`
+          }<details class="habit-menu">
+            <summary class="ibtn habit-menu-trigger" aria-label="Mais opções para ${habit.name}">${icon('more', 18)}</summary>
+            <div class="habit-menu-panel" role="group" aria-label="Ações de ${habit.name}">
+              <button type="button" class="habit-menu-item" data-action="habit-edit-open"
+                data-id="${habit.id}">${icon('pencil', 16)}Editar</button>${
+                  status === 'active' && dayOn && !done
+                    ? h`<button type="button" class="habit-menu-item" data-action="habit-skip" data-id="${habit.id}"
+                aria-pressed="${skipped}">${icon(skipped ? 'undo' : 'chevRight', 16)}${skipped ? 'Desfazer pulo' : 'Pular hoje'}</button>`
+                    : ''
+                }<button type="button" class="habit-menu-item" data-action="habit-toggle-pause"
+                data-id="${habit.id}">${icon(status === 'active' ? 'pause' : 'play', 16)}${status === 'active' ? 'Pausar' : 'Retomar'}</button><button
+                type="button" class="habit-menu-item" data-action="habit-history-open"
+                data-id="${habit.id}">${icon('calendarCheck', 16)}Ver histórico</button>${
+                  orderList.length > 1
+                    ? h`<button type="button" class="habit-menu-item" data-action="habit-move" data-dir="-1"
+                data-id="${habit.id}" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 16)}Mover para cima</button><button
+                type="button" class="habit-menu-item" data-action="habit-move" data-dir="1"
+                data-id="${habit.id}" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 16)}Mover para baixo</button>`
+                    : ''
+                }<hr class="habit-menu-sep" aria-hidden="true"><button type="button" class="habit-menu-item"
+                data-action="habit-archive" data-id="${habit.id}">${icon('archive', 16)}Arquivar</button><button
+                type="button" class="habit-menu-item is-danger" data-action="habit-delete"
+                data-id="${habit.id}">${icon('trash', 16)}Excluir</button>
+            </div>
+          </details></div>`
+        : ''
+    }
+    ${
+      water && status === 'active'
+        ? h`<div class="habit-water-panel" aria-label="Acompanhamento de água">
+          <div class="habit-water-progress-row">
+            <progress value="${Math.min(waterTotal, waterTarget)}" max="${waterTarget}"
+              aria-label="Progresso da meta diária de água"></progress>
+            <span class="water-tracker-pct" aria-live="polite">${waterPercent}%</span>
+          </div>
+          ${waterQuickControls(habit, { compact: true })}
+        </div>`
+        : ''
+    }
+    <div class="habit-week-summary"><progress value="${Math.min(stats.completedThisWeek, target || 0)}" max="${target || 1}"
+      aria-label="Progresso de ${habit.name} nesta semana"></progress><span>${stats.completedThisWeek} de ${target} na semana</span>${
+        saved && skipped && status === 'active' && dayOn && !done
+          ? h`<button type="button" class="btn sm ghost habit-inline-action" data-action="habit-skip"
+        data-id="${habit.id}">${icon('undo', 14)}Desfazer pulo</button>`
+          : saved && status === 'paused'
+            ? h`<button type="button" class="btn sm ghost habit-inline-action" data-action="habit-toggle-pause"
+        data-id="${habit.id}">${icon('play', 14)}Retomar</button>`
             : ''
-        }
-      </div>
-    </details>
-    <div class="habit-week" role="group"
+      }</div>
+    ${
+      weekOpen
+        ? h`<div class="habit-week" id="habit-week-${habit.id}" role="group"
       aria-label="Esta semana: ${stats.completedThisWeek} de ${target} dias. Toque num dia que passou para marcar ou desmarcar.">${stats.week.map(
         (w) => {
           const stateLabel = `${longDate(w.day)}: ${w.skipped ? 'dia pulado' : w.completed ? 'concluído' : w.scheduled ? (w.day > today() ? 'programado' : 'não concluído') : 'não programado'}`;
@@ -357,14 +391,32 @@ function habitRow(habit) {
           aria-hidden="true">${DIAS[pk(w.day).getDay()].slice(0, 3)}</span><i
           aria-hidden="true">${w.completed ? icon('check', 12) : w.skipped ? '–' : ''}</i></button>`;
         },
-      )}</div>
-    ${
-      saved && status === 'active'
-        ? h`<button type="button" class="btn sm habit-history-action"
-          data-action="habit-history-open" data-id="${habit.id}"
-          aria-label="Abrir histórico de ${habit.name} para registrar outro dia">${icon('calendarCheck', 15)}Registrar outro dia</button>`
+      )}</div>`
         : ''
     }
+  </li>`;
+}
+export function habitManageRow(habit) {
+  const status = habit.status || 'active';
+  const orderList = S.habits.filter((item) => item.status !== 'archived');
+  const orderIndex = orderList.indexOf(habit);
+  return h`<li class="habit-manage-row${status === 'paused' ? ' is-off' : ''}" data-habit-id="${habit.id}"
+    style="--hc:${habitColor(habit)}">
+    <span class="habit-circle is-static">${icon(habitIconKey(habit), 22)}</span>
+    <div class="habit-main"><span class="habit-title">${habit.name}${
+      status === 'paused'
+        ? h` <span
+      class="badge">Pausado</span>`
+        : ''
+    }</span><span class="habit-sub">${habitDaysLabel(habit)}</span></div>
+    <div class="habit-reorder-controls" role="group" aria-label="Reordenar ${habit.name}">
+      <button type="button" class="ibtn" data-action="habit-move" data-dir="-1" data-id="${habit.id}"
+        aria-label="Mover ${habit.name} para cima" ${orderIndex <= 0 ? raw('disabled') : ''}>${icon('arrowUp', 18)}</button>
+      <button type="button" class="ibtn" data-action="habit-move" data-dir="1" data-id="${habit.id}"
+        aria-label="Mover ${habit.name} para baixo" ${orderIndex < 0 || orderIndex >= orderList.length - 1 ? raw('disabled') : ''}>${icon('arrowDown', 18)}</button>
+      <button type="button" class="ibtn habit-drag-handle" data-id="${habit.id}"
+        aria-label="Arrastar para reordenar ${habit.name}">${icon('grip', 20)}</button>
+    </div>
   </li>`;
 }
 export function viewHabits() {
@@ -388,6 +440,10 @@ export function viewHabits() {
     habitCompletedFor,
     plural,
     habitRow,
+    habitManageRow,
+    habitMonthlyHistory,
+    habitYearHeat,
+    habitWaterTracker,
     waterSummary,
     preserveCopyTerms,
     habitColor,

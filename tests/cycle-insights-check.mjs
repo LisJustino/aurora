@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   cycleHistory,
   cycleStats,
+  daysWithSymptom,
   nextPeriodRange,
   periodDelay,
   symptomPhasePatterns,
@@ -81,5 +82,41 @@ assert.ok(!html.includes('texto privado'));
 assert.ok(!html.includes('sexual'));
 assert.ok(!html.includes('<b>x</b>'));
 assert.ok(html.includes('&lt;b&gt;x&lt;/b&gt;'));
+
+// filtro de dias por sintoma (últimos 180 dias, mais recente primeiro)
+assert.deepEqual(daysWithSymptom(log, 'pain:cramp', today, 180), ['2026-10-27', '2026-10-24', '2026-09-29', '2026-09-28']);
+assert.deepEqual(daysWithSymptom(log, 'mood:happy', today, 180), ['2026-11-10', '2026-10-14', '2026-10-13', '2026-10-12']);
+assert.deepEqual(daysWithSymptom(log, 'invalido', today, 180), []);
+
+// opções explícitas do resumo para consulta: medicação e anotações entram apenas quando ativadas; intimidade nunca entra
+const medLog = {
+  ...sensitiveLog,
+  '2026-11-18': { medicationTaken: true, note: 'Nota com <script>' },
+  '2026-11-19': { medicationTaken: false },
+};
+const customReport = buildCycleReport({
+  cycleLog: medLog,
+  stats: cycleStats(medLog, periods, today),
+  asOfDate: today,
+  getLabel: label,
+  includeMedication: true,
+  includeNotes: true,
+});
+assert.deepEqual(customReport.medication, { taken: 1, missed: 1 });
+assert.equal(customReport.notes.length, 2);
+const customHtml = cycleReportHtml(customReport, {
+  esc: (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]),
+  longDate: (day) => `longo ${day}`,
+  shortDate: (day) => `curto ${day}`,
+  plural: (n, one, many) => (n === 1 ? one : many),
+});
+assert.ok(customHtml.includes('Medicação (últimos 90 dias)'));
+assert.ok(customHtml.includes('1 dia tomado'));
+assert.ok(customHtml.includes('1 dia não tomado'));
+assert.ok(customHtml.includes('Anotações registradas (últimos 90 dias)'));
+assert.ok(customHtml.includes('texto privado'));
+assert.ok(customHtml.includes('Nota com &lt;script&gt;'));
+assert.ok(!customHtml.includes('<script>'));
+assert.ok(!customHtml.includes('sexual'));
 
 console.log('cycle-insights-check: ok');

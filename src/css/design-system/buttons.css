@@ -18,24 +18,18 @@
   padding-inline: var(--button-padding-inline);
   border: 1px solid var(--line);
   border-radius: var(--button-radius);
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--ink);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
   text-align: center;
   overflow-wrap: anywhere;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: var(--btn-surface-shadow);
   transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-.btn:hover {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(var(--button-hover-lift));
-}
 .btn:active {
-  background: var(--soft);
+  background: var(--surface-press);
   box-shadow: none;
   transform: translateY(var(--button-press-lift));
 }
@@ -48,40 +42,41 @@
 /* Primário */
 .btn.primary {
   border-color: transparent;
-  background: linear-gradient(135deg, var(--btn), color-mix(in srgb, var(--btn) 84%, var(--plum)));
+  background: var(--btn);
   color: var(--on-btn);
-  box-shadow: none;
+  font-weight: var(--weight-bold);
+  box-shadow: var(--btn-highlight), var(--btn-surface-shadow);
 }
-.btn.primary:hover {
-  background: color-mix(in srgb, var(--btn) 92%, var(--ink));
-  box-shadow: var(--shadow-sm);
+.btn.primary:active {
+  background: color-mix(in srgb, var(--btn) 84%, var(--ink));
+  box-shadow: none;
 }
 
 /* Padrão (secundário) */
 .btn:not(.primary):not(.danger):not(.ghost) {
-  border-color: color-mix(in srgb, var(--line-strong) 52%, transparent);
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
-}
-.btn:not(.primary):not(.danger):not(.ghost):hover {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
-  background: var(--surface-strong);
+  border-color: color-mix(in srgb, var(--line-strong) 34%, var(--line));
+  background: var(--surface-raised);
 }
 .btn.back {
-  border-color: color-mix(in srgb, var(--line-strong) 62%, transparent);
-  background: var(--surface-strong);
+  border-color: color-mix(in srgb, var(--line-strong) 38%, var(--line));
+  background: var(--surface-raised);
   color: var(--ink);
 }
 
 /* Fantasma */
 .btn.ghost {
   min-height: var(--control-sm);
-  padding-inline: 10px;
+  padding-inline: var(--space-3);
   border-color: transparent;
   background: transparent;
   color: var(--accent);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
+  box-shadow: none;
 }
-.btn.ghost:hover { background: var(--soft); box-shadow: none; }
+.btn.ghost:active {
+  background: var(--surface-press);
+  transform: none;
+}
 
 /* Perigo */
 .btn.danger {
@@ -89,10 +84,9 @@
   background: color-mix(in srgb, var(--bad-soft) 58%, var(--surface));
   color: var(--bad);
 }
-.btn.danger:hover {
+.btn.danger:active {
   border-color: var(--bad);
   background: var(--bad-soft);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Desabilitado */
@@ -127,14 +121,14 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
 }
-.ibtn:hover, .iconbtn:hover { background: var(--soft2); color: var(--accent); }
-.iconbtn { border-radius: var(--r-pill); background: var(--soft); color: var(--accent); }
+.ibtn:active, .iconbtn:active { background: var(--surface-press); color: var(--accent); transform: scale(.96); }
+.iconbtn { border-radius: var(--r-pill); background: var(--surface-soft); color: var(--ink); }
 
 /* Fechar (diálogos e painéis): um único botão em todo o app.
-   40 px, fundo suave, canto arredondado, ícone de 20 px, sempre no canto superior direito do cabeçalho.
-   Os seletores mais longos vencem as regras antigas de `.dlg .head .ibtn`. */
+   40 px visuais com alvo clicável de 44 px via ::after, fundo suave, canto arredondado,
+   ícone de 20 px, sempre no canto superior direito do cabeçalho. */
 .ibtn.dlg-close, .dlg .head .ibtn.dlg-close, .dlg-body .ibtn.dlg-close {
   position: relative;
   width: var(--control-sm);
@@ -149,10 +143,35 @@
   color: var(--ink);
 }
 .ibtn.dlg-close::after { content: ""; position: absolute; inset: -2px; }
-.ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
-.ibtn.dlg-close:focus-visible { outline-offset: 2px; }
+.ibtn.dlg-close:active, .dlg .head .ibtn.dlg-close:active { background: var(--soft2); color: var(--ink); transform: scale(.96); }
+.ibtn.dlg-close:focus-visible { outline-offset: var(--space-half); }
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover {
+    border-color: var(--border-hover);
+    background: var(--surface-strong);
+    box-shadow: var(--elev-1);
+    transform: translateY(var(--button-hover-lift));
+  }
+  .btn.primary:hover {
+    background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+    box-shadow: var(--btn-highlight), var(--elev-1);
+  }
+  .btn:not(.primary):not(.danger):not(.ghost):hover {
+    border-color: var(--border-hover);
+    background: var(--surface-strong);
+  }
+  .btn.ghost:hover { background: var(--soft); box-shadow: none; transform: none; }
+  .btn.danger:hover {
+    border-color: var(--bad);
+    background: var(--bad-soft);
+    box-shadow: var(--shadow-sm);
+  }
+  .ibtn:hover, .iconbtn:hover { background: var(--soft2); color: var(--accent); }
+  .ibtn.dlg-close:hover, .dlg .head .ibtn.dlg-close:hover { border-color: var(--line); background: var(--soft2); color: var(--ink); transform: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .btn { transition: none; }
-  .btn:hover, .btn:active { box-shadow: none; transform: none; }
+  .btn, .ibtn, .iconbtn { transition: none; }
+  .btn:hover, .btn:active, .ibtn:active, .iconbtn:active { box-shadow: none; transform: none; }
 }

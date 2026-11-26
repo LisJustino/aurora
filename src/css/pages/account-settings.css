@@ -46,9 +46,6 @@
 .home-layout-settings {
   display: grid;
   gap: var(--space-4);
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--line);
 }
 .home-layout-settings > .settings-section-heading {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -295,7 +292,6 @@
 .main[data-route="config"] .settings-save-actions { margin-top: 2px; padding-top: 16px; border-top: 1px solid var(--line); }
 
 /* Contraste dedicado ao modo escuro para superfícies e controles frequentes. */
-:root[data-theme="dark"] .settings-menu { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 :root[data-theme="dark"] .setting-toggle { background: color-mix(in srgb, var(--surface) 88%, var(--bg)); }
 
 .main[data-route="config"] .settings-menu-heading {

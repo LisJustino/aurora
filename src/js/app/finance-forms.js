@@ -5,20 +5,25 @@ import { newId } from '../utils/ids.js';
 import { ACCOUNT_TYPES } from '../features/finance/accounts.js';
 import { ANNUAL_PLAN_LIMITS } from '../features/planning/annual-plan.js';
 import { HABIT_TARGETS, MAX_COUNT_TARGET } from '../features/planning/goal-progress.js';
+import { composeDescWithTags, parseQuickFinanceEntry } from '../features/finance/quick-entry.js';
 import { matchCategoryRule } from '../features/finance/category-rules.js';
 import { normalizeBudgetSettings } from '../features/finance/budget-insights.js';
 import { hexOk } from '../features/appearance/palettes.js';
 import { plural, findBankByName, norm, OTHER_BANK, CAT_ICONS, categoryLeafName } from './core.js';
 import { dlgClose, createDialog } from './dialogs.js';
-import { anticipationCandidates, prepareTransactionDialogForAnother } from './finance-dialogs.js';
-import { recList, genRecurring } from './finance-extras.js';
+import {
+  anticipationCandidates,
+  prepareTransactionDialogForAnother,
+  recentTransactionDefaults,
+} from './finance-dialogs.js';
+import { recList, genRecurring, guessCategory } from './finance-extras.js';
 import { isCredit, accById, accountDisplayName, cardInfo, scheduledInvoicePrincipal } from './finance-view.js';
 import { FORMS, CHANGES } from './forms.js';
 import { resolveNew, listArr, findCategory, replaceCategoryReferences, addItem } from './onboarding.js';
 import { snapshotSlices, saveSlicesWithRollback, commit, saveSlices } from './persistence.js';
 import { render } from './render.js';
 import { toast } from './samples-backup.js';
-import { fieldError, money } from './shell.js';
+import { brl, fieldError, money, vibrateFeedback } from './shell.js';
 import { S, ui, catNames, isSafeInteger } from './state.js';
 
 export function registerFinanceForms() {
@@ -50,10 +55,17 @@ export function registerFinanceForms() {
       }
       const habitId = String(data.get('habitId') || '');
       const countTarget = String(data.get('countTarget') || '').trim();
-      if (habitId && countTarget)
-        return fieldError('Escolha só uma forma de acompanhar: um hábito ou uma contagem.', '[name="countTarget"]');
+      const financeGoalId = String(data.get('financeGoalId') || '');
+      const chosenTracks = [Boolean(habitId), Boolean(countTarget), Boolean(financeGoalId)].filter(Boolean).length;
+      if (chosenTracks > 1)
+        return fieldError(
+          'Escolha só uma forma de acompanhar: hábito, contagem ou objetivo financeiro.',
+          financeGoalId ? '[name="financeGoalId"]' : '[name="countTarget"]',
+        );
       if (habitId && !S.habits.some((habit) => habit.id === habitId))
         return fieldError('Escolha um hábito válido.', '[name="habitId"]');
+      if (financeGoalId && !(S.finance.goals || []).some((item) => item.id === financeGoalId))
+        return fieldError('Escolha um objetivo financeiro válido.', '[name="financeGoalId"]');
       const targetPct = Number(data.get('targetPct') || 80);
       if (habitId && !HABIT_TARGETS.includes(targetPct))
         return fieldError('Escolha uma meta válida para o hábito.', '[name="targetPct"]');
@@ -74,7 +86,9 @@ export function registerFinanceForms() {
         ? { kind: 'habit', habitId, targetPct }
         : countTarget
           ? { kind: 'count', target: countValue, current: previousCount }
-          : null;
+          : financeGoalId
+            ? { kind: 'finance-goal', goalId: financeGoalId }
+            : null;
       if (goal) {
         Object.assign(goal, { title, action, quarter });
         if (track) goal.track = track;
@@ -131,6 +145,66 @@ export function registerFinanceForms() {
           commit('finance');
         },
       );
+    },
+    'finance-quick-add': (f) => {
+      const input = f.querySelector('#finance-quick-input');
+      const rawText = input?.value || '';
+      const outDefaults = recentTransactionDefaults('out');
+      const inDefaults = recentTransactionDefaults('in');
+      const parsed = parseQuickFinanceEntry(rawText, {
+        todayIso: today(),
+        accounts: S.finance.accounts,
+        accountDisplayName,
+        isCredit,
+        guessCategory,
+        defaultOutAccountId: outDefaults.accountId,
+        defaultInAccountId: inDefaults.accountId,
+      });
+      if (!parsed.valid) {
+        if (!parsed.empty && parsed.error) toast(parsed.error, 'info');
+        input?.focus();
+        return;
+      }
+      const createdIds = [];
+      const gid = parsed.installments > 1 ? newId() : undefined;
+      for (let index = 0; index < parsed.installments; index++) {
+        const part =
+          parsed.installments > 1
+            ? Math.floor(parsed.cents / parsed.installments) +
+              (index === 0 ? parsed.cents - Math.floor(parsed.cents / parsed.installments) * parsed.installments : 0)
+            : parsed.cents;
+        const txDate = addMonths(parsed.date, index);
+        const paid = parsed.isCreditAccount ? true : index === 0 ? parsed.paid : false;
+        const id = newId();
+        createdIds.push(id);
+        S.finance.tx.push({
+          id,
+          type: parsed.kind,
+          accountId: parsed.accountId,
+          category: parsed.category,
+          desc:
+            parsed.installments > 1
+              ? composeDescWithTags(`${parsed.cleanDesc} (${index + 1}/${parsed.installments})`, parsed.tags)
+              : parsed.desc,
+          cents: part,
+          date: txDate,
+          ...(paid && !parsed.isCreditAccount ? { settledDate: txDate <= today() ? txDate : today() } : {}),
+          paid,
+          ...(gid ? { groupId: gid } : {}),
+          createdAt: Date.now() + index,
+        });
+      }
+      ui.finMonth = parsed.date.slice(0, 7);
+      if (input) input.value = '';
+      commit('finance');
+      vibrateFeedback('success');
+      const label = parsed.kind === 'in' ? 'Receita' : 'Despesa';
+      toast(`${label} registrada: ${parsed.cleanDesc} · ${brl(parsed.cents)}.`, 'action', () => {
+        const idSet = new Set(createdIds);
+        S.finance.tx = S.finance.tx.filter((item) => !idSet.has(item.id));
+        commit('finance');
+      });
+      requestAnimationFrame(() => document.getElementById('finance-quick-input')?.focus({ preventScroll: true }));
     },
     'dlg-tx': () => {
       const d = ui.dlg.d,
@@ -192,7 +266,7 @@ export function registerFinanceForms() {
         type: d.kind,
         accountId: d.accountId,
         category: tr ? 'Transferência' : category,
-        desc: d.desc.trim().slice(0, 80),
+        desc: composeDescWithTags(d.desc, d.tags),
       };
       if (tr) base.toAccountId = d.toAccountId;
       const paid = tr || isCredit(acc) ? true : !!d.paid;

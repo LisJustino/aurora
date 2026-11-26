@@ -95,7 +95,16 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
   const year = ui.annualYear;
   const plan = plans[year] || { intention: '', goals: [] };
   const goals = plan.goals || [];
-  const balance = yearBalance(goals, { today: today(), year, habits: S.habits });
+  const financeGoals = S.finance?.goals || [];
+  const balance = yearBalance(goals, {
+    today: today(),
+    year,
+    habits: S.habits,
+    financeGoals,
+    financeAccounts: S.finance?.accounts || [],
+    financeTx: S.finance?.tx || [],
+    hideFinanceValues: Boolean(ui.financeValuesHidden),
+  });
   const progressOf = new Map(balance.items.map(({ goal, progress }) => [goal.id, progress]));
   const completed = balance.kept;
   const editing = goals.find((goal) => goal.id === ui.annualEditingGoalId);
@@ -139,8 +148,16 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
             : ''
         }
         ${goal.action ? h`<p class="annual-goal-first-step"><b>Primeiro passo</b>${goal.action}</p>` : ''}
-        <button type="button" class="btn ghost sm" data-action="annual-goal-task"
-          data-id="${goal.id}">${linkedTask ? 'Abrir tarefa relacionada' : goal.action ? 'Criar tarefa do primeiro passo' : 'Criar tarefa para esta conquista'}</button>
+        <div class="annual-goal-links">
+          <button type="button" class="btn ghost sm" data-action="annual-goal-task"
+            data-id="${goal.id}">${linkedTask ? 'Abrir tarefa relacionada' : goal.action ? 'Criar tarefa do primeiro passo' : 'Criar tarefa para esta conquista'}</button>
+          ${
+            goal.track?.kind === 'finance-goal' && financeGoals.some((item) => item.id === goal.track.goalId)
+              ? h`<button type="button" class="btn ghost sm"
+                  data-action="annual-goal-finance">${icon('wallet', 15)}Ver em Finanças</button>`
+              : ''
+          }
+        </div>
       </div>
       <button type="button" class="ibtn" data-action="annual-goal-edit" data-id="${goal.id}"
         aria-label="Editar conquista: ${goal.title}">${icon('pencil', 17)}</button>
@@ -175,6 +192,15 @@ export function renderAnnualPlanView({ S, ui, plural, today }) {
     <label class="annual-goal-track-field"><span>Ou contar até <small>(ex.: 12 livros)</small></span><input
       name="countTarget" type="number" inputmode="numeric" min="1" max="${MAX_COUNT_TARGET}" step="1"
       placeholder="Sem contagem" value="${editing?.track?.kind === 'count' ? editing.track.target : ''}"></label>
+    ${
+      financeGoals.length
+        ? h`<label class="annual-goal-track-field"><span>Ou acompanhar objetivo financeiro <small>(opcional)</small></span><select
+            name="financeGoalId"><option value="">Nenhum</option>${financeGoals.map(
+              (item) => h`<option
+            value="${item.id}" ${editing?.track?.kind === 'finance-goal' && editing.track.goalId === item.id ? raw('selected') : ''}>${item.name}</option>`,
+            )}</select></label>`
+        : ''
+    }
     <label class="annual-goal-quarter-field"><span>Quando?</span><select name="quarter"><option
       value="">Ao longo do ano</option>${quarterData.slice(0, 4).map(
         ({ id, title }) => h`<option
@@ -414,9 +440,9 @@ export function renderTaskCalendar({
   return h`<div class="tcal-wrap"><div class="mnav"><button class="ibtn" data-action="tcal-month" data-n="-1"
     aria-label="Mês anterior">${icon('chevLeft', 20)}</button><b>${cap(ymLabel(ym))}</b><button class="ibtn"
     data-action="tcal-month" data-n="1" aria-label="Próximo mês">${icon('chevRight', 20)}</button></div>
-    ${googleCalendarPlanPanel()}
     <div class="tcal" role="group"
       aria-label="Calendário de tarefas, contas, ciclo e eventos das agendas conectadas">${weekdays.map((weekday) => h`<em>${weekday}</em>`)}${raw(cells.join(''))}</div></div>
+    ${googleCalendarPlanPanel()}
     ${
       connectedAccounts.length
         ? h`<section class="surface-open google-calendar-day" aria-labelledby="google-calendar-day-title">

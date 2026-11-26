@@ -27,7 +27,7 @@ import {
   ROUTES,
   SETTINGS_SECTIONS,
 } from './settings.js';
-import { updateAccessibilityLook } from './shell.js';
+import { updateAccessibilityLook, vibrateFeedback } from './shell.js';
 import {
   normalizeSettings,
   S,
@@ -69,11 +69,32 @@ export const SETTINGS_ACTIONS = {
   'accessibility-spacing': (el) =>
     updateAccessibilityLook({ density: settingsView().look.density === 'comfy' ? 'compact' : 'comfy' }, el.id),
   'accessibility-motion': (el) => updateAccessibilityLook({ reduceMotion: !settingsView().look.reduceMotion }, el.id),
+  'accessibility-vibration': (el) => {
+    const next = settingsView().prefs.vibrationEnabled === false;
+    updateSettingsDraft((settings) => {
+      settings.prefs.vibrationEnabled = next;
+    });
+    if (next) vibrateFeedback('light');
+    if (el.id) document.getElementById(el.id)?.focus();
+  },
+  'settings-menu-toggle': () => {
+    ui.settingsMenuOpen = !ui.settingsMenuOpen;
+    render();
+    requestAnimationFrame(() => {
+      if (ui.settingsMenuOpen) {
+        const current = $('.settings-menu .settings-link[aria-current="page"]') || $('.settings-menu .settings-link');
+        current?.focus({ preventScroll: true });
+      } else {
+        $('.settings-mobile-trigger')?.focus({ preventScroll: true });
+      }
+    });
+  },
   'settings-section': (el, event) => {
     const tab = el.dataset.settingsTab;
     if (!SETTINGS_SECTIONS.some(([id]) => id === tab)) return;
     event.preventDefault();
     ui.settingsTab = tab;
+    ui.settingsMenuOpen = false;
     const url = new URL(routePathFor(`config?section=${encodeURIComponent(tab)}`), location.origin);
     new URL(location.href).searchParams.forEach((value, key) => {
       if (key !== 'section' && key !== 'weight') url.searchParams.append(key, value);
@@ -83,10 +104,11 @@ export const SETTINGS_ACTIONS = {
     const resolved = routeFromLocation(url, new Set(Object.keys(ROUTES)));
     setActiveRouteLocationKey(`${resolved.route}?${resolved.query}`);
     render();
-    const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
-    selectedTab?.focus({ preventScroll: true });
-    if (window.matchMedia('(max-width: 760px)').matches) {
-      selectedTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (window.matchMedia('(max-width: 700px)').matches) {
+      $('.settings-mobile-trigger')?.focus({ preventScroll: true });
+    } else {
+      const selectedTab = $(`.settings-menu [data-settings-tab="${tab}"]`);
+      selectedTab?.focus({ preventScroll: true });
     }
   },
   'menu-move': (el) => {
@@ -209,6 +231,47 @@ export const SETTINGS_ACTIONS = {
     updateSettingsDraft((settings) => {
       settings.look.weekStart = weekStart;
     });
+  },
+  'preferences-water-goal': (el) => {
+    const goal = Number(el.dataset.v);
+    if (!Number.isInteger(goal) || goal < 500 || goal > 10000) return;
+    updateSettingsDraft((settings) => {
+      settings.prefs.waterGoalMl = goal;
+    });
+    vibrateFeedback('light');
+  },
+  'preferences-weekly-review': (el) => {
+    const next = settingsView().prefs.weeklyReviewReminder !== true;
+    updateSettingsDraft((settings) => {
+      settings.prefs.weeklyReviewReminder = next;
+    });
+    if (el.id) document.getElementById(el.id)?.focus();
+  },
+  'preferences-finance-hidden': (el) => {
+    const next = settingsView().prefs.financeValuesHidden !== true;
+    ui.financeValuesHidden = next;
+    updateSettingsDraft((settings) => {
+      settings.prefs.financeValuesHidden = next;
+    });
+    if (el.id) document.getElementById(el.id)?.focus();
+  },
+  'preferences-cycle-discreet': (el) => {
+    const next = settingsView().prefs.cycleDiscreet !== true;
+    updateSettingsDraft((settings) => {
+      settings.prefs.cycleDiscreet = next;
+    });
+    if (el.id) document.getElementById(el.id)?.focus();
+  },
+  'home-message-preset': (el) => {
+    const value = String(el.dataset.v || '').trim();
+    const field = document.querySelector('[data-change="home-message"]');
+    if (field instanceof HTMLTextAreaElement) field.value = value;
+    const counter = $('#home-message-count');
+    if (counter) counter.textContent = `${value.length}/${field?.maxLength || 120}`;
+    updateSettingsDraft((settings) => {
+      settings.prefs.homeMessage = value;
+    });
+    vibrateFeedback('light');
   },
   'appearance-reset': () => {
     if (ui.confirmedAction !== 'appearance-reset')

@@ -3,13 +3,14 @@ import { dk, today } from '../utils/dates.js';
 import { handlePublicKeydown } from '../features/appearance/public-controls.js';
 import { habitEntryOptions } from '../features/habits/model.js';
 import { ACTIONS, focusQuickActionsTrigger } from './actions.js';
-import { dialogDraftSnapshot, dlgClose, dlgOpen, setPath } from './dialogs.js';
+import { dialogDraftSnapshot, dialogTracksDirty, dlgClose, dlgOpen, setPath } from './dialogs.js';
 import { CHANGES, FORMS, SETTINGS_INPUT_CHANGES } from './forms.js';
 import { loadAccountData, Persist } from './persistence.js';
 import { describeDialogOpener, render } from './render.js';
 import { applyProfileAvatarFile } from './settings.js';
 import { syncState, ui } from './state.js';
 import { registerDragEvents } from './global-events-drag.js';
+import { registerHabitReorder } from './habit-reorder.js';
 import { registerGestureEvents, swallowSuppressedSwipeClick } from './global-events-gestures.js';
 import { registerInputEvents } from './global-events-input.js';
 
@@ -25,9 +26,14 @@ export function tick() {
 
 export function registerGlobalEvents() {
   registerDragEvents();
+  registerHabitReorder();
   // Eventos globais
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState !== 'visible') return;
+    if (Persist.store && Persist.pendingSnapshot && !Persist.inFlight && navigator.onLine !== false) {
+      void Persist.flush();
+      return;
+    }
     if (
       !Persist.store ||
       Persist.inFlight ||
@@ -51,7 +57,7 @@ export function registerGlobalEvents() {
     const el = e.target.closest('[data-action]');
     if (!el || el.disabled) return;
     if (ui.legacyImport.busy) return;
-    const focusBeforeAction = !ui.dlg ? describeDialogOpener(el) : null;
+    const focusBeforeAction = !ui.dlg ? describeDialogOpener(el, { viaPointer: e.detail > 0 }) : null;
     if (focusBeforeAction) ui.lastFocus = focusBeforeAction;
     const taskToPop =
       el.dataset.action === 'toggle' && el.getAttribute('aria-checked') !== 'true' ? el.dataset.id : null;
@@ -61,7 +67,7 @@ export function registerGlobalEvents() {
     if (fn) fn(el, e);
     if (!ui.dlg) ui.lastFocus = null;
     if (
-      activeDialog &&
+      dialogTracksDirty(activeDialog) &&
       ui.dlg === activeDialog &&
       previousDraft !== null &&
       previousDraft !== dialogDraftSnapshot(activeDialog.d)
@@ -101,8 +107,23 @@ export function registerGlobalEvents() {
     }
     const menu = document.querySelector('.profile-menu-control[open]');
     const panel = document.querySelector('.topbar > .profile-menu-panel');
-    if (!menu || !(e.target instanceof Node) || menu.contains(e.target) || panel?.contains(e.target)) return;
-    menu.open = false;
+    if (menu && e.target instanceof Node && !menu.contains(e.target) && !panel?.contains(e.target)) {
+      menu.open = false;
+    }
+    const clickedHabitMenu = e.target instanceof Element ? e.target.closest('.habit-menu') : null;
+    const clickedHabitItem = e.target instanceof Element ? e.target.closest('.habit-menu-panel button') : null;
+    document.querySelectorAll('.habit-menu[open]').forEach((openMenu) => {
+      if (openMenu !== clickedHabitMenu || clickedHabitItem) openMenu.open = false;
+    });
+    const clickedTaskMenu = e.target instanceof Element ? e.target.closest('.task-menu') : null;
+    const clickedTaskItem = e.target instanceof Element ? e.target.closest('.task-menu-panel button') : null;
+    document.querySelectorAll('.task-menu[open]').forEach((openMenu) => {
+      if (openMenu !== clickedTaskMenu || clickedTaskItem) openMenu.open = false;
+    });
+    if (ui.settingsMenuOpen && (!(e.target instanceof Element) || !e.target.closest('.settings-nav-shell'))) {
+      ui.settingsMenuOpen = false;
+      render();
+    }
   });
   document.addEventListener('submit', (e) => {
     const f = e.target.closest('[data-form]');
@@ -134,19 +155,30 @@ export function registerGlobalEvents() {
       return;
     }
     if (
-      ui.dlg &&
-      ui.dlg.type !== 'search' &&
+      dialogTracksDirty(ui.dlg) &&
       el instanceof Element &&
       el.closest('#dlg') &&
       el.matches('input:not([type="file"]),textarea,select')
     )
       ui.dlg.dirty = true;
-    if (el.dataset && el.dataset.dlg === 'bank' && ui.dlg) setPath(ui.dlg.d, 'bank', el.value);
+    if (el.dataset?.dlg && ui.dlg) {
+      const dlgKey = el.dataset.dlg;
+      if (
+        !['entryType', 'entryOptions', 'bankOption', 'category', 'subcategory'].includes(dlgKey) &&
+        !(ui.dlg.type === 'tx' && dlgKey === 'date')
+      ) {
+        setPath(ui.dlg.d, dlgKey, el.type === 'checkbox' ? el.checked : el.value);
+      }
+    }
     if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date' && el.value > today()) {
+      ui.dlg.d.date = el.value;
       ui.dlg.d.paid = false;
       ui.dlg.d.settledDate = '';
       render();
       return;
+    }
+    if (ui.dlg?.type === 'tx' && el.dataset?.dlg === 'date') {
+      ui.dlg.d.date = el.value;
     }
     const fn = key && !SETTINGS_INPUT_CHANGES.has(key) && CHANGES[key];
     if (fn) fn(el);
@@ -212,11 +244,20 @@ export function registerGlobalEvents() {
       return;
     }
     if (e.key === 'Escape') {
-      const profileMenu = document.querySelector('.profile-menu-control[open], .header-account-control[open]');
-      if (profileMenu) {
+      if (ui.settingsMenuOpen) {
         e.preventDefault();
-        profileMenu.open = false;
-        profileMenu.querySelector('summary')?.focus();
+        ui.settingsMenuOpen = false;
+        render();
+        requestAnimationFrame(() => document.querySelector('.settings-mobile-trigger')?.focus());
+        return;
+      }
+      const openMenu = document.querySelector(
+        '.profile-menu-control[open], .header-account-control[open], .habit-menu[open], .task-menu[open]',
+      );
+      if (openMenu) {
+        e.preventDefault();
+        openMenu.open = false;
+        openMenu.querySelector('summary')?.focus();
         return;
       }
     }
@@ -239,6 +280,7 @@ export function registerGlobalEvents() {
     }
     if (e.key === 'Escape') {
       e.preventDefault();
+      if (ui.lastFocus) ui.lastFocus.viaPointer = false;
       dlgClose();
       return;
     }

@@ -101,6 +101,8 @@ import {
   habitWeeklyTarget,
   isValidHabit,
   normalizeHabits,
+  pauseAllActiveHabits,
+  resumeAllPausedHabits,
 } from '../src/js/features/habits/model.js';
 import {
   estimateWaterGoal,
@@ -149,11 +151,20 @@ import {
 } from '../src/js/features/home/personalization.js';
 import { weeklyReview } from '../src/js/features/planning/week.js';
 import {
+  composeDescWithTags,
+  extractFinanceTags,
+  parseQuickFinanceEntry,
+  stripFinanceTags,
+} from '../src/js/features/finance/quick-entry.js';
+import {
+  filterTrashEntries,
   isTrashExpired,
   isValidTrashEntry,
   normalizeTrash,
   sortTrashEntriesByExpiry,
   trashDaysRemaining,
+  trashEntryCategory,
+  trashEntryDisplay,
   TRASH_RETENTION_MS,
 } from '../src/js/features/trash/model.js';
 import { isValidCycleSexualLog } from '../src/js/features/cycle/log.js';
@@ -566,6 +577,8 @@ test('seleção de tarefas preserva filtros, ordenação e dados originais', () 
     || select('todas', 'reuniao') !== 'Sem data'
     || select('todas', '', 'prazo') !== 'Revisão,Próxima,Sem data,Feita'
     || select('concluidas', '', 'recentes') !== 'Feita'
+    || select('historico', '', 'prazo') !== 'Feita,Antiga'
+    || select('historico', 'antiga', 'prazo') !== 'Antiga'
     || select('pendentes', '', 'prioridade') !== 'Próxima,Revisão,Sem data') {
     throw new Error('Filtros ou ordenação de tarefas foram alterados.');
   }
@@ -645,7 +658,7 @@ test('indicador só aparece durante a gravação ou quando requer atenção', ()
     || !source.includes('Salvando alterações…')
     || !source.includes('Não foi possível sincronizar.')
     || !source.includes('Sua conta mudou em outro dispositivo')
-    || !source.includes('Sem conexão. Alterações não serão salvas.')
+    || !source.includes('Sem conexão · alterações serão salvas neste aparelho e sincronizadas ao reconectar.')
     || !source.includes('Alterações feitas offline não serão salvas')
     || !source.includes('class="sync-status"')
     || source.includes('persistenceNotice()')
@@ -670,31 +683,30 @@ test('landing prioriza cadastro e apresenta as áreas e garantias com clareza', 
   if (documentStub.title !== landingTitle) throw new Error('A landing deve atualizar o título da aba.');
   const entryHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const expectedContent = [
-    'App de organização pessoal',
     'Sua rotina inteira,',
     'num app só.',
     'Criar minha conta grátis',
-    'Testar sem cadastro',
+    'Testar na demonstração',
     'Grátis, sem cartão',
-    'Funciona no celular',
+    'No navegador ou no celular',
     'Em português',
-    'Cinco partes da sua vida, sem trocar de app.',
-    'O seu dia, numa tela só',
-    'Tire as pendências da cabeça',
-    'Hábitos que cabem na sua semana',
-    'Saiba para onde vai o dinheiro',
-    'Seu ciclo junto com o resto da rotina',
-    'Três passos e o dia já fica mais leve.',
-    'Simples de usar, tranquilo de confiar.',
-    'Seus dados são seus',
-    'Não acessa seu banco',
-    'Vira app no celular',
+    'Um lugar calmo para cada parte do dia.',
+    'Veja o dia inteiro sem abrir três telas',
+    'Tire da cabeça sem transformar tudo em urgência',
+    'Constância leve, no ritmo da sua semana',
+    'Clareza sobre o mês, sem conectar seu banco',
+    'Seu ciclo ao lado do resto da rotina',
+    'Comece em um minuto.',
+    'Feito para dar paz, não para prender sua atenção.',
+    'Seus dados pertencem a você',
+    'Sem conexão com bancos',
+    'Funciona no computador e no celular',
     'Posso testar antes de criar conta?',
     'Posso levar meus dados ou apagar a conta?',
     'Com seu consentimento, você anota datas e sintomas e consulta médias.',
     'Menos coisa na cabeça.',
     'Mais dia para viver.',
-    'Leia a Política de Privacidade.',
+    'Política de Privacidade',
   ];
   expectedContent.forEach((text) => {
     if (!markup.includes(text)) throw new Error(`Conteúdo ausente na landing: ${text}`);
@@ -705,7 +717,7 @@ test('landing prioriza cadastro e apresenta as áreas e garantias com clareza', 
   if (hero.indexOf('data-public-action="signup"') < 0
     || hero.indexOf('data-public-action="signup"') > hero.indexOf('data-public-action="demo"')
     || !hero.includes('btn primary large')
-    || !hero.includes('landing-hero-phone')) {
+    || !hero.includes('landing-hero-desktop')) {
     throw new Error('O cadastro deve ser a ação principal e aparecer antes da demonstração no hero.');
   }
   const sectionMarkers = [
@@ -920,13 +932,65 @@ test('busca local ordena por relevância e inclui ações sem expor registros au
     tasks: [
       { id: 'weak', title: 'Revisar orçamento', notes: 'Acompanhar finanças depois' },
       { id: 'strong', title: 'Finanças' },
+      { id: 'multi', title: 'Dentista', tags: ['saúde'], dueDate: '2026-11-12' },
     ],
+    accounts: [{ id: 'acc-1', name: 'Nubank Principal', type: 'checking' }],
+    transactions: [{ id: 'tx-1', desc: 'Mercado', category: 'Alimentação', accountId: 'acc-1', date: '2026-04-10' }],
+    financeGoals: [{ id: 'fg-1', name: 'Viagem Japão', deadline: '2027-05-01' }],
+    annualPlans: {
+      2027: {
+        intention: 'Mais calma',
+        goals: [{ id: 'ag-1', title: 'Correr 10km', action: 'Treinar 3x', done: false }],
+      },
+    },
     actions: [{ id: 'finance', action: 'open-finances', area: 'Ações', title: 'Ir para Finanças', aliases: ['financeiro'] }],
   }, 'finanças');
   equal(results[0].id, 'strong');
   equal(results[1].kind, 'action');
   equal(results[2].id, 'weak');
   equal(searchRecords({ tasks: [] }, 'x').length, 0);
+
+  const multi = searchRecords({
+    tasks: [{ id: 'multi', title: 'Dentista', tags: ['saúde'] }],
+    accounts: [{ id: 'acc-1', name: 'Nubank Principal', type: 'checking' }],
+    transactions: [{ id: 'tx-1', desc: 'Mercado', category: 'Alimentação', accountId: 'acc-1', date: '2026-04-10' }],
+    financeGoals: [{ id: 'fg-1', name: 'Viagem Japão', deadline: '2027-05-01' }],
+    annualPlans: {
+      2027: { intention: 'Mais calma', goals: [{ id: 'ag-1', title: 'Correr 10km', action: 'Treinar', done: false }] },
+    },
+  }, 'mercado nubank');
+  equal(multi.length, 1);
+  equal(multi[0].id, 'tx-1');
+
+  const annual = searchRecords({
+    annualPlans: {
+      2027: { intention: 'Mais calma', goals: [{ id: 'ag-1', title: 'Correr 10km', action: 'Treinar', done: false }] },
+    },
+  }, 'correr 2027');
+  equal(annual.length, 1);
+  equal(annual[0].kind, 'annual-goal');
+
+  const fgRes = searchRecords({
+    financeGoals: [{ id: 'fg-1', name: 'Viagem Japão', deadline: '2027-05-01' }],
+  }, 'japao');
+  equal(fgRes.length, 1);
+  equal(fgRes[0].kind, 'finance-goal');
+});
+
+test('pausa global de hábitos protege sequências e ignora arquivados', () => {
+  const habits = [
+    { id: 'h1', name: 'Ler', days: [0, 1, 2, 3, 4, 5, 6], completions: ['2026-11-01'], status: 'active' },
+    { id: 'h2', name: 'Antigo', days: [1, 3, 5], completions: [], status: 'archived' },
+  ];
+  equal(pauseAllActiveHabits(habits, '2026-11-02'), 1);
+  equal(habits[0].status, 'paused');
+  equal(habits[0].pausedFrom, '2026-11-02');
+  equal(habits[1].status, 'archived');
+  equal(resumeAllPausedHabits(habits, '2026-11-04'), 1);
+  equal(habits[0].status, 'active');
+  equal(habits[0].pausedFrom, undefined);
+  equal(habits[0].skipped.join(','), '2026-11-02,2026-11-03,2026-11-04');
+  equal(habits[1].status, 'archived');
 });
 
 test('catálogo de ícones mantém estilo, acessibilidade e entradas válidas', () => {
@@ -971,8 +1035,13 @@ test('orientações cobrem as telas e esclarecem a privacidade financeira', () =
       ok(step.title);
       ok(step.text);
     });
-    ok(guide.video.endsWith('.mp4'));
-    ok(guide.poster.endsWith('.webp'));
+    ok(Array.isArray(guide.features) && guide.features.length >= 4);
+    guide.features.forEach((feature) => {
+      ok(feature.title);
+      ok(feature.text);
+      ok(feature.where);
+    });
+    ok(Array.isArray(guide.tips) && guide.tips.length >= 2);
   });
   equal(Object.hasOwn(AREA_GUIDES, 'config'), false);
   ok(AREA_GUIDES.financas.steps.some((step) => step.text.includes('manualmente')));
@@ -1128,6 +1197,70 @@ test('a lixeira prioriza os itens que vencem primeiro sem alterar a lista origin
 
   equal(ordered.map((entry) => entry.id).join(','), 'oldest,newest');
   equal(entries[0], newest);
+});
+
+test('a entrada rápida financeira reconhece tipo, valor, data, cartão, parcelas e tags', () => {
+  const accounts = [
+    { id: 'acc-1', name: 'Conta principal', type: 'checking' },
+    { id: 'card-1', name: 'Nubank', type: 'credit' },
+  ];
+  const opts = {
+    todayIso: '2026-11-26',
+    accounts,
+    guessCategory: (desc, kind) => (kind === 'in' ? 'Salário' : /mercado/i.test(desc) ? 'Alimentação' : 'Outros'),
+    defaultOutAccountId: 'acc-1',
+    defaultInAccountId: 'acc-1',
+  };
+
+  const expense = parseQuickFinanceEntry('mercado 85,50 ontem cartao #casa #mes', opts);
+  equal(expense.valid, true);
+  equal(expense.kind, 'out');
+  equal(expense.cents, 8550);
+  equal(expense.date, '2026-11-25');
+  equal(expense.accountId, 'card-1');
+  equal(expense.category, 'Alimentação');
+  equal(expense.tags.join(','), 'casa,mes');
+  equal(expense.cleanDesc, 'mercado');
+
+  const income = parseQuickFinanceEntry('+freela design 1.250,00 pendente', opts);
+  equal(income.valid, true);
+  equal(income.kind, 'in');
+  equal(income.cents, 125000);
+  equal(income.paid, false);
+  equal(income.accountId, 'acc-1');
+
+  const parcel = parseQuickFinanceEntry('3x tenis 300 cartao', opts);
+  equal(parcel.valid, true);
+  equal(parcel.installments, 3);
+  equal(parcel.cents, 30000);
+
+  equal(extractFinanceTags('Uber aeroporto #Viagem #trabalho #viagem').join(','), 'viagem,trabalho');
+  equal(stripFinanceTags('Uber aeroporto #Viagem #trabalho'), 'Uber aeroporto');
+  equal(composeDescWithTags('Uber aeroporto', 'viagem, #reembolso'), 'Uber aeroporto #viagem #reembolso');
+});
+
+test('a lixeira categoriza, limpa prefixos e filtra por área e busca sem acento', () => {
+  const entries = [
+    { id: 't1', deletedAt: 1000, label: 'Tarefa: Marcar consulta médica', records: [{ collection: 'tasks', key: '1' }] },
+    { id: 'h1', deletedAt: 2000, label: 'Hábito: Meditar', records: [{ collection: 'habits', key: '2' }] },
+    { id: 'f1', deletedAt: 3000, label: 'Lançamento: Mercado', records: [{ collection: 'finance.tx', key: '3' }] },
+    { id: 'c1', deletedAt: 4000, label: 'Período: 10/11', records: [{ collection: 'cycle', key: '4' }] },
+  ];
+
+  equal(trashEntryCategory(entries[0]), 'tasks');
+  equal(trashEntryCategory(entries[1]), 'habits');
+  equal(trashEntryCategory(entries[2]), 'finance');
+  equal(trashEntryCategory(entries[3]), 'cycle');
+
+  const taskDisplay = trashEntryDisplay(entries[0]);
+  equal(taskDisplay.title, 'Marcar consulta médica');
+  equal(taskDisplay.badgeLabel, 'Tarefa');
+  equal(taskDisplay.tone, 'planning');
+
+  equal(filterTrashEntries(entries, { category: 'finance' }).map((entry) => entry.id).join(','), 'f1');
+  equal(filterTrashEntries(entries, { query: 'medica' }).map((entry) => entry.id).join(','), 't1');
+  equal(filterTrashEntries(entries, { category: 'habits', query: 'meditar' }).map((entry) => entry.id).join(','), 'h1');
+  equal(filterTrashEntries(entries, { category: 'cycle', query: 'mercado' }).length, 0);
 });
 
 test('o backup preserva o tema personalizado em vez de reverter para a paleta base', () => {

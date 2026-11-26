@@ -1,4 +1,4 @@
-import { addDays, dayDiff, isDay, pk, shortDate, today } from '../utils/dates.js';
+import { addDays, isDay, pk, shortDate, today } from '../utils/dates.js';
 import {
   DEFAULT_HABIT_COLOR,
   DEFAULT_HABIT_ICON,
@@ -6,21 +6,29 @@ import {
   habitEntryForDay,
   habitEntryOptions,
   habitEntryType,
+  HABIT_TABS,
   habitIsSkipped,
   isWaterHabit,
   isWeightHabit,
+  pauseAllActiveHabits,
+  pauseHabitRecord,
+  resumeAllPausedHabits,
+  resumeHabitRecord,
   SUGGESTED_HABITS,
 } from '../features/habits/model.js';
 import { parseWaterMl, waterGoalForHabit } from '../features/habits/water-goal.js';
 import { ACTIONS, focusQuickActionsTrigger, recordWaterEntry } from './actions.js';
+import { plural } from './core.js';
 import { applyBulkHabits, askDiscardDialog, dlgOpen, requestActionConfirmation } from './dialogs.js';
 import { shiftMonth } from './finance-view.js';
+import { OTHER_DAY_SPAN } from './habit-other-day.js';
 import { requestHabitsTemplate, undoLastWaterEntry, updateHabitIdeaFilters } from './habits.js';
 import { habitCompletedFor } from './home.js';
 import {
   commit,
   createTrashRecord,
   moveRecordsToTrash,
+  restoreSliceSnapshot,
   restoreTrashEntry,
   saveSlicesWithRollback,
   snapshotSlices,
@@ -169,7 +177,7 @@ export const HABIT_ACTIONS = {
       return;
     }
     if (completing) {
-      vibrateFeedback();
+      vibrateFeedback(ui.habitCelebrationDay === day ? 'success' : 'light');
       completionFeedback(`[data-habit-id="${habit.id}"] .habit-circle`);
       toast('Hábito marcado como concluído.', 'action', () => {
         const currentHabit = S.habits.find((item) => item.id === habit.id);
@@ -232,7 +240,10 @@ export const HABIT_ACTIONS = {
     habit.completions = had ? habit.completions.filter((item) => item !== day) : [...habit.completions, day].sort();
     if (hadSkip && !had) habit.skipped = habit.skipped.filter((item) => item !== day);
     commit('habits');
-    if (!had) completionFeedback(`.habit-dot[data-id="${habit.id}"][data-d="${day}"]`);
+    if (!had) {
+      vibrateFeedback('light');
+      completionFeedback(`.habit-dot[data-id="${habit.id}"][data-d="${day}"]`);
+    }
     toast(
       had ? `Marcação de ${shortDate(day)} removida.` : `${habit.name} marcado · ${shortDate(day)}`,
       'action',
@@ -243,18 +254,96 @@ export const HABIT_ACTIONS = {
       },
     );
   },
-  'habit-history-open': (el) => {
-    const habit = S.habits.find((item) => item.id === el.dataset.id);
-    if (!habit || (habit.status || 'active') !== 'active') return;
-    const habitDetails = document.getElementById(`d-hab-${habit.id}`);
-    const monthDetails = document.getElementById(`d-month-${habit.id}`);
-    if (habitDetails) habitDetails.open = true;
-    if (monthDetails) monthDetails.open = true;
-    ui.openDetails[`hab-${habit.id}`] = true;
-    ui.openDetails[`month-${habit.id}`] = true;
-    ui.habitMonth = today().slice(0, 7);
+  'habit-tab': (el) => {
+    if (!HABIT_TABS.some(([key]) => key === el.dataset.t)) return;
+    ui.habitTab = el.dataset.t;
+    ui.habitReordering = false;
     render();
-    requestAnimationFrame(() => document.getElementById(`d-month-${habit.id}`)?.querySelector('summary')?.focus());
+    requestAnimationFrame(() => {
+      const selected = document.querySelector(`.habit-tab[data-t="${ui.habitTab}"]`);
+      selected?.focus({ preventScroll: true });
+      selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  },
+  'habit-reorder-toggle': () => {
+    ui.habitReordering = !ui.habitReordering;
+    render();
+    requestAnimationFrame(() => {
+      document.querySelector('[data-action="habit-reorder-toggle"]')?.focus({ preventScroll: true });
+    });
+  },
+  'habit-history-open': (el) => {
+    if (!S.habits.some((habit) => habit.id === el.dataset.id)) return;
+    ui.habitHistoryId = el.dataset.id;
+    ui.habitTab = 'historico';
+    ui.habitReordering = false;
+    render();
+    requestAnimationFrame(() => {
+      const section = document.getElementById('habit-history-title');
+      section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelector(`.habit-history-chip[data-id="${ui.habitHistoryId}"]`)?.focus({ preventScroll: true });
+    });
+  },
+  'habit-week-toggle': (el) => {
+    const id = el.dataset.id;
+    if (!S.habits.some((habit) => habit.id === id)) return;
+    ui.habitWeekOpen[id] = !ui.habitWeekOpen[id];
+    render();
+    requestAnimationFrame(() =>
+      document.querySelector(`.habit-week-toggle[data-id="${id}"]`)?.focus({ preventScroll: true }),
+    );
+  },
+  'habit-history-pick': (el) => {
+    if (!S.habits.some((habit) => habit.id === el.dataset.id)) return;
+    ui.habitHistoryId = el.dataset.id;
+    render();
+    requestAnimationFrame(() =>
+      document.querySelector(`.habit-history-chip[data-id="${ui.habitHistoryId}"]`)?.focus({ preventScroll: true }),
+    );
+  },
+  'habit-other-open': () => {
+    const current = today();
+    dlgOpen('habit-other-day', { day: addDays(current, -1), end: current });
+  },
+  'habit-other-pick': (el) => {
+    if (ui.dlg?.type !== 'habit-other-day' || !isDay(el.dataset.d) || el.dataset.d > today()) return;
+    ui.dlg.d.day = el.dataset.d;
+    render();
+    requestAnimationFrame(() =>
+      document.querySelector(`.habit-day-option[data-d="${ui.dlg?.d.day}"]`)?.focus({ preventScroll: true }),
+    );
+  },
+  'habit-other-shift': (el) => {
+    const d = ui.dlg?.type === 'habit-other-day' ? ui.dlg.d : null;
+    if (!d) return;
+    const end = addDays(d.end, Number(el.dataset.n) < 0 ? -OTHER_DAY_SPAN : OTHER_DAY_SPAN);
+    d.end = end > today() ? today() : end;
+    const first = addDays(d.end, 1 - OTHER_DAY_SPAN);
+    if (d.day > d.end) d.day = d.end;
+    if (d.day < first) d.day = first;
+    render();
+  },
+  'habit-other-toggle': (el) => {
+    const habit = S.habits.find((item) => item.id === el.dataset.id);
+    const day = el.dataset.d;
+    if (
+      !habit ||
+      (habit.status || 'active') !== 'active' ||
+      !isDay(day) ||
+      day > today() ||
+      !habit.days.includes(pk(day).getDay())
+    )
+      return;
+    const had = habit.completions.includes(day);
+    habit.completions = had ? habit.completions.filter((item) => item !== day) : [...habit.completions, day].sort();
+    if (!had && (habit.skipped || []).includes(day)) habit.skipped = habit.skipped.filter((item) => item !== day);
+    commit('habits');
+    if (!had) vibrateFeedback('light');
+    requestAnimationFrame(() =>
+      document
+        .querySelector(`.habit-other-item[data-id="${habit.id}"][data-d="${day}"]`)
+        ?.focus({ preventScroll: true }),
+    );
   },
   'habit-move': (el) => {
     const dir = Number(el.dataset.dir) === -1 ? -1 : 1;
@@ -384,33 +473,39 @@ export const HABIT_ACTIONS = {
       askDiscardDialog(null, () => ACTIONS['habit-toggle-pause']({ dataset: { id } }));
       return;
     }
-    if ((habit.status || 'active') === 'active') {
-      habit.status = 'paused';
-      habit.pausedFrom = today();
-      habit.pausedDays = [...habit.days];
-    } else {
-      if (isDay(habit.pausedFrom)) {
-        const pausedDays = new Set(habit.skipped || []);
-        const scheduledDays = Array.isArray(habit.pausedDays) ? habit.pausedDays : habit.days;
-        const pauseLength = Math.min(Math.max(dayDiff(today(), habit.pausedFrom) + 1, 0), 10000);
-        for (let offset = 0; offset < pauseLength; offset++) {
-          const day = addDays(habit.pausedFrom, offset);
-          if (
-            scheduledDays.includes(pk(day).getDay()) &&
-            !habit.completions.includes(day) &&
-            (pausedDays.size < 10000 || pausedDays.has(day))
-          )
-            pausedDays.add(day);
-        }
-        habit.skipped = [...pausedDays].sort();
-        delete habit.pausedFrom;
-      }
-      delete habit.pausedDays;
-      habit.status = 'active';
-    }
+    if ((habit.status || 'active') === 'active') pauseHabitRecord(habit, today());
+    else resumeHabitRecord(habit, today());
     if (ui.dlg?.d?.id === habit.id) ui.dlg = null;
     commit('habits');
     toast(habit.status === 'paused' ? 'Hábito pausado.' : 'Hábito retomado.', 'info');
+  },
+  'habits-pause-all': () => {
+    const snapshot = snapshotSlices(['habits']);
+    const count = pauseAllActiveHabits(S.habits, today());
+    if (!count) return;
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a pausa dos hábitos')) return;
+    vibrateFeedback('light');
+    toast(
+      `Modo pausa ativado (${count} ${plural(count, 'hábito pausado', 'hábitos pausados')}). Suas sequências estão protegidas.`,
+      'action',
+      () => {
+        const undoSnapshot = snapshotSlices(['habits']);
+        restoreSliceSnapshot(snapshot);
+        saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a restauração dos hábitos');
+      },
+    );
+  },
+  'habits-resume-all': () => {
+    const snapshot = snapshotSlices(['habits']);
+    const count = resumeAllPausedHabits(S.habits, today());
+    if (!count) return;
+    if (!saveSlicesWithRollback(['habits'], snapshot, true, 'a retomada dos hábitos')) return;
+    vibrateFeedback('success');
+    toast(`${count} ${plural(count, 'hábito retomado', 'hábitos retomados')}.`, 'action', () => {
+      const undoSnapshot = snapshotSlices(['habits']);
+      restoreSliceSnapshot(snapshot);
+      saveSlicesWithRollback(['habits'], undoSnapshot, true, 'a restauração da pausa');
+    });
   },
   'habit-archive': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
@@ -432,6 +527,13 @@ export const HABIT_ACTIONS = {
   'habit-restore': (el) => {
     const habit = S.habits.find((item) => item.id === el.dataset.id);
     if (!habit || habit.status !== 'archived') return;
+    if (
+      isWaterHabit(habit) &&
+      S.habits.some((item) => item.id !== habit.id && item.status !== 'archived' && isWaterHabit(item))
+    ) {
+      toast('Você já tem um hábito de água ativo. Exclua ou arquive o atual antes de restaurar este.', 'info');
+      return;
+    }
     if (ui.dlg?.d?.id === habit.id && ui.dlg.dirty) {
       const id = habit.id;
       askDiscardDialog(null, () => ACTIONS['habit-restore']({ dataset: { id } }));

@@ -1,4 +1,5 @@
 import { $, $$, h, raw } from '../utils/dom.js';
+import { morphHtml } from '../utils/dom-morph.js';
 import { icon } from '../utils/icons.js';
 import { pk, today } from '../utils/dates.js';
 import { routeFromLocation, routePathFor, settingsRootPath } from '../core/router.js';
@@ -168,10 +169,11 @@ export function accessibilityOption(id, action, label, description, pressed) {
     class="accessibility-option-copy"><b>${label}</b><small>${description}</small></span><span
     class="accessibility-state" aria-hidden="true">${pressed ? 'Ativado' : 'Desativado'}</span></button>`;
 }
-export function describeDialogOpener(target) {
+export function describeDialogOpener(target, { viaPointer = false } = {}) {
   if (!(target instanceof HTMLElement) || target === document.body || target === document.documentElement) return null;
   return {
     element: target,
+    viaPointer: Boolean(viaPointer),
     tag: target.tagName,
     id: target.id,
     data: { ...target.dataset },
@@ -181,7 +183,7 @@ export function describeDialogOpener(target) {
   };
 }
 export function restoreDialogOpener(opener) {
-  if (!opener) return;
+  if (!opener || opener.viaPointer) return;
   let target = opener.element?.isConnected ? opener.element : null;
   if (!target && opener.id) target = document.getElementById(opener.id);
   if (!target) {
@@ -336,12 +338,16 @@ function renderApp(routeChanged, viewTransition) {
   const page = needsCycleConsent ? cycleDataConsentGate() : (ROUTES[ui.route] || ROUTES.inicio)();
   const app = $('#app');
   const previousProgressRings = routeChanged ? [] : captureProgressRings(app);
-  app.innerHTML = shell(page).s;
+  morphHtml(app, shell(page).s);
   if (!routeChanged) animateProgressRings(app, previousProgressRings);
   initializeFaqDisclosure(app);
   if (routeChanged && !viewTransition) {
     const main = app.querySelector('.main');
-    if (main) main.classList.add('route-enter');
+    if (main) {
+      main.classList.remove('route-enter');
+      void main.offsetWidth;
+      main.classList.add('route-enter');
+    }
   }
   setRenderedRoute(ui.route);
   updateDocumentTitle();
@@ -785,6 +791,7 @@ export function onRoute() {
   if (routeChanged) routeScrollPositions.set(previousRoute, previousScroll);
   const targetFocus = new URLSearchParams(query).has('weight') ? 'pk' : null;
   const requestedSettingsTab = settingsTabId(new URLSearchParams(query).get('section'));
+  ui.settingsMenuOpen = false;
   if (ui.route === 'config') {
     ui.settingsTab = SETTINGS_SECTIONS.some(([id]) => id === requestedSettingsTab) ? requestedSettingsTab : 'profile';
   }

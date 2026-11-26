@@ -196,7 +196,7 @@
 .settings-trash-expiry.is-urgent { background: var(--warn-soft); color: var(--warn); }
 .settings-data-care-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 .settings-data-care .settings-data-action { grid-template-columns: minmax(0, 1fr); }
@@ -291,6 +291,10 @@
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
 }
+.appearance-settings .appearance-custom-color:not(.is-selected) .appearance-custom-preview {
+  border-color: color-mix(in srgb, var(--ink) 18%, transparent);
+  background: conic-gradient(from 0deg, var(--area-cycle), var(--warn), var(--ok), var(--area-water), var(--accent), var(--area-cycle));
+}
 @media (width <= 480px) {
   .appearance-settings .appearance-swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
   .appearance-settings .appearance-swatches .swatch { min-height: var(--control-field); flex-direction: column; justify-content: center; gap: var(--space-1); padding: 5px 3px; text-align: center; }
@@ -299,11 +303,8 @@
 .appearance-settings-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .appearance-settings-option { display: grid; min-width: 0; align-content: start; gap: var(--space-2); }
 .appearance-settings-label { color: var(--muted); font-size: var(--text-meta); font-weight: var(--weight-semibold); }
-:root[data-density="compact"] .main { gap: var(--space-3); }
-:root[data-density="compact"] .card { gap: var(--space-3); padding: var(--space-3); }
-:root[data-density="compact"] .setting-toggle { min-height: var(--control-field); padding-block: 8px; }
-:root[data-density="compact"] .list > li { padding-block: var(--space-2); }
-:root[data-density="compact"] .task .tt { padding-block: 1px; }
+:root[data-density="compact"] .setting-toggle { min-height: var(--control-field); padding-block: var(--space-2); }
+:root[data-density="compact"] .task .tt { padding-block: var(--space-quarter); }
 
 .adot { display: inline-block; width: 9px; height: 9px; flex: none; border-radius: 50%; vertical-align: baseline; }
 .adot.lg { width: 14px; height: 14px; }

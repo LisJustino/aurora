@@ -47,12 +47,12 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
             })(),
             renderedBackground: getComputedStyle(loader).backgroundColor,
             renderedColor: getComputedStyle(loader).color,
-            preview: getComputedStyle(loader.querySelector('.account-loading-preview')).display,
+            welcomeCard: loader.querySelector('.loading-welcome-card'),
           }));
           assert.equal(loadingStyle.theme, 'dark');
           assert.equal(loadingStyle.background, loadingStyle.renderedBackground);
           assert.equal(loadingStyle.color, loadingStyle.renderedColor);
-          assert.equal(loadingStyle.preview, 'none');
+          assert.equal(loadingStyle.welcomeCard, null);
         }
         assert.equal(new URL(page.url()).search + new URL(page.url()).hash, path.slice(1));
       }

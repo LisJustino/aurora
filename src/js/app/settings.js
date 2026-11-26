@@ -10,6 +10,7 @@ import {
   PROFILE_APPEARANCE_DEFAULT,
   PROFILE_AVATAR_COLORS,
   PROFILE_AVATARS,
+  PROFILE_GREETING_STYLES,
 } from '../features/profile/model.js';
 import { openProfileAvatarData, openProfileAvatarFile } from '../features/profile/avatar-image.js';
 import {
@@ -27,7 +28,15 @@ import {
   normalizeMenuOrder,
 } from '../features/navigation/menu.js';
 import { renderSettingsSegment as settingsSegment, renderSettingsView } from '../features/settings/view.js';
-import { isTrashExpired, sortTrashEntriesByExpiry, trashDaysRemaining } from '../features/trash/model.js';
+import {
+  filterTrashEntries,
+  isTrashExpired,
+  sortTrashEntriesByExpiry,
+  TRASH_CATEGORIES,
+  trashDaysRemaining,
+  trashEntryCategory,
+  trashEntryDisplay,
+} from '../features/trash/model.js';
 import { AREAS, plural, SEX } from './core.js';
 import { viewCiclo } from './cycle.js';
 import { confirmInDialog } from './dialogs.js';
@@ -66,10 +75,25 @@ function activeAppearancePreset(settings) {
     )?.[0] || ''
   );
 }
+const HOME_MESSAGE_PRESETS = Object.freeze([
+  'Um passo de cada vez.',
+  'Foco no que importa hoje.',
+  'Ritmo leve, mente tranquila.',
+  'Constância vence intensidade.',
+]);
+const WATER_GOAL_PRESETS = Object.freeze([
+  [1500, '1,5 L'],
+  [2000, '2 L'],
+  [2500, '2,5 L'],
+  [3000, '3 L'],
+]);
 function aparencia(s) {
   s = settingsView();
   const L = s.look;
   const currentPalette = s.theme === 'custom' ? 'Personalizada' : PALETTES[s.theme]?.[0] || PALETTES.rose[0];
+  const canUseCycle = canAccessCycle(s.profile, ui.preview);
+  const waterGoalMl = s.prefs.waterGoalMl || 2000;
+  const waterPresetMatches = WATER_GOAL_PRESETS.some(([value]) => value === waterGoalMl);
   const group = (id, title, description, content) =>
     h`<section class="appearance-settings-group" aria-labelledby="${id}"><div class="appearance-settings-copy"><h3
       id="${id}">${title}</h3><p>${description}</p></div>${content}</section>`;
@@ -84,7 +108,7 @@ function aparencia(s) {
     !L.reduceMotion;
   return h`<form class="card appearance-settings" data-form="settings-save" aria-labelledby="appearance-settings-title">
     <div class="appearance-settings-heading"><div><h2
-      id="appearance-settings-title">Aparência e leitura</h2><p>Ajuste o tema, as cores, o tamanho do texto, o espaçamento e o calendário. As alterações são salvas automaticamente.</p></div><button
+      id="appearance-settings-title">Aparência e leitura</h2><p>Ajuste o tema, as cores, a leitura, a acessibilidade e o comportamento da rotina. As alterações são salvas automaticamente.</p></div><button
       type="button" class="btn sm"
       data-action="appearance-reset" ${defaultAppearance ? raw('disabled') : ''}>Restaurar padrão visual</button></div>
     ${group(
@@ -127,8 +151,9 @@ function aparencia(s) {
         )}
       <label class="swatch appearance-custom-color${s.theme === 'custom' ? ' is-selected' : ''}"
         title="Escolher cor personalizada">
-        <i class="appearance-custom-preview"
-          style="background:${s.theme === 'custom' ? paletteColors('custom', L)[0] : '#ffffff'}" aria-hidden="true"></i>
+        <i class="appearance-custom-preview"${
+          s.theme === 'custom' ? raw(` style="background:${paletteColors('custom', L)[0]}"`) : ''
+        } aria-hidden="true"></i>
         <span>Personalizada</span>
         <input class="sr" type="color" data-change="look-custom" value="${L.custom}"
           aria-label="Escolher cor personalizada">
@@ -164,20 +189,47 @@ function aparencia(s) {
     </div>`,
     )}
     ${group(
-      'appearance-calendar-title',
-      'Calendário',
-      'Escolha o dia em que a semana começa nas visualizações do Aurora.',
-      h`<div class="appearance-settings-controls"><div class="appearance-settings-option"><span
-        class="appearance-settings-label">A semana começa na</span>${settingsSegment(
-          s.look,
-          'weekStart',
-          'Primeiro dia da semana',
-          [
-            [1, 'Segunda'],
-            [0, 'Domingo'],
-          ],
-          'preferences-week-start',
-        )}</div></div>`,
+      'appearance-routine-title',
+      'Rotina e comportamento',
+      'Ajuste calendário, meta padrão de água, retorno tátil e privacidade nas telas.',
+      h`<div class="routine-settings-stack">
+      <div class="appearance-settings-controls">
+        <div class="appearance-settings-option"><span
+          class="appearance-settings-label">A semana começa na</span>${settingsSegment(
+            s.look,
+            'weekStart',
+            'Primeiro dia da semana',
+            [
+              [1, 'Segunda'],
+              [0, 'Domingo'],
+            ],
+            'preferences-week-start',
+          )}</div>
+        <div class="appearance-settings-option"><span
+          class="appearance-settings-label">Meta diária de água${waterPresetMatches ? '' : ` · ${waterGoalMl.toLocaleString('pt-BR')} mL`}</span><div
+          class="seg" role="group" aria-label="Meta diária de água padrão">${WATER_GOAL_PRESETS.map(
+            ([value, label]) =>
+              h`<button type="button" data-action="preferences-water-goal" data-v="${value}"
+                aria-pressed="${String(waterGoalMl === value)}">${label}</button>`,
+          )}</div></div>
+      </div>
+      <div class="accessibility-options accessibility-settings-options routine-settings-options">
+        ${accessibilityOption('settings-accessibility-vibration', 'accessibility-vibration', 'Retorno tátil', 'Vibração sutil ao concluir tarefas, hábitos e registros.', s.prefs.vibrationEnabled !== false)}
+        ${accessibilityOption('settings-pref-weekly-review', 'preferences-weekly-review', 'Revisão semanal', 'Destaca o lembrete para revisar sua semana aos domingos.', s.prefs.weeklyReviewReminder === true)}
+        ${accessibilityOption('settings-pref-finance-hidden', 'preferences-finance-hidden', 'Ocultar valores financeiros', 'Esconde saldos e lançamentos até você tocar para exibir.', s.prefs.financeValuesHidden === true)}
+        ${
+          canUseCycle
+            ? accessibilityOption(
+                'settings-pref-cycle-discreet',
+                'preferences-cycle-discreet',
+                'Modo discreto no Ciclo',
+                'Oculta termos detalhados do ciclo na tela inicial e nos resumos.',
+                s.prefs.cycleDiscreet === true,
+              )
+            : ''
+        }
+      </div>
+    </div>`,
     )}
   </form>`;
 }
@@ -240,7 +292,7 @@ function profileSettings(s) {
     </section>
     <section class="profile-settings-group" aria-labelledby="profile-appearance-title">
       <div class="profile-appearance-heading"><div><h3
-        id="profile-appearance-title">Identidade visual.</h3><p>Escolha um símbolo e uma cor para o seu perfil.</p></div><button
+        id="profile-appearance-title">Identidade visual</h3><p>Escolha um símbolo e uma cor para o seu perfil.</p></div><button
         type="button" class="btn sm"
         data-action="profile-appearance-reset" ${defaultProfileAppearance || profileControlsDisabled ? raw('disabled') : ''}>Restaurar padrão</button></div>
       <div class="profile-appearance-controls">
@@ -285,21 +337,50 @@ function profileSettings(s) {
           style="--profile-avatar-color:${PALETTES[id][1]}"
           aria-hidden="true">${appearance.avatarColor === id ? icon('check', 12) : ''}</span></button>`,
           )}</div></div>
+        <div class="profile-appearance-option"><span class="appearance-settings-label">Saudação</span><div
+          class="seg" role="group" aria-label="Estilo da saudação">${PROFILE_GREETING_STYLES.map(
+            ([id, label]) => h`<button type="button"
+          data-action="profile-appearance" data-k="greeting" data-v="${id}"
+          aria-pressed="${String(appearance.greeting === id)}" ${profileControlsDisabled ? raw('disabled') : ''}>${
+            id === 'dynamic' ? 'Por horário' : label
+          }</button>`,
+          )}</div></div>
       </div>
     </section>
   </form>
   </div>`;
 }
 function accountSettings(s) {
+  const email = accountSession?.user?.email || '';
+  const activeAreas = Object.values(s.areas || {}).filter(Boolean).length;
+  const offlinePending = Persist.offlineQueuedCount || (Persist.pendingSnapshot ? 1 : 0);
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const syncTone = ui.preview ? 'neutral' : offlinePending > 0 ? 'warn' : 'ok';
+  const syncLabel = ui.preview
+    ? 'Modo demonstração'
+    : offlinePending > 0
+      ? isOffline
+        ? 'Alterações aguardando conexão'
+        : 'Sincronizando alterações…'
+      : 'Tudo sincronizado';
   return h`<div class="settings-account-list">
     <section class="card settings-section-card account-session-card" aria-labelledby="account-session-title">
       <div class="settings-section-heading"><div><h2
-        id="account-session-title">Conta e ajuda</h2>${
-          accountSession?.user?.email
-            ? h`<p
-        class="account-session-email">Conectada como <b>${accountSession.user.email}</b></p>`
+        id="account-session-title">Conta e ajuda</h2><p
+        class="account-session-email">${
+          email
+            ? h`Conectada como <b>${email}</b>`
+            : 'Você está navegando no modo demonstração. Suas alterações ficam apenas nesta sessão.'
+        }</p></div></div>
+      <div class="account-status-row">
+        <span class="account-status-pill is-${syncTone}">${icon(syncTone === 'ok' ? 'check' : syncTone === 'warn' ? 'cloud' : 'sparkles', 14)}<span>${syncLabel}</span></span>
+        <span class="account-status-pill is-neutral">${icon('grid', 14)}<span>${activeAreas} ${plural(activeAreas, 'área opcional ativa', 'áreas opcionais ativas')}</span></span>
+        ${
+          !ui.preview && Persist.pendingSnapshot && !isOffline
+            ? h`<button type="button" class="btn sm" data-action="persist-retry">${icon('refresh', 14)}Sincronizar agora</button>`
             : ''
-        }</div></div>
+        }
+      </div>
     </section>
     ${
       !ui.preview
@@ -310,18 +391,19 @@ function accountSettings(s) {
     </section>`
         : ''
     }
+    <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
+      <div class="settings-section-heading"><div><h2
+        id="account-resources-title">Ajuda e documentos</h2><p>Novidades, Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
+      <div class="row account-resource-actions"><button type="button" class="btn sm"
+        data-action="release-notes-open">${icon('sparkles', 15)}Novidades</button><button type="button" class="btn sm"
+        data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm"
+        data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm"
+        href="mailto:${CONTACT_EMAIL}">Falar com o Aurora</a></div>
+    </section>
     <section class="card settings-section-card account-delete-card danger-zone" aria-labelledby="account-delete-title">
       <div class="settings-section-heading account-delete-heading"><div><h2
         id="account-delete-title">Excluir conta</h2><p>A exclusão apaga a conta e todos os dados e não pode ser desfeita.</p></div><button
         type="button" class="btn danger" data-action="account-delete-open">Excluir conta</button></div>
-    </section>
-    <section class="card settings-section-card account-resources-card" aria-labelledby="account-resources-title">
-      <div class="settings-section-heading"><div><h2
-        id="account-resources-title">Ajuda e documentos</h2><p>Termos de Uso, Política de Privacidade e contato com o Aurora.</p></div></div>
-      <div class="row account-resource-actions"><button type="button" class="btn sm"
-        data-legal-document="terms">Termos de Uso</button><button type="button" class="btn sm"
-        data-legal-document="privacy">Política de Privacidade</button><a class="btn ghost sm"
-        href="mailto:${CONTACT_EMAIL}">Falar com o Aurora</a></div>
     </section>
   </div>`;
 }
@@ -394,12 +476,12 @@ export const SETTINGS_SECTIONS = [
   ['data', 'Dados e recuperação', 'archive', 'Gerenciar a lixeira e a recuperação de dados'],
   ['calendars', 'Agendas', 'calendar', 'Conectar contas e escolher calendários'],
   ['mental-health', 'Apoio psicológico', 'heart', 'Onde buscar acolhimento e cuidado'],
-  ['account', 'Conta e ajuda', 'info', 'Excluir e documentos'],
+  ['account', 'Conta e ajuda', 'info', 'Sessão, novidades e documentos'],
 ];
 const SETTINGS_SECTION_GROUPS = [
-  { label: 'Preferências', items: ['profile', 'personalization', 'home', 'areas-navigation'] },
-  { label: 'Dados e conexões', items: ['data', 'calendars'] },
-  { label: 'Conta e suporte', items: ['account', 'mental-health'] },
+  { label: 'Conta', items: ['profile', 'account'] },
+  { label: 'Preferências', items: ['personalization', 'home', 'areas-navigation'] },
+  { label: 'Dados e cuidado', items: ['calendars', 'data', 'mental-health'] },
 ];
 function homeLayoutSettings(s) {
   const activeMode = s.prefs.homeMode;
@@ -407,9 +489,10 @@ function homeLayoutSettings(s) {
   const layout = s.prefs.homeLayout;
   const ordered = layout.order.map((id) => HOME_BLOCKS.find(([blockId]) => blockId === id)).filter(Boolean);
   const isDefault = sameJsonValue(layout, modeDefaults.layout);
+  const currentMessage = s.prefs.homeMessage || '';
   return h`<section class="home-layout-settings" aria-labelledby="home-layout-title">
-    <div class="settings-section-heading"><div><h3
-      id="home-layout-title">Tela inicial</h3><p>Escolha um modo e personalize os blocos da tela inicial.</p></div><button
+    <div class="settings-section-heading"><div><h2
+      id="home-layout-title">Tela inicial</h2><p>Escolha um modo, escreva uma frase pessoal e organize os blocos da sua tela inicial.</p></div><button
       type="button" class="btn sm"
       data-action="home-layout-reset" ${isDefault ? raw('disabled') : ''}>Restaurar modo</button></div>
     <div class="home-mode-grid" role="group"
@@ -418,15 +501,29 @@ function homeLayoutSettings(s) {
       class="home-mode-option" data-action="home-mode" data-home-mode="${id}"
       aria-pressed="${String(activeMode === id)}"><b>${mode.label}</b><small>${mode.description}</small></button>`,
       )}</div>
-    <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea
-      data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2"
-      placeholder="Ex.: Um passo de cada vez."
-      aria-describedby="home-message-count">${s.prefs.homeMessage}</textarea><small id="home-message-count"
-      class="home-message-count"
-      aria-live="polite">${s.prefs.homeMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
+    <div class="home-message-wrap">
+      <label class="home-message-field"><span>Mensagem pessoal <small>Opcional · até ${HOME_MESSAGE_MAX_LENGTH} caracteres</small></span><textarea
+        data-keep data-change="home-message" maxlength="${HOME_MESSAGE_MAX_LENGTH}" rows="2"
+        placeholder="Ex.: Um passo de cada vez."
+        aria-describedby="home-message-count">${currentMessage}</textarea><small id="home-message-count"
+        class="home-message-count"
+        aria-live="polite">${currentMessage.length}/${HOME_MESSAGE_MAX_LENGTH}</small></label>
+      <div class="home-message-presets" role="group" aria-label="Sugestões de mensagem pessoal">
+        ${HOME_MESSAGE_PRESETS.map(
+          (preset) => h`<button type="button" class="chip home-message-preset" data-action="home-message-preset"
+            data-v="${preset}" aria-pressed="${String(currentMessage.trim() === preset)}">${preset}</button>`,
+        )}
+        ${
+          currentMessage.trim()
+            ? h`<button type="button" class="btn ghost sm home-message-clear" data-action="home-message-preset"
+                data-v="">Limpar</button>`
+            : ''
+        }
+      </div>
+    </div>
     <ol class="home-layout-list" aria-label="Blocos da tela inicial">${ordered.map(
       ([id, label, description], index) => h`<li class="home-layout-item">
-      <label class="home-layout-toggle"><input type="checkbox" data-change="home-block-visible" data-home-block="${id}"
+      <label class="home-layout-toggle"><input type="checkbox" class="settings-switch" data-change="home-block-visible" data-home-block="${id}"
         aria-label="${layout.visible.includes(id) ? 'Ocultar' : 'Mostrar'} ${label} na tela inicial" ${layout.visible.includes(id) ? raw('checked') : ''}><span><b>${label}</b><small>${description}</small></span></label>
       <span class="home-layout-controls"><span>${id === 'today' ? '1º · fixo' : `${index + 1}º`}</span>${
         id === 'today'
@@ -454,9 +551,9 @@ function areasNavigationSettings(s) {
   return h`<form class="card areas-navigation-settings" data-form="settings-save">
     <div class="head areas-navigation-head"><h2>Áreas e menu</h2><button type="button" class="btn sm"
       data-action="menu-reset" ${isDefaultMenuSettings ? raw('disabled') : ''}>Restaurar padrão</button></div>
-    <p class="settings-section-intro">Escolha quais áreas aparecem e organize o acesso pelo menu. Desativar ou ocultar uma área não apaga seus dados.</p>
-    <p class="small muted">Início fica sempre primeiro. Beber água é uma sugestão de hábito em Hábitos. Restaurar o padrão não ativa áreas nem altera registros.</p>
-    <ol class="areas-navigation-list compact-card-grid" aria-label="Áreas e menus principais">${items.map((item) => {
+    <p class="settings-section-intro">Escolha quais áreas ficam ativas e organize a ordem do menu. Desativar ou ocultar uma área nunca apaga seus dados.</p>
+    <p class="small muted">Início fica sempre primeiro. Restaurar o padrão ajusta só a ordem e visibilidade do menu.</p>
+    <ol class="areas-navigation-list" aria-label="Áreas e menus principais">${items.map((item) => {
       const areaName = item.area ? AREAS[item.area]?.[0] || item.label : item.label;
       const areaDescription = item.area
         ? AREAS[item.area]?.[1] || ''
@@ -465,24 +562,31 @@ function areasNavigationSettings(s) {
           : 'Tarefas, prazos e planejamento';
       const orderIndex = orderedItems.findIndex(({ id }) => id === item.id);
       const orderLabel = item.id === 'inicio' ? 'Sempre primeiro' : item.id === 'planejar' ? 'Sempre visível' : '';
-      const areaEnabled = item.area ? s.areas[item.area] === true : false;
-      return h`<li class="areas-navigation-item">
-        <span class="areas-navigation-icon">${icon(item.icon, 20)}</span>
-        ${
-          item.area
-            ? h`<label class="areas-navigation-toggle"><input type="checkbox" data-change="area"
-              data-area="${item.area}"
-              aria-label="${areaEnabled ? 'Desativar' : 'Ativar'} área ${areaName}" ${areaEnabled ? raw('checked') : ''}><span
-              class="setting-toggle-copy"><span class="areas-navigation-name"><b>${areaName}</b><small
-              class="area-status${areaEnabled ? ' is-active' : ''}">${areaEnabled ? 'Ativa' : 'Desativada'}</small></span><span>${areaDescription}</span></span></label>`
-            : h`<span class="areas-navigation-copy"><b>${areaName}</b><span>${areaDescription}</span></span>`
-        }
-        <span class="areas-navigation-controls">
+      const areaEnabled = item.area ? s.areas[item.area] === true : true;
+      const inMenu = s.prefs.visibleMenuItems.includes(item.id);
+      return h`<li class="areas-navigation-item${item.area && !areaEnabled ? ' is-inactive' : ''}">
+        <span class="areas-navigation-icon" data-area="${item.area || item.id}" aria-hidden="true">${icon(item.icon, 20)}</span>
+        <div class="areas-navigation-main">
+          <div class="areas-navigation-name"><b>${areaName}</b><small
+            class="area-status${areaEnabled ? ' is-active' : ''}">${
+              item.area ? (areaEnabled ? 'Ativa' : 'Desativada') : 'Principal'
+            }</small></div>
+          <span class="areas-navigation-desc">${areaDescription}</span>
+        </div>
+        <div class="areas-navigation-controls">
+          ${
+            item.area
+              ? h`<label class="areas-navigation-toggle"><input type="checkbox" class="settings-switch" data-change="area"
+                  data-area="${item.area}"
+                  aria-label="${areaEnabled ? 'Desativar' : 'Ativar'} área ${areaName}" ${areaEnabled ? raw('checked') : ''}><span
+                  class="areas-toggle-label">Ativa</span></label>`
+              : ''
+          }
           ${
             item.area && !HIDDEN_MENU_IDS.includes(item.id)
-              ? h`<label class="menu-visibility"><input type="checkbox" id="menu-visible-${item.id}" data-keep
+              ? h`<label class="menu-visibility${inMenu ? ' is-on' : ''}"><input type="checkbox" id="menu-visible-${item.id}" data-keep
                 data-change="menu-visible" data-menu-id="${item.id}"
-                aria-label="${s.prefs.visibleMenuItems.includes(item.id) ? 'Ocultar' : 'Mostrar'} ${item.label} no menu" ${s.prefs.visibleMenuItems.includes(item.id) ? raw('checked') : ''}><span>Mostrar no menu</span></label>`
+                aria-label="${inMenu ? 'Ocultar' : 'Mostrar'} ${item.label} no menu" ${inMenu ? raw('checked') : ''}><span>${icon(inMenu ? 'eye' : 'eyeOff', 14)}<span>No menu</span></span></label>`
               : h`<span class="menu-always-visible">${orderLabel}</span>`
           }
           ${
@@ -494,19 +598,19 @@ function areasNavigationSettings(s) {
                 canMoveMenuItem(s.prefs.menuOrder, item.id, -1, HIDDEN_MENU_IDS)
                   ? h`<button type="button" class="ibtn"
                 id="menu-move-up-${item.id}" data-action="menu-move" data-menu-id="${item.id}" data-direction="-1"
-                aria-label="Mover ${item.label} para cima">${icon('arrowUp', 18)}</button>`
+                aria-label="Mover ${item.label} para cima">${icon('arrowUp', 16)}</button>`
                   : ''
               }
               ${
                 canMoveMenuItem(s.prefs.menuOrder, item.id, 1, HIDDEN_MENU_IDS)
                   ? h`<button type="button" class="ibtn"
                 id="menu-move-down-${item.id}" data-action="menu-move" data-menu-id="${item.id}" data-direction="1"
-                aria-label="Mover ${item.label} para baixo">${icon('arrowDown', 18)}</button>`
+                aria-label="Mover ${item.label} para baixo">${icon('arrowDown', 16)}</button>`
                   : ''
               }
             </span>`
           }
-        </span>
+        </div>
       </li>`;
     })}</ol>
   </form>`;
@@ -798,13 +902,83 @@ export async function clearLegacyBrowserData() {
   }
   render();
 }
+export function trashResultsHtml(p) {
+  const activeEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
+  if (!activeEntries.length) {
+    return areaEmpty(
+      'A lixeira está vazia.',
+      'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.',
+      h`<a class="btn primary" href="/inicio">Ir para o início</a>`,
+      'trash',
+      'h3',
+      'settings-trash-empty',
+    );
+  }
+  const filtered = filterTrashEntries(activeEntries, { category: ui.trashFilter, query: ui.trashQuery });
+  if (!filtered.length) {
+    return h`<div class="settings-trash-no-match" role="status">
+      <p>Nenhum item encontrado com esse filtro.</p>
+      <button type="button" class="btn sm" data-action="trash-search-clear">Limpar filtros</button>
+    </div>`;
+  }
+  return h`<ul class="list trash-list">${filtered.map((entry) => {
+    const days = trashDaysRemaining(entry);
+    const info = trashEntryDisplay(entry);
+    return h`<li class="settings-trash-entry">
+      <span class="settings-trash-icon" data-tone="${info.tone}" aria-hidden="true">${icon(info.icon, 18)}</span>
+      <div class="grow">
+        <div class="settings-trash-title-row">
+          <div class="ttl">${info.title}</div>
+          <span class="settings-trash-badge" data-tone="${info.tone}">${info.badgeLabel}</span>
+          ${info.recordCount > 1 ? h`<span class="settings-trash-extra">${info.recordCount} registros</span>` : ''}
+        </div>
+        <div class="settings-trash-meta">
+          <span class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span>
+          <span class="settings-trash-expiry${days <= 7 ? ' is-urgent' : ''}">${days} ${plural(days, 'dia restante', 'dias restantes')}</span>
+        </div>
+      </div>
+      <div class="settings-trash-actions">
+        <button type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}"
+          aria-label="Restaurar ${info.title}">${icon('undo', 14)}Restaurar</button>
+        <button type="button" class="ibtn settings-trash-delete" data-action="trash-delete-permanent"
+          data-id="${entry.id}" aria-label="Excluir ${info.title} permanentemente"
+          title="Excluir permanentemente">${icon('trash', 16)}</button>
+      </div>
+    </li>`;
+  })}</ul>`;
+}
 function dataSettings(p) {
   const integritySlices = Object.keys(ui.integrityIssues);
   const trashEntries = sortTrashEntriesByExpiry(p.trash.filter((entry) => !isTrashExpired(entry)));
+  const categoryCounts = new Map();
+  trashEntries.forEach((entry) => {
+    const category = trashEntryCategory(entry);
+    categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+  });
+  const activeFilter =
+    ui.trashFilter !== 'all' && !categoryCounts.get(ui.trashFilter) ? 'all' : ui.trashFilter || 'all';
+  if (activeFilter !== ui.trashFilter) ui.trashFilter = activeFilter;
+  const visibleCategories = TRASH_CATEGORIES.filter(
+    (category) => category.id === 'all' || (categoryCounts.get(category.id) || 0) > 0,
+  );
+  const filteredEntries = filterTrashEntries(trashEntries, { category: activeFilter, query: ui.trashQuery });
+  const isFiltered = activeFilter !== 'all' || Boolean(ui.trashQuery.trim());
+  const canUseCycle = canAccessCycle(S.settings.profile, ui.preview);
+  const summaryStats = [
+    ['Tarefas', S.tasks.length, 'calendarCheck', 'planning'],
+    ['Hábitos', S.habits.length, 'check', 'habits'],
+    ['Lançamentos', S.finance.tx.length, 'wallet', 'finances'],
+    ...(canUseCycle ? [['Ciclo', S.cycle.length, 'heart', 'cycle']] : []),
+    ['Na lixeira', trashEntries.length, 'trash', 'neutral'],
+  ];
   return h`<section class="card settings-section-card settings-data-overview"
     aria-labelledby="settings-data-overview-title">
     <div class="settings-section-heading"><h2
-      id="settings-data-overview-title">Gerenciar seus dados</h2><p>Recupere itens excluídos ou confira o estado dos dados da conta.</p></div>
+      id="settings-data-overview-title">Gerenciar seus dados</h2><p>Veja o resumo dos registros da sua conta, recupere itens excluídos ou limpe os dados quando precisar.</p></div>
+    <ul class="settings-data-summary" aria-label="Resumo dos registros na conta">${summaryStats.map(
+      ([label, count, ic, tone]) =>
+        h`<li class="settings-data-stat" data-tone="${tone}"><span class="settings-data-stat-icon" aria-hidden="true">${icon(ic, 16)}</span><div><b>${count}</b><span>${label}</span></div></li>`,
+    )}</ul>
     ${
       integritySlices.length
         ? h`<div class="notice warn"
@@ -814,28 +988,45 @@ function dataSettings(p) {
         : ''
     }
   </section>
-    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title"><div
-      class="settings-section-heading"><h2 id="trash-title" tabindex="-1">Lixeira <span
-      class="settings-data-count">${trashEntries.length}</span></h2><p>Os itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo.</p></div>
+    <section class="card settings-section-card settings-data-trash" aria-labelledby="trash-title">
+      <div class="settings-section-heading settings-trash-header">
+        <div><h2 id="trash-title" tabindex="-1">Lixeira <span
+          class="settings-data-count">${trashEntries.length}</span></h2><p>Itens excluídos podem ser restaurados por até 30 dias. Os que vencem primeiro aparecem no topo.</p></div>
+        ${
+          trashEntries.length
+            ? h`<div class="settings-trash-bulk">
+              <button type="button" class="btn sm" data-action="trash-restore-all" ${filteredEntries.length ? '' : raw('disabled')}>${icon('undo', 15)}${isFiltered ? 'Restaurar filtrados' : 'Restaurar tudo'}</button>
+              <button type="button" class="btn sm danger-outline" data-action="trash-empty" ${filteredEntries.length ? '' : raw('disabled')}>${icon('trash', 15)}${isFiltered ? 'Excluir filtrados' : 'Esvaziar lixeira'}</button>
+            </div>`
+            : ''
+        }
+      </div>
       ${
         trashEntries.length
-          ? h`<ul class="list trash-list">${trashEntries.map((entry) => {
-              const days = trashDaysRemaining(entry);
-              return h`<li class="settings-trash-entry"><div class="grow"><div class="ttl">${entry.label}</div><span
-                class="small muted">Excluído em ${shortDate(isoDay(entry.deletedAt))}</span><span
-                class="settings-trash-expiry${days <= 7 ? ' is-urgent' : ''}">${days} ${plural(days, 'dia restante', 'dias restantes')}</span></div><button
-                type="button" class="btn sm" data-action="trash-restore" data-id="${entry.id}"
-                aria-label="Restaurar ${entry.label}">Restaurar</button></li>`;
-            })}</ul>`
-          : areaEmpty(
-              'A lixeira está vazia.',
-              'Quando você excluir itens, eles ficam disponíveis aqui por até 30 dias.',
-              h`<a class="btn primary" href="/inicio">Ir para o início</a>`,
-              'trash',
-              'h3',
-              'settings-trash-empty',
-            )
+          ? h`<div class="settings-trash-toolbar">
+            ${
+              visibleCategories.length > 2
+                ? h`<div class="settings-trash-filters" role="group" aria-label="Filtrar lixeira por área">${visibleCategories.map(
+                    (category) => {
+                      const count = category.id === 'all' ? trashEntries.length : categoryCounts.get(category.id) || 0;
+                      return h`<button type="button" class="chip trash-filter-pill" data-action="trash-filter"
+                        data-trash-category="${category.id}" aria-pressed="${String(activeFilter === category.id)}">${category.label} <span
+                        class="trash-filter-count">${count}</span></button>`;
+                    },
+                  )}</div>`
+                : ''
+            }
+            <div class="settings-trash-search">
+              <span class="settings-trash-search-icon" aria-hidden="true">${icon('search', 16)}</span>
+              <input id="trash-search" type="search" data-input="trash-search" value="${ui.trashQuery}"
+                placeholder="Buscar na lixeira…" aria-label="Buscar na lixeira" autocomplete="off">
+              <button type="button" id="trash-search-clear" class="ibtn settings-trash-search-clear"
+                data-action="trash-search-clear" aria-label="Limpar busca" ${ui.trashQuery.trim() ? '' : raw('hidden')}>${icon('close', 14)}</button>
+            </div>
+          </div>`
+          : ''
       }
+      <div id="trash-results">${trashResultsHtml(p)}</div>
     </section>
     <section class="card settings-section-card settings-data-care" aria-labelledby="settings-care-title">
       <div class="settings-section-heading"><h2
