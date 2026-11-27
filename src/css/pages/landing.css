@@ -1315,17 +1315,24 @@ html:has(.landing-marketing) {
   text-transform: uppercase;
 }
 .landing-footer-link-group a,
+.landing-footer-link-group .landing-footer-link,
 .landing-footer-top {
   display: inline-flex;
   min-height: var(--target-size);
   align-items: center;
+  padding: 0;
+  border: 0;
   border-radius: var(--r-control);
+  background: transparent;
   color: var(--ink);
   font-size: var(--text-sm);
   text-decoration: none;
+  cursor: pointer;
 }
 .landing-footer-link-group a:hover,
 .landing-footer-link-group a:focus-visible,
+.landing-footer-link-group .landing-footer-link:hover,
+.landing-footer-link-group .landing-footer-link:focus-visible,
 .landing-footer-top:hover,
 .landing-footer-top:focus-visible {
   color: var(--accent);
@@ -3372,19 +3379,21 @@ html:has(.landing-marketing) { overflow-x: clip; }
 /* Rodapé: links mais próximos com mouse; o alvo de toque de 44px continua no celular. */
 @media (pointer: fine) {
   .landing-footer-link-group a,
+  .landing-footer-link-group .landing-footer-link,
   .landing-footer-top { min-height: 32px; }
 }
 .landing-footer-nav { align-content: start; }
 
-/* Demonstração: mesma tipografia DM Sans do app (ponto na cor da marca). */
+/* Demonstração: mesma tipografia editorial Newsreader + Figtree do app (ponto na cor da marca). */
 .demo-app .home-head h1.type-editorial-display,
 .demo-app .demo-page-heading h1 {
   color: var(--ink);
-  font-family: var(--font-h);
+  font-family: var(--font-editorial);
   font-size: var(--text-page-title);
-  font-weight: var(--weight-bold);
+  font-weight: var(--font-editorial-weight);
   letter-spacing: var(--tracking-editorial);
   line-height: var(--leading-editorial);
+  font-variation-settings: "opsz" 40;
 }
 .demo-app .home-head h1 i,
 .demo-app .demo-page-heading h1 i { color: var(--accent); font-style: normal; }
@@ -3393,11 +3402,12 @@ html:has(.landing-marketing) { overflow-x: clip; }
 .demo-app .home-quick-card h2.type-editorial-title,
 .demo-app .demo-area-panel > .head h2 {
   color: var(--ink);
-  font-family: var(--font-h);
+  font-family: var(--font-editorial);
   font-size: var(--text-editorial-title);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
+  font-weight: var(--font-editorial-weight);
+  letter-spacing: var(--tracking-editorial);
   line-height: var(--leading-tight);
+  font-variation-settings: "opsz" 30;
 }
 .demo-app .home-quick-card h2 i { color: var(--accent); font-style: normal; }
 .demo-app .section-kicker { color: var(--ink); font-size: var(--text-sm); letter-spacing: 0; }
@@ -3527,7 +3537,6 @@ html:has(.landing-marketing) { overflow-x: clip; }
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
-.landing-marketing .public-header-nav a:hover,
 .landing-marketing .public-header-nav a:focus-visible {
   background: color-mix(in srgb, var(--ink) 5%, transparent);
   color: var(--ink);
@@ -3543,10 +3552,6 @@ html:has(.landing-marketing) { overflow-x: clip; }
   background: transparent;
   color: var(--ink);
   box-shadow: none;
-}
-.landing-marketing .public-topbar .btn.public-account-action:not(.primary):hover {
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-  border-color: transparent;
 }
 @media (width >= 1200px) {
   .landing-marketing > .public-topbar {
@@ -3576,33 +3581,58 @@ html:has(.landing-marketing) { overflow-x: clip; }
   color: var(--on-btn);
   box-shadow: none;
 }
-.landing-marketing .public-account-action.primary:hover {
-  background: color-mix(in srgb, var(--btn) 88%, var(--ink));
-}
 .landing-marketing .public-header-tools .theme-trigger {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
-.landing-marketing .public-header-tools .theme-trigger:hover {
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .landing-marketing .public-header-nav a:hover,
+  .landing-marketing .public-topbar .btn.public-account-action:not(.primary):hover,
+  .landing-marketing .public-header-tools .theme-trigger:hover {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border-color: transparent;
+    color: var(--ink);
+  }
+  .landing-marketing .public-account-action.primary:hover {
+    background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+  }
 }
 
-/* Ritmo editorial aberto diretamente sobre o canvas */
+/* Ritmo editorial com luz de amanhecer e superfícies esculpidas */
+.public-site.landing-marketing {
+  position: relative;
+}
+.public-site.landing-marketing::before {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: min(680px, 84vh);
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 480px at 22% -10%, color-mix(in srgb, var(--p) var(--ambient-glow), transparent), transparent 66%),
+    radial-gradient(900px 420px at 82% -4%, var(--ambient-warmth), transparent 64%);
+}
+.public-site.landing-marketing > .public-main,
+.public-site.landing-marketing > .landing-footer {
+  position: relative;
+  z-index: 1;
+}
 .public-site.landing-marketing .public-main {
-  width: min(100%, 1080px);
-  max-width: 1080px;
+  width: min(100%, 1120px);
+  max-width: 1120px;
   gap: clamp(var(--space-9), 8vw, var(--space-12));
-  padding-block: clamp(var(--space-7), 6vw, var(--space-11)) var(--space-11);
+  padding-block: clamp(var(--space-7), 6vw, var(--space-10)) var(--space-11);
 }
 
-/* Hero centralizado estilo Things 3 / Bear: título calmo + tela grande do Aurora logo abaixo */
+/* Hero centralizado com vitrine flutuante estilo Things 3 / Apple Journal */
 .public-site.landing-marketing .public-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: none;
   justify-items: center;
-  gap: clamp(var(--space-6), 5vw, var(--space-9));
+  gap: clamp(var(--space-6), 5vw, var(--space-8));
   padding-block: 0;
   border: 0;
   text-align: center;
@@ -3615,22 +3645,22 @@ html:has(.landing-marketing) { overflow-x: clip; }
   display: grid;
   justify-items: center;
   width: 100%;
-  max-width: 680px;
+  max-width: 720px;
 }
 .landing-marketing .public-hero h1 em,
 .landing-marketing .landing-final-cta h2 em {
   color: var(--accent);
-  font-style: normal;
+  font-style: italic;
 }
 .public-site.landing-marketing .public-hero h1.type-editorial-display {
   max-width: 16ch;
   margin-top: 0;
   color: var(--ink);
   letter-spacing: var(--tracking-editorial);
-  line-height: 1.05;
+  line-height: 1.03;
 }
 .landing-marketing .landing-hero-lead {
-  max-width: 52ch;
+  max-width: 54ch;
   margin-top: var(--space-4);
   color: var(--muted);
   font-size: var(--text-lg);
@@ -3638,88 +3668,115 @@ html:has(.landing-marketing) { overflow-x: clip; }
 }
 .landing-marketing .landing-hero-actions {
   justify-content: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
   margin-top: var(--space-5);
 }
 .landing-marketing .landing-hero-actions .btn.primary,
 .landing-marketing .landing-final-actions .btn.primary {
-  min-height: var(--control-md);
-  padding-inline: var(--space-5);
+  min-height: var(--control-lg);
+  padding-inline: var(--space-6);
   border-color: transparent;
-  border-radius: var(--button-radius);
+  border-radius: var(--r-pill);
   background: var(--btn);
   color: var(--on-btn);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  box-shadow: var(--elev-1);
-}
-.landing-marketing .landing-hero-actions .btn.primary:hover,
-.landing-marketing .landing-final-actions .btn.primary:hover {
-  background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--btn) 55%, transparent), var(--btn-highlight);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
 .landing-marketing .landing-hero-secondary {
   display: inline-flex;
-  min-height: var(--target-size);
+  min-height: var(--control-lg);
   align-items: center;
-  padding-inline: var(--space-2);
+  justify-content: center;
+  padding-inline: var(--space-5);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-pill);
+  background: var(--surface-strong);
+  box-shadow: var(--btn-surface-shadow), var(--surface-highlight);
   color: var(--ink);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--ink) 28%, transparent);
-  text-underline-offset: .25em;
-  transition: color var(--duration-fast) var(--ease-standard), text-decoration-color var(--duration-fast) var(--ease-standard);
+  text-decoration: none;
+  transition: transform var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
 }
-.landing-marketing .landing-hero-secondary:hover {
-  color: var(--accent);
-  text-decoration-color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .landing-marketing .landing-hero-actions .btn.primary:hover,
+  .landing-marketing .landing-final-actions .btn.primary:hover {
+    background: color-mix(in srgb, var(--btn) 88%, var(--ink));
+    transform: translateY(-1px);
+  }
+  .landing-marketing .landing-hero-secondary:hover {
+    border-color: var(--border-hover);
+    background: var(--surface-strong);
+    color: var(--accent);
+    transform: translateY(-1px);
+  }
 }
 
-/* Linha de apoio discreta em texto puro (sem chips nem checks verdes) */
+/* Micro-pílulas de confiança abaixo dos botões */
 .landing-marketing .landing-proof-list {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-1) var(--space-3);
-  margin-top: var(--space-4);
+  gap: var(--space-2);
+  margin-top: var(--space-5);
 }
 .landing-marketing .landing-proof-list li {
   display: inline-flex;
   min-height: 0;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  box-shadow: var(--surface-highlight);
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
 }
 .landing-marketing .landing-proof-list li::before {
-  display: none;
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 65%, var(--p));
 }
 .landing-marketing .landing-proof-list li + li::before {
-  display: inline;
-  width: auto;
-  height: auto;
-  background: transparent;
-  color: var(--line-strong);
-  content: "·";
+  display: block;
+  width: 6px;
+  height: 6px;
+  background: color-mix(in srgb, var(--accent) 65%, var(--p));
+  content: "";
 }
 
-/* Vitrine principal do produto: captura Retina 2x grande, nítida e sem enfeites */
+/* Vitrine principal do produto: moldura esculpida com halo suave de amanhecer */
 .landing-marketing .landing-hero-visual {
+  position: relative;
   grid-area: auto;
   width: 100%;
-  max-width: 1020px;
+  max-width: 1060px;
   padding: 0;
 }
+.landing-marketing .landing-hero-visual::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -24px 6% -16px;
+  border-radius: var(--r-hero);
+  background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--p) 26%, transparent), transparent 72%);
+  pointer-events: none;
+}
 .landing-hero-desktop {
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface-strong);
-  box-shadow: var(--elev-2);
+  position: relative;
+  z-index: 1;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-card));
+  border-radius: var(--r-hero);
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  box-shadow: var(--elev-2), var(--surface-highlight);
 }
 .landing-hero-desktop::before {
   display: none;
@@ -3732,13 +3789,15 @@ html:has(.landing-marketing) { overflow-x: clip; }
   width: 100%;
   height: auto;
   padding-top: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
   background: transparent;
 }
 
-/* Cabeçalhos de seção serenos e limpos (sem linha dupla entre seções) */
+/* Cabeçalhos de seção serenos e limpos */
 .landing-marketing .landing-section {
   padding-top: clamp(var(--space-6), 5vw, var(--space-8));
-  border-top: 1px solid var(--line);
+  border-top: 0;
 }
 .landing-marketing .landing-section::before {
   display: none;
@@ -3752,72 +3811,87 @@ html:has(.landing-marketing) { overflow-x: clip; }
 .landing-marketing .landing-final-cta h2 {
   max-width: 24ch;
   color: var(--ink);
-  font-family: var(--font-h);
+  font-family: var(--font-editorial);
   font-size: var(--text-page-title);
-  font-weight: var(--weight-bold);
+  font-weight: var(--font-editorial-weight);
   letter-spacing: var(--tracking-editorial);
-  line-height: 1.08;
+  line-height: var(--leading-editorial);
+  font-variation-settings: "opsz" 40;
 }
 
-/* Seção de áreas: abas com linha inferior limpa + tela em largura real */
+/* Seção de áreas: barra de abas flutuante em pílula + palco bento esculpido */
 .landing-marketing .landing-tutorial-tabs {
-  width: 100%;
-  gap: var(--space-2);
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  width: fit-content;
+  max-width: 100%;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-pill);
+  background: var(--seg-track);
+  box-shadow: var(--surface-highlight);
   scrollbar-width: none;
 }
 .landing-marketing .landing-tutorial-tabs::-webkit-scrollbar { display: none; }
 .landing-marketing .landing-tutorial-tab {
   position: relative;
   min-height: var(--target-size);
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
   background: transparent;
   color: var(--muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
 .landing-marketing .landing-tab-icon {
-  width: auto;
-  height: auto;
-  border-radius: 0;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: var(--r-pill);
   background: transparent;
   color: currentColor;
 }
 .landing-marketing .landing-tutorial-tab:hover:not([aria-selected="true"]) {
   border-color: transparent;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface-strong) 55%, transparent);
   color: var(--ink);
 }
 .landing-marketing .landing-tutorial-tab[aria-selected="true"] {
-  border-color: transparent;
-  border-bottom-color: var(--accent);
-  background: transparent;
+  border-color: var(--seg-thumb-border);
+  background: var(--seg-thumb);
   color: var(--ink);
   font-weight: var(--weight-semibold);
-  box-shadow: none;
+  box-shadow: var(--seg-thumb-shadow);
 }
 .landing-marketing .landing-tutorial-tab[aria-selected="true"] .landing-tab-icon {
-  background: transparent;
-  color: var(--accent);
+  background: color-mix(in srgb, var(--area-icon, var(--accent)) 14%, var(--surface-soft));
+  color: var(--area-icon, var(--accent));
 }
 
-/* Painel aberto (sem cartão dentro de cartão): texto direto + captura nítida em tamanho real */
+/* Painel de área esculpido: narrativa editorial + captura em destaque */
 .landing-marketing .landing-tutorial-panel {
+  --area-panel-accent: var(--area-plan);
   grid-template-columns: minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-5);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: clamp(var(--space-5), 4vw, var(--space-7));
+  border: 1px solid color-mix(in srgb, var(--area-panel-accent) 18%, var(--border-card));
+  border-radius: var(--r-hero);
+  background:
+    radial-gradient(640px 300px at 0% 0%, color-mix(in srgb, var(--area-panel-accent) 12%, transparent), transparent 68%),
+    var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
+}
+.landing-marketing .landing-tutorial-panel[data-area="habitos"] { --area-panel-accent: var(--area-habits); }
+.landing-marketing .landing-tutorial-panel[data-area="financas"] { --area-panel-accent: var(--area-finances); }
+.landing-marketing .landing-tutorial-panel[data-area="ciclo"] { --area-panel-accent: var(--area-cycle); }
+@media (width >= 900px) {
+  .landing-marketing .landing-tutorial-panel {
+    grid-template-columns: minmax(0, .78fr) minmax(0, 1.32fr);
+    gap: var(--space-6);
+  }
 }
 .landing-area-copy {
   display: grid;
@@ -3825,60 +3899,71 @@ html:has(.landing-marketing) { overflow-x: clip; }
   gap: var(--space-3);
 }
 .landing-area-copy h3 {
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -.015em;
-  line-height: 1.25;
+  font-family: var(--font-editorial);
+  font-size: var(--text-section);
+  font-weight: var(--font-editorial-weight);
+  letter-spacing: var(--tracking-editorial);
+  line-height: var(--leading-editorial);
 }
 .landing-area-copy > p {
-  max-width: 64ch;
+  max-width: 52ch;
   margin-top: 0;
   color: var(--muted);
   font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
 }
 .landing-area-copy ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin-top: var(--space-1);
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
   padding: 0;
   border: 0;
 }
 .landing-area-copy li {
-  align-items: baseline;
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
-  padding: 0;
-  border: 0;
-  color: var(--muted);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--area-panel-accent) 14%, var(--line));
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--area-panel-accent) 5%, var(--surface-soft));
+  color: var(--ink);
   font-size: var(--text-sm);
-  font-weight: var(--weight-regular);
+  font-weight: var(--weight-medium);
 }
 .landing-area-copy li::before {
-  width: auto;
-  height: auto;
-  border-radius: 0;
-  background: transparent;
-  color: var(--accent);
-  content: "—";
-  font-weight: var(--weight-regular);
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--area-panel-accent) 16%, var(--surface-strong));
+  color: var(--area-panel-accent);
+  content: "✓";
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
   line-height: 1;
 }
 .landing-area-preview {
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-card);
   border-radius: var(--r-card);
   background: var(--surface-strong);
   box-shadow: var(--elev-2);
+  overflow: hidden;
 }
 .landing-preview-chrome {
   display: none;
 }
 .landing-area-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
   aspect-ratio: auto;
   object-fit: contain;
 }
 
-/* "Comece em um minuto": tipografia aberta direto no canvas, sem 3 cartões genéricos */
+/* "Comece em um minuto": 3 cartões bento esculpidos com medalhão editorial */
 .landing-marketing .landing-steps {
   margin-inline: 0;
   padding-inline: 0;
@@ -3889,53 +3974,52 @@ html:has(.landing-marketing) { overflow-x: clip; }
   background: transparent;
 }
 .landing-steps-grid {
-  gap: var(--space-6);
+  gap: var(--space-4);
 }
 .landing-steps-grid li {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+  .landing-steps-grid li:hover {
+    box-shadow: var(--elev-2), var(--surface-highlight);
+    transform: translateY(-2px);
+  }
 }
 .landing-steps-grid li > span {
-  display: block;
-  width: auto;
-  height: auto;
-  margin-bottom: var(--space-3);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  display: inline-grid;
+  width: var(--control-md);
+  height: var(--control-md);
+  place-items: center;
+  margin-bottom: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--p) 14%, var(--surface-soft));
   color: var(--accent);
-  font-family: var(--font-h);
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-bold);
+  font-family: var(--font-editorial);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
-  text-align: left;
 }
 .landing-steps-grid h3 {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 .landing-steps-grid p {
-  margin-top: var(--space-2);
+  margin-top: 0;
   color: var(--muted);
   font-size: var(--text-sm);
-}
-@media (width >= 900px) {
-  .landing-steps-grid {
-    gap: 0;
-  }
-  .landing-steps-grid li + li {
-    padding-inline-start: var(--space-6);
-    border-inline-start: 1px solid var(--line);
-  }
-  .landing-steps-grid li:not(:last-child) {
-    padding-inline-end: var(--space-6);
-  }
+  line-height: var(--leading-relaxed);
 }
 
-/* "Feito para dar paz": manifesto editorial em 2 colunas, sem 4 caixas com ícones coloridos */
+/* "Feito para dar paz": manifesto editorial + grade 2x2 de cartões táteis */
 .landing-marketing .landing-trust {
   padding-inline: 0;
   padding-bottom: 0;
@@ -3961,24 +4045,44 @@ html:has(.landing-marketing) { overflow-x: clip; }
   text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
   text-underline-offset: .22em;
 }
-.landing-trust-privacy a:hover {
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .landing-trust-privacy a:hover,
+  .landing-marketing .landing-text-link:hover {
+    color: var(--accent);
+  }
 }
 .landing-trust-grid {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  gap: var(--space-4);
+}
+@media (width >= 700px) {
+  .landing-trust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .landing-trust-grid article {
-  padding: var(--space-4) 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: var(--space-5);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
+  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
-.landing-trust-grid article:first-child {
-  padding-top: 0;
-  border-top: 0;
+@media (hover: hover) and (pointer: fine) {
+  .landing-trust-grid article:hover {
+    box-shadow: var(--elev-2), var(--surface-highlight);
+    transform: translateY(-2px);
+  }
+}
+.landing-trust-grid article::before {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 3px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 55%, var(--p));
 }
 .landing-marketing .landing-trust-grid h3 {
   color: var(--ink);
@@ -3986,26 +4090,27 @@ html:has(.landing-marketing) { overflow-x: clip; }
   font-weight: var(--weight-semibold);
 }
 .landing-marketing .landing-trust-grid p {
-  margin-top: var(--space-1);
+  margin-top: var(--space-2);
   color: var(--muted);
   font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
 }
 @media (width >= 900px) {
   .landing-marketing .landing-trust {
-    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+    grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
     align-items: start;
-    gap: clamp(var(--space-6), 6vw, var(--space-10));
+    gap: clamp(var(--space-6), 5vw, var(--space-9));
   }
 }
 
-/* FAQ direto no canvas com divisórias finas (sem caixa ao redor) */
+/* FAQ em cartão esculpido de porcelana */
 .landing-marketing .public-faq-list {
   gap: 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
 }
 .landing-marketing .public-faq-item {
   padding: var(--space-1) 0;
@@ -4014,6 +4119,9 @@ html:has(.landing-marketing) { overflow-x: clip; }
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+.landing-marketing .public-faq-item:last-child {
+  border-bottom: 0;
 }
 .landing-marketing .public-faq-item > summary {
   padding-inline-end: var(--space-1);
@@ -4025,14 +4133,15 @@ html:has(.landing-marketing) { overflow-x: clip; }
   box-shadow: none;
 }
 
-/* Fechamento silencioso e direto no canvas */
+/* Fechamento esculpido com luz de amanhecer */
 .landing-marketing .landing-final-cta {
-  padding: clamp(var(--space-7), 6vw, var(--space-10)) 0 var(--space-3);
-  border-inline: 0;
-  border-bottom: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: clamp(var(--space-7), 6vw, var(--space-10)) var(--space-6);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-card));
+  border-radius: var(--r-hero);
+  background:
+    radial-gradient(760px 320px at 50% 0%, color-mix(in srgb, var(--p) 24%, transparent), transparent 72%),
+    var(--surface-strong);
+  box-shadow: var(--elev-2), var(--surface-highlight);
 }
 .landing-marketing .landing-final-cta > p {
   max-width: 44ch;
@@ -4046,13 +4155,10 @@ html:has(.landing-marketing) { overflow-x: clip; }
   font-weight: var(--weight-medium);
   text-decoration-color: color-mix(in srgb, var(--ink) 28%, transparent);
 }
-.landing-marketing .landing-text-link:hover {
-  color: var(--accent);
-}
 
-/* Rodapé aberto diretamente no canvas (sem cartão branco genérico) */
+/* Rodapé aberto diretamente no canvas */
 .landing-footer {
-  width: min(100%, 1080px);
+  width: min(100%, 1120px);
   padding-inline: var(--gut-l);
 }
 .landing-footer-card {
@@ -4152,7 +4258,7 @@ html:has(.landing-marketing) { overflow-x: clip; }
    ========================================================================== */
 
 .app.demo-app .main.demo-main,
-.app.demo-app .main.demo-main[data-route="inicio"] {
+.app.demo-app .main.demo-main[data-route] {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -4163,74 +4269,95 @@ html:has(.landing-marketing) { overflow-x: clip; }
   flex-direction: column;
   gap: var(--space-5);
 }
+.demo-app .demo-screen h1 {
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-6));
+}
 
-/* Cabeçalho da demonstração no desktop: 2 linhas limpas, zero recorte nas 8 abas */
+/* Cabeçalho da demonstração no desktop: 1 linha limpa igual ao Aurora real */
 @media (width >= 900px) {
   .app.demo-app > .topbar.public-topbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    grid-template-areas:
-      "brand actions"
-      "navigation navigation";
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "brand navigation actions";
     align-items: center;
-    row-gap: var(--space-2);
+    gap: var(--space-3);
+    min-height: var(--topbar-height);
     padding-block: var(--space-2);
     border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--bg) 90%, transparent);
   }
-  .app.demo-app > .topbar.public-topbar > .brand { grid-area: brand; }
+  .app.demo-app > .topbar.public-topbar > .brand {
+    grid-area: brand;
+    justify-self: start;
+  }
   .app.demo-app > .topbar.public-topbar > .public-header-actions {
     grid-area: actions;
     justify-self: end;
+    flex-wrap: nowrap;
   }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav {
     position: static;
     grid-area: navigation;
-    display: flex;
-    width: fit-content;
+    display: inline-flex;
+    width: auto;
     max-width: 100%;
     justify-self: center;
-    justify-content: flex-start;
+    justify-content: center;
     gap: var(--space-1);
     overflow-x: auto;
     margin: 0;
     padding: var(--space-1);
     border: 1px solid var(--line);
     border-radius: var(--r-pill);
-    background: var(--surface-strong);
-    box-shadow: var(--elev-1);
+    background: var(--seg-track);
+    box-shadow: var(--btn-surface-shadow);
     scrollbar-width: none;
   }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav::-webkit-scrollbar { display: none; }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
     min-height: var(--control-sm);
     padding: var(--space-1) var(--space-3);
+    border: 1px solid transparent;
     border-radius: var(--r-pill);
     color: var(--muted);
     font-size: var(--text-meta);
-    font-weight: var(--weight-medium);
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
   }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link .ni {
-    width: var(--space-5);
-    height: var(--space-5);
+    width: var(--icon-box-sm);
+    height: var(--icon-box-sm);
     background: transparent;
   }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link:hover {
-    background: var(--surface-soft);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
     color: var(--ink);
   }
   .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link.is-current {
-    border-color: var(--line);
-    background: var(--surface-soft);
+    border-color: var(--seg-thumb-border);
+    background: var(--seg-thumb);
     color: var(--accent);
     font-weight: var(--weight-semibold);
     box-shadow: var(--seg-thumb-shadow);
   }
 }
 
+@media (900px <= width < 1200px) {
+  .demo-app .landing-header-free { display: none; }
+  .app.demo-app > .topbar.public-topbar > .nav.demo-nav .demo-nav-link {
+    padding-inline: var(--space-2);
+    gap: var(--space-1);
+  }
+}
+
 .demo-app .public-account-action {
   min-height: var(--control-sm);
   border-radius: var(--button-radius);
+  white-space: nowrap;
 }
 .demo-app .public-account-action.primary {
   border-color: transparent;
@@ -4268,16 +4395,27 @@ html:has(.landing-marketing) { overflow-x: clip; }
   .demo-app .public-brand-icon { width: var(--space-6); height: var(--space-6); }
 }
 
-/* Nota silenciosa de demonstração: sem cartão promocional gritando no topo */
+/* Selo discreto de demonstração */
 .app.demo-app .notice.sample-banner.demo-mode-strip {
-  display: flex;
+  display: inline-flex;
+  align-self: flex-start;
   align-items: center;
+  gap: var(--space-2);
+  width: auto;
+  min-height: 0;
   margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
   box-shadow: none;
+}
+.demo-app .demo-mode-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--accent);
 }
 .app.demo-app .notice.sample-banner.demo-mode-strip .sample-banner-copy {
   color: var(--muted);
@@ -4285,10 +4423,14 @@ html:has(.landing-marketing) { overflow-x: clip; }
   font-weight: var(--weight-medium);
 }
 
-/* Cabeçalho "Hoje" idêntico ao Aurora por dentro */
+/* Cabeçalho "Hoje" limpo, sem min-height herdado de 274px */
 .demo-app .home-head {
-  align-items: flex-start;
-  justify-content: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
   padding: 0 0 var(--space-4);
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -4310,10 +4452,228 @@ html:has(.landing-marketing) { overflow-x: clip; }
   color: var(--muted);
   font-size: var(--text-base);
 }
+.demo-app .demo-home-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+.demo-app .demo-home-plan-btn {
+  border-radius: var(--r-pill);
+}
+@media (width <= 480px) {
+  .demo-app .home-head {
+    padding: 0 0 var(--space-4);
+    gap: var(--space-3);
+  }
+}
 
-/* Bento limpo no desktop para a tela Hoje da demonstração */
+/* Sub-abas de Planejar (Tarefas · Plano anual · Google Agenda) */
+.demo-app .demo-subtabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--seg-track);
+}
+.demo-app .demo-subtab {
+  display: inline-flex;
+  min-height: var(--target-size);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.demo-app .demo-subtab:hover:not(.is-current) {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-strong) 55%, transparent);
+}
+.demo-app .demo-subtab.is-current {
+  border-color: var(--seg-thumb-border);
+  background: var(--seg-thumb);
+  color: var(--accent);
+  box-shadow: var(--seg-thumb-shadow);
+}
+@media (width <= 480px) {
+  .demo-app .demo-subtab {
+    padding-inline: var(--space-2);
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+}
+
+/* Cartão de Água integrado em Hábitos (fiel ao app real) */
+.demo-app .demo-water-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--card-padding);
+  border: 1px solid color-mix(in srgb, var(--area-water) 24%, var(--border-card));
+  border-radius: var(--r-card);
+  background:
+    radial-gradient(560px 240px at 0% 50%, color-mix(in srgb, var(--area-water) 14%, transparent), transparent 72%),
+    var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
+}
+.demo-app .demo-water-main {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: var(--space-2);
+}
+@media (width <= 700px) {
+  .demo-app .demo-water-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .demo-app .demo-water-actions {
+    justify-content: space-between;
+  }
+}
+.demo-app .demo-water-kicker {
+  margin: 0;
+  color: var(--area-water);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.demo-app .demo-water-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.demo-app .demo-water-amount {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-editorial);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-editorial-weight);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.demo-app .demo-water-goal {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.demo-app .demo-water-segments {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  width: min(100%, 300px);
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+.demo-app .demo-water-segments span {
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--area-water) 16%, var(--line));
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.demo-app .demo-water-segments span.is-filled {
+  background: var(--area-water);
+}
+.demo-app .demo-water-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+.demo-app .demo-water-percent {
+  color: var(--area-water);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.demo-app .demo-water-btn {
+  border-color: color-mix(in srgb, var(--area-water) 28%, var(--line));
+  border-radius: var(--r-pill);
+  background: var(--surface-strong);
+  color: var(--area-water);
+  box-shadow: var(--btn-surface-shadow);
+}
+.demo-app .demo-water-btn:hover {
+  border-color: var(--area-water);
+  background: color-mix(in srgb, var(--area-water) 8%, var(--surface-strong));
+}
+
+/* Badges de área nos cabeçalhos dos cartões */
+.demo-app .demo-area-badge {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-control);
+  background: var(--soft2);
+  color: var(--accent);
+}
+.demo-app .demo-area-badge--habits {
+  background: color-mix(in srgb, var(--area-habits) 14%, var(--surface-soft));
+  color: var(--area-habits);
+}
+.demo-app .demo-area-badge--cycle {
+  background: color-mix(in srgb, var(--area-cycle) 14%, var(--surface-soft));
+  color: var(--area-cycle);
+}
+.demo-app .demo-area-badge--plan {
+  background: color-mix(in srgb, var(--area-plan) 14%, var(--surface-soft));
+  color: var(--area-plan);
+}
+.demo-app .demo-annual-goal-box {
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+.demo-app .demo-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.demo-app .demo-panel-actions .btn {
+  width: auto;
+}
+
+/* Bento limpo para a tela Hoje da demonstração */
 .demo-app .home-primary {
   gap: var(--space-5);
+}
+.demo-app .main.demo-main .home-dashboard .home-primary > .strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: var(--space-4) var(--space-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  box-shadow: var(--elev-1), var(--surface-highlight);
+}
+.demo-app .main.demo-main .home-dashboard .home-primary > .strip > a {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  text-align: center;
+}
+.demo-app .home-primary > .home-quick-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
 }
 @media (width >= 900px) {
   .demo-app .home-primary {
@@ -4331,30 +4691,22 @@ html:has(.landing-marketing) { overflow-x: clip; }
   .app.demo-app .main.demo-main .home-dashboard .home-primary > .strip {
     grid-column: 2;
     grid-row: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: var(--space-4) var(--space-2);
-    border: 1px solid var(--line);
-    border-radius: var(--r-card);
-    background: var(--surface-strong);
-    box-shadow: var(--elev-1);
-  }
-  .app.demo-app .main.demo-main .home-dashboard .home-primary > .strip > a {
-    min-width: 0;
-    padding-inline: var(--space-2);
-    text-align: center;
   }
   .demo-app .home-primary > .home-quick-card {
     grid-column: 1 / -1;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+    gap: var(--space-6);
   }
 }
 
 .demo-app .home-habit-checkins,
 .demo-app .demo-area-panel,
 .demo-app .demo-habit-card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-card);
   border-radius: var(--r-card);
   background: var(--surface-strong);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-1), var(--surface-highlight);
 }
 .demo-app .home-today-card .task .chk {
   cursor: pointer;
@@ -4363,13 +4715,76 @@ html:has(.landing-marketing) { overflow-x: clip; }
   color: var(--muted);
 }
 
-/* Fechamento discreto da demonstração (sem caixa promocional) */
+/* Hábitos: 7 bolinhas em 1 linha limpa mesmo no celular */
+.demo-app .demo-area-single {
+  width: 100%;
+  max-width: none;
+}
+.demo-app .demo-habit-card--large {
+  padding: var(--card-padding);
+}
+.demo-app .demo-habit-card--large .demo-habit-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  max-width: 380px;
+  gap: var(--space-2);
+}
+.demo-app .demo-habit-card--large .demo-habit-week button {
+  width: 100%;
+  max-width: 44px;
+  height: auto;
+  aspect-ratio: 1;
+  min-height: 36px;
+  justify-self: center;
+}
+
+/* Finanças: cartões suaves para Entradas, Saídas e Resultado */
+.demo-app .demo-finance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.demo-app .demo-finance-summary article {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+@media (width <= 700px) {
+  .demo-app .demo-finance-summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .demo-app .demo-finance-summary article {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+  }
+}
+
+/* Ciclo: cartão de detalhes limpo */
+.demo-app .demo-cycle-detail {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+.demo-app .demo-cycle-detail h3,
+.demo-app .demo-cycle-detail p {
+  margin: 0;
+}
+
+/* Fechamento discreto da demonstração (CSS Grid: zero gap vazio no celular) */
 .demo-app .demo-cta {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-4) var(--space-6);
   width: 100%;
   padding: var(--space-5) 0 0;
   border: 0;
@@ -4379,16 +4794,16 @@ html:has(.landing-marketing) { overflow-x: clip; }
   box-shadow: none;
 }
 .demo-app .demo-cta > div:first-child {
-  flex: 1 1 20rem;
   min-width: 0;
 }
 .demo-app .demo-cta h2 {
   margin-top: var(--space-1);
   color: var(--ink);
-  font-family: var(--font-h);
+  font-family: var(--font-editorial);
   font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
+  font-weight: var(--font-editorial-weight);
   letter-spacing: var(--tracking-editorial);
+  font-variation-settings: "opsz" 28;
 }
 .demo-app .demo-cta p {
   margin-top: var(--space-1);
@@ -4404,20 +4819,36 @@ html:has(.landing-marketing) { overflow-x: clip; }
 .demo-app .demo-cta .public-actions .btn {
   border-radius: var(--button-radius);
 }
+@media (width < 900px) {
+  .demo-app .demo-cta {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .demo-app .demo-cta .public-actions {
+    width: 100%;
+  }
+}
 
-/* Barra inferior da demonstração no celular */
+/* Barra inferior da demonstração no celular: 5 áreas exatas sem corte nem rolagem */
 @media (width < 900px) {
   .demo-app .topbar .demo-nav {
-    mask-image: linear-gradient(to right, var(--ink) calc(100% - var(--space-6)), transparent);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-columns: minmax(0, 1fr);
+    justify-content: stretch;
+    overflow: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
   .demo-app .topbar .demo-nav > .demo-nav-link {
-    min-width: 74px;
-    padding: var(--space-1) var(--space-2);
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-1) var(--space-half);
     border-radius: var(--r-control);
   }
   .demo-app .topbar .demo-nav > .demo-nav-link.is-current {
-    border-color: var(--seg-thumb-border);
-    background: var(--soft);
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
     color: var(--accent);
   }
 }

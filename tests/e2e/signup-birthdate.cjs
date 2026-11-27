@@ -38,38 +38,28 @@ const check = (passed, name, detail = '') => {
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   const desktopLanding = await page.evaluate(() => {
-    const actions = [...document.querySelectorAll('.public-hero .public-actions .btn')]
+    const actions = [...document.querySelectorAll('.public-hero .landing-hero-actions a')]
       .map((button) => button.getBoundingClientRect());
-    const video = document.querySelector('.landing-tutorial-panel:not([hidden]) video').getBoundingClientRect();
+    const preview = document.querySelector('.landing-tutorial-panel:not([hidden]) picture.landing-screen-light img').getBoundingClientRect();
     return {
-      singleAction: actions.length === 1,
-      tutorialFits: video.width > 0 && video.right <= document.documentElement.clientWidth,
+      hasPrimaryAndDemo: actions.length === 2,
+      tutorialFits: preview.width > 0 && preview.right <= document.documentElement.clientWidth,
     };
   });
-  check(desktopLanding.singleAction, 'hero mantém uma única ação de demonstração');
-  check(desktopLanding.tutorialFits, 'vídeo da demonstração permanece dentro da largura no desktop');
+  check(desktopLanding.hasPrimaryAndDemo, 'hero mantém ações de cadastro e demonstração');
+  check(desktopLanding.tutorialFits, 'prévia da demonstração permanece dentro da largura no desktop');
   await page.setViewportSize({ width: 320, height: 780 });
   check(
     await page.locator('.public-account-section, .public-account-access').count() === 0,
     'convite final redundante foi removido da landing',
   );
-  check(
-    await page.locator('#landing-main').evaluate((main) => {
-      const faq = main.querySelector('.public-faq');
-      const suggestion = main.querySelector('[data-suggestion-disclosure]');
-      return faq?.querySelectorAll('.public-faq-item').length === 5
-        && suggestion?.open === false
-        && Boolean(suggestion?.closest('.public-community'));
-    }),
-    'sugestão fica recolhida junto ao convite de feedback, fora da FAQ',
-  );
   const heroSignup = page.locator('.public-topbar [data-public-action="signup"]');
   check(
-    await heroSignup.count() === 1 && !await heroSignup.evaluate((button) => button.classList.contains('primary')),
-    'cadastro permanece disponível no cabeçalho sem competir com a demonstração',
+    await heroSignup.count() === 1 && await heroSignup.evaluate((button) => button.classList.contains('primary')),
+    'cadastro permanece disponível e em destaque no cabeçalho',
   );
-  check(await page.locator('.public-faq-item').count() === 5,
-    'FAQ da landing apresenta cinco respostas essenciais');
+  check(await page.locator('.public-faq-item').count() === 6,
+    'FAQ da landing apresenta seis respostas essenciais');
   await page.getByRole('link', { name: /criar conta/i }).first().click();
   await page.locator('.account-form[data-account-mode="signup-profile"]').waitFor();
   check(await page.getByRole('button', { name: 'Criar conta com Google' }).count() === 1, 'cadastro oferece opção visível para criar conta com Google');

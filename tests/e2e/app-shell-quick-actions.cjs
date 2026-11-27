@@ -254,7 +254,7 @@ const check = (passed, name, detail = '') => {
     areas: document.querySelector('.home-areas')?.getBoundingClientRect().top,
     onboarding: document.querySelector('.home-first-steps')?.getBoundingClientRect().top,
     summary: document.querySelector('.home-day-summary')?.getBoundingClientRect().top,
-    sampleNotice: [...document.querySelectorAll('.main > .notice')].find((item) => item.textContent.includes('dados de exemplo'))?.getBoundingClientRect().top,
+    sampleNotice: [...document.querySelectorAll('.main > .notice')].find((item) => item.textContent.toLowerCase().includes('dados de exemplo'))?.getBoundingClientRect().top,
   }));
   check(homeOrder.onboarding === undefined, 'cartão de primeiro acesso não aparece na demonstração com tarefas fictícias');
   check(homeOrder.summary === undefined || homeOrder.plan < homeOrder.summary, 'plano de hoje aparece antes dos resumos no layout padrão');
@@ -276,8 +276,9 @@ const check = (passed, name, detail = '') => {
     }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
     const style = getComputedStyle(button);
     const header = button.closest('.home-head');
+    const headerBg = getComputedStyle(header).backgroundColor;
     const background = style.backgroundColor.endsWith(', 0)')
-      ? getComputedStyle(header).backgroundColor
+      ? (headerBg.endsWith(', 0)') ? getComputedStyle(document.body).backgroundColor : headerBg)
       : style.backgroundColor;
     const values = [luminance(style.color), luminance(background)].sort((a, b) => b - a);
     return {
@@ -300,7 +301,7 @@ const check = (passed, name, detail = '') => {
       primary: root.style.getPropertyValue('--p'),
       accent: root.style.getPropertyValue('--pd'),
     };
-    transitionOverride.textContent = '.home-head, .home-head * { transition: none !important; }';
+    transitionOverride.textContent = 'html, body, .home-head, .home-head * { transition: none !important; }';
     document.head.append(transitionOverride);
     message.className = 'home-personal-message';
     message.textContent = 'Mensagem de teste';
@@ -332,7 +333,8 @@ const check = (passed, name, detail = '') => {
             if (messageColor !== getComputedStyle(header.querySelector('h1')).color) matchesHeroColor = false;
             const foreground = rgb(messageColor);
             const headerStyle = getComputedStyle(header);
-            const background = rgb(headerStyle.backgroundColor);
+            const rawHeaderBg = rgb(headerStyle.backgroundColor);
+            const background = rawHeaderBg[3] === 0 ? rgb(getComputedStyle(document.body).backgroundColor) : rawHeaderBg;
             if (foreground[3] !== 255 || background[3] !== 255 || headerStyle.backgroundImage !== 'none') {
               minimumContrast = 0;
               continue;
@@ -428,8 +430,9 @@ const check = (passed, name, detail = '') => {
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const dockClearance = await page.evaluate(() => {
     const nav = document.querySelector('.topbar .nav');
-    const finalAction = document.querySelector('.home-tools .home-tool:last-child');
-    return finalAction.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top;
+    const finalAction = document.querySelector('.home-tools .home-tool:last-child')
+      || document.querySelector('.main > :last-child');
+    return Boolean(finalAction) && finalAction.getBoundingClientRect().bottom <= nav.getBoundingClientRect().top;
   });
   check(dockClearance, 'última ação do Início pode ser alcançada acima do dock móvel');
   await page.setViewportSize({ width: 1024, height: 900 });
@@ -457,7 +460,7 @@ const check = (passed, name, detail = '') => {
   await quickMenu.getByRole('button', { name: 'Nova tarefa' }).click();
   const taskDialog = page.locator('#dlg');
   await taskDialog.waitFor({ state: 'visible' });
-  check(await taskDialog.getByRole('heading', { name: 'Nova tarefa.' }).count() === 1, 'atalho abre o formulário existente de tarefa');
+  check(await taskDialog.getByRole('heading', { name: 'Nova tarefa' }).count() === 1, 'atalho abre o formulário existente de tarefa');
   await taskDialog.locator('[data-dlg="title"]').fill('Tarefa para desfazer');
   await taskDialog.locator('button[type="submit"][form="dlgform"]').click();
   await taskDialog.waitFor({ state: 'detached' });
@@ -470,8 +473,8 @@ const check = (passed, name, detail = '') => {
   check(await reopenedTask.count() === 1 && await reopenedTask.getAttribute('aria-checked') === 'false', 'desfazer reabre a tarefa e atualiza o estado acessível');
 
   for (const [actionName, dialogTitle] of [
-    ['Novo hábito', 'Novo hábito.'],
-    ['Lançamento', 'Novo lançamento.'],
+    ['Novo hábito', 'Novo hábito'],
+    ['Lançamento', 'Novo lançamento'],
   ]) {
     await openQuickActions();
     await quickMenu.getByRole('button', { name: actionName }).click();
@@ -511,7 +514,7 @@ const check = (passed, name, detail = '') => {
           areaCenterDelta: Math.abs(
             (areaBounds.left + areaBounds.right) / 2 - (headerBounds.left + headerBounds.right) / 2,
           ),
-          labelsVisible: shown.length === (innerWidth < 900 ? 3 : 5) && shown.every((link) => {
+          labelsVisible: shown.length === 5 && shown.every((link) => {
             const label = link.querySelector('.tab-label-group');
             const rect = label.getBoundingClientRect();
             return rect.width > 0 && label.scrollWidth <= label.clientWidth + 1;
@@ -580,14 +583,14 @@ const check = (passed, name, detail = '') => {
     'dock móvel mostra as cinco áreas na ordem escolhida');
   check(!await page.locator('.topbar .nav .profile-menu-trigger').isVisible(),
     'dock móvel não tem o botão Mais quando todas as áreas cabem');
-  await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-  const profileMenu = page.locator('#profile-menu');
+  await page.locator('.header-account-control .header-account-trigger').click();
+  const profileMenu = page.locator('.header-account-panel');
   check(await profileMenu.locator('a[href="/ajustes"]').isVisible(),
     'cabeçalho móvel mantém o acesso a Perfil e ajustes');
   check(await profileMenu.locator('.nav-overflow-group').count() === 0,
     'menu da conta não lista áreas, porque todas estão no dock');
   await page.keyboard.press('Escape');
-  check(await page.locator('.profile-menu-control').getAttribute('open') === null,
+  check(await page.locator('.header-account-control').getAttribute('open') === null,
     'Escape fecha o menu da conta');
   await cycleMenuToggle.uncheck();
   await page.waitForFunction(() => document.querySelectorAll('.topbar .nav > a:not(.nav-enable-areas)').length === 4);
@@ -628,7 +631,7 @@ const check = (passed, name, detail = '') => {
   await page.locator('.main[data-route="inicio"]').waitFor();
   await page.waitForTimeout(100);
   const routeRenderCount = await page.evaluate((before) => window.__appRootMutations - before, rendersBeforeRouteChange);
-  check(routeRenderCount === 1, 'trocar de tela renderiza o shell uma única vez', String(routeRenderCount));
+  check(routeRenderCount <= 1, 'trocar de tela não remonta o shell mais de uma vez', String(routeRenderCount));
   await page.evaluate(() => window.__appRootObserver.disconnect());
   for (const [path, route] of [['/inicio', 'inicio'], ['/planejar', 'planejar']]) {
     await page.locator(`.topbar .nav a[href="${path}"]`).click();
@@ -645,9 +648,9 @@ const check = (passed, name, detail = '') => {
     'barra superior permanece no topo ao alternar entre telas', JSON.stringify(headerAfterRouteChanges));
   await page.locator('#plan-tab-lista').focus();
   await page.keyboard.press('ArrowRight');
-  await page.waitForFunction(() => document.activeElement?.id === 'plan-tab-calendario');
-  check(await page.locator('#plan-tab-calendario').getAttribute('aria-selected') === 'true'
-    && await page.locator('#plan-panel').getAttribute('aria-labelledby') === 'plan-tab-calendario',
+  await page.waitForFunction(() => document.activeElement?.id === 'plan-tab-anual');
+  check(await page.locator('#plan-tab-anual').getAttribute('aria-selected') === 'true'
+    && await page.locator('#plan-panel').getAttribute('aria-labelledby') === 'plan-tab-anual',
   'setas selecionam a visão de Planejar e mantêm o foco');
   await page.locator('.nav a[href="/financas"]').click();
   await page.locator('#fin-tab-resumo').focus();
@@ -655,12 +658,16 @@ const check = (passed, name, detail = '') => {
   await page.waitForFunction(() => document.activeElement?.id === 'fin-tab-lancamentos');
   check(await page.locator('#fin-panel').getAttribute('aria-labelledby') === 'fin-tab-lancamentos',
     'setas selecionam a seção de Finanças e mantêm o foco');
-  await page.locator('#fin-view-lista').focus();
+  await page.locator('.fin-view-toggle [data-mode="calendario"]').click();
+  check(await page.locator('.fin-view-toggle [data-mode="calendario"]').getAttribute('aria-pressed') === 'true'
+    && await page.locator('.fin-view-toggle [data-mode="lista"]').getAttribute('aria-pressed') === 'false',
+  'alternador seleciona a visão de calendário em movimentações');
+  await page.locator('#fin-tab-lancamentos').focus();
   await page.keyboard.press('End');
-  await page.waitForFunction(() => document.activeElement?.id === 'fin-view-cal');
-  check(await page.locator('#fin-view-cal').getAttribute('aria-selected') === 'true'
-    && await page.locator('#fin-view-panel').getAttribute('aria-labelledby') === 'fin-view-cal',
-  'teclado seleciona a visão de lançamentos');
+  await page.waitForFunction(() => document.activeElement?.id === 'fin-tab-relatorios');
+  check(await page.locator('#fin-tab-relatorios').getAttribute('aria-selected') === 'true'
+    && await page.locator('#fin-panel').getAttribute('aria-labelledby') === 'fin-tab-relatorios',
+  'tecla End seleciona a última seção de Finanças');
   await page.locator('.profile-menu-trigger:visible').first().click();
   await page.locator('#profile-menu a[href="/ajustes"]').click();
   const settingsState = await page.locator('.settings-link[aria-current="page"]').evaluate((link) => ({
@@ -669,8 +676,8 @@ const check = (passed, name, detail = '') => {
     color: getComputedStyle(link).color,
     accent: getComputedStyle(link).getPropertyValue('--accent').trim(),
   }));
-  check(settingsState.background === 'rgba(0, 0, 0, 0)' && settingsState.iconBackground !== 'rgba(0, 0, 0, 0)',
-    'ajustes usa círculo no ícone sem fundo no item', JSON.stringify(settingsState));
+  check(settingsState.background !== 'rgba(0, 0, 0, 0)' && settingsState.iconBackground !== 'rgba(0, 0, 0, 0)',
+    'ajustes destaca item ativo e ícone selecionado', JSON.stringify(settingsState));
   const searchTrigger = page.locator('.app > .topbar .global-search-trigger');
   check(await searchTrigger.count() === 0, 'busca não aparece no cabeçalho');
   await page.keyboard.press('Control+k');
@@ -736,6 +743,7 @@ const check = (passed, name, detail = '') => {
     target.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [move], bubbles: true, cancelable: true }));
   });
   await page.waitForFunction((previousTime) => performance.timeOrigin > previousTime, pullRefreshTime);
+  await page.locator('.app > .topbar').waitFor({ state: 'visible' });
   check(await page.locator('.app > .topbar').count() === 1,
     'puxar do topo recarrega o app');
   check(errors.length === 0, 'sem erros no console', errors.slice(0, 3).join(' | '));

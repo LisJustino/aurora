@@ -221,47 +221,47 @@ async function main() {
     }
 
     const endpoint = `${request.method()} ${requestUrl.pathname}`;
-    if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
-      if ((homeFixtures || habitFixtures) && requestUrl.pathname === '/rest/v1/user_settings') {
+    const relationalTableRows = (table) => {
+      if ((homeFixtures || habitFixtures) && table === 'user_settings') {
         const preferences = {
           ...(homeOnboardingComplete ? { onboardingComplete: true, introSeen: true } : {}),
           ...(dismissedHomeFirstSteps ? { firstStepsDismissed: true } : {}),
         };
-        return jsonResponse(route, 200, [{ enabled_areas: { habits: true }, preferences }], corsOrigin);
+        return [{ enabled_areas: { habits: true }, preferences }];
       }
-      if (homeFixtures && requestUrl.pathname === '/rest/v1/tasks') {
-        if (emptyHomeTasks) return jsonResponse(route, 200, [], corsOrigin);
+      if (homeFixtures && table === 'tasks') {
+        if (emptyHomeTasks) return [];
         const now = new Date();
         const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        return jsonResponse(route, 200, [{
+        return [{
           id: '00000000-0000-4000-8000-000000000201', title: 'Tarefa concluída',
           is_completed: true, due_date: day, completed_at: now.toISOString(),
           priority: 'normal', sort_order: 1, focus_seconds: 0,
-        }], corsOrigin);
+        }];
       }
-      if (habitFixtures && requestUrl.pathname === '/rest/v1/habits') {
-        return jsonResponse(route, 200, [{
+      if (habitFixtures && table === 'habits') {
+        return [{
           id: '00000000-0000-4000-8000-000000000202', name: 'Hábito teste',
           scheduled_days: [0, 1, 2, 3, 4, 5, 6], status: 'active',
-        }], corsOrigin);
+        }];
       }
-      if (manyTransactions && requestUrl.pathname === '/rest/v1/user_settings') {
-        return jsonResponse(route, 200, [{
+      if (manyTransactions && table === 'user_settings') {
+        return [{
           enabled_areas: { finances: true },
           preferences: { financeValuesHidden },
-        }], corsOrigin);
+        }];
       }
-      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_accounts') {
-        return jsonResponse(route, 200, [{
+      if (manyTransactions && table === 'finance_accounts') {
+        return [{
           id: '00000000-0000-4000-8000-000000000101', name: 'Conta teste',
           account_type: 'checking', initial_cents: 0, bank: null,
           limit_cents: null, closing_day: null, due_day: null,
-        }], corsOrigin);
+        }];
       }
-      if (manyTransactions && requestUrl.pathname === '/rest/v1/finance_transactions') {
+      if (manyTransactions && table === 'finance_transactions') {
         const now = new Date();
         const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-        const rows = Array.from({ length: 23 }, (_, index) => ({
+        return Array.from({ length: 23 }, (_, index) => ({
           id: `00000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
           transaction_type: 'out',
           account_id: '00000000-0000-4000-8000-000000000101',
@@ -270,10 +270,9 @@ async function main() {
           is_paid: true,
           description: `Lançamento teste ${String(index + 1).padStart(2, '0')}`,
         }));
-        return jsonResponse(route, 200, rows, corsOrigin);
       }
-      if (manyTasks && requestUrl.pathname === '/rest/v1/tasks') {
-        const rows = Array.from({ length: 23 }, (_, index) => ({
+      if (manyTasks && table === 'tasks') {
+        return Array.from({ length: 23 }, (_, index) => ({
           id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
           title: `Tarefa de teste ${String(index + 1).padStart(2, '0')}`,
           is_completed: false,
@@ -283,9 +282,30 @@ async function main() {
           focus_seconds: 0,
           task_created_at: '2026-01-01T12:00:00.000Z',
         }));
-        return jsonResponse(route, 200, rows, corsOrigin);
       }
-      return jsonResponse(route, 200, [], corsOrigin);
+      return [];
+    };
+    const RELATIONAL_TABLES = [
+      'profiles', 'user_settings', 'task_lists', 'tags', 'tasks', 'subtasks',
+      'task_tag_assignments', 'weekly_reflections', 'daily_checkins', 'habits',
+      'habit_logs', 'water_logs', 'gym_templates', 'gym_template_exercises',
+      'gym_logs', 'finance_accounts', 'finance_recurrences', 'finance_transactions',
+      'finance_budgets', 'finance_goals', 'cycle_periods', 'cycle_days',
+      'weight_logs', 'trash_records',
+    ];
+    if (endpoint === 'POST /rest/v1/rpc/load_relational_account') {
+      const snapshot = Object.fromEntries(RELATIONAL_TABLES.map((table) => [
+        table,
+        simulateRelational ? relationalTableRows(table) : [],
+      ]));
+      return jsonResponse(route, 200, snapshot, corsOrigin);
+    }
+    if (endpoint === 'POST /functions/v1/google-calendar') {
+      return jsonResponse(route, 200, { connections: [], events: [] }, corsOrigin);
+    }
+    if (simulateRelational && request.method() === 'GET' && requestUrl.pathname.startsWith('/rest/v1/')) {
+      const table = requestUrl.pathname.slice('/rest/v1/'.length);
+      return jsonResponse(route, 200, relationalTableRows(table), corsOrigin);
     }
     if (endpoint === 'POST /rest/v1/rpc/apply_relational_changes') {
       const { p_changes: changes } = request.postDataJSON();
@@ -460,8 +480,8 @@ async function main() {
       birthday_day: 1,
       birthday_reference_date: '2026-01-01',
       terms_accepted_at: '2026-01-01T00:00:00.000Z',
-      terms_version: '1.9',
-      privacy_policy_version: '2.0',
+      terms_version: '2.0',
+      privacy_policy_version: '2.3',
     };
     simulateRelational = true;
     for (const destination of ['/financas', '/inicio', '/planejar', '/habitos']) {
@@ -522,11 +542,11 @@ async function main() {
         if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
           await page.locator('#dlg [data-action="dlg-close"]').first().click();
         }
-        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-        await page.locator('#profile-menu a[href="/ajustes"]').waitFor({ state: 'visible' });
-        const signout = page.locator('#profile-menu [data-account-signout]');
+        await page.locator('.header-account-control .header-account-trigger').click();
+        await page.locator('.header-account-panel a[href="/ajustes"]').waitFor({ state: 'visible' });
+        const signout = page.locator('.header-account-panel [data-account-signout]');
         await signout.waitFor({ state: 'visible' });
-        const profileMenuAlignment = await page.locator('#profile-menu').evaluate((menu) => {
+        const profileMenuAlignment = await page.locator('.header-account-panel').evaluate((menu) => {
           const menuBounds = menu.getBoundingClientRect();
           const signoutBounds = menu.querySelector('[data-account-signout]').getBoundingClientRect();
           return {
@@ -540,13 +560,13 @@ async function main() {
           && profileMenuAlignment.signoutRight <= profileMenuAlignment.menuRight,
         'botão Sair da conta deve ficar alinhado dentro do menu');
         await page.keyboard.press('Escape');
-        assert.equal(await page.locator('.mobile-profile-menu').getAttribute('open'), null,
+        assert.equal(await page.locator('.header-account-control').getAttribute('open'), null,
           'menu da conta fecha ao pressionar Escape');
-        await page.locator('.mobile-profile-menu .profile-menu-trigger').click();
-        await page.locator('#profile-menu a[href="/ajustes"]').click();
+        await page.locator('.header-account-control .header-account-trigger').click();
+        await page.locator('.header-account-panel a[href="/ajustes"]').click();
         await page.locator('.settings-mobile-trigger').click();
         await page.locator('.settings-link[data-settings-tab="account"]').click();
-        await page.locator('.account-session-card [data-account-signout]').waitFor({ state: 'visible' });
+        await page.locator('.account-session-card .account-session-email').waitFor({ state: 'visible' });
         await page.locator('.nav a[href="/inicio"]').click();
         await page.locator('.main[data-route="inicio"]').waitFor({ state: 'visible' });
         const firstSteps = page.locator('.home-first-steps');
@@ -557,7 +577,7 @@ async function main() {
           'cartão continua oculto após renderização quando já existem tarefas');
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         const completed = page.locator('.home-completed');
-        await completed.locator('summary').evaluate((element) => element.click());
+        await completed.locator('summary').first().evaluate((element) => element.click());
         await page.locator('.nav-quick-trigger').evaluate((element) => element.click());
         assert.equal(await completed.evaluate((element) => element.open), true,
           'Tarefas concluídas deve permanecer aberto após renderização');
@@ -612,7 +632,10 @@ async function main() {
                 return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
               }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
               const foreground = luminance(color(getComputedStyle(title).color));
-              const background = luminance(color(getComputedStyle(hero).backgroundColor));
+              const heroBg = getComputedStyle(hero).backgroundColor;
+              const background = luminance(color(
+                heroBg === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.body).backgroundColor : heroBg,
+              ));
               const stepForeground = luminance(color(getComputedStyle(onboardingText).color));
               const stepBackground = luminance(color(getComputedStyle(onboardingAction).backgroundColor));
               const cardBackground = luminance(color(getComputedStyle(onboarding).backgroundColor));
@@ -689,16 +712,21 @@ async function main() {
         assert.equal(await visibilityButton.getAttribute('aria-label'), 'Mostrar valores financeiros');
         await page.addInitScript(() => {
           window.__financeValueFlash = [];
-          const observer = new MutationObserver(() => {
-            const amounts = [...document.querySelectorAll('.main[data-route="financas"] .money')];
-            const visible = amounts.filter((amount) => /\d/.test(amount.textContent || ''));
-            if (visible.length) window.__financeValueFlash.push(visible.map((amount) => amount.textContent));
-          });
-          observer.observe(document.documentElement, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-          });
+          const attach = () => {
+            if (!document.documentElement) return;
+            const observer = new MutationObserver(() => {
+              const amounts = [...document.querySelectorAll('.main[data-route="financas"] .money')];
+              const visible = amounts.filter((amount) => /\d/.test(amount.textContent || ''));
+              if (visible.length) window.__financeValueFlash.push(visible.map((amount) => amount.textContent));
+            });
+            observer.observe(document.documentElement, {
+              childList: true,
+              subtree: true,
+              characterData: true,
+            });
+          };
+          if (document.documentElement) attach();
+          else document.addEventListener('DOMContentLoaded', attach, { once: true });
         });
         await page.reload();
         await visibilityButton.waitFor({ state: 'visible' });
@@ -741,6 +769,10 @@ async function main() {
       } else {
         const habit = page.locator('.habit-row').filter({ hasText: 'Hábito teste' });
         await habit.waitFor();
+        if (await page.locator('#dlg[data-dialog-type="release-notes"]').count()) {
+          await page.locator('#dlg [data-action="dlg-close"]').first().click();
+          await page.locator('#dlg[data-dialog-type="release-notes"]').waitFor({ state: 'detached' });
+        }
         await page.locator('.habit-tab[data-t="historico"]').click();
         const month = page.locator('.habit-month');
         await month.waitFor();
@@ -823,6 +855,7 @@ async function main() {
     await page.goto(BASE);
 
     await page.evaluate(async () => {
+      await import('/src/css/pages/account-auth.css');
       const { requireAccount } = await import('/src/js/services/account-auth.js');
       window.startAuthFlow = (mode) => {
         window.authFlowDone = false;

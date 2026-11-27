@@ -91,16 +91,16 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
       const originalTitle = await title.elementHandle();
       assert.equal(await landingPage.locator('.public-main').evaluate((main) => getComputedStyle(main).animationName), 'none');
       releaseScripts();
-      const task = landingPage.locator('[data-landing-task]').last();
+      const tab = landingPage.locator('[data-landing-tutorial-tab="tarefas"]');
       await landingPage.waitForFunction(() => document.documentElement.dataset.theme === 'light'
         && document.querySelector('[data-public-control="theme-cycle"]')?.getAttribute('aria-label') === 'Alternar para tema escuro');
       assert.equal(await title.evaluate((element, original) => element === original, originalTitle), true, 'o título pré-renderizado deve ser preservado');
-      await task.click();
-      assert.equal(await task.getAttribute('aria-pressed'), 'true', 'a landing hidratada deve continuar interativa');
+      await tab.click();
+      assert.equal(await tab.getAttribute('aria-selected'), 'true', 'a landing hidratada deve continuar interativa');
       await landingPage.close();
     }
-    const appHtml = await (await fetch(`${BASE}/pages/inicio.html`)).text();
-    const fullCss = appHtml.match(/href="([^"]*main-[^"]*\.css)"/)?.[1];
+    const fullCssFile = readdirSync(assets).find((file) => /^main-.*\.css$/.test(file));
+    const fullCss = fullCssFile ? `/assets/${fullCssFile}` : null;
     assert.ok(fullCss, 'o build deve fornecer a folha completa da aplicação');
     const cssPage = await browser.newPage({ serviceWorkers: 'block' });
     const cssRequests = [];
@@ -154,6 +154,8 @@ assert.equal(sdkChunks.length, 1, 'o build deve separar o SDK Supabase em um ún
     await failurePage.close();
     const offlineContext = await browser.newContext();
     const offlinePage = await offlineContext.newPage();
+    offlinePage.on('console', (msg) => console.log('OFFLINE PAGE LOG:', msg.text()));
+    offlinePage.on('pageerror', (err) => console.log('OFFLINE PAGE ERROR:', err));
     await offlinePage.goto(BASE, { waitUntil: 'load' });
     await offlinePage.waitForFunction(async (href) => Boolean(navigator.serviceWorker.controller)
       && Boolean(await caches.match(new URL(href, location.origin).href)), fullCss);

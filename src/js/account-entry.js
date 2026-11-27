@@ -40,7 +40,6 @@ function scheduleAppPreload() {
   let idleId = 0;
   const warm = () => {
     if (cancelled || navigator.onLine === false) return;
-    void import('./main.js').catch(() => {});
     void import('./data/relational-account-store.js').catch(() => {});
   };
   if (typeof window.requestIdleCallback === 'function') {

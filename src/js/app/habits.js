@@ -235,11 +235,19 @@ export function habitWaterTracker(habit) {
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
   const percent = target ? Math.min(100, Math.round((total / target) * 100)) : 0;
-  return h`<section class="water-tracker" style="--hc:${habitColor(habit)}" aria-label="Acompanhamento de água">
+  const cupCount = 8;
+  const filledCups = target ? Math.min(cupCount, Math.round((total / target) * cupCount)) : 0;
+  const cups = Array.from(
+    { length: cupCount },
+    (_, index) => h`<span class="water-cup${index < filledCups ? ' is-filled' : ''}"></span>`,
+  );
+  return h`<section class="water-tracker" style="--hc:${habitColor(habit)};--water-pct:${percent}%" aria-label="Acompanhamento de água">
     <div class="water-tracker-head">
-      <div class="water-tracker-summary"><b>${habit.name}</b><span>${total.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div>
+      <div class="water-tracker-summary"><span class="section-kicker">${habit.name}</span><div
+        class="water-tracker-metric"><b class="water-tracker-value">${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div></div>
       <span class="water-tracker-pct" aria-hidden="true">${percent}%</span>
     </div>
+    <div class="water-tracker-cups" aria-hidden="true">${cups}</div>
     <progress value="${Math.min(total, target)}" max="${target}"
       aria-label="Progresso da meta diária de água"></progress>
     ${waterQuickControls(habit)}
@@ -251,15 +259,25 @@ function waterSummary() {
   const target = waterGoalForHabit(habit, S.settings.prefs.waterGoalMl);
   const remaining = Math.max(0, target - total);
   const percent = target ? Math.min(100, Math.round((total / target) * 100)) : 0;
-  return h`<section class="water-tracker water-tracker--quick" style="--hc:var(--area-water)"
+  const cupCount = 8;
+  const filledCups = target ? Math.min(cupCount, Math.round((total / target) * cupCount)) : 0;
+  const cups = Array.from(
+    { length: cupCount },
+    (_, index) => h`<span class="water-cup${index < filledCups ? ' is-filled' : ''}"></span>`,
+  );
+  return h`<section class="water-tracker water-tracker--quick" style="--hc:var(--area-water);--water-pct:${percent}%"
     aria-label="Acompanhamento de água">
-    <div class="water-tracker-head">
-      <div class="water-tracker-summary"><b>Água</b><span>${total.toLocaleString('pt-BR')} de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div>
-      <span class="water-tracker-pct" aria-hidden="true">${percent}%</span>
+    <div class="water-tracker-content">
+      <div class="water-tracker-head">
+        <div class="water-tracker-summary"><span class="section-kicker">Água</span><div
+          class="water-tracker-metric"><b class="water-tracker-value">${total.toLocaleString('pt-BR')} mL</b><span>de ${target.toLocaleString('pt-BR')} mL${remaining ? ` · faltam ${remaining.toLocaleString('pt-BR')} mL` : ' · meta atingida'}</span></div></div>
+        <span class="water-tracker-pct" aria-hidden="true">${percent}%</span>
+      </div>
+      <div class="water-tracker-cups" aria-hidden="true">${cups}</div>
+      <progress value="${Math.min(total, target)}" max="${target}"
+        aria-label="Progresso da meta diária de água"></progress>
     </div>
-    <progress value="${Math.min(total, target)}" max="${target}"
-      aria-label="Progresso da meta diária de água"></progress>
-    <button type="button" class="btn sm" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
+    <button type="button" class="btn sm water-tracker-action" data-action="quick-action-water">${icon('water', 16)}Registrar 250 mL</button>
   </section>`;
 }
 export function habitRow(habit) {

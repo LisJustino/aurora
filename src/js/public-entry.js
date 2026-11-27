@@ -12,6 +12,7 @@ import {
   handlePublicKeydown,
 } from './features/appearance/public-controls.js';
 import { renderLanding } from './features/landing/view.js';
+import { renderLandingDemo, stopLandingDemo } from './features/landing/demo.js';
 import { initializeLegalDialogEvents } from './features/footer/legal-dialog.js';
 import { normalizeSuggestionMessage } from './features/footer/suggestions.js';
 import { showPwaInstallPrompt, startPwaInstallPrompt } from './services/pwa-install.js';
@@ -320,8 +321,8 @@ if (
       mobileCtaCleanup();
       root.setAttribute('aria-busy', 'true');
       const requestedPath = renderedPublicPath;
-      void Promise.all([import('../css/main.css'), import('./features/landing/demo.js')])
-        .then(([, { renderLandingDemo, stopLandingDemo }]) => {
+      void import('../css/main.css')
+        .then(() => {
           stopLoadedDemo = stopLandingDemo;
           if (`${location.pathname}${location.search}` !== requestedPath || !isDemoLocation(location)) return;
           renderLandingDemo(root);

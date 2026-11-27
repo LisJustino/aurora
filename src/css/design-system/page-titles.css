@@ -4,16 +4,25 @@
   min-height: 0;
   align-items: flex-end;
   gap: var(--space-4);
-  padding: var(--space-2) 0 var(--space-4);
+  padding: var(--space-2) 0 var(--space-3);
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid transparent;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
+:root[data-contrast="high"] .main > .page-title {
+  border-bottom-color: var(--line-strong);
+}
+
 .main > .page-title::after {
-  display: none;
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--area, var(--accent)) 22%, var(--line)), transparent 78%);
+  pointer-events: none;
 }
 
 .main > .page-title .page-title-copy {

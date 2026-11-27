@@ -21,7 +21,7 @@ const check = (passed, name, detail = '') => {
   const offlinePage = await page.goto(`${BASE}/offline.html`);
   check(offlinePage?.status() === 200, '/offline.html responde HTTP 200');
   for (const [colorScheme, expectedBackground] of [
-    ['light', 'rgb(247, 240, 234)'],
+    ['light', 'rgb(235, 229, 220)'],
     ['dark', 'rgb(28, 27, 25)'],
   ]) {
     await page.emulateMedia({ colorScheme });

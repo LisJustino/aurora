@@ -8,7 +8,7 @@ const dateLabel = new Intl.DateTimeFormat('pt-BR', {
 const greeting = now.getHours() < 12 ? 'Bom dia' : now.getHours() < 18 ? 'Boa tarde' : 'Boa noite';
 
 document.querySelector('[data-preview-date]').textContent = dateLabel.replace(/^./, (letter) => letter.toUpperCase());
-document.querySelector('[data-preview-greeting]').textContent = `${greeting}, Marina.`;
+document.querySelector('[data-preview-greeting]').textContent = `${greeting}, Elisa.`;
 
 themeToggle.addEventListener('click', () => {
   const isDark = document.documentElement.dataset.theme !== 'dark';

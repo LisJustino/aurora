@@ -1,14 +1,11 @@
 /* Identidade por área: cada página ganha a cor da sua área (--area) em poucos pontos, sem trocar a base neutra. */
-.main[data-route] > .page-title {
-  border-bottom-color: color-mix(in srgb, var(--area, var(--accent)) 22%, var(--line));
-}
 .main[data-route] > .page-title .page-title-eyebrow { color: var(--area, var(--accent)); }
 .main[data-route] > .page-title h1 i { color: var(--area, var(--accent)); }
 
-/* Um destaque por tela: o bloco principal de Finanças preserva superfície limpa e nítida. */
+/* Um destaque por tela: o bloco principal de Finanças preserva superfície limpa com brilho sutil da área. */
 .main[data-route="financas"] .fin-hero {
-  background: var(--surface-strong);
-  border-color: var(--line);
+  background-color: var(--surface-strong);
+  border-color: color-mix(in srgb, var(--area-finances) 18%, var(--border-card));
 }
 
 /* Valores monetários nunca quebram no meio. */

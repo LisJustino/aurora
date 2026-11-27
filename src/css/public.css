@@ -11,6 +11,7 @@
 @import url("./components/navigation-responsive.css");
 @import url("./components/responsive.css");
 @import url("./design-system/buttons.css");
+@import url("./design-system/menus.css");
 @import url("./design-system/feedback.css");
 @import url("./design-system/touch.css");
 @import url("./pages/loading.css");

@@ -118,12 +118,6 @@ html[data-scroll-locked="true"] .public-site > .public-topbar {
   transform: translate(var(--scroll-lock-offset-x), var(--scroll-lock-offset-y));
 }
 
-@media (width > 700px) {
-  html[data-scroll-locked="true"] .app > .topbar {
-    transform: translate(var(--scroll-lock-offset-x), 0);
-  }
-}
-
 .topbar .nav a {
   transition: color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), transform var(--duration-base) var(--ease-standard);
 }

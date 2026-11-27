@@ -19,26 +19,26 @@ const check = (passed, name, detail = '') => {
   await page.goto(`${BASE}/?preview#planejar`);
   await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
   check(await page.locator('.weekly-review').count() === 1
-    && await page.locator('.weekly-review-hero').getByText('Sua semana.').count() === 1
+    && await page.locator('.weekly-review-hero').getByText('Sua semana').count() === 1
     && await page.locator('.weekly-review .review-stats .stat').count() === 4
     && await page.locator('#weekly-overdue-title').count() === 1
     && await page.locator('#weekly-next-title').count() === 1
-    && await page.locator('.weekly-review textarea').count() === 0,
-  'revisão mostra o período, pendências, atrasos e tarefas da próxima semana');
+    && await page.locator('#weekly-reflection-text').count() === 1,
+  'revisão mostra o período, pendências, atrasos, próxima semana e reflexão livre');
   check(await page.locator('.weekly-review').getByText(/Ciclo|Finanças|peso/i).count() === 0,
     'a revisão não exibe dados de Ciclo, finanças ou peso');
 
   await page.locator('.weekly-review [data-action="weekly-reflection-save"][data-v="Mais pausas"]').click();
   check((await page.locator('#toast').textContent()).includes('Reflexão semanal salva'),
     'resposta rápida é salva como reflexão semanal');
-  check(await page.locator('.weekly-reflection [aria-pressed="true"]').textContent() === 'Mais pausas',
-    'a resposta salva fica selecionada na revisão');
+  check(await page.locator('.weekly-reflection.is-answered #weekly-reflection-title').textContent() === 'Mais pausas',
+    'a resposta salva fica destacada na revisão');
   await page.locator('[data-action="plan-view"][data-v="lista"]').click();
   check(await page.locator('#task-results li.task').filter({ hasText: 'Mais pausas' }).count() === 0,
     'a reflexão não cria tarefa indevida');
   await page.locator('[data-action="plan-view"][data-v="revisao"]').click();
   check(await page.locator('.weekly-review').count() === 1
-    && await page.locator('.weekly-reflection [aria-pressed="true"]').textContent() === 'Mais pausas',
+    && await page.locator('.weekly-reflection.is-answered #weekly-reflection-title').textContent() === 'Mais pausas',
   'resposta permanece visível ao reabrir Sua semana');
 
   const mobileLayout = await page.evaluate(() => ({
@@ -48,19 +48,24 @@ const check = (passed, name, detail = '') => {
   check(mobileLayout.scrollWidth <= mobileLayout.width,
     'a revisão não cria rolagem horizontal em largura móvel', JSON.stringify(mobileLayout));
 
-  await page.goto(`${BASE}/?preview#config?section=home`);
-  const reminder = page.locator('[data-change="weekly-review-reminder"]');
+  await page.goto(`${BASE}/?preview#config?section=personalization`);
+  const reminder = page.locator('#settings-pref-weekly-review');
   await reminder.waitFor();
-  check(!(await reminder.isChecked()),
+  check(await reminder.getAttribute('aria-pressed') === 'false',
     'o lembrete semanal começa desligado');
   await reminder.click();
   await page.waitForTimeout(350);
-  check(await reminder.isChecked(),
+  check(await reminder.getAttribute('aria-pressed') === 'true',
     'a opção de lembrete pode ser ativada sem solicitar permissão Push');
   await page.locator('a[href="/habitos"]:visible').first().click();
-  await page.locator('[data-action="habit-push-toggle"]').waitFor({ state: 'visible' });
-  check(await page.locator('[data-action="habit-push-toggle"]').isVisible(),
-    'o controle de avisos aparece em Hábitos quando só o lembrete semanal está ativo');
+  await page.locator('.main[data-route="habitos"]').waitFor({ state: 'visible' });
+  await page.evaluate(() => {
+    history.pushState(null, '', '/config?section=personalization');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await reminder.waitFor();
+  check(await reminder.getAttribute('aria-pressed') === 'true',
+    'lembrete semanal permanece ativado após trocar de área');
   check(errors.length === 0, 'sem erros no console', errors.join(' | '));
 
   await browser.close();

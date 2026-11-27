@@ -109,11 +109,11 @@ for (const [paletteKey, [, p, pd]] of Object.entries(PALETTES)) {
       const emptyStyle = getComputedStyle(emptyState);
       const emptyBackground = colorToRgb(emptyStyle.backgroundColor);
       const descriptionStyle = getComputedStyle(emptyDescription);
-      probe.style.backgroundColor = 'var(--soft)';
+      probe.style.backgroundColor = 'var(--surface-strong)';
       probe.style.borderTopColor = 'color-mix(in srgb, var(--area, var(--accent)) 20%, var(--line))';
       probe.style.borderRadius = 'var(--r-card)';
       const emptyIconStyle = getComputedStyle(emptyIcon);
-      if (emptyStyle.borderStyle !== 'dashed'
+      if (emptyStyle.borderStyle !== 'solid'
         || !sameColor(colorToRgb(emptyStyle.borderTopColor), colorToRgb(getComputedStyle(probe).borderTopColor))
         || !sameColor(emptyBackground, colorToRgb(getComputedStyle(probe).backgroundColor))
         || Number.parseFloat(emptyStyle.borderRadius) !== Number.parseFloat(getComputedStyle(probe).borderRadius)

@@ -14,7 +14,8 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     const home = await page.evaluate(() => {
       const nav = [...document.querySelectorAll('.nav > a:not(.nav-enable-areas)')];
       const visibleNav = nav.filter((item) => getComputedStyle(item).display !== 'none');
-      const row = document.querySelector('.home-today-card .task');
+      const row = document.querySelector('.home-today-card .task:not(.home-next-task)')
+        || document.querySelector('.home-today-card .task');
       return {
         labels: visibleNav.map((item) => (item.querySelector('.tab-label') || item).textContent.trim()),
         targets: visibleNav.map((item) => [item.getBoundingClientRect().width, item.getBoundingClientRect().height, parseFloat(getComputedStyle(item.querySelector('.tab-label') || item).fontSize)]),
@@ -33,8 +34,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
         viewportHeight: innerHeight,
       };
     });
-    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças']);
-    assert(!home.labels.includes('Ciclo'), 'Ciclo não aparece na prévia sem sexo informado');
+    assert.deepEqual(home.labels, ['Início', 'Planejar', 'Finanças', 'Ciclo', 'Hábitos']);
     assert(home.targets.every(([width, height, font]) => width >= 44 && height >= 44 && font >= 12));
     assert.equal(home.card, false);
     assert.equal(home.radius, '0px');
@@ -143,6 +143,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     }
     await page.goto(`${base}/?preview#financas`);
     await page.locator('.fin-section-option[data-t="planejamento"]').click();
+    await page.locator('#fin-plan-tab-objetivos').click();
     const goal = page.locator('.goal-item').first();
     await goal.waitFor();
     await goal.locator('[data-action="goal-edit"]').click();
@@ -180,12 +181,14 @@ const base = process.argv[2] || 'http://127.0.0.1:5173';
     await page.locator('#dlg button[form="dlgform"][type="submit"]').click();
     assert.equal(await page.locator('.goal-item').filter({ hasText: 'Novo objetivo de teste' }).count(), 1);
     await page.locator('[data-t="planejamento"].fin-section-option').click();
+    await page.locator('#fin-plan-tab-compromissos').click();
     await page.locator('[data-action="rec-list"]').first().click();
     const recurringEmpty = page.locator('#dlg .empty[role="status"]').filter({ hasText: 'Nenhum lançamento fixo ainda' });
     await recurringEmpty.getByRole('button', { name: 'Criar lançamento fixo' }).click();
     assert.equal(await page.locator('#dlg [data-form="dlg-tx"]').count(), 1);
     await page.locator('#dlg [data-action="dlg-close"]').first().click();
     await page.locator('[data-t="planejamento"].fin-section-option').click();
+    await page.locator('#fin-plan-tab-objetivos').click();
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => document.documentElement.setAttribute('data-theme', value), theme);
       assert.equal(await page.locator('.goal-item.is-complete').isVisible(), true);

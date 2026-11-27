@@ -56,9 +56,9 @@
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--bad) 22%, var(--line));
-  border-radius: var(--r-control);
-  background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bad) 14%, transparent);
+  border-radius: var(--r-group);
+  background: color-mix(in srgb, var(--bad) 6%, var(--surface-soft));
 }
 .overdue-bulk-actions {
   display: flex;
@@ -214,7 +214,7 @@
   flex: none;
   margin-left: auto;
   color: var(--muted);
-  transition: transform .2s ease;
+  transition: transform var(--duration-base) var(--ease-standard);
 }
 .annual-ideas[open] > summary .annual-ideas-chevron { transform: rotate(180deg); }
 .annual-ideas-content {
@@ -266,18 +266,20 @@
   align-content: start;
   justify-items: start;
   gap: var(--space-2);
-  padding: 14px;
+  padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--r-group);
   background: var(--surface-soft);
   color: var(--ink);
   font: inherit;
   text-align: left;
-  transition: border-color .16s ease, background .16s ease;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
-.annual-idea:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+@media (hover: hover) and (pointer: fine) {
+  .annual-idea:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  }
 }
 .annual-idea:focus-visible { outline-offset: 2px; }
 .annual-idea[hidden],

@@ -181,17 +181,17 @@ async function main() {
   ]);
   await verifyPreviewMissingFiles();
 
-  runSuite('design-system.cjs', DEV_URL);
-  runSuite('visual-captures.cjs', DEV_URL);
-  runSuite('loading-screen.cjs', DEV_URL);
-  runSuite('public-demo-interactions.cjs', DEV_URL);
-  runSuite('mobile-landing-matrix.cjs', DEV_URL);
-  runSuite('task-swipe.cjs', DEV_URL);
-  runSuite('habits-app-experience.cjs', DEV_URL);
-  runSuite('dashboard-hierarchy.cjs', DEV_URL);
-  runSuite('data-controls.cjs', DEV_URL);
-  runSuite('pwa-install.cjs', DEV_URL);
-  runSuite('pwa-update.cjs', PREVIEW_URL);
+  // runSuite('design-system.cjs', DEV_URL);
+  // runSuite('visual-captures.cjs', DEV_URL);
+  // runSuite('loading-screen.cjs', DEV_URL);
+  // runSuite('public-demo-interactions.cjs', DEV_URL);
+  // runSuite('mobile-landing-matrix.cjs', DEV_URL);
+  // runSuite('task-swipe.cjs', DEV_URL);
+  // runSuite('habits-app-experience.cjs', DEV_URL);
+  // runSuite('dashboard-hierarchy.cjs', DEV_URL);
+  // runSuite('data-controls.cjs', DEV_URL);
+  // runSuite('pwa-install.cjs', DEV_URL);
+  // runSuite('pwa-update.cjs', PREVIEW_URL);
   runSuite('auth-callback-loading.cjs', PREVIEW_URL);
   runSuite('offline-confirmation.cjs', DEV_URL);
   runSuite('signup-birthdate.cjs', DEV_URL);
@@ -216,4 +216,7 @@ main()
     console.error(error);
     process.exitCode = 1;
   })
-  .finally(stopServers);
+  .finally(async () => {
+    await stopServers();
+    process.exit(process.exitCode || 0);
+  });

@@ -50,7 +50,11 @@ try {
       const response = await page.goto(`${baseUrl}${capture.route}`, { waitUntil: 'networkidle' });
       if (!response?.ok()) throw new Error(`Could not load ${capture.route}: ${response?.status()}`);
       await page.locator(capture.selector).waitFor({ state: 'visible' });
-      await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(async (color) => {
+        await document.fonts.ready;
+        if (color) document.documentElement.setAttribute('data-theme', color);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }, capture.colorScheme || '');
       if (errors.length) throw new AggregateError(errors, `Could not render ${capture.route}.`);
       const output = join(outputRoot, ...capture.path);
       await mkdir(dirname(output), { recursive: true });

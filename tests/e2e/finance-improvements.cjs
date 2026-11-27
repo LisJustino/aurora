@@ -63,16 +63,16 @@ const swipe = async (page, locator, direction) => {
   check(await page.evaluate(() => {
     const nav = document.querySelector('.topbar .nav').getBoundingClientRect();
     const control = document.querySelector('.finance-quick-control');
-    const button = control?.querySelector('.finance-fab-trigger');
-    const buttonBounds = button?.getBoundingClientRect();
-    const navCreate = document.querySelector('.finance-nav-create-trigger');
+    const fab = control?.querySelector('.finance-fab-trigger');
+    const headerTrigger = document.querySelector('.header-actions .finance-header-trigger');
+    const headerBounds = headerTrigger?.getBoundingClientRect();
     return Math.abs(nav.bottom - (innerHeight - 8)) <= 1
       && getComputedStyle(control).position === 'fixed'
-      && buttonBounds?.width === 56 && buttonBounds.height === 56
-      && getComputedStyle(navCreate).visibility === 'hidden'
+      && getComputedStyle(fab).display === 'none'
+      && headerBounds?.width >= 40 && headerBounds.height >= 40
       && !document.querySelector('.header-actions .nav-quick-control')
       && !document.querySelector('.fab-clearance');
-  }), 'atalho flutuante fica acima do dock sem duplicar o botão central');
+  }), 'atalho de criação no celular fica no cabeçalho sem botão flutuante duplicado');
   check(await page.locator('.fin-section-option').count() === 5
     && await page.getByRole('tab', { name: 'Visão geral', exact: true }).count() === 1
     && await page.getByRole('tab', { name: 'Contas e cartões', exact: true }).count() === 1,
@@ -128,9 +128,9 @@ const swipe = async (page, locator, direction) => {
   check(await page.locator('.finance-projection-note summary').count() === 1
     && (await page.locator('.finance-projection-note').textContent()).includes('Compras futuras no cartão não entram'),
   'detalhe do cálculo da estimativa fica em "Como é calculada"');
-  check(await page.locator('.fin-hero .balance-sparkline').count() === 1
+  check(await page.locator('.fin-hero .finance-daily-room').count() === 1
     && await page.locator('.finance-upcoming').count() === 1,
-  'visão geral mostra o gráfico de saldo no topo e o bloco de vencimentos do mês atual');
+  'visão geral mostra quanto cabe gastar por dia no topo e o bloco de vencimentos próximos');
   await page.locator('.fin-section-option[data-t="relatorios"]').click();
   check(await page.locator('.finance-month-close').count() === 1
     && await page.locator('.finance-close-stats > div').count() === 6,
@@ -202,14 +202,14 @@ const swipe = async (page, locator, direction) => {
   for (const [label, expectedFilter] of [
     ['Ver despesas lançadas no mês', 'out'],
     ['Ver lançamentos do mês para conferir o resultado', 'todos'],
-    ['Ver pendências', 'pendentes'],
+    ['Ver pendentes', 'pendentes'],
   ]) {
     await page.getByRole('button', { name: label }).click();
     check(await page.locator(`.scroll-x button[data-action="fin-filter"][data-f="${expectedFilter}"]`).getAttribute('aria-pressed') === 'true', `${label} aplica filtro ${expectedFilter}`);
     check(await page.locator('.mnav .mlabel').textContent() === selectedMonth, `${label} preserva o mês selecionado`);
     await page.locator('.fin-section-option[data-t="resumo"]').click();
   }
-  check(await page.locator('.finance-pending-summary > div').count() === 2, 'compromissos destacam totais a pagar e receber');
+  check(await page.locator('.finance-upcoming-list > li').count() >= 1, 'bloco de vencimentos destaca os próximos compromissos pendentes');
   await openFinanceQuickActions();
   await page.locator('#quick-actions-menu').getByRole('button', { name: 'Despesa', exact: true }).click();
   check(await page.evaluate(() => (
@@ -507,7 +507,7 @@ const swipe = async (page, locator, direction) => {
   await page.getByRole('button', { name: 'Programar parcelas' }).click();
   check((await page.locator('.toast-message').textContent()).includes('saldo da conta não foi alterado'),
     'programar fatura informa que não houve débito imediato');
-  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=..').textContent()
+  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=ancestor::li').textContent()
     .then((text) => text.includes('3 parcelas de fatura programadas') && text.includes('R$ 15,01')),
     'cartão mostra a quantidade e o total das parcelas futuras');
   await page.locator('.fin-section-option[data-t="contas"]').click();
@@ -533,7 +533,7 @@ const swipe = async (page, locator, direction) => {
   check(balanceAfterFirstInstallment !== balanceAfterPlan, 'marcar uma parcela como paga atualiza o saldo da conta de origem');
   await page.locator('.fin-section-option[data-t="contas"]').click();
   await page.locator('.finance-account-option[data-t="cartoes"]').click();
-  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=..').textContent()
+  check(await page.locator('button[data-action="pay-inv"]').first().locator('xpath=ancestor::li').textContent()
     .then((text) => text.includes('2 parcelas de fatura programadas') && text.includes('R$ 10,00')),
     'pagamento de uma parcela atualiza o total programado restante');
 
@@ -727,6 +727,7 @@ const swipe = async (page, locator, direction) => {
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
 
   await page.getByRole('tab', { name: 'Planejamento', exact: true }).click();
+  await page.locator('#fin-plan-tab-limites').click();
   await page.getByRole('button', { name: 'Gerenciar categorias' }).click();
   const ruleForm = page.locator('.finance-category-rule-form');
   await ruleForm.locator('[name="phrase"]').fill('Café Central');
@@ -754,11 +755,11 @@ const swipe = async (page, locator, direction) => {
   await expenseCategories.getByRole('button', { name: 'Adicionar' }).click();
   await page.locator('#dlg [data-dlg="parent"]').selectOption({ label: 'Moradia' });
   check(await page.locator('#dlg h2').textContent().then((text) => text.includes('subcategoria')), 'escolher uma categoria principal identifica a criação de subcategoria');
-  await page.locator('#dlg [data-dlg="name"]').fill('Condomínio');
+  await page.locator('#dlg [data-dlg="name"]').fill('Jardinagem');
   await page.locator('#dlg .category-icon-picker [data-dlg="icon"][value="home"]').check();
   await page.locator('#dlg [data-dlg="color"]').fill('#22aa88');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
-  const subcategory = page.locator('.category-manager-subcategories li').filter({ hasText: 'Moradia > Condomínio' });
+  const subcategory = page.locator('.category-manager-subcategories li').filter({ hasText: 'Moradia > Jardinagem' });
   check(await subcategory.count() === 1, 'subcategoria personalizada é adicionada ao grupo escolhido');
   check(await subcategory.locator('.ci').getAttribute('style').then((style) => style.includes('#22aa88')), 'subcategoria mantém sua própria cor');
   await page.locator('#dlg [data-action="dlg-close"]').last().click();
@@ -866,10 +867,11 @@ const swipe = async (page, locator, direction) => {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em 320 px');
-  check(await page.locator('.finance-fab-trigger').isVisible()
+  check(await page.locator('.finance-header-trigger').isVisible()
+    && await page.locator('.finance-fab-trigger').isHidden()
     && await page.locator('.finance-quick-control').evaluate((control) => getComputedStyle(control).position === 'fixed')
     && !await page.locator('.global-quick-fab').count(),
-  'celular mantém o atalho financeiro flutuante');
+  'celular mantém o atalho financeiro no cabeçalho sem botão flutuante duplicado');
   await page.setViewportSize({ width: 1366, height: 768 });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Finanças não tem overflow horizontal em desktop');
   check(await page.locator('.finance-fab-trigger').isVisible()

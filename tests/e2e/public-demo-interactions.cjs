@@ -27,10 +27,12 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5173';
   const themeButton = page.locator('[data-public-control="theme-cycle"]');
   await themeButton.click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  assert.match(await themeButton.getAttribute('title'), /Tema atual: escuro/);
   await themeButton.click();
-  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
+  assert.match(await themeButton.getAttribute('title'), /Tema atual: automático/);
   await themeButton.click();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
+  assert.match(await themeButton.getAttribute('title'), /Tema atual: claro/);
 
   const tabs = page.getByRole('tablist', { name: 'Áreas da sua rotina' });
   await tabs.getByRole('tab', { name: 'Hoje' }).click();

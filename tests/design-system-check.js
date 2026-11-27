@@ -81,7 +81,10 @@ const pageTitleStyles = files.find((item) => item.file === 'design-system/page-t
 const pageTitleOverrides = offenders(/\.main\[data-route=["'][^"']+["']\]\s*>\s*\.page-title/g);
 check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main > .page-title') && !pageTitleOverrides.length, 'Cabeçalhos de página usam o componente compartilhado', pageTitleOverrides.join(', '));
 check(Boolean(pageTitleStyles) && pageTitleStyles.text.includes('.main h1[tabindex="-1"]:focus { outline: none; }'), 'Títulos focados pela navegação não exibem contorno de controle');
-check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card')), 'O padrão de cartões compactos está no design system');
+check(files.some((item) => item.file === 'design-system/cards.css' && item.text.includes('.compact-card-grid') && item.text.includes('.shortcut-grid') && item.text.includes('.shortcut-card') && item.text.includes('.icon-mark')), 'O padrão de cartões compactos e marcas de ícone está no design system');
+check(files.some((item) => item.file === 'design-system/menus.css' && item.text.includes('.ds-menu') && item.text.includes('.ds-menu-item') && item.text.includes('.ds-menu-sep')), 'O padrão de menus e popovers está no design system');
+check(files.some((item) => item.file === 'design-system/feedback.css' && item.text.includes('.notice.warn') && item.text.includes('.notice.ok') && item.text.includes('.skeleton')), 'Callouts semânticos (.notice) e skeletons estão no design system');
+check(files.some((item) => item.file === 'design-system/selectors.css' && item.text.includes('.scroll-fade-x')), 'O utilitário de faixa horizontal com fade está no design system');
 const modalStyles = files.find((item) => item.file === 'components/modals.css');
 check(Boolean(modalStyles) && !strip(modalStyles.text).includes('!important'), 'Modais não dependem de !important');
 check(!missing.length, 'Toda var(--token) usada existe', missing.join(', '));
@@ -193,38 +196,39 @@ check(!undersizedTokens.length, 'Tokens tipográficos funcionais não ficam abai
 
 const spacingBaseline = {
   'base.css': [0, 2],
-  'components/accessibility.css': [2, 1],
-  'components/controls.css': [1, 0],
-  'components/footer.css': [1, 8],
-  'components/modals.css': [53, 59],
-  'components/navigation-responsive.css': [22, 23],
-  'components/navigation.css': [12, 13],
-  'components/preferences.css': [25, 13],
-  'components/responsive.css': [1, 1],
-  'components/task-actions.css': [2, 2],
-  'components/task-details.css': [4, 3],
-  'components/tasks.css': [20, 7],
-  'design-system/buttons.css': [0, 1],
-  'design-system/custom-selects.css': [2, 8],
-  'design-system/feedback.css': [5, 2],
-  'design-system/fields.css': [3, 6],
-  'design-system/selectors.css': [6, 9],
-  'design-system/touch.css': [2, 10],
-  'layout.css': [3, 8],
+  'components/accessibility.css': [0, 0],
+  'components/controls.css': [0, 0],
+  'components/footer.css': [0, 8],
+  'components/modals.css': [0, 58],
+  'components/navigation-responsive.css': [2, 5],
+  'components/navigation.css': [0, 2],
+  'components/preferences.css': [0, 9],
+  'components/responsive.css': [0, 1],
+  'components/task-actions.css': [0, 2],
+  'components/task-details.css': [0, 3],
+  'components/tasks.css': [0, 3],
+  'design-system/buttons.css': [0, 0],
+  'design-system/custom-selects.css': [0, 4],
+  'design-system/feedback.css': [0, 1],
+  'design-system/fields.css': [0, 6],
+  'design-system/menus.css': [0, 0],
+  'design-system/selectors.css': [0, 8],
+  'design-system/touch.css': [0, 2],
+  'layout.css': [0, 8],
   'pages/account-auth.css': [0, 5],
-  'pages/account-profile.css': [0, 7],
-  'pages/account-settings.css': [0, 20],
-  'pages/areas.css': [57, 37],
-  'pages/finance-responsive.css': [9, 9],
-  'pages/finance.css': [60, 38],
-  'pages/habits.css': [60, 39],
-  'pages/home.css': [52, 30],
+  'pages/account-profile.css': [0, 1],
+  'pages/account-settings.css': [0, 19],
+  'pages/areas.css': [0, 4],
+  'pages/finance-responsive.css': [3, 9],
+  'pages/finance.css': [5, 31],
+  'pages/habits.css': [3, 25],
+  'pages/home.css': [2, 29],
   'pages/landing.css': [5, 17],
-  'pages/loading.css': [1, 3],
-  'pages/layouts.css': [24, 25],
+  'pages/loading.css': [0, 2],
+  'pages/layouts.css': [0, 19],
   'pages/legal.css': [0, 1],
-  'pages/planning.css': [18, 6],
-  'pages/settings.css': [7, 7],
+  'pages/planning.css': [0, 5],
+  'pages/settings.css': [0, 1],
 };
 const spacingPatterns = [
   /(?<![\w-])(?:gap|row-gap|column-gap)\s*:\s*[^;{}]*\b\d*\.?\d+(?:px|rem)\b[^;{}]*(?=[;}])/g,
@@ -248,7 +252,11 @@ check(scale.size === 11, 'A escala de tipografia tem 11 degraus distintos', [...
 for (const name of [
   '--control-sm', '--control-md', '--control-field', '--control-lg',
   '--r-sm', '--r-card', '--r-hero', '--r-pill', '--r-control', '--r-group', '--r', '--on-solid',
-  '--elev-0', '--elev-1', '--elev-2',
+  '--elev-0', '--elev-1', '--elev-2', '--surface-highlight', '--scrim',
+  '--border-card', '--border-chip', '--border-hover', '--surface-chip', '--surface-hover', '--surface-press',
+  '--focus-ring-width', '--section-gap', '--font-editorial', '--font-editorial-weight',
+  '--duration-fast', '--duration-base', '--duration-slow', '--ease-standard', '--ease-decelerate',
+  '--z-sticky', '--z-dropdown',
   '--icon-box-sm', '--icon-box-md', '--icon-box-lg',
   '--row-height-compact', '--row-height-standard', '--row-height-card',
   '--priority-low',

@@ -23,11 +23,13 @@
   border-radius: var(--r-group);
   background: var(--surface);
   cursor: pointer;
-  transition: border-color .15s ease, background-color .15s ease;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
 }
-.setting-toggle:hover {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
-  background: var(--surface-soft);
+@media (hover: hover) and (pointer: fine) {
+  .setting-toggle:hover {
+    border-color: var(--border-hover);
+    background: var(--surface-hover);
+  }
 }
 .setting-toggle:focus-within {
   border-color: var(--accent);
@@ -252,7 +254,9 @@
   text-align: left;
   cursor: pointer;
 }
-.appearance-preset:hover { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); background: var(--surface-soft); }
+@media (hover: hover) and (pointer: fine) {
+  .appearance-preset:hover { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); background: var(--surface-hover); }
+}
 .appearance-preset[aria-pressed="true"] { border-color: var(--accent); background: var(--soft); }
 .appearance-preset:focus-visible { outline-offset: 2px; }
 .appearance-preset > span:last-child { display: grid; min-width: 0; gap: var(--space-1); }

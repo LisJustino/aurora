@@ -19,6 +19,11 @@
   max-width: 1360px;
   margin-inline: auto;
 }
+@media (900px <= width < 1200px) {
+  .app:not(.demo-app) .site-footer-content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 .footer-brand,
 .footer-nav {
@@ -142,7 +147,7 @@
   flex: none;
   place-items: center;
   color: var(--accent);
-  transition: transform .2s ease;
+  transition: transform var(--duration-base) var(--ease-standard);
 }
 
 .footer-faq[open] > summary span { transform: rotate(180deg); }

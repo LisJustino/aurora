@@ -40,7 +40,7 @@
 
 .legal-header a:focus-visible,
 .legal-document a:focus-visible {
-  outline: 3px solid var(--ring);
+  outline: var(--focus-ring-width) solid var(--focus);
   outline-offset: var(--space-half);
 }
 
@@ -49,15 +49,17 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--ink);
+  font-family: var(--font-editorial);
   font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: -.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-editorial);
   text-decoration: none;
 }
 
 .legal-brand img { flex: none; }
 
 .legal-brand span {
+  margin-left: calc(var(--space-2) * -1);
   color: var(--accent);
 }
 
@@ -74,10 +76,10 @@
   width: min(100% - var(--space-4) * 2, 820px);
   margin: var(--space-7) auto;
   padding: clamp(var(--space-4), 5vw, var(--space-7));
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
   background: var(--surface);
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--card-shadow), var(--surface-highlight);
 }
 
 .legal-eyebrow {
@@ -165,11 +167,11 @@
   max-height: min(calc(100vh - max(16px, env(safe-area-inset-top, 0px)) - max(16px, env(safe-area-inset-bottom, 0px))), 820px);
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
   background: var(--surface-strong);
   color: var(--ink);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-2);
 }
 
 @supports (height: 100dvh) {
@@ -179,7 +181,7 @@
 }
 
 .legal-modal::backdrop {
-  background: color-mix(in srgb, var(--ink) 48%, transparent);
+  background: var(--scrim);
 }
 
 .legal-modal > .legal-modal-header {
@@ -242,7 +244,7 @@
 
 .legal-modal-content :focus-visible,
 .legal-modal-header :focus-visible {
-  outline: 3px solid var(--ring);
+  outline: var(--focus-ring-width) solid var(--focus);
   outline-offset: var(--space-half);
 }
 

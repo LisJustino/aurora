@@ -7,7 +7,7 @@
   border: 1px solid var(--border-card);
   border-radius: var(--r-card);
   background: var(--surface-strong);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-1), var(--surface-highlight);
   transition: border-color var(--duration-base) var(--ease-standard), background-color var(--duration-base) var(--ease-standard), box-shadow var(--duration-base) var(--ease-standard);
 }
 
@@ -83,6 +83,31 @@
   border-radius: var(--r-pill);
   background: var(--soft2);
   color: var(--accent);
+}
+
+/* Marca de ícone compartilhada: caixas de ícone em superfícies tonais (sm, md, lg + estados) */
+.icon-mark {
+  display: grid;
+  width: var(--icon-box-md);
+  height: var(--icon-box-md);
+  flex: none;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--icon-mark-tone, var(--accent)) 18%, transparent);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--icon-mark-tone, var(--accent)) 12%, var(--surface));
+  color: var(--icon-mark-tone, var(--accent));
+}
+.icon-mark.sm { width: var(--icon-box-sm); height: var(--icon-box-sm); }
+.icon-mark.lg { width: var(--icon-box-lg); height: var(--icon-box-lg); }
+.icon-mark.pill { border-radius: var(--r-pill); }
+.icon-mark.area { --icon-mark-tone: var(--area, var(--accent)); }
+.icon-mark.ok { --icon-mark-tone: var(--ok); }
+.icon-mark.warn { --icon-mark-tone: var(--warn); }
+.icon-mark.bad { --icon-mark-tone: var(--bad); }
+.icon-mark.neutral {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
 }
 
 .shortcut-card-icon svg,

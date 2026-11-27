@@ -31,16 +31,7 @@
   background: var(--surface-strong);
   box-shadow: var(--elev-2);
   color: var(--ink);
-  animation: dialog-enter var(--duration-base) var(--ease-decelerate) both;
 }
-@keyframes dialog-enter {
-  from { opacity: 0; transform: translateY(8px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dlg { animation: none; }
-}
-:root[data-motion="reduce"] .dlg { animation: none; }
 .dlg * { min-width: 0; }
 @media (width < 900px) {
   .dlg input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
@@ -952,8 +943,8 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
 :root[data-theme="dark"] .dlg { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 :root[data-theme="dark"] .dlg-back { background: color-mix(in srgb, var(--bg) 62%, transparent); }
 @media (prefers-reduced-motion: no-preference) {
-  .dlg-back.is-opening .dlg { animation: dialog-enter var(--duration-base) var(--ease-standard) both; }
-  @keyframes dialog-enter { from { opacity: 0; } to { opacity: 1; } }
+  .dlg-back.is-opening .dlg { animation: dialog-enter var(--duration-base) var(--ease-decelerate) both; }
+  @keyframes dialog-enter { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
 }
 
 /* Celular: o modal vira uma folha que sobe da base e acompanha o dedo ao ser arrastada. */
@@ -962,14 +953,13 @@ button.tile { color: inherit; font: inherit; text-align: left; cursor: pointer; 
   :root[data-theme="dark"] .dlg-back { background: color-mix(in srgb, var(--bg) calc(62% * var(--sheet-progress, 1)), transparent); }
 }
 @media (width < 900px) and (prefers-reduced-motion: no-preference) {
-  .dlg-back.is-opening:not(:has(.intro-dialog)) .dlg { animation: sheet-enter 280ms var(--ease-standard) both; }
-  .dlg-back.is-opening:not(:has(.intro-dialog))::backdrop { animation: sheet-backdrop-in 280ms ease both; }
+  .dlg-back.is-opening:not(:has(.intro-dialog)) .dlg { animation: sheet-enter var(--duration-slow) var(--ease-decelerate) both; }
+  .dlg-back.is-opening:not(:has(.intro-dialog))::backdrop { animation: sheet-backdrop-in var(--duration-slow) var(--ease-decelerate) both; }
   @keyframes sheet-enter { from { transform: translateY(100%); } to { transform: none; } }
   @keyframes sheet-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 }
 
 /* Cópia visual do modal que acabou de fechar, só para animar a saída. */
 .dlg-ghost { position: fixed; z-index: var(--z-dialog); inset: 0; pointer-events: none; }
-.dlg-ghost-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--ink) 48%, transparent); }
-:root[data-theme="dark"] .dlg-ghost-backdrop { background: color-mix(in srgb, var(--bg) 62%, transparent); }
+.dlg-ghost-backdrop { position: absolute; inset: 0; background: var(--scrim); }
 .dlg-ghost > .dlg { position: fixed; margin: 0; }

@@ -23,8 +23,11 @@
   }
 }
 .tab:active, .seg button:active, .chip:active { transform: translateY(1px); }
+.seg button {
+  border: 1px solid transparent;
+}
 .seg button[aria-pressed="true"] {
-  border: 1px solid var(--seg-thumb-border);
+  border-color: var(--seg-thumb-border);
   background: var(--seg-thumb);
   color: var(--ink);
   box-shadow: var(--seg-thumb-shadow);
@@ -204,4 +207,22 @@
   cursor: pointer;
 }
 .seg button:focus-visible { z-index: 1; }
-.seg.sm button { padding-inline: 12px; font-size: var(--text-meta); }
+.seg.sm button { padding-inline: var(--space-3); font-size: var(--text-meta); }
+
+/* Utilitário de faixa horizontal com pista suave de rolagem no celular */
+.scroll-fade-x {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+.scroll-fade-x::-webkit-scrollbar { display: none; }
+@media (width < 700px) {
+  .scroll-fade-x {
+    padding-inline-end: var(--space-5);
+    -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - var(--space-6)), transparent);
+    mask-image: linear-gradient(to right, var(--ink) calc(100% - var(--space-6)), transparent);
+  }
+}

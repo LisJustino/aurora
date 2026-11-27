@@ -716,8 +716,7 @@ test('landing prioriza cadastro e apresenta as áreas e garantias com clareza', 
   const hero = markup.slice(heroStart, heroEnd);
   if (hero.indexOf('data-public-action="signup"') < 0
     || hero.indexOf('data-public-action="signup"') > hero.indexOf('data-public-action="demo"')
-    || !hero.includes('btn primary large')
-    || !hero.includes('landing-hero-desktop')) {
+    || !hero.includes('btn primary large')) {
     throw new Error('O cadastro deve ser a ação principal e aparecer antes da demonstração no hero.');
   }
   const sectionMarkers = [

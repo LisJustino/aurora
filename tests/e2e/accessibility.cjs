@@ -5,16 +5,15 @@ const { completeProfile } = require('./setup.cjs');
 const BASE = process.argv[2] || 'http://127.0.0.1:5173';
 
 async function checkLandingInstallAndContrast(page) {
-  const link = page.locator('.public-trust-copy a');
-  const instructions = page.locator('.public-install-note > li');
-  assert.equal(await instructions.count(), 2, 'instalação apresenta uma instrução por plataforma');
-  assert.match(await instructions.nth(0).innerText(), /^Android:/);
-  assert.match(await instructions.nth(1).innerText(), /^iPhone:/);
+  const link = page.locator('.landing-trust-privacy a');
+  const trustCards = page.locator('.landing-trust-grid > article');
+  assert.equal(await trustCards.count(), 4, 'seção de confiança apresenta os quatro pilares');
+  assert.match(await trustCards.nth(3).innerText(), /Android.*iPhone/i);
   for (const theme of ['light', 'dark']) {
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
-      await link.scrollIntoViewIfNeeded();
+      await link.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
       const foreground = await link.evaluate((element) => getComputedStyle(element).color);
       const bounds = await link.boundingBox();
       const paragraph = link.locator('xpath=..');
@@ -38,7 +37,12 @@ async function checkLandingInstallAndContrast(page) {
           const channel = value / 255;
           return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
         }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
-        const text = luminance(foregroundColor.match(/\d+/g).slice(0, 3).map(Number));
+        const probe = document.createElement('canvas');
+        probe.width = probe.height = 1;
+        const probeCtx = probe.getContext('2d', { willReadFrequently: true });
+        probeCtx.fillStyle = foregroundColor;
+        probeCtx.fillRect(0, 0, 1, 1);
+        const text = luminance(Array.from(probeCtx.getImageData(0, 0, 1, 1).data.slice(0, 3)));
         let lowest = Infinity;
         for (let index = 0; index < pixels.length; index += 4) {
           const surface = luminance(Array.from(pixels.slice(index, index + 3)));
@@ -47,12 +51,9 @@ async function checkLandingInstallAndContrast(page) {
         return lowest;
       }, { image: background.toString('base64'), foregroundColor: foreground });
       assert.ok(minimum >= 4.5, `contraste do link em ${theme}/${width}px: ${minimum.toFixed(2)}:1`);
-      assert.ok(await instructions.evaluateAll((items) => items.every((item) =>
-        parseFloat(getComputedStyle(item).fontSize) >= 14 && item.scrollWidth <= item.clientWidth)),
-      `instruções legíveis e sem corte em ${theme}/${width}px`);
-      assert.ok(await instructions.evaluateAll((items) =>
-        items[0].getBoundingClientRect().bottom <= items[1].getBoundingClientRect().top),
-      `instruções em linhas separadas em ${theme}/${width}px`);
+      assert.ok(await trustCards.evaluateAll((items) => items.every((item) =>
+        parseFloat(getComputedStyle(item.querySelector('p')).fontSize) >= 14 && item.scrollWidth <= item.clientWidth)),
+      `pilares legíveis e sem corte em ${theme}/${width}px`);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         `landing sem overflow em ${theme}/${width}px`);
     }
@@ -165,14 +166,14 @@ async function checkContrast(page) {
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da landing');
     assert.equal(await publicPage.locator('.theme-trigger').count(), 1, 'tema continua disponível no cabeçalho da landing');
 
-    await publicPage.locator('.public-hero').getByRole('link', { name: 'Ver demonstração' }).click();
+    await publicPage.locator('.public-hero').getByRole('link', { name: 'Testar na demonstração' }).click();
     await publicPage.getByRole('link', { name: 'Tarefas', exact: true }).waitFor();
     assert.equal(await trigger.count(), 0, 'acessibilidade não fica no cabeçalho da demonstração');
 
     const systemPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await systemPage.emulateMedia({ reducedMotion: 'reduce' });
     await systemPage.goto(BASE);
-    await systemPage.locator('.public-hero').getByRole('link', { name: 'Ver demonstração' }).click();
+    await systemPage.locator('.public-hero').getByRole('link', { name: 'Testar na demonstração' }).click();
     await systemPage.evaluate(() => {
       window.__scrollCalls = [];
       const original = Element.prototype.scrollIntoView;

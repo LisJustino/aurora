@@ -723,6 +723,20 @@ function finResumo() {
     <section class="finance-month-snapshot" aria-labelledby="finance-month-title">
       <div class="finance-month-heading"><div><h2 id="finance-month-title">Resumo do mês</h2></div><p
         class="small muted">${cap(ymLabel(ym))}</p></div>
+      ${
+        st.inAll + st.outAll > 0
+          ? h`<div class="finance-cashflow-meter" aria-hidden="true">
+          <div class="finance-cashflow-labels">
+            <span class="is-income"><i></i>Entradas · ${Math.round((st.inAll / (st.inAll + st.outAll)) * 100)}%</span>
+            <span class="is-expense"><i></i>Saídas · ${Math.round((st.outAll / (st.inAll + st.outAll)) * 100)}%</span>
+          </div>
+          <div class="finance-cashflow-bar">
+            <span class="finance-cashflow-in" style="width:${Math.round((st.inAll / (st.inAll + st.outAll)) * 100)}%"></span>
+            <span class="finance-cashflow-out" style="width:${Math.round((st.outAll / (st.inAll + st.outAll)) * 100)}%"></span>
+          </div>
+        </div>`
+          : ''
+      }
       <div class="fh-row">
         <button type="button" class="finance-summary-stat is-income" data-action="fin-go" data-t="lancamentos"
           data-f="in" data-clear-fin-filters aria-label="Ver receitas lançadas no mês"><span

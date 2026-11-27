@@ -64,38 +64,40 @@
   --on-solid: #fff; /* texto/ícone sobre cor sólida (círculos, selos, cores de área) */
 
   /* Canvas e superfícies */
-  --bg: #f1ede7;
+  --bg: #ebe5dc;
   --canvas-initial: #faf8f5;
   --loading-canvas-dark: #1c1b19;
-  --bg-strong: #e7e1d8;
+  --bg-strong: #dfd8cc;
   --surface: #ffffff;
   --surface-strong: #ffffff;
   --surface-raised: #ffffff;
-  --surface-soft: #f6f3ee;
+  --surface-soft: #f5f1ea;
   --surface-hover: var(--surface-soft);
   --surface-press: var(--soft);
-  --surface-chip: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  --surface-chip: color-mix(in srgb, var(--surface-strong) 84%, transparent);
   --surface-chip-active-base: var(--surface-strong);
   --surface-chip-active-tint: 0%;
-  --soft: color-mix(in srgb, var(--p) 7%, var(--surface));
-  --soft2: color-mix(in srgb, var(--p) 14%, var(--surface));
+  --soft: color-mix(in srgb, var(--p) 9%, var(--surface));
+  --soft2: color-mix(in srgb, var(--p) 16%, var(--surface));
   --hero: color-mix(in srgb, var(--p) 8%, var(--surface-strong));
-  --hero-home: color-mix(in srgb, var(--p) 3%, var(--surface));
-  --brand-surface: color-mix(in srgb, var(--p) 4%, var(--surface));
+  --hero-home: color-mix(in srgb, var(--p) 4%, var(--surface));
+  --brand-surface: color-mix(in srgb, var(--p) 5%, var(--surface));
   --brand-surface-strong: color-mix(in srgb, var(--p) 19%, var(--surface));
   --on-hero-home: var(--ink);
   --on-hero: var(--ink);
+  --ambient-glow: 30%;
+  --ambient-warmth: color-mix(in srgb, #f2be92 32%, transparent);
 
   /* Texto */
   --ink: #1f1d1b;
-  --muted: #5d5954;
+  --muted: #5a5550;
 
   /* Bordas e foco */
-  --line: rgba(38, 32, 27, .09);
+  --line: rgba(34, 27, 21, .10);
   --line-strong: #7b736a;
   --line2: var(--line-strong);
   --border-subtle: var(--line);
-  --border-card: var(--line);
+  --border-card: rgba(34, 27, 21, .08);
   --border-chip: var(--line);
   --border-hover: color-mix(in srgb, var(--accent) 32%, var(--line));
   --ring: color-mix(in srgb, var(--p) 62%, #fff);
@@ -131,15 +133,15 @@
 
   /* Elevação, brilho de superfície e controles segmentados */
   --elev-0: none;
-  --elev-1: 0 1px 2px rgb(34 29 24 / 5%), 0 4px 12px -4px rgb(34 29 24 / 6%);
-  --elev-2: 0 4px 12px rgb(34 29 24 / 7%), 0 20px 44px -12px rgb(34 29 24 / 16%);
-  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 65%);
-  --btn-highlight: inset 0 1px 0 rgb(255 255 255 / 20%);
-  --btn-surface-shadow: 0 1px 2px rgb(34 29 24 / 6%);
-  --seg-track: color-mix(in srgb, var(--surface-strong) 60%, var(--bg-strong));
+  --elev-1: 0 1px 2px rgb(34 26 20 / 6%), 0 6px 18px -4px rgb(34 26 20 / 9%), 0 16px 32px -12px rgb(34 26 20 / 6%);
+  --elev-2: 0 4px 10px rgb(34 26 20 / 7%), 0 18px 38px -8px rgb(34 26 20 / 13%), 0 32px 64px -16px rgb(34 26 20 / 10%);
+  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 95%);
+  --btn-highlight: inset 0 1px 0 rgb(255 255 255 / 26%);
+  --btn-surface-shadow: 0 1px 2px rgb(34 26 20 / 8%), 0 4px 10px -4px rgb(34 26 20 / 11%);
+  --seg-track: color-mix(in srgb, var(--bg-strong) 72%, var(--surface));
   --seg-thumb: var(--surface-strong);
-  --seg-thumb-border: transparent;
-  --seg-thumb-shadow: 0 1px 3px rgb(34 29 24 / 9%), 0 1px 1px rgb(34 29 24 / 4%);
+  --seg-thumb-border: rgba(34, 27, 21, .06);
+  --seg-thumb-shadow: 0 2px 6px rgb(34 26 20 / 10%), 0 1px 2px rgb(34 26 20 / 5%);
   --shadow: var(--elev-2);
   --shadow-sm: var(--elev-1);
   --card-shadow: var(--elev-1);
@@ -307,12 +309,12 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #151412;
-  --bg-strong: #1c1a18;
-  --surface: #201e1b;
-  --surface-strong: #23211e;
-  --surface-raised: #2d2a26;
-  --surface-soft: #292622;
+  --bg: #121110;
+  --bg-strong: #191715;
+  --surface: #1e1c1a;
+  --surface-strong: #221f1d;
+  --surface-raised: #2b2724;
+  --surface-soft: #191715;
   --surface-chip: color-mix(in srgb, var(--surface) 88%, var(--bg));
   --surface-chip-active-base: var(--surface-raised);
   --surface-chip-active-tint: 16%;
@@ -344,9 +346,11 @@
   --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
   --hero-home: color-mix(in srgb, var(--p) 6%, var(--surface));
   --brand-surface: color-mix(in srgb, var(--p) 9%, var(--surface));
-  --elev-1: 0 1px 2px rgb(0 0 0 / 34%), 0 6px 16px -6px rgb(0 0 0 / 50%);
-  --elev-2: 0 6px 16px rgb(0 0 0 / 42%), 0 24px 56px -14px rgb(0 0 0 / 72%);
-  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --elev-1: 0 2px 4px rgb(0 0 0 / 38%), 0 12px 28px -8px rgb(0 0 0 / 56%);
+  --elev-2: 0 8px 20px rgb(0 0 0 / 48%), 0 28px 64px -14px rgb(0 0 0 / 74%);
+  --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 9%);
+  --ambient-glow: 24%;
+  --ambient-warmth: color-mix(in srgb, #e8ae82 14%, transparent);
   --btn-highlight: inset 0 1px 0 rgb(255 255 255 / 12%);
   --btn-surface-shadow: 0 1px 2px rgb(0 0 0 / 28%);
   --seg-track: color-mix(in srgb, var(--bg) 55%, var(--bg-strong));
@@ -358,13 +362,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --bg: #151412;
+    --bg: #121110;
     --canvas-initial: var(--loading-canvas-dark);
-    --bg-strong: #1c1a18;
-    --surface: #201e1b;
-    --surface-strong: #23211e;
-    --surface-raised: #2d2a26;
-    --surface-soft: #292622;
+    --bg-strong: #191715;
+    --surface: #1e1c1a;
+    --surface-strong: #221f1d;
+    --surface-raised: #2b2724;
+    --surface-soft: #191715;
     --surface-chip: color-mix(in srgb, var(--surface) 88%, var(--bg));
     --surface-chip-active-base: var(--surface-raised);
     --surface-chip-active-tint: 16%;
@@ -396,9 +400,11 @@
     --hero: color-mix(in srgb, var(--p) 5%, var(--surface-strong));
     --hero-home: color-mix(in srgb, var(--p) 6%, var(--surface));
     --brand-surface: color-mix(in srgb, var(--p) 9%, var(--surface));
-    --elev-1: 0 1px 2px rgb(0 0 0 / 34%), 0 6px 16px -6px rgb(0 0 0 / 50%);
-    --elev-2: 0 6px 16px rgb(0 0 0 / 42%), 0 24px 56px -14px rgb(0 0 0 / 72%);
-    --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 6%);
+    --elev-1: 0 2px 4px rgb(0 0 0 / 38%), 0 12px 28px -8px rgb(0 0 0 / 56%);
+    --elev-2: 0 8px 20px rgb(0 0 0 / 48%), 0 28px 64px -14px rgb(0 0 0 / 74%);
+    --surface-highlight: inset 0 1px 0 rgb(255 255 255 / 9%);
+    --ambient-glow: 24%;
+    --ambient-warmth: color-mix(in srgb, #e8ae82 14%, transparent);
     --btn-highlight: inset 0 1px 0 rgb(255 255 255 / 12%);
     --btn-surface-shadow: 0 1px 2px rgb(0 0 0 / 28%);
     --seg-track: color-mix(in srgb, var(--bg) 55%, var(--bg-strong));
@@ -409,6 +415,8 @@
 }
 
 :root[data-contrast="high"] {
+  --ambient-glow: 0%;
+  --ambient-warmth: transparent;
   --muted: #403840;
   --line: rgb(75 58 68 / 58%);
   --line-strong: #4c3742;

@@ -221,7 +221,22 @@ export function renderCycleView({
             ${
               hasCycleHistory
                 ? st.avg
-                  ? h`<div class="cycle-overview-metrics">
+                  ? h`<div class="cycle-phase-timeline" style="--cycle-pin:${clamp(cycleProgress, 3, 97)}%" aria-hidden="true">
+                      <div class="cycle-phase-bar">
+                        <span class="cycle-seg is-period"></span>
+                        <span class="cycle-seg is-follicular"></span>
+                        <span class="cycle-seg is-fertile"></span>
+                        <span class="cycle-seg is-luteal"></span>
+                        <span class="cycle-phase-pin"></span>
+                      </div>
+                      <div class="cycle-phase-legend">
+                        <span>Menstruação</span>
+                        <span>Folicular</span>
+                        <span>Janela fértil</span>
+                        <span>Lútea</span>
+                      </div>
+                    </div>
+                    <div class="cycle-overview-metrics">
                       <div class="cycle-metric">
                         <span class="cycle-metric-label">Duração média</span>
                         <div class="cycle-metric-line">

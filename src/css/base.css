@@ -23,7 +23,7 @@ html {
   min-width: 0;
   background: var(--bg);
   --keyboard-offset: 0px;
-  scroll-padding-top: env(safe-area-inset-top, 0px);
+  scroll-padding-top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px) + var(--space-3));
   scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-offset));
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;

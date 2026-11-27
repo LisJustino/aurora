@@ -42,8 +42,13 @@ export function renderHomeView(model, renderers) {
     taskRow,
   } = renderers;
   const calendarEventProgress = daySummary.calendarEvents || { done: 0, total: 0, pending: 0 };
+  const todayTotal = daySummary.tasks.total;
+  const todayDone = daySummary.tasks.done;
+  const todayPercent = todayTotal ? Math.round((todayDone / todayTotal) * 100) : 0;
   const weekTotal = weekProgress.completed + weekProgress.pending;
   const weekPercent = weekTotal ? Math.round((weekProgress.completed / weekTotal) * 100) : 0;
+  const todayWeekday = new Date().getDay();
+  const weekDayLabels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   return h`
     <header class="home-head" aria-labelledby="hi"><div class="home-head-inner"><div
@@ -56,7 +61,12 @@ export function renderHomeView(model, renderers) {
       }<i>.</i></h1><div class="home-head-controls"><div
       class="home-head-actions"><a class="home-action"
       href="/planejar">${icon('calendar', 18)}Planejar${icon('chevRight', 16)}</a></div>${areaGuideButton('inicio')}</div></div><div
-      class="home-head-meta"><p class="date">${dateLabel}</p>${lead ? h`<p class="lead">${lead}</p>` : ''}</div>${
+      class="home-head-meta"><p class="date">${dateLabel}</p>${lead ? h`<p class="lead">${lead}</p>` : ''}${
+        todayTotal
+          ? h`<span class="home-rhythm-pill" style="--rhythm-pct:${todayPercent}%" aria-hidden="true"><span
+        class="home-rhythm-dial"></span><b>${todayDone}/${todayTotal}</b><span>${todayDone === todayTotal ? 'concluídas' : 'hoje'}</span></span>`
+          : ''
+      }</div>${
         homeMessage
           ? h`<p
       class="home-personal-message">${homeMessage}</p>`
@@ -198,6 +208,53 @@ export function renderHomeView(model, renderers) {
         ${
           showHomeBlock('today')
             ? h`<div class="home-today-block" ${raw(homeBlockStyle('today'))}>
+          <div class="home-bento-strip" aria-label="Pulso de hoje">
+            <a class="home-bento-tile home-bento-tile--plan" href="/planejar" style="--bento-pct:${todayPercent}%">
+              <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${icon('calendarCheck', 16)}</span><span
+                class="home-bento-label">Tarefas</span><span class="home-bento-ring" aria-hidden="true"></span></div>
+              <b class="home-bento-value">${todayDone}/${todayTotal}</b>
+              <span class="home-bento-sub">${todayTotal ? `${todayPercent}% concluído hoje` : 'Dia livre'}</span>
+            </a>
+            ${
+              daySummary.water
+                ? h`<a class="home-bento-tile home-bento-tile--water" href="/habitos" style="--bento-pct:${daySummary.water.percent}%">
+              <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${icon('water', 16)}</span><span
+                class="home-bento-label">Hidratação</span></div>
+              <b class="home-bento-value">${daySummary.water.percent}%</b>
+              <span class="home-bento-bar" aria-hidden="true"><i></i></span>
+              <span class="home-bento-sub">${daySummary.water.total.toLocaleString('pt-BR')} / ${daySummary.water.goal.toLocaleString('pt-BR')} mL</span>
+            </a>`
+                : ''
+            }
+            ${
+              daySummary.balance
+                ? h`<a class="home-bento-tile home-bento-tile--finances" href="/financas">
+              <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${icon('wallet', 16)}</span><span
+                class="home-bento-label">Saldo atual</span></div>
+              <b class="home-bento-value home-bento-value--money">${daySummary.balance.hidden ? '••••' : brl(daySummary.balance.cents)}</b>
+              <span class="home-bento-sub">${financeUpcoming ? `${financeUpcoming.count} a vencer em ${financeUpcoming.days}d` : 'Contas em dia'}</span>
+            </a>`
+                : ''
+            }
+            ${
+              daySummary.cycle
+                ? h`<a class="home-bento-tile home-bento-tile--cycle" href="/ciclo">
+              <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${icon('heart', 16)}</span><span
+                class="home-bento-label">Ciclo</span></div>
+              <b class="home-bento-value">${daySummary.cycle.day !== null ? `Dia ${daySummary.cycle.day}` : '—'}</b>
+              <span class="home-bento-sub">Acompanhamento ativo</span>
+            </a>`
+                : daySummary.habits
+                  ? h`<a class="home-bento-tile home-bento-tile--habits" href="/habitos" style="--bento-pct:${daySummary.habits.total ? Math.round((daySummary.habits.done / daySummary.habits.total) * 100) : 0}%">
+              <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${icon('check', 16)}</span><span
+                class="home-bento-label">Hábitos</span></div>
+              <b class="home-bento-value">${daySummary.habits.done}/${daySummary.habits.total}</b>
+              <span class="home-bento-bar" aria-hidden="true"><i></i></span>
+              <span class="home-bento-sub">${daySummary.habits.remaining ? `Faltam ${daySummary.habits.remaining}` : 'Em dia'}</span>
+            </a>`
+                  : ''
+            }
+          </div>
           <section class="home-today-card" aria-labelledby="th"><div class="head"><div><h2 id="th"
             class="type-editorial-title">Hoje</h2></div></div>
             ${
@@ -259,12 +316,18 @@ export function renderHomeView(model, renderers) {
               href="/planejar">Planejar</a></div>
             ${
               weekTotal
-                ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span>tarefas resolvidas ou planejadas</span></div>
+                ? h`<div class="home-week-progress-copy"><b>${weekProgress.completed} de ${weekTotal}</b><span
+                  class="home-week-pct" aria-hidden="true">${weekPercent}%</span><span
+                  class="home-week-label">tarefas resolvidas ou planejadas</span></div>
                 <div class="home-week-progress-track" role="progressbar" aria-label="Tarefas concluídas nesta semana"
                   aria-valuemin="0" aria-valuemax="100" aria-valuenow="${weekPercent}"
                   aria-valuetext="${weekProgress.completed} de ${weekTotal} tarefas concluídas">
                   <span style="width: ${weekPercent}%"></span>
-                </div>`
+                </div>
+                <div class="home-week-rhythm" aria-hidden="true">${weekDayLabels.map(
+                  (label, index) => h`<span
+                  class="home-week-day${index === todayWeekday ? ' is-today' : index < todayWeekday ? ' is-past' : ''}"><i></i><span>${label}</span></span>`,
+                )}</div>`
                 : h`<p class="home-week-progress-empty">Sua semana ainda está em aberto. Uma tarefa já ajuda a começar.</p><a
                   class="btn sm" href="/planejar">${icon('plus', 16)}Adicionar tarefa</a>`
             }

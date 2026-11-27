@@ -51,14 +51,14 @@
 .task.is-swiping { position: relative; z-index: 1; transition: none; transform: translateX(var(--task-swipe-x, 0)); }
 .task.is-swiping[data-swipe-direction="complete"] { background: var(--ok-soft); }
 .task.is-swiping[data-swipe-direction="defer"] { background: var(--warn-soft); }
-.task.is-swipe-committing { transition: transform 170ms ease, opacity 170ms ease; opacity: 0; transform: translateX(var(--task-swipe-x)); }
+.task.is-swipe-committing { transition: transform var(--duration-base) var(--ease-standard), opacity var(--duration-base) var(--ease-standard); opacity: 0; transform: translateX(var(--task-swipe-x)); }
 .habit-row, .fr { position: relative; touch-action: pan-y; }
 .habit-row.is-swiping, .fr.is-swiping { z-index: 1; transition: none; transform: translateX(var(--swipe-x, 0)); }
 .habit-row.is-swiping[data-swipe-direction="complete"] { background: var(--ok-soft); }
 .habit-row.is-swiping[data-swipe-direction="undo"] { background: var(--surface-soft); }
 .fr.is-swiping[data-swipe-direction="delete"] { background: var(--bad-soft); }
 .habit-row.is-swipe-committing, .fr.is-swipe-committing {
-  transition: transform 170ms ease, opacity 170ms ease;
+  transition: transform var(--duration-base) var(--ease-standard), opacity var(--duration-base) var(--ease-standard);
   opacity: 0;
   transform: translateX(var(--swipe-x));
 }
@@ -79,7 +79,7 @@
 .habit-row[data-swipe-direction="undo"]::after { left: 14px; color: var(--accent); }
 .task.is-completing {
   overflow: hidden;
-  transition: height 220ms ease, min-height 220ms ease, margin 220ms ease, padding 220ms ease, border-width 220ms ease, opacity 220ms ease;
+  transition: height var(--duration-slow) var(--ease-standard), min-height var(--duration-slow) var(--ease-standard), margin var(--duration-slow) var(--ease-standard), padding var(--duration-slow) var(--ease-standard), border-width var(--duration-slow) var(--ease-standard), opacity var(--duration-slow) var(--ease-standard);
 }
 .task.is-collapsing {
   min-height: 0;
@@ -124,31 +124,25 @@
   width: 24px;
   height: 24px;
   place-items: center;
-  border: 1.5px solid color-mix(in srgb, var(--line-strong) 72%, var(--line));
+  border: 1.5px solid color-mix(in srgb, var(--line-strong) 68%, var(--line));
   border-radius: 50%;
   background: var(--surface-strong);
   color: transparent;
-  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
+  box-shadow: var(--btn-surface-shadow);
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .chk:hover:not([aria-checked="true"]) span { border-color: var(--accent); background: var(--soft); }
+  .chk:hover:not([aria-checked="true"]) span {
+    border-color: var(--accent);
+    background: var(--soft);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+    transform: scale(1.06);
+  }
 }
-.chk[aria-checked="true"] span { border-color: var(--btn); background: var(--btn); color: var(--on-btn); }
+.chk:active span { transform: scale(.94); }
+.chk[aria-checked="true"] span { border-color: var(--btn); background: var(--btn); color: var(--on-btn); box-shadow: none; }
 .chk.p-high:not([aria-checked="true"]) span { border-color: var(--bad); }
 .chk.p-low:not([aria-checked="true"]) span { border-color: var(--priority-low); }
-
-.notice {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
-  background: var(--surface-soft);
-  font-size: var(--text-sm);
-}
-.notice.warn { border-color: color-mix(in srgb, var(--warn) 22%, var(--line)); background: color-mix(in srgb, var(--warn-soft) 72%, var(--surface)); color: var(--warn); }
-.notice .btn { flex: none; }
 
 .sw { width: 14px; height: 14px; flex: none; border-radius: 50%; }
 
@@ -162,7 +156,7 @@ details.card > summary {
   cursor: pointer;
 }
 details.card > summary::-webkit-details-marker { display: none; }
-details.card > summary .chev { transition: transform .15s ease; }
+details.card > summary .chev { transition: transform var(--duration-fast) var(--ease-standard); }
 details.card[open] > summary .chev { transform: rotate(180deg); }
 details.card:not([open]) { gap: 0; }
 

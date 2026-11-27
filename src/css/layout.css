@@ -1,4 +1,5 @@
 .app {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0 var(--space-6);
@@ -7,6 +8,31 @@
   min-height: 100vh;
   min-height: 100dvh;
   margin-inline: auto;
+  --app-atmosphere: var(--p);
+}
+
+.app:has(> .main[data-route="financas"]) { --app-atmosphere: var(--area-finances); }
+.app:has(> .main[data-route="habitos"]) { --app-atmosphere: var(--area-habits); }
+.app:has(> .main[data-route="ciclo"]) { --app-atmosphere: var(--area-cycle); }
+.app:has(> .main[data-route="planejar"]) { --app-atmosphere: var(--area-plan); }
+
+.app::before {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  inset: 0 0 auto;
+  height: min(580px, 68vh);
+  pointer-events: none;
+  background:
+    radial-gradient(1080px 440px at 14% -8%, color-mix(in srgb, var(--app-atmosphere) var(--ambient-glow), transparent), transparent 66%),
+    radial-gradient(840px 380px at 88% -4%, var(--ambient-warmth), transparent 64%);
+  transition: opacity var(--duration-slow) var(--ease-standard);
+}
+
+.app > .main,
+.app > .app-footer {
+  position: relative;
+  z-index: 1;
 }
 
 #app > .app-definitions {
@@ -27,10 +53,10 @@
   padding: clamp(var(--space-6), 3vw, var(--space-7)) var(--gut-r) calc(var(--nav-h) + 36px + env(safe-area-inset-bottom, 0px)) var(--gut-l);
 }
 
-.main.route-enter { animation: route-enter var(--duration-fast) var(--ease-standard) both; }
+.main.route-enter { animation: route-enter var(--duration-base) var(--ease-decelerate) both; }
 @keyframes route-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .main { view-transition-name: route-page; }
 ::view-transition-old(route-page) { animation: 100ms var(--ease-standard) both route-page-out; }

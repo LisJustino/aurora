@@ -21,7 +21,7 @@ const LANDING_TUTORIALS = [
     ],
     image: '/src/assets/tutorials/landing/hoje.webp',
     imageMobile: '/assets/landing-areas/hoje-mobile.webp',
-    alt: 'Tela inicial do Aurora mostrando o dia da Marina com tarefas, próximos compromissos e resumo da semana.',
+    alt: 'Tela inicial do Aurora mostrando o dia da Elisa com tarefas, próximos compromissos e resumo da semana.',
   },
   {
     id: 'tarefas',
@@ -57,7 +57,7 @@ const LANDING_TUTORIALS = [
     heading: 'Clareza sobre o mês, sem conectar seu banco',
     description:
       'Acompanhe contas, cartões, entradas, gastos e metas num só lugar para saber quanto ainda cabe no mês com tranquilidade.',
-    steps: ['Contas, cartões e saldos claros', 'Orçamentos por categoria e metas', 'Nenhuma senha bancária solicitada'],
+    steps: ['Contas, cartões e saldos claros', 'Orçamentos por categoria e metas', 'Gastos fixos e previsão do mês'],
     image: '/src/assets/tutorials/landing/financas.webp',
     imageMobile: '/assets/landing-areas/financas-mobile.webp',
     alt: 'Tela de finanças do Aurora com saldo mensal, contas, movimentações e metas.',
@@ -169,6 +169,7 @@ function landingFooter() {
           <a href="#areas">Áreas da rotina</a>
           <a href="#steps">Como começar</a>
           <a href="#faq">Perguntas</a>
+          <button type="button" class="landing-footer-link" data-action="pwa-install">Instalar app</button>
         </div>
         <div class="landing-footer-link-group">
           <h2>Legal</h2>
@@ -188,10 +189,6 @@ export function landingMarkup() {
   const activeTutorialArea = LANDING_TUTORIALS.some(({ id }) => id === landingState.tutorialArea)
     ? landingState.tutorialArea
     : 'hoje';
-  const desktopLight = '/src/assets/landing-desktop.webp';
-  const desktopDark = '/src/assets/landing-desktop-dark.webp';
-  const mobileLight = '/src/assets/landing-mobile.webp';
-  const mobileDark = '/src/assets/landing-mobile-dark.webp';
   return `
     <div class="public-site landing-marketing">
       <a class="skip" href="#landing-main" data-public-action="skip">Pular para o conteúdo principal</a>
@@ -210,23 +207,6 @@ export function landingMarkup() {
               <li>Grátis, sem cartão</li><li>No navegador ou no celular</li><li>Em português</li>
             </ul>
           </div>
-          <figure class="landing-hero-visual">
-            <div class="landing-hero-desktop">
-              <picture class="landing-screen-light">
-                <source media="(max-width: 700px)" srcset="${mobileLight}" type="image/webp">
-                <img src="${desktopLight}" width="1280" height="760"
-                  alt="Tela inicial do Aurora no modo claro, com tarefas do dia, próximos compromissos e resumo da semana."
-                  fetchpriority="high">
-              </picture>
-              <picture class="landing-screen-dark">
-                <source media="(max-width: 700px)" srcset="${mobileDark}" type="image/webp">
-                <img src="${desktopDark}" width="1280" height="760"
-                  alt="Tela inicial do Aurora no modo escuro, com tarefas do dia, próximos compromissos e resumo da semana."
-                  decoding="async">
-              </picture>
-            </div>
-            <figcaption class="visually-hidden">O Aurora funciona no computador e no celular.</figcaption>
-          </figure>
         </section>
 
         <section class="public-tutorials landing-section" id="areas" aria-labelledby="public-tutorials-title"
@@ -279,9 +259,9 @@ export function landingMarkup() {
             <h2 id="landing-steps-title" class="type-editorial-title">Comece em um minuto.</h2>
           </div>
           <ol class="landing-steps-grid">
-            <li><span>01</span><h3>Crie sua conta grátis</h3><p>Sem cartão e sem precisar baixar nada — abre direto no navegador ou como app no celular.</p></li>
-            <li><span>02</span><h3>Despeje o que está na cabeça</h3><p>Anote tarefas, contas, hábitos e compromissos sem se preocupar em organizar tudo de uma vez.</p></li>
-            <li><span>03</span><h3>Abra todo dia com clareza</h3><p>O Aurora traz para a frente só o que importa hoje. O resto espera com calma até a hora certa.</p></li>
+            <li><span>01</span><h3>Despeje o que está na mente</h3><p>Anote pendências, ideias e contas soltas em segundos, sem a pressão de categorizar tudo no primeiro instante.</p></li>
+            <li><span>02</span><h3>Ajuste aos seus ritmos</h3><p>Escolha quais hábitos praticar nos dias certos e defina metas reais para o mês. O app se molda à sua rotina viva.</p></li>
+            <li><span>03</span><h3>Comece a manhã com calma</h3><p>A tela Hoje reúne as prioridades imediatas. O que não é para hoje fica guardado, sem gerar ruído ou sobrecarga.</p></li>
           </ol>
         </section>
 
@@ -292,10 +272,10 @@ export function landingMarkup() {
               href="${privacy}">Política de Privacidade</a>.</p>
           </div>
           <div class="landing-trust-grid">
-            <article><div><h3>Grátis de verdade</h3><p>Você usa todas as áreas sem assinatura, sem anúncios e sem informar cartão.</p></div></article>
-            <article><div><h3>Seus dados pertencem a você</h3><p>Exporte uma cópia completa dos seus registros ou apague sua conta quando quiser, direto nos Ajustes.</p></div></article>
-            <article><div><h3>Sem conexão com bancos</h3><p>Você anota apenas o que quiser acompanhar. Nenhuma conta bancária ou senha financeira é pedida.</p></div></article>
-            <article><div><h3>Funciona no computador e no celular</h3><p>Adicione à tela inicial no Android ou no iPhone e abra com um toque, igual a um app nativo.</p></div></article>
+            <article><div><h3>Espaço limpo e sem distrações</h3><p>Ambiente pensado para o seu foco: sem anúncios, sem notificações caça-cliques e sem truques para reter sua atenção.</p></div></article>
+            <article><div><h3>Seus dados pertencem a você</h3><p>Nada de dados trancados. Baixe uma cópia completa dos seus registros a qualquer momento ou exclua sua conta em segundos direto nos Ajustes.</p></div></article>
+            <article><div><h3>Sem conexão com bancos</h3><p>Controle financeiro seguro e sob seu domínio: você anota o que desejar sem nunca precisar compartilhar senhas ou chaves bancárias.</p></div></article>
+            <article><div><h3>Funciona no computador e no celular</h3><p>Acesse pelo navegador ou adicione à tela inicial com um toque. Rápido, leve e pronto para acompanhar sua rotina em qualquer dispositivo.</p></div></article>
           </div>
         </section>
 
@@ -305,24 +285,24 @@ export function landingMarkup() {
           </div>
           <div class="public-faq-list">
             <details class="public-faq-item" name="landing-faq">
-              <summary>O Aurora é grátis?</summary>
-              <p>Sim. É grátis e você não precisa informar cartão.</p>
+              <summary>O Aurora é realmente gratuito?</summary>
+              <p>Sim, 100% gratuito. Não há assinaturas pagas escondidas, limite artificial no número de tarefas ou cobranças futuras.</p>
             </details>
             <details class="public-faq-item" name="landing-faq">
               <summary>Posso testar antes de criar conta?</summary>
-              <p>Pode. A demonstração usa dados de exemplo: você adiciona uma tarefa e marca um hábito para ver como funciona. Nada fica salvo quando você sai.</p>
+              <p>Pode. A demonstração interativa traz dados de exemplo para você experimentar as telas de tarefas, hábitos e finanças na prática, sem precisar informar seu e-mail.</p>
             </details>
             <details class="public-faq-item" name="landing-faq">
-              <summary>Preciso baixar alguma coisa?</summary>
-              <p>Não. O Aurora funciona pelo navegador do celular ou do computador. Se quiser, adicione um atalho na tela inicial do celular.</p>
+              <summary>Preciso instalar pela loja de aplicativos?</summary>
+              <p>Não é obrigatório. O Aurora roda direto no navegador e pode ser instalado na tela de início do seu Android ou iPhone com um toque (PWA), ocupando quase nenhum espaço.</p>
             </details>
             <details class="public-faq-item" name="landing-faq">
-              <summary>O Aurora se conecta ao meu banco?</summary>
-              <p>Não. Ele não acessa sua conta bancária. Você anota cada receita, despesa ou cartão.</p>
+              <summary>Como funcionam as finanças sem integração bancária?</summary>
+              <p>Você tem total autonomia e privacidade: registra suas despesas, receitas e cartões no seu ritmo, acompanhando orçamentos e saldo mensal sem nunca expor suas credenciais bancárias.</p>
             </details>
             <details class="public-faq-item" name="landing-faq">
               <summary>Posso levar meus dados ou apagar a conta?</summary>
-              <p>Sim. Em Ajustes, você baixa uma cópia dos seus registros ou inicia a exclusão da conta e dos dados.</p>
+              <p>Sim. Em Ajustes, você pode exportar um backup legível de todos os seus registros ou iniciar a exclusão imediata e definitiva da sua conta e de todos os dados associados.</p>
             </details>
             <details class="public-faq-item" name="landing-faq">
               <summary>O que posso fazer em Ciclo?</summary>
@@ -334,7 +314,7 @@ export function landingMarkup() {
         <section class="public-closing landing-final-cta landing-section" aria-labelledby="public-closing-title">
           <h2 id="public-closing-title"
             class="type-editorial-title">Menos coisa na cabeça.<br><em>Mais dia para viver.</em></h2>
-          <p>Crie sua conta grátis e comece a organizar o que importa hoje.</p>
+          <p>Comece em poucos minutos e sinta o alívio de uma rotina com clareza e sem ansiedade.</p>
           <div class="landing-final-actions">
             <a class="btn primary large" href="${signup}"
               data-public-action="signup">Criar minha conta grátis</a>

@@ -29,14 +29,14 @@ try {
     body { margin: 0; width: 1200px; height: 630px; font-family: var(--font); background: var(--gradient-public-hero); color: var(--public-hero-ink); }
     main { display: flex; height: 100%; align-items: center; padding: 55px 76px; gap: 68px; }
     .copy { flex: 1; min-width: 0; }
-    .brand { margin: 0 0 38px; color: var(--public-hero-ink); font-size: 48px; font-weight: 700; letter-spacing: -2px; }
-    h1 { margin: 0; font-size: 64px; line-height: 1.08; letter-spacing: -2.5px; }
+    .brand { margin: 0 0 38px; color: var(--public-hero-ink); font-family: var(--font-editorial); font-size: 48px; font-weight: 500; letter-spacing: -0.02em; }
+    h1 { margin: 0; font-family: var(--font-editorial); font-size: 64px; font-weight: 500; line-height: 1.08; letter-spacing: -0.02em; }
     .subtitle { max-width: 500px; margin: 30px 0 0; color: var(--public-hero-ink-muted); font-size: 24px; line-height: 1.4; }
     .device { display: flex; width: 340px; height: 520px; flex: none; flex-direction: column; padding: 24px 18px 16px; border: 8px solid var(--preview-phone-frame); border-radius: 40px; background: var(--surface); box-shadow: 0 22px 42px -24px rgb(18 10 10 / 65%); color: var(--ink); }
-    .app-brand { color: var(--accent); font-size: 23px; font-weight: 700; }
-    .greeting { margin: 30px 0 18px; font-size: 22px; font-weight: 700; }
+    .app-brand { color: var(--accent); font-family: var(--font-editorial); font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
+    .greeting { margin: 30px 0 18px; font-family: var(--font-editorial); font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
     .card { padding: 16px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-strong); }
-    .card-title { font-size: 20px; font-weight: 700; }
+    .card-title { font-family: var(--font-editorial); font-size: 21px; font-weight: 500; letter-spacing: -0.015em; }
     .progress { margin: 7px 0 12px; color: var(--muted); font-size: 15px; }
     .task { display: flex; align-items: center; gap: 9px; padding: 10px 0; font-size: 15px; }
     .check { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 2px solid var(--accent); border-radius: 50%; color: var(--accent); font-weight: 700; }
