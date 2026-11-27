@@ -156,6 +156,7 @@ export const CONFIRMABLE_ACTIONS = new Set([
   'goal-del',
   'habit-delete',
   'menu-reset',
+  'planning-list-delete',
   'trash-delete-permanent',
   'trash-empty',
   'trash-restore-all',

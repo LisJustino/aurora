@@ -126,6 +126,8 @@ export const ui = {
   dragId: null,
   quickActionsOpen: false,
   planView: 'lista',
+  taskListName: 'Pessoal',
+  editingTaskList: false,
   annualYear: String(Math.max(2026, Number(today().slice(0, 4)) + 1)),
   annualEditingGoalId: '',
   annualGoalFormOpen: false,
@@ -581,6 +583,7 @@ export const isValidTask = (record) =>
   isText(record.title) &&
   optional(record, 'done', (value) => typeof value === 'boolean') &&
   optional(record, 'tag', isText) &&
+  optional(record, 'list', isText) &&
   optional(record, 'dueDate', (value) => value === null || isDay(value)) &&
   optional(record, 'priority', (value) => ['low', 'normal', 'high'].includes(value)) &&
   optional(record, 'icon', isTaskIconKey) &&

@@ -32,6 +32,12 @@ import { weightChange } from '../features/habits/weight-tracking.js';
 import { hexOk } from '../features/appearance/palettes.js';
 import { MENU_ITEMS, normalizeVisibleMenuItems } from '../features/navigation/menu.js';
 import { REPEATS } from '../features/planning/recurrence.js';
+import {
+  SIMPLE_LIST_LIMITS,
+  normalizeSimpleListName,
+  parseSimpleListItems,
+  simpleListNameKey,
+} from '../features/planning/simple-lists.js';
 import { parseQuickDate } from '../features/planning/quick-date.js';
 import { weekDays } from '../features/planning/week.js';
 import { ACTIONS, focusQuickActionsTrigger, recordWaterEntry } from './actions.js';
@@ -130,6 +136,88 @@ async function deleteAccountFromSettings(form) {
   }
 }
 export const FORMS = {
+  'planning-list-create': (form, data) => {
+    if ((S.settings.lists || []).length >= SIMPLE_LIST_LIMITS.lists) {
+      return toast(`Você já atingiu o limite de ${SIMPLE_LIST_LIMITS.lists} listas.`, 'info');
+    }
+    const rawName = String(data.get('name') || '');
+    const name = normalizeSimpleListName(rawName);
+    if (!name) {
+      return fieldError(
+        rawName.trim() ? 'O nome da lista deve ter até 30 caracteres.' : 'Escreva o nome da lista.',
+        '[name="name"]',
+      );
+    }
+    if (S.settings.lists?.some((list) => simpleListNameKey(list.name) === simpleListNameKey(name))) {
+      return toast('Já existe uma lista com esse nome.', 'info');
+    }
+    const snapshot = snapshotSlices(['settings']);
+    S.settings.lists = [...(S.settings.lists || []), { name, color: '#c97994' }];
+    ui.taskListName = name;
+    if (!saveSlicesWithRollback(['settings'], snapshot, true, 'a criação da lista')) return;
+    render();
+    toast(`Lista “${name}” criada.`, 'success');
+  },
+  'planning-list-rename': (form, data) => {
+    const oldName = String(form.dataset.name || '').trim();
+    const rawName = String(data.get('name') || '');
+    const name = normalizeSimpleListName(rawName);
+    if (!name) {
+      return fieldError(
+        rawName.trim() ? 'O nome da lista deve ter até 30 caracteres.' : 'Escreva o nome da lista.',
+        '[name="name"]',
+      );
+    }
+    if (!S.settings.lists?.some((list) => simpleListNameKey(list.name) === simpleListNameKey(oldName))) {
+      ui.editingTaskList = false;
+      render();
+      return toast('Esta lista não está mais disponível.', 'info');
+    }
+    if (
+      S.settings.lists.some(
+        (list) =>
+          simpleListNameKey(list.name) === simpleListNameKey(name) &&
+          simpleListNameKey(list.name) !== simpleListNameKey(oldName),
+      )
+    ) {
+      return toast('Já existe uma lista com esse nome.', 'info');
+    }
+    const snapshot = snapshotSlices(['settings', 'tasks']);
+    S.settings.lists = S.settings.lists.map((list) =>
+      simpleListNameKey(list.name) === simpleListNameKey(oldName) ? { ...list, name } : list,
+    );
+    S.tasks.forEach((task) => {
+      if (simpleListNameKey(task.list) === simpleListNameKey(oldName)) task.list = name;
+    });
+    ui.taskListName = name;
+    ui.editingTaskList = false;
+    if (!saveSlicesWithRollback(['settings', 'tasks'], snapshot, true, 'a renomeação da lista')) return;
+    render();
+    toast('Lista renomeada.', 'success');
+  },
+  'planning-list-item': (form, data) => {
+    const list = String(form.dataset.list || '').trim();
+    if (!S.settings.lists?.some((item) => item.name === list)) return toast('Escolha uma lista disponível.', 'info');
+    const parsed = parseSimpleListItems(String(data.get('items') || ''));
+    if (parsed.error) return fieldError(parsed.error, '[name="items"]');
+    const snapshot = snapshotSlices(['tasks']);
+    const firstOrder = S.tasks.filter((task) => task.list === list).length;
+    parsed.items.forEach((title, index) =>
+      S.tasks.push(
+        mkTask({
+          title,
+          dueDate: null,
+          priority: 'normal',
+          list,
+          order: firstOrder + index,
+        }),
+      ),
+    );
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a adição do item')) return;
+    render();
+    toast(`${parsed.items.length} ${plural(parsed.items.length, 'item adicionado', 'itens adicionados')}.`, 'success');
+    requestAnimationFrame(() => document.querySelector('#planning-list-item-title')?.focus());
+  },
   'dlg-taskbulk': () => reviewBulkTasks(),
   'dlg-habitbulk': () => reviewBulkHabits(),
   'dlg-txbulk': () => reviewBulkEntry(),

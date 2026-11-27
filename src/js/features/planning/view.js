@@ -25,11 +25,13 @@ export function renderPlanningView({
   taskWeek,
   weeklyReviewView,
   taskListHtml,
+  taskListsHtml,
 }) {
   const filters = ui.filters;
   const annualPlanView = () => renderAnnualPlanView({ S, ui, plural, today });
   const views = [
     ['lista', 'Tarefas', 'list'],
+    ['listas', 'Listas', 'list'],
     ['anual', 'Plano anual', 'target'],
     ['calendario', 'Calendário', 'calendar'],
     ['revisao', 'Revisão', 'chart'],
@@ -52,13 +54,15 @@ export function renderPlanningView({
         aria-selected="${String(planView === value)}">${icon(ic, 18)}<span>${label}</span></button>`,
         )}</div>
       <div id="plan-panel" role="tabpanel" aria-labelledby="plan-tab-${activeView[0]}">${
-        planView === 'anual'
-          ? annualPlanView()
-          : planView === 'calendario'
-            ? taskCalendar()
-            : planView === 'revisao'
-              ? weeklyReviewView()
-              : h`<div class="scroll-x" role="group"
+        planView === 'listas'
+          ? taskListsHtml()
+          : planView === 'anual'
+            ? annualPlanView()
+            : planView === 'calendario'
+              ? taskCalendar()
+              : planView === 'revisao'
+                ? weeklyReviewView()
+                : h`<div class="scroll-x" role="group"
                 aria-label="Filtrar tarefas">${filterOptions.map(
                   ([key, label]) => h`<button class="chip"
                 aria-pressed="${filters.f === key}" data-action="set-filter"

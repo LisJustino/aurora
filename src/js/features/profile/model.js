@@ -29,7 +29,7 @@ export const PROFILE_AVATAR_COLORS = Object.freeze([
   Object.freeze(['ocean', 'Oceano']),
   Object.freeze(['teal', 'Turquesa']),
   Object.freeze(['sage', 'Sálvia']),
-  Object.freeze(['amber', 'Âmbar']),
+  Object.freeze(['amber', 'âmbar']),
 ]);
 
 export const PROFILE_GREETING_STYLES = Object.freeze([

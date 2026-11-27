@@ -202,6 +202,7 @@ async function main() {
   runSuite('cycle-intimacy.cjs', DEV_URL);
   runSuite('tutorial-video-media.cjs', DEV_URL);
   runSuite('finance-improvements.cjs', DEV_URL);
+  runSuite('planning-lists.cjs', DEV_URL);
   runSuite('weekly-review-flow.cjs', DEV_URL);
   runSuite('modal-scroll-lock.cjs', DEV_URL);
   runSuite('auth-preview-boundary.cjs', DEV_URL, PREVIEW_URL);

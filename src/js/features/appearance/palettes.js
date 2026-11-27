@@ -11,7 +11,7 @@ export const PALETTES = {
   teal: ['Turquesa', '#2fa3b0', '#12707c'],
   mint: ['Menta', '#4fb59a', '#1f7a63'],
   sage: ['Sálvia', '#667e6e', '#4f6657'],
-  amber: ['Âmbar', '#d99a2b', '#8a5a00'],
+  amber: ['âmbar', '#d99a2b', '#8a5a00'],
   earth: ['Terra', '#ad8c76', '#795b47'],
   graphite: ['Grafite', '#7b8794', '#46505b'],
 };

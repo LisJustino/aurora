@@ -5,24 +5,24 @@ import { timeBasedGreeting } from '../profile/model.js';
 import { brl, parseMoney } from '../../utils/currency.js';
 
 const DEMO_NAV_ITEMS = [
-  ['today', 'InÃ­cio', 'home', 'inicio'],
+  ['today', 'Início', 'home', 'inicio'],
   ['tasks', 'Planejar', 'calendarCheck', 'planejar'],
-  ['habits', 'HÃ¡bitos', 'leaf', 'habitos'],
-  ['finance', 'FinanÃ§as', 'wallet', 'financas'],
+  ['habits', 'Hábitos', 'leaf', 'habitos'],
+  ['finance', 'Finanças', 'wallet', 'financas'],
   ['cycle', 'Ciclo', 'heart', 'ciclo'],
 ];
 
 const DEMO_PLAN_TABS = [
   ['tasks', 'Tarefas', 'list'],
   ['annual', 'Plano anual', 'target'],
-  ['calendar', 'CalendÃ¡rio', 'calendar'],
-  ['review', 'RevisÃ£o', 'chart'],
+  ['calendar', 'Calendário', 'calendar'],
+  ['review', 'Revisão', 'chart'],
 ];
 
 const DEMO_FIN_TABS = [
-  ['resumo', 'VisÃ£o geral', 'home'],
-  ['lancamentos', 'MovimentaÃ§Ãµes', 'list'],
-  ['planejamento', 'OrÃ§amentos', 'target'],
+  ['resumo', 'Visão geral', 'home'],
+  ['lancamentos', 'Movimentações', 'list'],
+  ['planejamento', 'Orçamentos', 'target'],
 ];
 
 const demoControllers = new WeakMap();
@@ -68,13 +68,13 @@ function renderTaskRows(tasks) {
       (task) => `
     <li class="task ${task.done ? 'done' : task.id === nextTaskId ? 'is-next' : ''}">
       <button type="button" class="chk ${task.priority === 'high' ? 'p-high' : task.priority === 'low' ? 'p-low' : 'p-normal'}" role="checkbox" aria-checked="${String(task.done)}"
-        aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluÃ­da'}: ${escapeDemoText(task.title)}"
+        aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluída'}: ${escapeDemoText(task.title)}"
         data-demo-action="task-toggle"
         data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
       <div class="tt">
         <span class="ttl">${escapeDemoText(task.title)}</span>
         <span class="meta">
-          ${task.done ? '<span class="badge">ConcluÃ­da</span>' : task.id === nextTaskId ? '<span class="badge warn">PrÃ³xima</span>' : `<span class="badge">${escapeDemoText(task.dueDate || 'Hoje')}</span>`}
+          ${task.done ? '<span class="badge">Concluída</span>' : task.id === nextTaskId ? '<span class="badge warn">Próxima</span>' : `<span class="badge">${escapeDemoText(task.dueDate || 'Hoje')}</span>`}
           ${task.tag ? `<span class="tag">#${escapeDemoText(task.tag)}</span>` : ''}
           ${task.priority === 'high' ? '<span class="m-warn">Prioridade alta</span>' : ''}
         </span>
@@ -85,15 +85,7 @@ function renderTaskRows(tasks) {
 }
 
 function renderHabitCard(title, category, days, { large = false, id = 'alongar', target = 5 } = {}) {
-  const dayNames = [
-    'segunda-feira',
-    'terÃ§a-feira',
-    'quarta-feira',
-    'quinta-feira',
-    'sexta-feira',
-    'sÃ¡bado',
-    'domingo',
-  ];
+  const dayNames = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'];
   const dayLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
   const completed = days.filter(Boolean).length;
   return `
@@ -105,13 +97,13 @@ function renderHabitCard(title, category, days, { large = false, id = 'alongar',
         </div>
         <span class="demo-area-badge demo-area-badge--habits" aria-hidden="true">${demoIcon('leaf', 20)}</span>
       </div>
-      <p class="demo-muted" aria-live="polite">${completed} de ${target} dias nesta semana Â· ${completed >= target ? 'Meta da semana atingida!' : `faltam ${target - completed} dias`}</p>
+      <p class="demo-muted" aria-live="polite">${completed} de ${target} dias nesta semana · ${completed >= target ? 'Meta da semana atingida!' : `faltam ${target - completed} dias`}</p>
       <div class="demo-habit-week" role="group" aria-label="Marque os dias de ${escapeDemoText(title)}">
         ${dayLabels
           .map(
             (day, index) => `<button type="button"
           class="${days[index] ? 'is-complete' : ''}" aria-pressed="${String(days[index])}"
-          aria-label="${dayNames[index]}: ${days[index] ? 'marcado' : 'nÃ£o marcado'}"
+          aria-label="${dayNames[index]}: ${days[index] ? 'marcado' : 'não marcado'}"
           data-demo-action="habit-toggle" data-habit-id="${id}" data-day-index="${index}">${day}</button>`,
           )
           .join('')}
@@ -129,12 +121,12 @@ function renderWaterCard(state) {
   return `
     <section class="card demo-water-card" aria-labelledby="demo-water-title">
       <div class="demo-water-main">
-        <p class="section-kicker demo-water-kicker">HidrataÃ§Ã£o diÃ¡ria</p>
+        <p class="section-kicker demo-water-kicker">Hidratação diária</p>
         <div class="demo-water-headline">
           <h2 id="demo-water-title" class="demo-water-amount">${state.waterMl.toLocaleString('pt-BR')} mL</h2>
-          <span class="demo-water-goal">de ${goal.toLocaleString('pt-BR')} mL Â· ${remaining > 0 ? `faltam ${remaining.toLocaleString('pt-BR')} mL` : 'meta atingida! ðŸŽ‰'}</span>
+          <span class="demo-water-goal">de ${goal.toLocaleString('pt-BR')} mL · ${remaining > 0 ? `faltam ${remaining.toLocaleString('pt-BR')} mL` : 'meta atingida! 🎉'}</span>
         </div>
-        <div class="demo-water-segments" role="progressbar" aria-label="HidrataÃ§Ã£o de exemplo"
+        <div class="demo-water-segments" role="progressbar" aria-label="Hidratação de exemplo"
           aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(goal, state.waterMl)}">${Array.from(
             { length: segments },
             (_, index) => `<span class="${index < filledSegments ? 'is-filled' : ''}" aria-hidden="true"></span>`,
@@ -154,18 +146,18 @@ function renderPageHeading(title, description = '') {
 
 function demoNotice() {
   return `<div class="notice sample-banner demo-mode-strip" role="note"><span class="demo-mode-dot"
-    aria-hidden="true"></span><span class="sample-banner-copy">DemonstraÃ§Ã£o interativa Â· explore o Aurora com dados de exemplo</span></div>`;
+    aria-hidden="true"></span><span class="sample-banner-copy">Demonstração interativa · explore o Aurora com dados de exemplo</span></div>`;
 }
 
 function renderHomeTask(task) {
   return `<li class="task ${task.done ? 'done' : ''}">
       <button type="button" class="chk ${task.priority === 'high' ? 'p-high' : task.priority === 'low' ? 'p-low' : 'p-normal'}" role="checkbox" aria-checked="${String(task.done)}"
-        aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluÃ­da'}: ${escapeDemoText(task.title)}"
+        aria-label="${task.done ? 'Marcar como pendente' : 'Marcar como concluída'}: ${escapeDemoText(task.title)}"
         data-demo-action="task-toggle" data-task-id="${escapeDemoText(task.id)}"><span>${demoIcon('check', 15)}</span></button>
       <div class="tt">
         <span class="ttl">${escapeDemoText(task.title)}</span>
         <span class="meta">
-          <span>${task.done ? 'ConcluÃ­da' : 'Hoje'}</span>
+          <span>${task.done ? 'Concluída' : 'Hoje'}</span>
           ${task.tag ? `<span class="tag">#${escapeDemoText(task.tag)}</span>` : ''}
           ${task.priority === 'high' && !task.done ? '<span class="m-warn">Prioridade alta</span>' : ''}
         </span>
@@ -190,8 +182,8 @@ function renderToday(state) {
   const currentBalance = calculateCurrentBalance(state);
 
   const lead = open.length
-    ? `${open.length} ${open.length === 1 ? 'tarefa pendente para hoje' : 'tarefas pendentes para hoje'} Â· ${done.length} ${done.length === 1 ? 'concluÃ­da' : 'concluÃ­das'}`
-    : 'Tudo concluÃ­do por hoje. ParabÃ©ns!';
+    ? `${open.length} ${open.length === 1 ? 'tarefa pendente para hoje' : 'tarefas pendentes para hoje'} · ${done.length} ${done.length === 1 ? 'concluída' : 'concluídas'}`
+    : 'Tudo concluído por hoje. Parabéns!';
   const shortDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
     .format(new Date())
     .replace(/[.,]/g, '');
@@ -217,10 +209,10 @@ function renderToday(state) {
           <a class="home-bento-tile home-bento-tile--plan" href="/demonstracao" data-demo-view="tasks" style="--bento-pct:${taskPct}%">
             <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${demoIcon('calendarCheck', 16)}</span><span class="home-bento-label">Tarefas</span><span class="home-bento-ring" aria-hidden="true"></span></div>
             <b class="home-bento-value">${done.length}/${total}</b>
-            <span class="home-bento-sub">${taskPct}% concluÃ­do hoje</span>
+            <span class="home-bento-sub">${taskPct}% concluído hoje</span>
           </a>
           <a class="home-bento-tile home-bento-tile--water" href="/demonstracao" data-demo-view="habits" style="--bento-pct:${waterPct}%">
-            <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${demoIcon('water', 16)}</span><span class="home-bento-label">HidrataÃ§Ã£o</span></div>
+            <div class="home-bento-top"><span class="home-bento-icon" aria-hidden="true">${demoIcon('water', 16)}</span><span class="home-bento-label">Hidratação</span></div>
             <b class="home-bento-value">${waterPct}%</b>
             <span class="home-bento-bar" aria-hidden="true"><i style="width:${waterPct}%"></i></span>
             <span class="home-bento-sub">${state.waterMl.toLocaleString('pt-BR')} / 2.000 mL</span>
@@ -246,29 +238,29 @@ function renderToday(state) {
                 aria-checked="false" aria-label="Concluir: ${escapeDemoText(nextTask.title)}"
                 data-demo-action="task-toggle" data-task-id="${escapeDemoText(nextTask.id)}"><span>${demoIcon('check', 15)}</span></button>
               <button type="button" class="home-day-next-task-body" data-demo-view="tasks"
-                aria-label="PrÃ³xima tarefa: ${escapeDemoText(nextTask.title)}">
-                <span><small>${nextTask.priority === 'high' ? 'PRIORIDADE ALTA' : 'PRÃ“XIMA TAREFA'}</small><b>${escapeDemoText(nextTask.title)}</b></span>${demoIcon('chevRight', 16)}
+                aria-label="Próxima tarefa: ${escapeDemoText(nextTask.title)}">
+                <span><small>${nextTask.priority === 'high' ? 'PRIORIDADE ALTA' : 'PRÓXIMA TAREFA'}</small><b>${escapeDemoText(nextTask.title)}</b></span>${demoIcon('chevRight', 16)}
               </button>
             </div>`
-              : `<a class="home-day-next-task" href="/demonstracao" data-demo-view="tasks" aria-label="Todas as tarefas de hoje concluÃ­das">
-              ${demoIcon('check', 18)}<span><small>TUDO FEITO</small><b>Tarefas de hoje concluÃ­das</b></span>${demoIcon('chevRight', 16)}
+              : `<a class="home-day-next-task" href="/demonstracao" data-demo-view="tasks" aria-label="Todas as tarefas de hoje concluídas">
+              ${demoIcon('check', 18)}<span><small>TUDO FEITO</small><b>Tarefas de hoje concluídas</b></span>${demoIcon('chevRight', 16)}
             </a>`
           }
-          <div class="home-day-chips" role="group" aria-label="Resumo das Ã¡reas de hoje">
+          <div class="home-day-chips" role="group" aria-label="Resumo das áreas de hoje">
             <a class="home-day-chip home-day-chip--plan" href="/demonstracao" data-demo-view="tasks"
               aria-label="Tarefas, ${done.length} de ${total} feitas">
               <span class="home-day-chip-count" aria-hidden="true">${done.length}/${total}</span>
               <span class="home-day-chip-copy">Tarefas</span>
             </a>
             <a class="home-day-chip home-day-chip--habits" href="/demonstracao" data-demo-view="habits"
-              aria-label="HÃ¡bitos, ${habitDone ? '1 de 1 feito' : '0 de 1 feito'}">
+              aria-label="Hábitos, ${habitDone ? '1 de 1 feito' : '0 de 1 feito'}">
               <span class="home-day-chip-count" aria-hidden="true">${habitDone ? '1/1' : '0/1'}</span>
-              <span class="home-day-chip-copy">HÃ¡bitos</span>
+              <span class="home-day-chip-copy">Hábitos</span>
             </a>
             <a class="home-day-chip home-day-chip--water" href="/demonstracao" data-demo-view="habits"
-              aria-label="Ãgua, ${state.waterMl.toLocaleString('pt-BR')} de 2.000 mL">
+              aria-label="Água, ${state.waterMl.toLocaleString('pt-BR')} de 2.000 mL">
               <span class="home-day-chip-count" aria-hidden="true">${waterPct}%</span>
-              <span class="home-day-chip-copy">Ãgua</span>
+              <span class="home-day-chip-copy">Água</span>
             </a>
             <a class="home-day-chip home-day-chip--cycle" href="/demonstracao" data-demo-view="cycle"
               aria-label="Ciclo, dia 14">
@@ -283,7 +275,7 @@ function renderToday(state) {
           </div>
           <a class="home-day-upcoming" href="/demonstracao" data-demo-view="finance"
             aria-label="A vencer em 5 dias: Internet e luz, R$ 289,90">
-            ${demoIcon('wallet', 16)}<span><small>A VENCER EM 5 DIAS</small><b>Internet e luz Â· R$ 289,90</b></span>${demoIcon('chevRight', 16)}
+            ${demoIcon('wallet', 16)}<span><small>A VENCER EM 5 DIAS</small><b>Internet e luz · R$ 289,90</b></span>${demoIcon('chevRight', 16)}
           </a>
         </section>
 
@@ -299,11 +291,11 @@ function renderToday(state) {
                 <h3>${demoIcon('calendarCheck', 15)}Para hoje <span>${open.length}</span></h3>
                 <ul class="list">${open.map(renderHomeTask).join('')}</ul>
               </section>`
-                : '<p class="demo-muted" style="padding:var(--space-3) 0">Todas as tarefas de hoje foram concluÃ­das!</p>'
+                : '<p class="demo-muted" style="padding:var(--space-3) 0">Todas as tarefas de hoje foram concluídas!</p>'
             }
             ${
               done.length
-                ? `<details class="home-completed" open><summary>${demoIcon('check', 15)}ConcluÃ­das hoje <span
+                ? `<details class="home-completed" open><summary>${demoIcon('check', 15)}Concluídas hoje <span
                 class="home-completed-count">${done.length}</span></summary><ul
                 class="list">${done.map(renderHomeTask).join('')}</ul></details>`
                 : ''
@@ -313,23 +305,23 @@ function renderToday(state) {
 
         <section class="card home-habit-checkins" aria-labelledby="demo-habits-title">
           <div class="head">
-            <h2 id="demo-habits-title">HÃ¡bitos de hoje</h2>
-            <button type="button" class="btn ghost sm" data-demo-view="habits">Ver hÃ¡bitos</button>
+            <h2 id="demo-habits-title">Hábitos de hoje</h2>
+            <button type="button" class="btn ghost sm" data-demo-view="habits">Ver hábitos</button>
           </div>
           <ul class="list">
             <li class="home-habit-row">
               <span class="home-habit-icon" aria-hidden="true">${demoIcon('leaf', 18)}</span>
               <span class="grow">
                 <b>Alongar um pouquinho</b>
-                <span class="small muted">${habitDone ? 'ConcluÃ­do hoje' : 'Ainda nÃ£o marcado'}</span>
+                <span class="small muted">${habitDone ? 'Concluído hoje' : 'Ainda não marcado'}</span>
               </span>
               <button type="button" class="btn sm ${habitDone ? 'back' : 'primary'}" data-demo-action="habit-toggle"
-                data-habit-id="alongar" data-day-index="${todayIndex}" aria-pressed="${String(habitDone)}">${demoIcon(habitDone ? 'check' : 'plus', 16)}${habitDone ? 'ConcluÃ­do' : 'Marcar'}</button>
+                data-habit-id="alongar" data-day-index="${todayIndex}" aria-pressed="${String(habitDone)}">${demoIcon(habitDone ? 'check' : 'plus', 16)}${habitDone ? 'Concluído' : 'Marcar'}</button>
             </li>
             <li class="home-habit-row">
               <span class="home-habit-icon" aria-hidden="true">${demoIcon('water', 18)}</span>
               <span class="grow">
-                <b>HidrataÃ§Ã£o diÃ¡ria</b>
+                <b>Hidratação diária</b>
                 <span class="small muted">${state.waterMl.toLocaleString('pt-BR')} / 2.000 mL (${waterPct}%)</span>
               </span>
               <button type="button" class="btn sm ghost" data-demo-action="water-add" data-amount="250">
@@ -343,14 +335,14 @@ function renderToday(state) {
           <div class="home-quick-copy">
             <span class="home-quick-mark" aria-hidden="true">${demoIcon('plus', 18)}</span>
             <div>
-              <h2 id="demo-quick-title" class="type-editorial-title">Qual Ã© o prÃ³ximo passo<i>?</i></h2>
+              <h2 id="demo-quick-title" class="type-editorial-title">Qual é o próximo passo<i>?</i></h2>
               <p>Adicione uma tarefa com tag ou prazo para testar o fluxo.</p>
             </div>
           </div>
           <form class="home-quick-form demo-quick-form" data-demo-task-form>
             <label class="sr" for="demo-home-task">Nova tarefa</label>
             <input id="demo-home-task" name="title" type="text" maxlength="80" autocomplete="off"
-              placeholder="Ex.: revisar apresentaÃ§Ã£o amanhÃ£" required data-demo-task-input>
+              placeholder="Ex.: revisar apresentação amanhã" required data-demo-task-input>
             <label class="sr" for="demo-quick-priority">Prioridade</label>
             <select id="demo-quick-priority" name="priority" aria-label="Prioridade">
               <option value="normal">Normal</option>
@@ -366,7 +358,7 @@ function renderToday(state) {
 }
 
 function renderPlanSubtabs(state) {
-  return `<div class="demo-subtabs" role="tablist" aria-label="VisÃµes de planejamento">${DEMO_PLAN_TABS.map(
+  return `<div class="demo-subtabs" role="tablist" aria-label="Visões de planejamento">${DEMO_PLAN_TABS.map(
     ([id, label, iconName]) => `<button type="button" class="demo-subtab ${state.planTab === id ? 'is-current' : ''}"
       role="tab" aria-selected="${String(state.planTab === id)}"
       data-demo-plan-tab="${id}">${demoIcon(iconName, 16)}<span>${label}</span></button>`,
@@ -401,16 +393,16 @@ function renderTasks(state) {
         <div class="head">
           <div>
             <p class="section-kicker">Organize no seu ritmo</p>
-            <h2 id="demo-task-list-title">Tarefas e pendÃªncias</h2>
+            <h2 id="demo-task-list-title">Tarefas e pendências</h2>
           </div>
-          <span class="pill" aria-live="polite">${completed} de ${state.tasks.length} concluÃ­das</span>
+          <span class="pill" aria-live="polite">${completed} de ${state.tasks.length} concluídas</span>
         </div>
 
         <div class="scroll-x" role="group" aria-label="Filtrar tarefas" style="margin-bottom:var(--space-3)">
           <button type="button" class="chip ${filter === 'all' ? 'is-active' : ''}" data-demo-plan-filter="all" aria-pressed="${String(filter === 'all')}">Todas</button>
           <button type="button" class="chip ${filter === 'today' ? 'is-active' : ''}" data-demo-plan-filter="today" aria-pressed="${String(filter === 'today')}">Hoje</button>
           <button type="button" class="chip ${filter === 'open' ? 'is-active' : ''}" data-demo-plan-filter="open" aria-pressed="${String(filter === 'open')}">Pendentes</button>
-          <button type="button" class="chip ${filter === 'done' ? 'is-active' : ''}" data-demo-plan-filter="done" aria-pressed="${String(filter === 'done')}">ConcluÃ­das</button>
+          <button type="button" class="chip ${filter === 'done' ? 'is-active' : ''}" data-demo-plan-filter="done" aria-pressed="${String(filter === 'done')}">Concluídas</button>
           <button type="button" class="chip ${filter === 'tag:rotina' ? 'is-active' : ''}" data-demo-plan-filter="tag:rotina" aria-pressed="${String(filter === 'tag:rotina')}">#rotina</button>
           <button type="button" class="chip ${filter === 'tag:trabalho' ? 'is-active' : ''}" data-demo-plan-filter="tag:trabalho" aria-pressed="${String(filter === 'tag:trabalho')}">#trabalho</button>
         </div>
@@ -418,7 +410,7 @@ function renderTasks(state) {
         <div class="row" style="margin-bottom:var(--space-3)">
           <label class="search" style="flex:1">
             <span class="sr">Buscar tarefas</span>${demoIcon('search', 18)}
-            <input type="search" data-demo-search value="${escapeDemoText(state.planSearch || '')}" placeholder="Buscar por tÃ­tulo ou tag...">
+            <input type="search" data-demo-search value="${escapeDemoText(state.planSearch || '')}" placeholder="Buscar por título ou tag...">
           </label>
         </div>
 
@@ -428,11 +420,11 @@ function renderTasks(state) {
           <label for="demo-new-task">Nova tarefa</label>
           <div style="display:flex;gap:var(--space-2);flex-wrap:wrap">
             <input id="demo-new-task" name="title" type="text" maxlength="80" autocomplete="off"
-              placeholder="Ex.: revisar orÃ§amento da viagem" required data-demo-task-input style="flex:1;min-width:200px">
+              placeholder="Ex.: revisar orçamento da viagem" required data-demo-task-input style="flex:1;min-width:200px">
             <input name="tag" type="text" maxlength="20" placeholder="#tag (opcional)" style="width:120px">
             <button class="btn primary" type="submit">Adicionar</button>
           </div>
-          <p class="demo-note" id="demo-task-help">Esta demonstraÃ§Ã£o Ã© interativa e nada Ã© enviado para servidores.</p>
+          <p class="demo-note" id="demo-task-help">Esta demonstração é interativa e nada é enviado para servidores.</p>
         </form>
       </section>`;
   }
@@ -447,13 +439,13 @@ function renderAnnualPanel(state) {
     <section class="card demo-area-panel" aria-labelledby="demo-annual-title">
       <div class="head">
         <div>
-          <p class="section-kicker">Seu prÃ³ximo capÃ­tulo</p>
-          <h2 id="demo-annual-title">Plano anual Â· ${year}</h2>
+          <p class="section-kicker">Seu próximo capítulo</p>
+          <h2 id="demo-annual-title">Plano anual · ${year}</h2>
         </div>
         <span class="demo-area-badge demo-area-badge--plan" aria-hidden="true">${demoIcon('target', 20)}</span>
       </div>
       <div class="demo-annual-goal-box">
-        <p><strong>IntenÃ§Ã£o do ano:</strong> â€œ${escapeDemoText(state.annualGoal || 'Viver com mais foco, saÃºde e tranquilidade')}â€</p>
+        <p><strong>Intenção do ano:</strong> “${escapeDemoText(state.annualGoal || 'Viver com mais foco, saúde e tranquilidade')}”</p>
       </div>
 
       <h3 style="margin:var(--space-4) 0 var(--space-2);font-size:var(--text-base)">Conquistas planejadas para ${year}</h3>
@@ -479,7 +471,7 @@ function renderAnnualPanel(state) {
         <label for="demo-annual-goal">Adicionar uma meta anual</label>
         <div>
           <input id="demo-annual-goal" name="goal" type="text" maxlength="120"
-            placeholder="Ex.: fazer uma viagem especial em famÃ­lia" required>
+            placeholder="Ex.: fazer uma viagem especial em família" required>
           <button class="btn primary" type="submit">Adicionar meta</button>
         </div>
       </form>
@@ -487,14 +479,14 @@ function renderAnnualPanel(state) {
 }
 
 function renderCalendarPanel(state) {
-  const days = ['Segunda', 'TerÃ§a', 'Quarta', 'Quinta', 'Sexta', 'SÃ¡bado', 'Domingo'];
+  const days = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
   const todayIndex = (new Date().getDay() + 6) % 7;
   return `
     <section class="card demo-area-panel" aria-labelledby="demo-calendar-title">
       <div class="head">
         <div>
-          <p class="section-kicker">VisÃ£o semanal</p>
-          <h2 id="demo-calendar-title">CalendÃ¡rio da semana</h2>
+          <p class="section-kicker">Visão semanal</p>
+          <h2 id="demo-calendar-title">Calendário da semana</h2>
         </div>
         <span class="demo-area-badge demo-area-badge--plan" aria-hidden="true">${demoIcon('calendar', 20)}</span>
       </div>
@@ -504,12 +496,12 @@ function renderCalendarPanel(state) {
             (dayName, index) => `
           <div class="card surface-soft" style="padding:var(--space-3);border-radius:var(--r);${index === todayIndex ? 'border:1px solid var(--accent);' : ''}">
             <div style="font-size:var(--text-xs);font-weight:var(--weight-bold);color:${index === todayIndex ? 'var(--accent)' : 'var(--muted)'};margin-bottom:var(--space-1)">
-              ${dayName} ${index === todayIndex ? 'Â· Hoje' : ''}
+              ${dayName} ${index === todayIndex ? '· Hoje' : ''}
             </div>
             ${
               index === todayIndex
                 ? `<div class="tag" style="display:block;margin-bottom:4px">Ler por alguns minutos</div>
-                   <div class="tag" style="display:block">RevisÃ£o semanal</div>`
+                   <div class="tag" style="display:block">Revisão semanal</div>`
                 : index === (todayIndex + 1) % 7
                   ? '<div class="tag" style="display:block">Marcar consulta</div>'
                   : '<div style="font-size:var(--text-xs);color:var(--muted)">Sem tarefas</div>'
@@ -518,7 +510,7 @@ function renderCalendarPanel(state) {
           )
           .join('')}
       </div>
-      <p class="demo-note">Alterne entre lista e calendÃ¡rio para organizar seus compromissos no ritmo natural da semana.</p>
+      <p class="demo-note">Alterne entre lista e calendário para organizar seus compromissos no ritmo natural da semana.</p>
     </section>`;
 }
 
@@ -528,34 +520,34 @@ function renderReviewPanel(state) {
     <section class="card demo-area-panel" aria-labelledby="demo-review-title">
       <div class="head">
         <div>
-          <p class="section-kicker">ReflexÃ£o semanal</p>
+          <p class="section-kicker">Reflexão semanal</p>
           <h2 id="demo-review-title">Ritmo da sua semana</h2>
         </div>
         <span class="demo-area-badge demo-area-badge--plan" aria-hidden="true">${demoIcon('chart', 20)}</span>
       </div>
-      <div class="demo-finance-summary" role="group" aria-label="MÃ©tricas da semana">
+      <div class="demo-finance-summary" role="group" aria-label="Métricas da semana">
         <article><span>${demoIcon('check', 15)} Tarefas feitas</span><strong>${completed}</strong></article>
-        <article><span>${demoIcon('leaf', 15)} HÃ¡bitos mantidos</span><strong>2 ativos</strong></article>
-        <article><span>${demoIcon('water', 15)} HidrataÃ§Ã£o</span><strong>${state.waterMl.toLocaleString('pt-BR')} mL</strong></article>
+        <article><span>${demoIcon('leaf', 15)} Hábitos mantidos</span><strong>2 ativos</strong></article>
+        <article><span>${demoIcon('water', 15)} Hidratação</span><strong>${state.waterMl.toLocaleString('pt-BR')} mL</strong></article>
       </div>
       <p style="margin-top:var(--space-3);color:var(--muted);font-size:var(--text-sm)">
-        O Aurora prioriza a constÃ¢ncia leve: celebrar pequenas vitÃ³rias do dia ajuda a manter a rotina sem cobranÃ§a excessiva.
+        O Aurora prioriza a constância leve: celebrar pequenas vitórias do dia ajuda a manter a rotina sem cobrança excessiva.
       </p>
     </section>`;
 }
 
 function renderHabits(state) {
   const completedStretch = state.habitDays.filter(Boolean).length;
-  return `${renderPageHeading('HÃ¡bitos', 'Acompanhe sua hidrataÃ§Ã£o e cultive pequenos cuidados no ritmo da semana.')}
+  return `${renderPageHeading('Hábitos', 'Acompanhe sua hidratação e cultive pequenos cuidados no ritmo da semana.')}
     ${renderWaterCard(state)}
     <div style="display:grid;gap:var(--space-4)">
-      ${renderHabitCard('Alongar um pouquinho', 'Corpo & Yoga Â· 5 dias/sem', state.habitDays, { large: true, id: 'alongar', target: 5 })}
-      ${renderHabitCard('Ler 15 pÃ¡ginas', 'Mente & Foco Â· DiÃ¡rio', state.otherHabitDays['habit-read'], { large: true, id: 'read', target: 7 })}
-      ${renderHabitCard('Caminhada ao ar livre', 'SaÃºde & Movimento Â· 3 dias/sem', state.otherHabitDays['habit-walk'], { large: true, id: 'walk', target: 3 })}
+      ${renderHabitCard('Alongar um pouquinho', 'Corpo & Yoga · 5 dias/sem', state.habitDays, { large: true, id: 'alongar', target: 5 })}
+      ${renderHabitCard('Ler 15 páginas', 'Mente & Foco · Diário', state.otherHabitDays['habit-read'], { large: true, id: 'read', target: 7 })}
+      ${renderHabitCard('Caminhada ao ar livre', 'Saúde & Movimento · 3 dias/sem', state.otherHabitDays['habit-walk'], { large: true, id: 'walk', target: 3 })}
       <section class="card demo-area-panel demo-habit-note">
-        <p class="section-kicker">ConstÃ¢ncia leve</p>
+        <p class="section-kicker">Constância leve</p>
         <h2>${completedStretch} dias de alongamento nesta semana.</h2>
-        <p>Toque em qualquer dia dos cÃ­rculos acima para marcar ou desmarcar. O Aurora valoriza a flexibilidade: pausas tambÃ©m fazem parte de uma rotina sustentÃ¡vel.</p>
+        <p>Toque em qualquer dia dos círculos acima para marcar ou desmarcar. O Aurora valoriza a flexibilidade: pausas também fazem parte de uma rotina sustentável.</p>
       </section>
     </div>`;
 }
@@ -577,13 +569,13 @@ function renderCycle(state) {
     <section class="card demo-area-panel" aria-labelledby="demo-cycle-title">
       <div class="head">
         <div>
-          <p class="section-kicker">${escapeDemoText(dateLabel)} Â· Acompanhamento</p>
-          <h2 id="demo-cycle-title">Fase Folicular Â· Dia 14</h2>
+          <p class="section-kicker">${escapeDemoText(dateLabel)} · Acompanhamento</p>
+          <h2 id="demo-cycle-title">Fase Folicular · Dia 14</h2>
         </div>
         <span class="demo-area-badge demo-area-badge--cycle" aria-hidden="true">${demoIcon('heart', 20)}</span>
       </div>
 
-      <div class="demo-calendar" role="group" aria-label="Dias de exemplo no calendÃ¡rio">${dates
+      <div class="demo-calendar" role="group" aria-label="Dias de exemplo no calendário">${dates
         .map((date, index) => {
           const day = localDateKey(date);
           const isSelected = state.cycleDay === day;
@@ -595,11 +587,11 @@ function renderCycle(state) {
 
       <div class="demo-cycle-detail" aria-live="polite">
         <p class="section-kicker">${escapeDemoText(new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date(`${state.cycleDay}T12:00:00`)))}</p>
-        <h3>${state.cycleSymptom ? 'Sintoma registrado: cÃ³lica leve anotada.' : 'Fase folicular estimada â€” energia e disposiÃ§Ã£o em alta.'}</h3>
-        <p>Acompanhe fluxo, sintomas e notas para entender suas variaÃ§Ãµes de ritmo ao longo do mÃªs.</p>
+        <h3>${state.cycleSymptom ? 'Sintoma registrado: cólica leve anotada.' : 'Fase folicular estimada — energia e disposição em alta.'}</h3>
+        <p>Acompanhe fluxo, sintomas e notas para entender suas variações de ritmo ao longo do mês.</p>
         <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-2)">
           <button class="btn sm ${state.cycleSymptom ? '' : 'primary'}" type="button" data-demo-action="cycle-symptom">
-            ${state.cycleSymptom ? 'Remover cÃ³lica' : '+ Registrar cÃ³lica leve'}
+            ${state.cycleSymptom ? 'Remover cólica' : '+ Registrar cólica leve'}
           </button>
           <button class="btn sm ghost" type="button" data-demo-action="cycle-flow">
             Fluxo: ${state.cycleFlow === 'light' ? 'Leve' : 'Nenhum'}
@@ -607,11 +599,11 @@ function renderCycle(state) {
         </div>
       </div>
 
-      <div class="demo-finance-summary" role="group" aria-label="MÃ©dias informativas" style="margin-top:var(--space-4)">
-        <article><span>${demoIcon('heart', 15)} MÃ©dia do ciclo</span><strong>28 dias</strong></article>
-        <article><span>${demoIcon('clock', 15)} MÃ©dia do perÃ­odo</span><strong>5 dias</strong></article>
+      <div class="demo-finance-summary" role="group" aria-label="Médias informativas" style="margin-top:var(--space-4)">
+        <article><span>${demoIcon('heart', 15)} Média do ciclo</span><strong>28 dias</strong></article>
+        <article><span>${demoIcon('clock', 15)} Média do período</span><strong>5 dias</strong></article>
       </div>
-      <p class="demo-note">InformaÃ§Ãµes sobre o ciclo sÃ£o estritamente privadas, ficam sob seu controle e tÃªm finalidade informativa, nÃ£o substituindo orientaÃ§Ã£o mÃ©dica.</p>
+      <p class="demo-note">Informações sobre o ciclo são estritamente privadas, ficam sob seu controle e têm finalidade informativa, não substituindo orientação médica.</p>
     </section>`;
 }
 
@@ -623,7 +615,7 @@ function dateForFinanceOffset(offset) {
 }
 
 function renderFinanceSubtabs(state) {
-  return `<div class="demo-subtabs" role="tablist" aria-label="SeÃ§Ãµes de FinanÃ§as">${DEMO_FIN_TABS.map(
+  return `<div class="demo-subtabs" role="tablist" aria-label="Seções de Finanças">${DEMO_FIN_TABS.map(
     ([id, label, iconName]) => `<button type="button" class="demo-subtab ${state.finTab === id ? 'is-current' : ''}"
       role="tab" aria-selected="${String(state.finTab === id)}"
       data-demo-fin-tab="${id}">${demoIcon(iconName, 16)}<span>${label}</span></button>`,
@@ -639,15 +631,15 @@ function renderFinance(state) {
   const baseItems =
     state.financeMonth === 0
       ? [
-          ['Aluguel e condomÃ­nio', 'Moradia', 145000, 'home'],
-          ['Mercado da semana', 'AlimentaÃ§Ã£o', 42000, 'utensils'],
+          ['Aluguel e condomínio', 'Moradia', 145000, 'home'],
+          ['Mercado da semana', 'Alimentação', 42000, 'utensils'],
           ['Internet fibra', 'Assinaturas', 12000, 'tag'],
-          ['FarmÃ¡cia e cuidados', 'SaÃºde', 6500, 'pill'],
-          ['Transporte e combustÃ­vel', 'Rotina', 9000, 'bike'],
+          ['Farmácia e cuidados', 'Saúde', 6500, 'pill'],
+          ['Transporte e combustível', 'Rotina', 9000, 'bike'],
         ]
       : [
-          ['Aluguel e condomÃ­nio', 'Moradia', 145000, 'home'],
-          ['Mercado do mÃªs', 'AlimentaÃ§Ã£o', 85000, 'utensils'],
+          ['Aluguel e condomínio', 'Moradia', 145000, 'home'],
+          ['Mercado do mês', 'Alimentação', 85000, 'utensils'],
           ['Internet fibra', 'Assinaturas', 12000, 'tag'],
         ];
 
@@ -661,19 +653,19 @@ function renderFinance(state) {
   let panelContent = '';
   if (state.finTab === 'lancamentos') {
     panelContent = `
-      <h3 class="demo-list-heading">LanÃ§amentos do mÃªs</h3>
+      <h3 class="demo-list-heading">Lançamentos do mês</h3>
       <ul class="demo-finance-list">
         <li>
           <span class="demo-finance-mark" style="color:var(--ok)">${demoIcon('arrowDown', 17)}</span>
-          <span><b>SalÃ¡rio e recebimentos</b><small>Conta Corrente Â· 05/${String(date.getMonth() + 1).padStart(2, '0')}</small></span>
+          <span><b>Salário e recebimentos</b><small>Conta Corrente · 05/${String(date.getMonth() + 1).padStart(2, '0')}</small></span>
           <strong style="color:var(--ok)">+ ${brl(income)}</strong>
         </li>
         ${baseItems
           .map(
             ([name, category, cents, icon]) => `<li>
           <span class="demo-finance-mark">${demoIcon(icon, 17)}</span>
-          <span><b>${name}</b><small>${category} Â· exemplo</small></span>
-          <strong>âˆ’ ${brl(cents)}</strong>
+          <span><b>${name}</b><small>${category} · exemplo</small></span>
+          <strong>− ${brl(cents)}</strong>
         </li>`,
           )
           .join('')}
@@ -682,24 +674,24 @@ function renderFinance(state) {
             (item) => `<li>
           <span class="demo-finance-mark">${demoIcon('tag', 17)}</span>
           <span><b>${escapeDemoText(item.title)}</b><small>Despesa avulsa</small></span>
-          <strong>âˆ’ ${brl(item.cents)}</strong>
+          <strong>− ${brl(item.cents)}</strong>
         </li>`,
           )
           .join('')}
       </ul>
 
       <form class="demo-add-form" data-demo-expense-form style="margin-top:var(--space-4)">
-        <label for="demo-expense-title">Registrar uma despesa fictÃ­cia</label>
+        <label for="demo-expense-title">Registrar uma despesa fictícia</label>
         <div>
-          <input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: cafÃ© da tarde" required>
+          <input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: café da tarde" required>
           <input name="amount" type="text" inputmode="decimal" maxlength="16" placeholder="R$ 15,00" aria-label="Valor" required>
-          <button class="btn primary" type="submit">LanÃ§ar</button>
+          <button class="btn primary" type="submit">Lançar</button>
         </div>
-        <p class="demo-note" data-demo-finance-error role="status" aria-live="polite">Nenhum dado bancÃ¡rio Ã© solicitado. VocÃª registra o que quiser acompanhar.</p>
+        <p class="demo-note" data-demo-finance-error role="status" aria-live="polite">Nenhum dado bancário é solicitado. Você registra o que quiser acompanhar.</p>
       </form>`;
   } else if (state.finTab === 'planejamento') {
     panelContent = `
-      <h3 class="demo-list-heading">OrÃ§amentos por categoria</h3>
+      <h3 class="demo-list-heading">Orçamentos por categoria</h3>
       <div style="display:grid;gap:var(--space-3);margin:var(--space-3) 0">
         <div class="card surface-soft" style="padding:var(--space-3)">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -710,14 +702,14 @@ function renderFinance(state) {
         </div>
         <div class="card surface-soft" style="padding:var(--space-3)">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <b>AlimentaÃ§Ã£o e mercado</b>
+            <b>Alimentação e mercado</b>
             <span>${brl(42000 + extraExpenses.reduce((s, i) => s + i.cents, 0))} / R$ 1.200 (52%)</span>
           </div>
           <div class="demo-water-segments" role="progressbar" style="height:8px"><span class="is-filled" style="width:52%"></span></div>
         </div>
         <div class="card surface-soft" style="padding:var(--space-3)">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <b>Lazer e saÃ­das</b>
+            <b>Lazer e saídas</b>
             <span>R$ 150 / R$ 400 (37%)</span>
           </div>
           <div class="demo-water-segments" role="progressbar" style="height:8px"><span class="is-filled" style="width:37%"></span></div>
@@ -727,7 +719,7 @@ function renderFinance(state) {
       <h3 class="demo-list-heading" style="margin-top:var(--space-4)">Metas de economia</h3>
       <div class="card surface-soft" style="padding:var(--space-3)">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-          <b>Viagem de fÃ©rias</b>
+          <b>Viagem de férias</b>
           <span style="color:var(--accent);font-weight:var(--weight-bold)">R$ 2.400 de R$ 5.000 (48%)</span>
         </div>
         <div class="demo-water-segments" role="progressbar" style="height:8px"><span class="is-filled" style="width:48%"></span></div>
@@ -737,14 +729,14 @@ function renderFinance(state) {
     panelContent = `
       <div class="head">
         <div>
-          <p class="section-kicker">Resumo do mÃªs</p>
+          <p class="section-kicker">Resumo do mês</p>
           <h2 id="demo-finance-title">${escapeDemoText(title)}</h2>
         </div>
-        <div class="demo-month-controls" role="group" aria-label="MÃªs de exemplo">
+        <div class="demo-month-controls" role="group" aria-label="Mês de exemplo">
           <button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="-1"
-            aria-label="MÃªs anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button>
+            aria-label="Mês anterior" ${state.financeMonth === 1 ? 'disabled' : ''}>${demoIcon('chevLeft', 18)}</button>
           <button type="button" class="iconbtn" data-demo-action="finance-month" data-direction="1"
-            aria-label="PrÃ³ximo mÃªs" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button>
+            aria-label="Próximo mês" ${state.financeMonth === 0 ? 'disabled' : ''}>${demoIcon('chevRight', 18)}</button>
         </div>
       </div>
 
@@ -754,7 +746,7 @@ function renderFinance(state) {
           <strong>${brl(income)}</strong>
         </article>
         <article class="is-expense">
-          <span><i aria-hidden="true">${demoIcon('arrowUp', 15)}</i>SaÃ­das</span>
+          <span><i aria-hidden="true">${demoIcon('arrowUp', 15)}</i>Saídas</span>
           <strong>${brl(expenses)}</strong>
         </article>
         <article class="is-result${result < 0 ? ' is-negative' : ''}">
@@ -763,49 +755,49 @@ function renderFinance(state) {
         </article>
       </div>
 
-      <h3 class="demo-list-heading">Contas e cartÃµes</h3>
+      <h3 class="demo-list-heading">Contas e cartões</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:var(--space-2);margin:var(--space-3) 0">
         <div class="card surface-soft" style="padding:var(--space-3)">
           <div style="font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:6px">${demoIcon('bank', 14)} Conta Corrente</div>
           <b style="font-size:var(--text-base);display:block;margin-top:4px">${brl(currentBalance - 680000 > 0 ? currentBalance - 680000 : 245000)}</b>
         </div>
         <div class="card surface-soft" style="padding:var(--space-3)">
-          <div style="font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:6px">${demoIcon('wallet', 14)} Reserva de EmergÃªncia</div>
+          <div style="font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:6px">${demoIcon('wallet', 14)} Reserva de Emergência</div>
           <b style="font-size:var(--text-base);display:block;margin-top:4px">R$ 6.800,00</b>
         </div>
         <div class="card surface-soft" style="padding:var(--space-3)">
-          <div style="font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:6px">${demoIcon('card', 14)} CartÃ£o de CrÃ©dito</div>
+          <div style="font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:6px">${demoIcon('card', 14)} Cartão de Crédito</div>
           <b style="font-size:var(--text-base);display:block;margin-top:4px;color:var(--warn)">Fatura: R$ 1.180,00</b>
           <span style="font-size:var(--text-xs);color:var(--muted)">Vence em 5 dias</span>
         </div>
       </div>
 
-      <h3 class="demo-list-heading">Principais gastos do mÃªs</h3>
+      <h3 class="demo-list-heading">Principais gastos do mês</h3>
       <ul class="demo-finance-list">
         ${baseItems
           .slice(0, 3)
           .map(
             ([name, category, cents, icon]) => `<li>
           <span class="demo-finance-mark">${demoIcon(icon, 17)}</span>
-          <span><b>${name}</b><small>${category} Â· exemplo</small></span>
-          <strong>âˆ’ ${brl(cents)}</strong>
+          <span><b>${name}</b><small>${category} · exemplo</small></span>
+          <strong>− ${brl(cents)}</strong>
         </li>`,
           )
           .join('')}
       </ul>
 
       <form class="demo-add-form" data-demo-expense-form style="margin-top:var(--space-4)">
-        <label for="demo-expense-title">LanÃ§ar uma despesa fictÃ­cia</label>
+        <label for="demo-expense-title">Lançar uma despesa fictícia</label>
         <div>
-          <input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: cafÃ©" required>
+          <input id="demo-expense-title" name="title" type="text" maxlength="60" placeholder="Ex.: café" required>
           <input name="amount" type="text" inputmode="decimal" maxlength="16" placeholder="R$ 12,50" aria-label="Valor da despesa" required>
           <button class="btn primary" type="submit">Adicionar</button>
         </div>
-        <p class="demo-note" data-demo-finance-error role="status" aria-live="polite">Valores fictÃ­cios. Nada Ã© salvo e nÃ£o hÃ¡ conexÃ£o com bancos.</p>
+        <p class="demo-note" data-demo-finance-error role="status" aria-live="polite">Valores fictícios. Nada é salvo e não há conexão com bancos.</p>
       </form>`;
   }
 
-  return `${renderPageHeading('FinanÃ§as', 'Acompanhe contas, cartÃµes, entradas e orÃ§amentos do mÃªs sem expor senhas bancÃ¡rias.')}
+  return `${renderPageHeading('Finanças', 'Acompanhe contas, cartões, entradas e orçamentos do mês sem expor senhas bancárias.')}
     ${renderFinanceSubtabs(state)}
     <section class="card demo-area-panel" aria-labelledby="demo-finance-title">
       ${panelContent}
@@ -864,7 +856,7 @@ function updateDemoView(root, state, focusHeading = false) {
 
 export function renderLandingDemo(root) {
   stopLandingDemo(root);
-  document.title = 'DemonstraÃ§Ã£o | aurora.';
+  document.title = 'Demonstração | aurora.';
   const state = {
     view: 'today',
     planTab: 'tasks',
@@ -893,13 +885,13 @@ export function renderLandingDemo(root) {
         id: 'call',
         title: 'Marcar consulta de rotina',
         priority: 'normal',
-        tag: 'saÃºde',
-        dueDate: 'AmanhÃ£',
+        tag: 'saúde',
+        dueDate: 'Amanhã',
         done: false,
       },
       {
         id: 'groceries',
-        title: 'Compras de hortifrÃºti da semana',
+        title: 'Compras de hortifrúti da semana',
         priority: 'low',
         tag: 'casa',
         dueDate: 'Sem prazo',
@@ -920,10 +912,10 @@ export function renderLandingDemo(root) {
     cycleDay: localDateKey(new Date()),
     cycleSymptom: false,
     cycleFlow: 'light',
-    annualGoal: 'Viver com mais foco, saÃºde e tranquilidade',
+    annualGoal: 'Viver com mais foco, saúde e tranquilidade',
     annualGoals: [
-      { id: 'g1', text: 'Completar reserva de emergÃªncia', area: 'FinanÃ§as', done: true },
-      { id: 'g2', text: 'Caminhar ou praticar yoga 4x por semana', area: 'SaÃºde', done: false },
+      { id: 'g1', text: 'Completar reserva de emergência', area: 'Finanças', done: true },
+      { id: 'g2', text: 'Caminhar ou praticar yoga 4x por semana', area: 'Saúde', done: false },
       { id: 'g3', text: 'Ler 12 livros ao longo do ano', area: 'Mente', done: false },
     ],
     calendarConnected: true,
@@ -931,23 +923,23 @@ export function renderLandingDemo(root) {
 
   root.innerHTML = `
     <div class="app demo-app">
-      <a class="skip" href="#demo-main" data-public-action="skip">Pular para o conteÃºdo principal</a>
+      <a class="skip" href="#demo-main" data-public-action="skip">Pular para o conteúdo principal</a>
       ${renderPublicHeader({ demo: true }).replace(
         '<span class="header-actions public-header-actions">',
         `<nav
-        class="nav demo-nav" aria-label="Ãreas de exemplo">${renderNavigation(state)}</nav><span
+        class="nav demo-nav" aria-label="Áreas de exemplo">${renderNavigation(state)}</nav><span
         class="header-actions public-header-actions">`,
       )}
       <main class="main demo-main" id="demo-main" data-route="inicio" tabindex="-1">
         <div class="demo-screen" data-demo-screen></div>
         <section class="demo-cta" id="demo-help"><div><p
-          class="section-kicker">Gostou da experiÃªncia?</p><h2>Comece a organizar sua rotina no Aurora</h2><p>Crie sua conta grÃ¡tis para salvar suas tarefas, hÃ¡bitos, finanÃ§as e ciclo com seguranÃ§a.</p></div><div
+          class="section-kicker">Gostou da experiência?</p><h2>Comece a organizar sua rotina no Aurora</h2><p>Crie sua conta grátis para salvar suas tarefas, hábitos, finanças e ciclo com segurança.</p></div><div
           class="public-actions"><a class="btn primary" href="/criar-conta"
-          data-public-action="signup">Criar conta grÃ¡tis</a><a class="btn" href="/"
-          data-public-action="landing">Voltar Ã  pÃ¡gina inicial</a></div></section>
+          data-public-action="signup">Criar conta grátis</a><a class="btn" href="/"
+          data-public-action="landing">Voltar à página inicial</a></div></section>
         <footer class="demo-footer"><button type="button" class="footer-link"
-          data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">Â·</span><button type="button"
-          class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">Â·</span><button
+          data-demo-action="help">Ajuda e sobre</button><span aria-hidden="true">·</span><button type="button"
+          class="footer-link" data-legal-document="terms">Termos</button><span aria-hidden="true">·</span><button
           type="button" class="footer-link" data-legal-document="privacy">Privacidade</button></footer>
       </main>
     </div>`;
@@ -1069,7 +1061,7 @@ export function renderLandingDemo(root) {
       const error = form.querySelector('[data-demo-finance-error]');
       if (!title || !Number.isSafeInteger(cents) || cents <= 0) {
         if (error) {
-          error.textContent = 'Informe uma descriÃ§Ã£o e um valor vÃ¡lido, maior que zero.';
+          error.textContent = 'Informe uma descrição e um valor válido, maior que zero.';
           error.dataset.state = 'error';
         }
         return;

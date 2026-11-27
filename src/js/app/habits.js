@@ -166,7 +166,7 @@ export function updateHabitIdeaFilters() {
 export const HABIT_COLOR_NAMES = [
   'Rosa',
   'Coral',
-  'Âmbar',
+  'âmbar',
   'Verde-claro',
   'Verde',
   'Azul-claro',

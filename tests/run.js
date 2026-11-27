@@ -62,6 +62,11 @@ import { APPEARANCE_PRESETS, LOOK_DEFAULT, PALETTES, darkenFor, hexOk, lum, pale
 import { renderPublicHeader } from '../src/js/features/appearance/public-controls.js';
 import { nextDue } from '../src/js/features/planning/recurrence.js';
 import { parseQuickDate } from '../src/js/features/planning/quick-date.js';
+import {
+  normalizeSimpleListName,
+  parseSimpleListItems,
+  simpleListNameKey,
+} from '../src/js/features/planning/simple-lists.js';
 import { matchCategoryRule, normalizeCategoryRules } from '../src/js/features/finance/category-rules.js';
 import { searchRecords } from '../src/js/features/search/search.js';
 import { filteredTasks, todayTasks } from '../src/js/features/planning/task-selection.js';
@@ -217,6 +222,23 @@ const test = (name, run) => {
   }
 };
 
+test('listas simples normalizam nomes e aceitam itens colados em lote', () => {
+  const parsed = parseSimpleListItems(' - café\r\n2. frutas\n\n pão ');
+  const tooManyItems = parseSimpleListItems(Array.from({ length: 31 }, (_, index) => `Item ${index}`).join('\n'));
+  const tooLongItem = parseSimpleListItems('x'.repeat(121));
+  if (
+    normalizeSimpleListName('  Feira  ') !== 'Feira' ||
+    normalizeSimpleListName('x'.repeat(31)) !== '' ||
+    simpleListNameKey('  CAFÉ ') !== simpleListNameKey('café') ||
+    parsed.error ||
+    parsed.items.join('|') !== 'café|frutas|pão' ||
+    !tooManyItems.error ||
+    !tooLongItem.error
+  ) {
+    throw new Error('Nomes devem ser limitados e a entrada em lote deve validar até 30 linhas de 120 caracteres.');
+  }
+});
+
 test('convite de feedback respeita os cinco dias e direciona para o formulário no app', () => {
   const now = Date.UTC(2026, 0, 1);
   const nextAt = feedbackPromptNextAt(now);
@@ -362,10 +384,10 @@ test('Movimentações financeiras oferece apenas a lista de lançamentos', () =>
   }
 });
 
-test('Planejar mantém Calendário acessível junto às outras visualizações', () => {
-  const html = renderPlanningView({
+test('Planejar mantém listas e Calendário acessíveis junto às outras visualizações', () => {
+  const renderPlan = (planView) => renderPlanningView({
     S: { settings: { prefs: { annualPlans: {} } } },
-    ui: { planView: 'revisao', filters: { f: 'todas', q: '', sort: 'prazo' } },
+    ui: { planView, filters: { f: 'todas', q: '', sort: 'prazo' } },
     filterOptions: [],
     allTags: () => [],
     areaPageTitle: (_route, _title, action) => h`<header>${action}</header>`,
@@ -375,20 +397,30 @@ test('Planejar mantém Calendário acessível junto às outras visualizações',
     taskWeek: () => '<section>Semana</section>',
     weeklyReviewView: () => '<section>Revisão semanal</section>',
     taskListHtml: () => '<ul></ul>',
+    taskListsHtml: () => '<section>Lista de compras</section>',
   }).s;
-  const expectedViews = ['lista', 'calendario', 'revisao', 'anual'];
+  const html = renderPlan('revisao');
+  const expectedViews = ['lista', 'listas', 'calendario', 'revisao', 'anual'];
   const taskTabIndex = html.indexOf('id="plan-tab-lista"');
   const annualTabIndex = html.indexOf('id="plan-tab-anual"');
   const calendarTabIndex = html.indexOf('id="plan-tab-calendario"');
   if (!expectedViews.every((view) => html.includes(`id="plan-tab-${view}"`))
     || html.includes('id="plan-tab-semana"')
-    || !(taskTabIndex < annualTabIndex && annualTabIndex < calendarTabIndex)
+    || !(taskTabIndex < html.indexOf('id="plan-tab-listas"')
+      && html.indexOf('id="plan-tab-listas"') < annualTabIndex
+      && annualTabIndex < calendarTabIndex)
     || !html.includes('aria-labelledby="plan-tab-revisao"')
     || !html.includes('Revisão semanal')
     || !html.includes('data-action="task-new"')
     || html.includes('plan-tool-review')
     || html.includes('>Ver tarefas</button>')) {
     throw new Error('Todas as visualizações, incluindo o Calendário, devem estar acessíveis no mesmo seletor.');
+  }
+  const listsHtml = renderPlan('listas');
+  if (!listsHtml.includes('aria-selected="true"')
+    || !listsHtml.includes('Lista de compras')
+    || !listsHtml.includes('aria-labelledby="plan-tab-listas"')) {
+    throw new Error('A visualização de Listas deve renderizar o painel selecionado e sua lista.');
   }
   const calendarsPanel = renderGoogleCalendarPlanPanel([
     { selectedIds: ['primary', 'work'] },

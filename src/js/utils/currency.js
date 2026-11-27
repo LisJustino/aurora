@@ -1,9 +1,25 @@
+// @ts-check
+
+/**
+ * Integer amount of money in centavos (BRL cents). Must be a safe integer.
+ * @typedef {number} Cents
+ */
+
+/**
+ * @param {Cents} cents
+ * @returns {string} e.g. `R$ 1.234,56`
+ */
 export const brl = (cents) =>
   (cents / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   });
 
+/**
+ * Masks free-form input as `1.234,56` (digits are read as cents).
+ * @param {unknown} value
+ * @returns {string}
+ */
 export function formatMoneyInput(value) {
   const text = String(value);
   const negative = text.includes('-');
@@ -16,6 +32,12 @@ export function formatMoneyInput(value) {
   return `${negative ? '-' : ''}${groupedWhole},${fraction}`;
 }
 
+/**
+ * Parses `R$ 1.234,56`, `1234,5`, `1234.56`… into cents. Returns `NaN` when invalid
+ * or outside the safe integer range.
+ * @param {unknown} value
+ * @returns {Cents}
+ */
 export function parseMoney(value) {
   const normalized = String(value)
     .trim()

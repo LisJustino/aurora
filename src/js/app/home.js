@@ -245,10 +245,13 @@ export function viewInicio() {
   );
   const habitsToday = habitsOverview.scheduled;
   const habitsLeft = habitsOverview.planned - habitsOverview.completed;
+  const hasOtherDayItems = tt.length > 0 || calendarEvents.length > 0;
   const habitNote = habitsToday.length
-    ? habitsLeft
+    ? habitsLeft && hasOtherDayItems
       ? ` Faltam ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')}.`
-      : ' Hábitos de hoje em dia.'
+      : habitsLeft
+        ? ''
+        : ' Hábitos de hoje em dia.'
     : '';
   const taskSummary = [
     overdue.length ? `${overdue.length} ${plural(overdue.length, 'tarefa atrasada', 'tarefas atrasadas')}` : '',
@@ -260,9 +263,13 @@ export function viewInicio() {
     (taskSummary ||
       (pendingCalendarEvents.length
         ? `${pendingCalendarEvents.length} ${plural(pendingCalendarEvents.length, 'evento pendente', 'eventos pendentes')} na agenda hoje.`
-        : !tt.length && !calendarEvents.length
-          ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
-          : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
+        : habitsLeft
+          ? hasOtherDayItems
+            ? 'Tarefas e agenda em dia.'
+            : `Ainda há ${habitsLeft} ${plural(habitsLeft, 'hábito', 'hábitos')} para concluir hoje.`
+          : !hasOtherDayItems
+            ? 'Seu dia está livre por enquanto. Que tal planejar algo?'
+            : 'Tudo concluído por hoje. Aproveite o resto do dia.')) + habitNote;
   const waterTotal = waterMlForDay(S.water, todayKey);
   const waterHabit =
     S.habits.find((habit) => (habit.status || 'active') === 'active' && isWaterHabit(habit)) ||

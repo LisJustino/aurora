@@ -73,7 +73,10 @@ export const CATEGORY_ICON_LABELS = {
   card: 'Cartão',
   bank: 'Banco',
 };
-export const DEF_LISTS = [{ name: 'Pessoal', color: '#c97994' }];
+export const DEF_LISTS = [
+  { name: 'Pessoal', color: '#c97994' },
+  { name: 'Compras', color: '#72a578' },
+];
 const DEF_CATS = {
   out: [
     ['Alimentação', '#c97994', 'utensils'],

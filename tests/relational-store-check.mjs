@@ -70,6 +70,15 @@ const taskIconsMigration = await readFile(
 );
 assert.match(taskIconsMigration, /add column if not exists icon_key text/i);
 assert.doesNotMatch(taskIconsMigration, /update\s+public\.tasks/i);
+const ownerEnforcementMigration = await readFile(
+  new URL('../supabase/migrations/20261127000000_relational_owner_enforcement.sql', import.meta.url),
+  'utf8',
+);
+assert.match(ownerEnforcementMigration, /create or replace function public\.enforce_authenticated_owner/i);
+assert.match(ownerEnforcementMigration, /new\.user_id := \(select auth\.uid\(\)\)/i);
+assert.match(ownerEnforcementMigration, /before insert or update of user_id/i);
+assert.match(ownerEnforcementMigration, /for each row execute function public\.enforce_authenticated_owner/i);
+assert.match(ownerEnforcementMigration, /Uma sessão autenticada é obrigatória/i);
 const taskIntegrationKeysMigration = await readFile(
   new URL('../supabase/migrations/20261118000000_task_integration_keys.sql', import.meta.url),
   'utf8',
@@ -746,6 +755,16 @@ const accountRows = {
     preferences: { onboardingComplete: true, introSeen: true },
     enabled_areas: { finances: true },
   }],
+  task_lists: [{
+    id: '36a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
+    user_id: userId,
+    name: 'Compras',
+    color: '#72a578',
+    sort_order: 1,
+    is_test_data: false,
+    deleted_at: null,
+    updated_at: versionStamp,
+  }],
   tasks: [{
     id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
     title: 'Tarefa válida',
@@ -790,6 +809,28 @@ const accountRows = {
     is_test_data: false,
     deleted_at: null,
     updated_at: versionStamp,
+  }, {
+    id: '68a24b2c-0d9c-48c6-ae92-f1ad4b2e01d7',
+    title: 'Comprar frutas',
+    is_completed: false,
+    tag: null,
+    list_id: '36a24b2c-0d9c-48c6-ae92-f1ad4b2e01d5',
+    group_key: null,
+    group_title: null,
+    due_date: null,
+    priority: 'normal',
+    task_created_at: '2026-10-30T12:00:00.000Z',
+    completed_at: null,
+    planned_time: null,
+    repeat_rule: 'none',
+    remind_minutes: null,
+    notes: null,
+    sort_order: 1,
+    focus_seconds: 0,
+    icon_key: null,
+    is_test_data: false,
+    deleted_at: null,
+    updated_at: versionStamp,
   }],
 };
 const loadingClient = {
@@ -802,7 +843,7 @@ const loadingClient = {
 };
 const loaded = await new RelationalAccountStore(loadingClient, userId).load();
 assert.ok(Array.isArray(loaded.tasks));
-assert.equal(loaded.tasks.length, 2);
+assert.equal(loaded.tasks.length, 3);
 assert.equal(loaded.tasks[0].title, 'Tarefa válida');
 assert.equal(loaded.tasks[0].dueDate, null);
 assert.equal(loaded.tasks[0].priority, 'normal');
@@ -810,6 +851,7 @@ assert.equal(loaded.tasks[0].focusSeconds, 0);
 assert.equal(loaded.tasks[0].icon, 'book');
 assert.equal(Object.values(loaded.tasks[0]).includes(undefined), false);
 assert.equal(loaded.tasks[1].icon, undefined, 'tarefas antigas sem ícone continuam sem o campo');
+assert.equal(loaded.tasks[2].list, 'Compras', 'itens vinculados à lista precisam sobreviver à leitura relacional');
 for (const field of ['tag', 'list', 'groupId', 'groupTitle', 'doneAt', 'time', 'repeat', 'remind', 'notes', 'tags', 'subtasks', 'sample']) {
   assert.equal(Object.hasOwn(loaded.tasks[0], field), false, `${field} should be omitted when empty`);
 }
@@ -843,8 +885,9 @@ const snapshotStore = new RelationalAccountStore({
 }, userId);
 const snapshotState = await snapshotStore.load({ includeCycle: false });
 assert.deepEqual(snapshotCalls, [{ name: 'load_relational_account', args: { p_include_cycle: false } }]);
-assert.equal(snapshotState.tasks.length, 2);
+assert.equal(snapshotState.tasks.length, 3);
 assert.equal(snapshotState.tasks[0].title, 'Tarefa válida');
+assert.equal(snapshotState.tasks[2].list, 'Compras');
 assert.equal(snapshotStore.rowVersions.get('tasks').get(snapshotState.tasks[0].id), versionStamp);
 assert.deepEqual(snapshotState.cycle, []);
 assert.deepEqual(snapshotState.cycleLog, {});

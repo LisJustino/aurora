@@ -48,6 +48,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5173';
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
   await page.goto(`${BASE}/demonstracao`);
+  assert.doesNotMatch(await page.locator('body').innerText(), /Ã|Â|ðŸ|â€”|â€|âˆ/);
   const homeHabit = page.locator('.home-habit-checkins [data-demo-action="habit-toggle"]');
   await homeHabit.waitFor();
   assert.equal(
@@ -67,7 +68,7 @@ const BASE = process.argv[2] || 'http://127.0.0.1:5173';
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.locator('.demo-nav a[data-demo-view="habits"]').click();
   assert.equal(
-    await page.locator(`.demo-habit-week [data-day-index="${habitDay}"]`).getAttribute('aria-pressed'),
+    await page.locator(`.demo-habit-card--large [data-habit-id="alongar"][data-day-index="${habitDay}"]`).getAttribute('aria-pressed'),
     initialPressed === 'true' ? 'false' : 'true',
   );
 

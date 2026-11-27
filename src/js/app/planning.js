@@ -143,6 +143,106 @@ export function taskListHtml() {
       : '';
   })}</div>${more}`;
 }
+export function taskListsHtml() {
+  const lists = S.settings.lists || [];
+  if (!lists.length) return areaEmpty('Nenhuma lista disponível.', 'Crie uma lista para começar.', '', 'list', 'h3');
+  const names = S.settings.lists.map((list) => list.name);
+  if (!names.includes(ui.taskListName)) ui.taskListName = names[0];
+
+  const activeName = ui.taskListName;
+  const items = S.tasks
+    .filter((task) => task.list === activeName)
+    .sort((a, b) => Number(a.done) - Number(b.done) || (a.order ?? 0) - (b.order ?? 0));
+  const openItems = items.filter((task) => !task.done);
+  const doneItems = items.filter((task) => task.done);
+
+  return h`<section class="simple-lists" aria-label="Listas simples">
+    <div class="simple-lists-toolbar">
+      <div class="simple-list-tabs" role="group" aria-label="Escolher lista">${S.settings.lists.map((list) => {
+        const count = S.tasks.filter((task) => task.list === list.name && !task.done).length;
+        return h`<button type="button" class="simple-list-tab ${list.name === activeName ? 'is-active' : ''}"
+            aria-pressed="${String(list.name === activeName)}"
+            data-action="planning-list-select" data-name="${list.name}"><span>${list.name}</span><span
+            class="simple-list-tab-count">${count}</span></button>`;
+      })}</div>
+      <form class="simple-list-create" data-form="planning-list-create">
+        <label class="sr" for="planning-new-list">Nova lista</label>
+        <input id="planning-new-list" name="name" type="text" maxlength="30"
+          autocomplete="off" placeholder="Ex.: Feira de sábado" required>
+        <button type="submit" class="btn">${icon('plus', 16)}Criar lista</button>
+      </form>
+    </div>
+
+    <div class="simple-list-panel" role="tabpanel" aria-label="${activeName}">
+      <header class="simple-list-heading">
+        <div class="simple-list-title">
+          <p class="section-kicker">LISTA</p>
+          ${
+            ui.editingTaskList
+              ? h`<form id="planning-list-rename" class="simple-list-rename" data-form="planning-list-rename"
+                  data-name="${activeName}">
+                  <label class="sr" for="planning-list-rename-name">Nome da lista</label>
+                  <input id="planning-list-rename-name" name="name" type="text" maxlength="30"
+                    value="${activeName}" required>
+                  <button type="submit" class="btn sm primary">Salvar</button>
+                  <button type="button" class="btn sm ghost" data-action="planning-list-rename-cancel">Cancelar</button>
+                </form>`
+              : h`<h3>${activeName}</h3>`
+          }
+        </div>
+        <div class="simple-list-heading-actions">
+          <span class="pill">${openItems.length} ${plural(openItems.length, 'pendente', 'pendentes')}</span>
+          ${
+            !ui.editingTaskList
+              ? h`<button type="button" class="ibtn" data-action="planning-list-rename-mode"
+                    aria-label="Renomear lista ${activeName}" title="Renomear lista">${icon('pencil', 17)}</button>
+                  ${
+                    lists.length > 1
+                      ? h`<button type="button" class="ibtn" data-action="planning-list-delete"
+                          data-name="${activeName}" aria-label="Excluir lista ${activeName}" title="Excluir lista">${icon('trash', 17)}</button>`
+                      : ''
+                  }`
+              : ''
+          }
+        </div>
+      </header>
+
+      <form class="simple-list-add" data-form="planning-list-item" data-list="${activeName}">
+        <label class="sr" for="planning-list-item-title">Novo item</label>
+        <textarea id="planning-list-item-title" name="items" rows="2" maxlength="4000"
+          autocomplete="off" placeholder="Escreva ou cole itens, um por linha&#10;Ex.: café, frutas, pão" required></textarea>
+        <div class="simple-list-add-actions">
+          <span class="small muted">Um por linha · até 30 itens</span>
+          <button type="submit" class="btn primary">${icon('plus', 16)}Adicionar itens</button>
+        </div>
+      </form>
+
+      ${
+        openItems.length
+          ? h`<ul class="list simple-list-items" aria-label="Itens pendentes">${openItems.map(taskRow)}</ul>`
+          : h`<div class="simple-list-empty">${areaEmpty(
+              'Nenhum item pendente.',
+              'Adicione o que você precisa lembrar nesta lista.',
+              '',
+              'list',
+              'h4',
+            )}</div>`
+      }
+      ${
+        doneItems.length
+          ? h`<details class="simple-list-completed">
+              <summary>Concluídos <span class="n">${doneItems.length}</span></summary>
+              <button type="button" class="btn sm ghost simple-list-reopen"
+                data-action="planning-list-reopen-completed" data-name="${activeName}">
+                ${icon('undo', 14)}Reabrir todos
+              </button>
+              <ul class="list simple-list-items">${doneItems.map(taskRow)}</ul>
+            </details>`
+          : ''
+      }
+    </div>
+  </section>`;
+}
 export function viewPlanejar() {
   return renderPlanningView({
     S,
@@ -177,6 +277,7 @@ export function viewPlanejar() {
       }),
     weeklyReviewView,
     taskListHtml,
+    taskListsHtml,
   });
 }
 

@@ -2,6 +2,7 @@ import { $ } from '../utils/dom.js';
 import { addDays, isDay, shortDate, today } from '../utils/dates.js';
 import { newId } from '../utils/ids.js';
 import { taskIconKey } from '../features/planning/task-icons.js';
+import { simpleListNameKey } from '../features/planning/simple-lists.js';
 import { ANNUAL_PLAN_IDEA_CATEGORIES, ANNUAL_PLAN_IDEAS } from '../features/planning/annual-plan.js';
 import { MAX_COUNT_TARGET } from '../features/planning/goal-progress.js';
 import { playMotion, prefersReducedMotion } from '../utils/motion.js';
@@ -37,6 +38,88 @@ import { completionFeedback, vibrateFeedback } from './shell.js';
 import { S, settingsView, ui, weekStartDay } from './state.js';
 
 export const PLANNING_ACTIONS = {
+  'planning-list-select': (el) => {
+    const name = S.settings.lists?.find(
+      (list) => simpleListNameKey(list.name) === simpleListNameKey(el.dataset.name),
+    )?.name;
+    if (!name) return;
+    ui.taskListName = name;
+    ui.editingTaskList = false;
+    render();
+  },
+  'planning-list-reopen-completed': (el) => {
+    const list = S.settings.lists?.find((item) => simpleListNameKey(item.name) === simpleListNameKey(el.dataset.name));
+    if (!list) return;
+    const completed = S.tasks.filter(
+      (task) => task.done && simpleListNameKey(task.list) === simpleListNameKey(list.name),
+    );
+    if (!completed.length) return;
+
+    const previousState = completed.map((task) => ({ id: task.id, doneAt: task.doneAt }));
+    const snapshot = snapshotSlices(['tasks']);
+    completed.forEach((task) => {
+      task.done = false;
+      task.doneAt = undefined;
+    });
+    if (!saveSlicesWithRollback(['tasks'], snapshot, true, 'a reabertura dos itens da lista')) return;
+    render();
+    toast(`${completed.length} ${plural(completed.length, 'item reaberto', 'itens reabertos')}.`, 'action', () => {
+      const undoSnapshot = snapshotSlices(['tasks']);
+      previousState.forEach(({ id, doneAt }) => {
+        const task = findTask(id);
+        if (!task) return;
+        task.done = true;
+        if (doneAt === undefined) delete task.doneAt;
+        else task.doneAt = doneAt;
+      });
+      if (saveSlicesWithRollback(['tasks'], undoSnapshot, true, 'a restauração dos itens concluídos')) {
+        render();
+      }
+    });
+  },
+  'planning-list-rename-mode': () => {
+    ui.editingTaskList = true;
+    render();
+    requestAnimationFrame(() => {
+      const input = document.querySelector('#planning-list-rename [name="name"]');
+      input?.focus();
+      input?.select();
+    });
+  },
+  'planning-list-rename-cancel': () => {
+    ui.editingTaskList = false;
+    render();
+  },
+  'planning-list-delete': (el) => {
+    const list = S.settings.lists?.find((item) => simpleListNameKey(item.name) === simpleListNameKey(el.dataset.name));
+    if (!list || S.settings.lists.length < 2) return;
+    const fallback = S.settings.lists.find((item) => item !== list);
+    if (!fallback) return;
+    if (ui.confirmedAction !== 'planning-list-delete') {
+      return requestActionConfirmation(
+        'planning-list-delete',
+        { name: list.name, fallback: fallback.name },
+        'Excluir lista?',
+        `A lista “${list.name}” será removida. Os itens existentes serão mantidos em “${fallback.name}”.`,
+        'Excluir lista',
+      );
+    }
+    const currentList = S.settings.lists.find((item) => simpleListNameKey(item.name) === simpleListNameKey(list.name));
+    const destination = S.settings.lists.find(
+      (item) => simpleListNameKey(item.name) === simpleListNameKey(fallback.name),
+    );
+    if (!currentList || !destination || S.settings.lists.length < 2) return;
+    const snapshot = snapshotSlices(['settings', 'tasks']);
+    S.settings.lists = S.settings.lists.filter((item) => item !== currentList);
+    S.tasks.forEach((task) => {
+      if (simpleListNameKey(task.list) === simpleListNameKey(currentList.name)) task.list = destination.name;
+    });
+    ui.taskListName = destination.name;
+    ui.editingTaskList = false;
+    if (!saveSlicesWithRollback(['settings', 'tasks'], snapshot, true, 'a exclusão da lista')) return;
+    render();
+    toast(`Itens mantidos em “${destination.name}”.`, 'success');
+  },
   'edit-task': (el) => {
     const task = findTask(el.dataset.id);
     if (task)
@@ -201,7 +284,7 @@ export const PLANNING_ACTIONS = {
     render();
   },
   'plan-view': (el) => {
-    if (!['lista', 'calendario', 'revisao', 'anual'].includes(el.dataset.v)) return;
+    if (!['lista', 'listas', 'calendario', 'revisao', 'anual'].includes(el.dataset.v)) return;
     const focusTab = el.getAttribute('role') === 'tab';
     ui.planView = el.dataset.v;
     ui.annualEditingGoalId = '';

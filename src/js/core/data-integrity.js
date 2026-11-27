@@ -1,9 +1,34 @@
+// @ts-check
+
+/** @typedef {Record<string, any>} PlainObject */
+
+/**
+ * @typedef {object} FilterResult
+ * @property {any[]} records Records accepted by the validator.
+ * @property {number} rejectedCount Rejected records (1 when the input is not an array).
+ */
+
+/**
+ * @typedef {object} FinanceReferenceResult
+ * @property {unknown} value Finance object without dangling transactions/recurrences.
+ * @property {number} invalidCount
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {value is PlainObject}
+ */
 export function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
 }
 
+/**
+ * @param {unknown} value
+ * @param {(record: any) => boolean} isValidRecord
+ * @returns {FilterResult}
+ */
 export function filterValidRecords(value, isValidRecord) {
   if (!Array.isArray(value)) return { records: [], rejectedCount: 1 };
 
@@ -15,6 +40,11 @@ export function filterValidRecords(value, isValidRecord) {
   });
   return { records, rejectedCount };
 }
+
+/**
+ * @param {unknown} finance
+ * @returns {FinanceReferenceResult}
+ */
 export function validateFinanceReferences(finance) {
   if (!isPlainObject(finance)) {
     return { value: finance, invalidCount: 1 };
